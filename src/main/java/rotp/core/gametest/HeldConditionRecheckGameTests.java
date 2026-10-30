@@ -1,6 +1,7 @@
 package rotp.core.gametest;
 
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.UUID;
 
 import rotp.core.api.stand.StandPowerTransitions;
@@ -151,14 +152,14 @@ public final class HeldConditionRecheckGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 80)
 	public static void failedCheckStillSendsSendoWave(GameTestHelper helper) {
+		AABB area = new AABB(helper.absolutePos(BlockPos.ZERO)).inflate(12.0D);
+		int wavesBefore = helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area).size();
 		try (HamonFixture f = new HamonFixture(helper, "HeldSendoHand", ModHamonSkills.SENDO_OVERDRIVE.get())) {
 			for (int y = 2; y <= 6; y++) {
 				helper.setBlock(new BlockPos(2, y, 5), Blocks.STONE.defaultBlockState());
 			}
 			// the aim the client sends, its vanilla pick, which 1.16 took Sendo Overdrive's block from
 			f.component.entityAim.setTarget(ActionTarget.fromVanilla(f.user.pick(f.user.blockInteractionRange(), 1.0F, false)));
-			AABB area = new AABB(helper.absolutePos(BlockPos.ZERO)).inflate(12.0D);
-			int wavesBefore = helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area).size();
 			EntityActionInstance action = f.start("sendo_overdrive", true);
 			f.tick(5);
 			helper.assertTrue(action.getPhase() == ActionPhase.WINDUP, "Sendo Overdrive is not charging");
@@ -168,8 +169,11 @@ public final class HeldConditionRecheckGameTests {
 					"a failed check did not end the Sendo Overdrive hold");
 			helper.assertTrue(helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area).size() > wavesBefore,
 					"1.16 Sendo Overdrive sent its wave on any stop of the hold, a failed check included");
-			helper.succeed();
 		}
+		// a wave outlives the test that sent it and, its user gone, hurts whatever stands in it, a neighbouring test's mobs too
+		int left = helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area).size() - wavesBefore;
+		helper.assertTrue(left <= 0, "Fixture: the test left " + left + " Sendo Overdrive wave(s) in the level");
+		helper.succeed();
 	}
 
 	// 1.16 checkConditions refused a user frozen in someone else's stopped time (!canUpdate), and stopHeldAction(true)
@@ -735,6 +739,8 @@ public final class HeldConditionRecheckGameTests {
 		private final PlayerPower power;
 		private final HamonData hamon;
 		private final LivingComponentAction component;
+		private final AABB area;
+		private final List<HamonSendoOverdriveEntity> wavesBefore;
 
 		private HamonFixture(GameTestHelper helper, String name, rotp.core.impl.powers.hamon.HamonSkill skill) {
 			this.helper = helper;
@@ -747,6 +753,9 @@ public final class HeldConditionRecheckGameTests {
 			user.getAbilities().instabuild = false;
 			user.setNoGravity(true);
 			helper.assertTrue(helper.getLevel().addFreshEntity(user), "Could not add held-check test player");
+			// the waves this user's Sendo Overdrive sends at a block within its reach go with it
+			area = new AABB(user.blockPosition()).inflate(12.0D);
+			wavesBefore = helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area);
 			power = PowerClass.PLAYER_POWER.attachGet(user);
 			power.setPowerType(ModPlayerPowers.HAMON.get());
 			hamon = PlayerPower.getPowerData(user, ModPlayerPowers.HAMON).orElseThrow();
@@ -786,6 +795,11 @@ public final class HeldConditionRecheckGameTests {
 			user.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get()).heldKeys.clear();
 			component.setAction(null, SyncType.NO_SYNC);
 			user.removeAllEffects();
+			for (HamonSendoOverdriveEntity wave : helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area)) {
+				if (!wavesBefore.contains(wave)) {
+					wave.discard();
+				}
+			}
 			user.discard();
 		}
 	}
