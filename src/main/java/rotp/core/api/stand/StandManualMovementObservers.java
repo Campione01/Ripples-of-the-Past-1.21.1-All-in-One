@@ -429,6 +429,11 @@ public final class StandManualMovementObservers {
 		 * every event still pending at the close barrier is counted as dropped.
 		 */
 		public CloseDrainResult closeAndFreeze() {
+			return closeAndFreeze(null);
+		}
+
+		private CloseDrainResult closeAndFreeze(
+				@Nullable Runnable whileClosingForTest) {
 			if (callbackThread == Thread.currentThread()) {
 				deferredCloseRequested.set(true);
 				throw new IllegalStateException(
@@ -446,6 +451,9 @@ public final class StandManualMovementObservers {
 					return previous;
 				}
 				transitionToClosingAndUnregister();
+				if (whileClosingForTest != null) {
+					whileClosingForTest.run();
+				}
 				lockBoundedly(drainMutex, "drain");
 				int drained;
 				try {
@@ -860,6 +868,11 @@ public final class StandManualMovementObservers {
 		void commitReservedForTest(ReservedOfferForTest reserved) {
 			Objects.requireNonNull(reserved, "reserved");
 			commitReserved(reserved.slot);
+		}
+
+		CloseDrainResult closeAndFreezeForTest(Runnable whileClosing) {
+			Objects.requireNonNull(whileClosing, "whileClosing");
+			return closeAndFreeze(whileClosing);
 		}
 
 		private enum Lifecycle {
