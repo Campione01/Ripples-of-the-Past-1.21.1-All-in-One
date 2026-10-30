@@ -46,11 +46,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class MagiciansRedKickSlide116GameTests {
-	// Each scene stands this far west of its test cell, outside the grid, which grows east and south from its first
-	// cell: in the grid the slide ended within a block of the next row's cell, where that test's end removed the Stand
-	// before its kick ended. Each test has a lane of its own there, wider than the grid, so that no two scenes meet.
-	private static final int AWAY_BLOCKS = 256;
-	private static final int LANE_BLOCKS = 64;
+	// Each scene stands off the grid, in a lane of its own (GameTestChunkTickets.offGridCell, lanes 0-3): in the grid the
+	// slide ended within a block of the next row's cell, where that test's end removed the Stand before its kick ended.
 	// StructureGridSpawner puts the next row 6 blocks past a row of one-block cells
 	private static final int NEXT_ROW_BLOCKS = 7;
 	// along the look from the user: the Stand winds up 2 blocks ahead and slides at most 3 more
@@ -149,11 +146,7 @@ public final class MagiciansRedKickSlide116GameTests {
 
 	// where a lane's scene stands as if its test cell were there
 	private static BlockPos cell(GameTestHelper helper, int lane) {
-		return helper.absolutePos(BlockPos.ZERO).west(away(lane));
-	}
-
-	private static int away(int lane) {
-		return AWAY_BLOCKS + LANE_BLOCKS * lane;
+		return GameTestChunkTickets.offGridCell(helper, lane);
 	}
 
 	private static final class Scene {

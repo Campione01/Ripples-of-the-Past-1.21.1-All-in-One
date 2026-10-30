@@ -74,7 +74,9 @@ public final class StandAimReachGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void firstPunchFromIdleReachesTheDonorDistance(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.SURVIVAL, false, 16);
+		// At the cell the cow 4.2 blocks ahead would end within a block of the next row's cell, 7 blocks south, where that
+		// test's end (GameTestInfo.succeed) removes every entity but players: the scene stands off the grid.
+		Scene scene = Scene.offGrid(helper, GameType.SURVIVAL, false, 16, 4, 4.2);
 		Cow cow = scene.cow(0, 4.2);
 		scene.user.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, cow.getBoundingBox().getCenter());
 		helper.assertTrue(cow.getBoundingBox().distanceToSqr(scene.user.getEyePosition()) > 3.5 * 3.5,
@@ -90,7 +92,8 @@ public final class StandAimReachGameTests {
 				return true;
 			}
 			else if (tick > 25) {
-				helper.fail("The first punch from idle whiffed at a cow 4.2 blocks away, which 1.16 reached");
+				helper.fail("The first punch from idle whiffed at a cow 4.2 blocks away, which 1.16 reached"
+						+ (cow.isRemoved() ? "; the cow was removed (" + cow.getRemovalReason() + ")" : ""));
 			}
 			return false;
 		});
@@ -795,8 +798,20 @@ public final class StandAimReachGameTests {
 		boolean finished;
 
 		Scene(GameTestHelper helper, GameType gameType, boolean locked, double speed) {
+			this(helper, gameType, locked, speed, Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 2, 1))));
+		}
+
+		// off the grid in a lane of its own (GameTestChunkTickets.offGridCell), holding the chunks from a block behind its
+		// user to a block past `ahead` along its look before anyone joins
+		static Scene offGrid(GameTestHelper helper, GameType gameType, boolean locked, double speed, int lane, double ahead) {
+			Vec3 origin = Vec3.atBottomCenterOf(GameTestChunkTickets.offGridCell(helper, lane).offset(1, 2, 1));
+			new GameTestChunkTickets(helper).hold(origin.add(-1.0D, 0.0D, -1.0D), origin.add(1.0D, 0.0D, ahead + 1.0D));
+			return new Scene(helper, gameType, locked, speed, origin);
+		}
+
+		private Scene(GameTestHelper helper, GameType gameType, boolean locked, double speed, Vec3 origin) {
 			this.helper = helper;
-			origin = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 2, 1)));
+			this.origin = origin;
 			user = GameTestPlayers.makeServerMockPlayer(helper, gameType);
 			user.getAbilities().instabuild = gameType == GameType.CREATIVE;
 			user.setNoGravity(true);
