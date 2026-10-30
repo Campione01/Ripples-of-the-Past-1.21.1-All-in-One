@@ -586,20 +586,26 @@ public final class StandActionPortSlot116GameTests {
 			recording = new RecordingConnection(user);
 			user.connection = recording;
 			helper.assertTrue(helper.getLevel().addFreshEntity(user), "Could not add the user");
-			theWorld = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("the_world"));
-			helper.assertTrue(theWorld != null, "Missing Stand type the_world");
-			standPower = PowerClass.STAND.attachGet(user);
-			helper.assertTrue(StandPowerTransitions.insert(standPower, new StandInstance(theWorld)).status()
-					== StandPowerTransitions.Status.APPLIED, "Could not grant The World");
-			standPower.setResolveLevel(4);
-			standPower.getCurTypeData()._lockedAbilities.remove("time_stop");
-			standPower.setStamina(standPower.getMaxStamina());
-			helper.assertTrue(theWorld.summon(user, standPower), "Could not summon The World");
-			stand = standPower.getSummonedStandEntity();
-			helper.assertTrue(stand != null && standPower.getAbility("time_stop").isAbilityUnlocked(standPower),
-					"setup: The World is not out or its time stop is locked");
-			stand.summonLockTicks = 0;
-			stand.gradualSummonWeaknessTicks = 0;
+			try {
+				theWorld = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("the_world"));
+				helper.assertTrue(theWorld != null, "Missing Stand type the_world");
+				standPower = PowerClass.STAND.attachGet(user);
+				helper.assertTrue(StandPowerTransitions.insert(standPower, new StandInstance(theWorld)).status()
+						== StandPowerTransitions.Status.APPLIED, "Could not grant The World");
+				standPower.setResolveLevel(4);
+				standPower.getCurTypeData()._lockedAbilities.remove("time_stop");
+				standPower.setStamina(standPower.getMaxStamina());
+				helper.assertTrue(theWorld.summon(user, standPower), "Could not summon The World");
+				stand = standPower.getSummonedStandEntity();
+				helper.assertTrue(stand != null && standPower.getAbility("time_stop").isAbilityUnlocked(standPower),
+						"setup: The World is not out or its time stop is locked");
+				stand.summonLockTicks = 0;
+				stand.gradualSummonWeaknessTicks = 0;
+			}
+			catch (RuntimeException | Error setupFailure) {
+				GameTestPlayers.discardAfterFailedSetup(user);
+				throw setupFailure;
+			}
 		}
 
 		LivingComponentAction standSlot() {

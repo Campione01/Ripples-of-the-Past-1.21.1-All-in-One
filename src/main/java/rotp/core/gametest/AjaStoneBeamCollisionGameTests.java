@@ -214,6 +214,8 @@ public final class AjaStoneBeamCollisionGameTests {
                 helper.assertTrue(target != null, "Could not create the Aja UV victim");
                 target.setNoAi(true);
                 target.setNoGravity(true);
+                // a player left in the level by another test would otherwise despawn it at once (Mob.checkDespawn)
+                target.setPersistenceRequired();
                 target.setPos(targetPosition);
                 targetInitialHealth = target.getHealth();
             }

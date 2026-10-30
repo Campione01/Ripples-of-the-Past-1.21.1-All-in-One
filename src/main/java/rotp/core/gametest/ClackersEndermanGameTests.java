@@ -60,6 +60,8 @@ public final class ClackersEndermanGameTests {
         Player user = scene.thrower(GameType.SURVIVAL, scene.point(8.5D, 0.0D, 3.5D), 0.0F);
         EnderMan enderman = EntityType.ENDERMAN.create(scene.level);
         enderman.setNoAi(true);
+        // a player left in the level by another test would otherwise despawn it at once (Mob.checkDespawn)
+        enderman.setPersistenceRequired();
         Vec3 start = scene.point(8.5D, 0.0D, 6.5D);
         Vec3 refuge = scene.point(5.5D, 0.0D, 11.5D);
         enderman.setPos(start);

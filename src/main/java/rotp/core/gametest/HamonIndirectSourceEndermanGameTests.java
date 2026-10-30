@@ -218,6 +218,8 @@ public final class HamonIndirectSourceEndermanGameTests {
             refuge = point(6.5D, 0.0D, 11.5D);
             enderman = EntityType.ENDERMAN.create(level);
             enderman.setNoAi(true);
+            // a player left in the level by another test would otherwise despawn it at once (Mob.checkDespawn)
+            enderman.setPersistenceRequired();
             enderman.setPos(start);
             add(enderman);
             health = enderman.getHealth();
