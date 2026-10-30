@@ -98,3 +98,4 @@ includeBuild('..') {
 ].each { include(it) }
 
 include('bundle')
+include('all-in-one')

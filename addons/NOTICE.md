@@ -10,6 +10,11 @@ Ripples of the Past itself was created by StandoByte (see the repository's
 The bundle `rotp-addon-bundle-open-2026.10.29.jar` nests the jars of the 73 modules below
 unchanged; each keeps its own license and notices.
 
+The all-in-one `rotp-all-in-one-open-2026.10.29.jar` nests the ROTP core jar built from
+the same repository and the jars of the 73 modules below, all unchanged; each
+keeps its own license and notices (the core's are `META-INF/LICENSE-ROTP.txt`,
+`META-INF/NOTICE-ROTP.md` and `META-INF/THIRD_PARTY_NOTICES.md` in its jar).
+
 ## RotP Achtung Baby (`rotp_ab`)
 
 - Module: `rotp-achtung-baby`, version `1.0.0-port.17`, license GPL-3.0-only.

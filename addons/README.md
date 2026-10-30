@@ -90,30 +90,44 @@ hash and port notes) is in its `SOURCE_AND_LICENSE.md`; see also
 
 ## Install
 
-Put these jars in the `mods` folder of a Minecraft 1.21.1 game with NeoForge
-21.1.197 or later:
+The jars go in the `mods` folder of a Minecraft 1.21.1 game with NeoForge
+21.1.197 or later. Four libraries are required; they are separate mods and are
+never nested in a ROTP jar. The all-in-one and the bundle need all four; an
+individual add-on jar needs only the ones listed for it:
 
-1. The ROTP core, `RipplesOfThePast-Unofficial-NeoForge-1.21.1-0.2.2.2.jar` (the add-ons require core
-   version 0.2.2.2).
-2. The four required libraries. The bundle needs all four; an individual
-   add-on jar needs only the ones listed for it:
-   - [Curios API](https://modrinth.com/mod/curios), version `[9.5.1+1.21.1]` (built with 9.5.1+1.21.1, LGPL-3.0-or-later): needed by `rotp-d4c`, `rotp-next-album`
-   - [GeckoLib](https://modrinth.com/mod/geckolib), version `[4.9.2,4.10)` (built with 4.9.2, MIT): needed by `rotp-next-album`
-   - [Pehkui](https://modrinth.com/mod/pehkui), version `[3.8.3,3.9)` (built with 3.8.3+1.21-neoforge, MIT): needed by `rotp-khnum`, `rotp-little-feet`, `rotp-yellow-temperance`
-   - [Caelus API](https://modrinth.com/mod/caelus), version `[7.0.1,)` (built with 7.0.1+1.21.1, LGPL-3.0-or-later): needed by `rotp-ultimate-lifeform`
-3. Either the bundle or individual jars, never both for the same add-on:
-   - `rotp-addon-bundle-open-2026.10.29.jar` holds all 73 add-ons. NeoForge loads each
-     nested jar as its own mod, with its own mod id, configs and screens.
-   - Or the individual add-on jars of the GitHub release
-     (`<module>-<version>.jar`), only the ones you want.
+- [Curios API](https://modrinth.com/mod/curios), version `[9.5.1+1.21.1]` (built with 9.5.1+1.21.1, LGPL-3.0-or-later): needed by `rotp-d4c`, `rotp-next-album`
+- [GeckoLib](https://modrinth.com/mod/geckolib), version `[4.9.2,4.10)` (built with 4.9.2, MIT): needed by `rotp-next-album`
+- [Pehkui](https://modrinth.com/mod/pehkui), version `[3.8.3,3.9)` (built with 3.8.3+1.21-neoforge, MIT): needed by `rotp-khnum`, `rotp-little-feet`, `rotp-yellow-temperance`
+- [Caelus API](https://modrinth.com/mod/caelus), version `[7.0.1,)` (built with 7.0.1+1.21.1, LGPL-3.0-or-later): needed by `rotp-ultimate-lifeform`
 
-   A separate add-on jar next to the bundle replaces the nested copy of that
-   add-on, whatever its version; the log then shows the loader's WARN line
-   `Attempted to select a dependency jar for JarJar which was passed in as source`.
-   One add-on cannot be switched off inside the bundle: to leave one out, use
-   the individual jars instead.
+Then take one of these three choices:
 
-Add-ons that need another add-on (all present in the bundle):
+1. The simplest: the all-in-one, `rotp-all-in-one-open-2026.10.29.jar`, and the four
+   libraries. It holds the ROTP core (`RipplesOfThePast-Unofficial-NeoForge-1.21.1-0.2.2.2.jar`) and
+   all 73 add-ons; NeoForge loads each nested jar as its own mod, with its own
+   mod id, configs and screens.
+2. The ROTP core, `RipplesOfThePast-Unofficial-NeoForge-1.21.1-0.2.2.2.jar`, and the bundle,
+   `rotp-addon-bundle-open-2026.10.29.jar`, which holds all 73 add-ons, and the four
+   libraries.
+3. The ROTP core and the individual add-on jars of the GitHub release
+   (`<module>-<version>.jar`), only the ones you want, and the libraries they
+   need.
+
+The add-ons require core version 0.2.2.2.
+
+Never put two copies of one mod in the `mods` folder: not the all-in-one
+together with the core jar, the bundle or an add-on jar, and not the bundle
+together with an add-on jar. A separate jar wins over a copy nested in the
+all-in-one or the bundle, whatever the two versions are, so an older separate
+jar replaces a newer nested one; the log then shows the loader's WARN line
+`Attempted to select a dependency jar for JarJar which was passed in as source`.
+One add-on cannot be switched off inside the all-in-one or the bundle: to
+leave one out, use choice 3.
+
+If a library is missing, NeoForge stops at start-up and names it, for example
+`Mod rotp_all_in_one_open requires pehkui 3.8.3 or above, and below 3.9`.
+
+Add-ons that need another add-on (all present in the all-in-one and the bundle):
 - `rotp-cmoon-reimagined` needs `rotp-c-moon`
 - `rotp-neo-stand` needs `rotp-shadow-the-world`
 - `rotp-stone-legacy-zombie-orders` needs `rotp-stone-legacy`
@@ -162,14 +176,18 @@ chmod +x gradlew
 
 On Windows use `gradlew.bat` instead of `./gradlew`. The first command builds
 the core (`build/libs/`); the second builds the core again as an included
-build, then every add-on (`addons/<module>/build/libs/<module>-<version>.jar`)
-and the bundle (`addons/bundle/build/libs/rotp-addon-bundle-open-2026.10.29.jar`). The bundle's
-version is `bundle_version` in `addons/gradle.properties`. Libraries are
-downloaded from their public Maven repositories.
+build, then every add-on (`addons/<module>/build/libs/<module>-<version>.jar`),
+the bundle (`addons/bundle/build/libs/rotp-addon-bundle-open-2026.10.29.jar`) and the
+all-in-one (`addons/all-in-one/build/libs/rotp-all-in-one-open-2026.10.29.jar`), which nests the
+core jar of the same build. The version of the bundle and of the all-in-one is
+`bundle_version` in `addons/gradle.properties`. Libraries are downloaded from
+their public Maven repositories.
 
 ## License
 
 Each module carries its own `LICENSE`: GPL-3.0-only, except `rotp-d4c` and
 `tinkers-of-the-past` (LGPL-3.0-only, as declared by their original add-ons).
-The bundle container is GPL-3.0-only; each nested add-on keeps its own license.
-The libraries are not part of this repository and keep their own licenses.
+The bundle and the all-in-one containers are GPL-3.0-only; each nested mod
+keeps its own license (the core's license and notices are in its jar's
+`META-INF`). The libraries are not part of this repository and keep their own
+licenses.
