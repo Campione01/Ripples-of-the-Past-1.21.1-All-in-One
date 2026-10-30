@@ -37,7 +37,7 @@ final class GameTestChunkTickets implements GameTestListener {
 	static final double MARGIN = 3.0D;
 	// Off the grid, west of it (it grows east and south from its first cell, 8 one-block cells 6 apart a row), each test
 	// in a lane of its own wider than the grid, so that no two scenes meet. Lanes in use: 0-3
-	// MagiciansRedKickSlide116GameTests, 4 StandAimReachGameTests.
+	// MagiciansRedKickSlide116GameTests, 4-18 StandAimReachGameTests.
 	private static final int OFF_GRID_BLOCKS = 256;
 	private static final int OFF_GRID_LANE_BLOCKS = 64;
 	// a region ticket of radius 2 has level 31, the entity-ticking level of a forced chunk
