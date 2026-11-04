@@ -46,12 +46,16 @@ public final class EntityTimeRates {
 		 */
 		STAND_ACTIONS,
 		/**
-		 * Motion of an entity that no attribute scales: ladder and vine climbing, levitation, bubble columns, the
-		 * firework rocket's elytra boost, Jump Boost's bonus to a jump and the threshold under which LivingEntity.aiStep
-		 * stops a slow velocity. Scaled as a provider's attributes scale walking (speeds, pushes, caps and that threshold
-		 * times r, every per-tick drag unchanged; the provider slows gravity itself, Made in Heaven by r squared): a climb
-		 * rises r times as far a tick under the gravity the entity has, and a jump with Jump Boost reaches the height it
-		 * reaches at the entity's base gravity.
+		 * A living entity's motion as in a film slowed 1/r times, on the paths no attribute scales. The provider scales
+		 * the entity's walking and swimming speeds by r and its gravity by r squared itself (Made in Heaven does), and
+		 * keeps its plain jump's height under vanilla's drag (its jump strength). The core then: in the air weakens the
+		 * per-tick vertical drag so that a fall tends to r times vanilla's terminal speed, gives Levitation, ladders,
+		 * vines and powder snow r times vanilla's rise and a jump, Jump Boost's bonus included, the power that reaches
+		 * the height it reaches at the entity's base gravity (later, about 1/r times), and scales Slow Falling's gravity
+		 * cap by r squared; in water and lava runs vanilla's sinking on the velocity divided by r, so that sinking,
+		 * bubble columns (their pushes and caps times r) and swimming keep r times vanilla's speeds; scales the firework
+		 * rocket's elytra boost, the climb out of water, the boost out of a fluid and the threshold under which
+		 * LivingEntity.aiStep stops a slow velocity by r.
 		 */
 		MOTION,
 		/**

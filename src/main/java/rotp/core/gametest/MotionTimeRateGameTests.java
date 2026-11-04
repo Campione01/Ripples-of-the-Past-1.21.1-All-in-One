@@ -36,9 +36,10 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 /**
  * EntityTimeRates' MOTION rate on the paths no attribute scales, for beings slowed as Made in Heaven's mode A slows
  * them (rate 1/m, gravity times 1/m^2 and a jump strength that keeps the plain jump's height, given here by attribute
- * modifiers to tagged pigs): levitation and a bubble column lift them about m times slower, never not at all or m^2
- * times slower; at m = 6 they stand on the ground (vanilla's 0.003 rest threshold took their 1/36 gravity for none),
- * fall, and jump, Jump Boost II to its full height, only later; a ladder climbs m times slower.
+ * modifiers to tagged pigs), as in a film slowed m times: levitation and a bubble column lift them about m times slower,
+ * never not at all or m^2 times slower; at m = 6 they stand on the ground (vanilla's 0.003 rest threshold took their
+ * 1/36 gravity for none), fall, and jump, Jump Boost II to its full height, only later; a ladder climbs m times slower;
+ * a fall tends to 1/m of vanilla's terminal speed and they sink in water at 1/m of vanilla's speed, not 1/m^2.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -139,7 +140,7 @@ public final class MotionTimeRateGameTests {
 								&& third >= 1.9 * plain && third <= 3.5 * plain
 								&& eighth >= 4.0 * plain && eighth <= 8.5 * plain,
 						"Ticks for a bubble column to lift pigs 8 blocks: " + plain + " (rate 1), " + third + " (rate 1/3), "
-								+ eighth + " (rate 1/8; -1 never); about 25, 61 and 149 expected (pushed r times, not r^2)");
+								+ eighth + " (rate 1/8; -1 never); about 25, 62 and 157 expected (pushed r times, not r^2)");
 				fixture.close();
 				helper.succeed();
 			});
@@ -203,14 +204,14 @@ public final class MotionTimeRateGameTests {
 					height[i] = peak[i] - floor;
 				}
 				helper.assertTrue(landed[0] > 0,
-						"A pig at rate 1/6 let go 1.5 blocks above stone did not land in 150 ticks (about 43 expected): y "
+						"A pig at rate 1/6 let go 1.5 blocks above stone did not land in 150 ticks (about 39 expected): y "
 								+ (faller.getY() - floor) + " above the floor, velocity y " + faller.getDeltaMovement().y);
 				helper.assertTrue(height[0] > 1.1 && Math.abs(height[1] - height[0]) < 0.06,
 						"The plain jump at rate 1/6 reached " + height[1] + " against " + height[0] + " at rate 1");
 				helper.assertTrue(height[2] > height[0] + 1.0 && Math.abs(height[3] - height[2]) < 0.06
 								&& peakTick[3] >= 3 * peakTick[2],
 						"A Jump Boost II jump at rate 1/6 peaked at " + height[3] + " after " + peakTick[3] + " ticks, at rate 1 at "
-								+ height[2] + " after " + peakTick[2] + " ticks; the same height, about 5 times later, expected");
+								+ height[2] + " after " + peakTick[2] + " ticks; the same height, about 6 times later, expected");
 				fixture.close();
 				helper.succeed();
 			});
@@ -261,6 +262,112 @@ public final class MotionTimeRateGameTests {
 								&& plainClimb / thirdClimb < 3.3,
 						"In 20 ticks on a ladder pigs climbed " + plainClimb + " (rate 1) and " + thirdClimb
 								+ " (rate 1/3); about 2.35 and 0.78 expected (3 times slower, not about 2)");
+				fixture.close();
+				helper.succeed();
+			});
+		}
+		catch (RuntimeException | Error error) {
+			fixture.close();
+			throw error;
+		}
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 120, batch = GameTestBatches.MOTION_TIME_RATES)
+	public static void aSlowedBeingFallsTowardItsRateOfVanillasTerminalSpeed(GameTestHelper helper) {
+		register();
+		Fixture fixture = new Fixture(helper);
+		try {
+			double terminal = BASE_GRAVITY * MotionTimeScale.AIR_DRAG / (1.0 - MotionTimeScale.AIR_DRAG);
+			double vanillaAfter10 = -terminal * (1.0 - Math.pow(MotionTimeScale.AIR_DRAG, 10));
+			// let go from rest high in the air, and two already falling at a third and a sixth of vanilla's terminal speed
+			Pig[] pigs = {
+					fixture.pig(new Vec3(0.5, 60, 0.5), null, 1),
+					fixture.pig(new Vec3(2.5, 60, 0.5), RATE_3, 3),
+					fixture.pig(new Vec3(4.5, 60, 0.5), RATE_6, 6),
+					fixture.pig(new Vec3(2.5, 60, 2.5), RATE_3, 3),
+					fixture.pig(new Vec3(4.5, 60, 2.5), RATE_6, 6) };
+			pigs[3].setDeltaMovement(0.0, -terminal / 3.0, 0.0);
+			pigs[4].setDeltaMovement(0.0, -terminal / 6.0, 0.0);
+			int[] at = { 10, 30, 60, 10, 10 };
+			double[] expected = { vanillaAfter10, vanillaAfter10 / 3.0, vanillaAfter10 / 6.0, -terminal / 3.0, -terminal / 6.0 };
+			double[] tolerance = { 0.005, 0.02, 0.02, 0.005, 0.005 };
+			double[] velocity = new double[pigs.length];
+			boolean[] read = new boolean[pigs.length];
+			helper.onEachTick(() -> {
+				for (int i = 0; i < pigs.length; i++) {
+					if (!read[i] && pigs[i].tickCount == at[i]) {
+						velocity[i] = pigs[i].getDeltaMovement().y;
+						read[i] = true;
+					}
+				}
+			});
+			helper.runAfterDelay(70, () -> {
+				List<String> wrong = new ArrayList<>();
+				for (int i = 0; i < pigs.length; i++) {
+					if (!read[i] || !(Math.abs(velocity[i] / expected[i] - 1.0) < tolerance[i])) {
+						wrong.add("pig " + i + " after " + at[i] + " ticks: " + (read[i] ? velocity[i] : "not read") + " against "
+								+ expected[i]);
+					}
+				}
+				helper.assertTrue(wrong.isEmpty(), "Falling pigs (rate 1, 1/3 and 1/6 from rest, then 1/3 and 1/6 at 1/m of"
+						+ " vanilla's terminal speed " + terminal + "): " + wrong + "; a slowed fall must reach in m times the"
+						+ " ticks 1/m of vanilla's velocity and keep 1/m of its terminal speed, not tend to 1/m^2 of it");
+				fixture.close();
+				helper.succeed();
+			});
+		}
+		catch (RuntimeException | Error error) {
+			fixture.close();
+			throw error;
+		}
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 120, batch = GameTestBatches.MOTION_TIME_RATES)
+	public static void aSlowedBeingSinksInWaterAtItsRate(GameTestHelper helper) {
+		register();
+		Fixture fixture = new Fixture(helper);
+		try {
+			int top = 9;
+			int[] shafts = { 0, 2, 4 };
+			for (int y = 0; y <= top; y++) {
+				for (int x = -1; x <= 5; x++) {
+					for (int z = -1; z <= 1; z++) {
+						fixture.block(new BlockPos(x, y, z), Blocks.GLASS.defaultBlockState());
+					}
+				}
+			}
+			for (int x : shafts) {
+				for (int y = 1; y <= top; y++) {
+					fixture.block(new BlockPos(x, y, 0), Blocks.WATER.defaultBlockState());
+				}
+			}
+			Pig[] pigs = {
+					fixture.pig(new Vec3(0.5, 6.0, 0.5), null, 1),
+					fixture.pig(new Vec3(2.5, 6.0, 0.5), RATE_3, 3),
+					fixture.pig(new Vec3(4.5, 6.0, 0.5), RATE_6, 6) };
+			double[] from = new double[pigs.length];
+			double[] to = new double[pigs.length];
+			helper.onEachTick(() -> {
+				for (int i = 0; i < pigs.length; i++) {
+					if (pigs[i].tickCount == 20) {
+						from[i] = pigs[i].getY();
+					}
+					else if (pigs[i].tickCount == 60) {
+						to[i] = pigs[i].getY();
+					}
+				}
+			});
+			helper.runAfterDelay(70, () -> {
+				double plain = from[0] - to[0];
+				double third = from[1] - to[1];
+				double sixth = from[2] - to[2];
+				helper.assertTrue(pigs[0].isInWater() && pigs[1].isInWater() && pigs[2].isInWater(),
+						"Setup: a pig is out of the water");
+				helper.assertTrue(plain > 0.9 && plain < 1.1 && third > 0.0 && sixth > 0.0 && plain / third > 2.8
+								&& plain / third < 3.2 && plain / sixth > 5.6 && plain / sixth < 6.4,
+						"Pigs sank in water from tick 20 to 60 by " + plain + " (rate 1), " + third + " (rate 1/3) and " + sixth
+								+ " (rate 1/6); about 1.0, 0.33 and 0.17 expected (1/m of vanilla's sinking, not 1/m^2 or"
+								+ " vanilla's 0.003 floor)");
 				fixture.close();
 				helper.succeed();
 			});
