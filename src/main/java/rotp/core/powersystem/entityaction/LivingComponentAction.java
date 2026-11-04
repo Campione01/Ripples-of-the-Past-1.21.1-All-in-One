@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.core.JojoMod;
 import rotp.core.client.entityanim.pose.AnimFramePose;
 import rotp.core.client.entityanim.pose.AnimatedEntity;
@@ -26,6 +27,7 @@ import rotp.core.powersystem.entityaction.syncdata.SyncActionInstanceData;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTargetAim;
+import rotp.core.subsystems.time.RateStepper;
 
 import net.minecraft.core.HolderLookup.Provider;
 import net.minecraft.nbt.CompoundTag;
@@ -450,15 +452,45 @@ public class LivingComponentAction implements SynchronizablePlayerData, TickingE
 				syncDirtyActionData();
 				return;
 			}
-			if (!isActionPausedInStoppedTime()) {
-				tickAction();
+			int steps = isActionPausedInStoppedTime() ? 0 : actionSteps();
+			if (steps == 0) {
+				if (action.isOver()) {
+					// Stopped from outside while paused or slowed (key release, damage): clear it as tickAction does.
+					setAction(null, null, SyncType.NO_SYNC);
+				}
 			}
-			else if (action.isOver()) {
-				// Stopped from outside while paused (key release, damage): clear it as tickAction does.
-				setAction(null, null, SyncType.NO_SYNC);
+			else {
+				for (int step = 0; step < steps && action != null; step++) {
+					tickAction();
+				}
+			}
+			if (action != null) {
+				action.setClockProgress(actionClock);
 			}
 			syncDirtyActionData();
 		}
+	}
+
+	@Nullable private RateStepper actionClock;
+
+	/** The action ticks of this tick: 1, or by the user's EntityTimeRates STAND_ACTIONS rate for a Stand's actions. */
+	private int actionSteps() {
+		if (!EntityTimeRates.hasProviders()) {
+			actionClock = null;
+			return 1;
+		}
+		LivingEntity user = slot == STAND_POWER_SLOT ? entity : entity instanceof StandEntity stand ? stand.getUser() : null;
+		if (user == null) {
+			return 1;
+		}
+		float rate = EntityTimeRates.rate(EntityTimeRates.Channel.STAND_ACTIONS, user);
+		if (rate == 1.0F && actionClock == null) {
+			return 1;
+		}
+		if (actionClock == null) {
+			actionClock = new RateStepper();
+		}
+		return actionClock.steps(rate);
 	}
 
 	// also while the action waits (a stunned or summon-locked Stand): a release flag set meanwhile reaches the clients

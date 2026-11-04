@@ -34,6 +34,7 @@ import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.AimingEntity;
 import rotp.core.subsystems.target.HitResultUtil;
+import rotp.core.subsystems.time.RateStepper;
 import rotp.core.util.functions.DamageUtil;
 import rotp.core.util.functions.MathUtil;
 import rotp.core.util.functions_network.NetworkUtil;
@@ -1100,10 +1101,25 @@ public class EntityActionInstance implements HeldInput {
 	 *   (the windup animation will start at tick 0/16).
 	 */
 
+	@Nullable private RateStepper clock;
+
+	/** The clock of the slot that ticks this action by its user's time rate (EntityTimeRates), null at rate 1. */
+	@ApiStatus.Internal
+	public void setClockProgress(@Nullable RateStepper clock) {
+		this.clock = clock;
+	}
+
+	// a frame's partial tick in this action's own ticks: an action slowed or sped up animates at its own pace
+	private float actionPartialTick(float partialTick) {
+		RateStepper current = clock;
+		return current != null ? current.partialSteps(partialTick) : partialTick;
+	}
+
 	ActionPhase prevFramePhase = null;
 	float subtractFramePartialTick;
 	@ApiStatus.NonExtendable
 	public float getAnimPhaseTick(float partialTick) {
+		partialTick = actionPartialTick(partialTick);
 		// it just works
 		if (prevFramePhase != this.phase) {
 			if (prevFramePhase == null && this.phase != null)	subtractFramePartialTick = this.phasePartialTick;
@@ -1140,6 +1156,7 @@ public class EntityActionInstance implements HeldInput {
 	}
 	
 	public float getAnimFullTicksPassed(float partialTick) {
+		partialTick = actionPartialTick(partialTick);
 		float ticks = getFullTicksPassed();
 		if (skippedWindupPhase != null) {
 			for (ActionPhase phase : ActionPhase.values()) {
