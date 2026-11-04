@@ -316,7 +316,7 @@ public class HamonData extends PlayerPowerData {
 		tickHamonEnergy(user);
 		tickBreathStability(user, userPower);
 		tickDoubleShift(user);
-		tickAbilityCooldowns();
+		tickAbilityCooldowns(PlayerPower.cooldownSteps(userPower));
 		if (user.level().isClientSide()) {
 			tickHamonProtection(user);
 			tickHamonAura(user);
@@ -1028,10 +1028,13 @@ public class HamonData extends PlayerPowerData {
 		}
 	}
 
-	private void tickAbilityCooldowns() {
+	private void tickAbilityCooldowns(int steps) {
+		if (steps == 0) {
+			return;
+		}
 		for (Iterator<Map.Entry<String, Integer>> iterator = abilityCooldowns.entrySet().iterator(); iterator.hasNext();) {
 			Map.Entry<String, Integer> cooldown = iterator.next();
-			int ticksLeft = cooldown.getValue() - 1;
+			int ticksLeft = cooldown.getValue() - steps;
 			if (ticksLeft > 0) {
 				cooldown.setValue(ticksLeft);
 			}
@@ -1045,7 +1048,14 @@ public class HamonData extends PlayerPowerData {
 	@Override
 	public void tickWhileTemporarilySuspended(
 			PlayerPower power) {
-		tickAbilityCooldowns();
+		tickAbilityCooldowns(power.getCooldownSteps());
+	}
+
+	@Override
+	public void syncCooldownsAtRate(ServerPlayer user) {
+		if (!abilityCooldowns.isEmpty()) {
+			syncToPlayer(user);
+		}
 	}
 
 	public float getHamonDamageMultiplier() {

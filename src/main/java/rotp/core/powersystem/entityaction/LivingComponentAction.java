@@ -474,13 +474,16 @@ public class LivingComponentAction implements SynchronizablePlayerData, TickingE
 
 	@Nullable private RateStepper actionClock;
 
-	/** The action ticks of this tick: 1, or by the user's EntityTimeRates STAND_ACTIONS rate for a Stand's actions. */
+	/**
+	 * The action ticks of this tick: 1, or by the user's EntityTimeRates STAND_ACTIONS rate, a Stand's actions by its
+	 * user's, and the user's own in both slots (his Stand power's and his non-Stand power's, Hamon, vampirism...).
+	 */
 	private int actionSteps() {
 		if (!EntityTimeRates.hasProviders()) {
 			actionClock = null;
 			return 1;
 		}
-		LivingEntity user = slot == STAND_POWER_SLOT ? entity : entity instanceof StandEntity stand ? stand.getUser() : null;
+		LivingEntity user = entity instanceof StandEntity stand ? stand.getUser() : entity;
 		if (user == null) {
 			return 1;
 		}

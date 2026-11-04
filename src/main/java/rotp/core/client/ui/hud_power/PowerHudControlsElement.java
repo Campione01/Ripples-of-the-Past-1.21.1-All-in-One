@@ -740,7 +740,7 @@ public class PowerHudControlsElement extends HudElement {
 		else if (power instanceof PlayerPower playerPower
 				&& playerPower.getDataForAbility(ability)
 						instanceof PlayerPowerData playerPowerData) {
-			ratio = playerPowerData.getAbilityCooldownRatio(ability.name(), partialTick);
+			ratio = playerPowerData.getAbilityCooldownRatio(ability.name(), playerPower.getCooldownPartialTick(partialTick));
 		}
 		else {
 			return;

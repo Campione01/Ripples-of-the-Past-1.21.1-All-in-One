@@ -236,7 +236,7 @@ public class PillarmanData extends PlayerPowerData {
 		else {
 			stoneFormAnimTicks = 0;
 		}
-		tickAbilityCooldowns();
+		tickAbilityCooldowns(PlayerPower.cooldownSteps(userPower));
 		tickEnergy(user);
 		if (user.level().isClientSide()) {
 			return;
@@ -468,10 +468,13 @@ public class PillarmanData extends PlayerPowerData {
 		setEnergy(user, getEnergy() + inc);
 	}
 
-	private void tickAbilityCooldowns() {
+	private void tickAbilityCooldowns(int steps) {
+		if (steps == 0) {
+			return;
+		}
 		for (Iterator<Map.Entry<String, Integer>> iterator = abilityCooldowns.entrySet().iterator(); iterator.hasNext();) {
 			Map.Entry<String, Integer> cooldown = iterator.next();
-			int ticksLeft = cooldown.getValue() - 1;
+			int ticksLeft = cooldown.getValue() - steps;
 			if (ticksLeft > 0) {
 				cooldown.setValue(ticksLeft);
 			}
@@ -485,7 +488,14 @@ public class PillarmanData extends PlayerPowerData {
 	@Override
 	public void tickWhileTemporarilySuspended(
 			PlayerPower power) {
-		tickAbilityCooldowns();
+		tickAbilityCooldowns(power.getCooldownSteps());
+	}
+
+	@Override
+	public void syncCooldownsAtRate(ServerPlayer user) {
+		if (!abilityCooldowns.isEmpty()) {
+			syncToPlayer(user);
+		}
 	}
 
 	private void tickEatenTntFuse(LivingEntity user) {

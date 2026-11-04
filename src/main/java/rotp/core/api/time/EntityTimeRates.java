@@ -38,9 +38,11 @@ public final class EntityTimeRates {
 		 */
 		BEING,
 		/**
-		 * A user's Stand actions (those its Stand performs and those it performs for its Stand power) and its Stand
-		 * power's ability and leap cooldowns: they advance by this rate, several steps a tick above 1, with the fraction
-		 * carried. Asked for the user; a Stand counts as its user.
+		 * A user's actions and power cooldowns: the actions its Stand performs and those it performs itself (for its
+		 * Stand power and for its non-Stand power: Hamon, vampirism, the Pillar Man's...), its Stand power's ability and
+		 * leap cooldowns, and its non-Stand power's leap cooldown and the ability cooldowns of a power data that counts
+		 * them by PlayerPower#getCooldownSteps (the core's Hamon, vampirism and Pillar Man): they advance by this rate,
+		 * several steps a tick above 1, with the fraction carried. Asked for the user; a Stand counts as its user.
 		 */
 		STAND_ACTIONS,
 		/**
