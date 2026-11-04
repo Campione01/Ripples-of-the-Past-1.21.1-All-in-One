@@ -13,6 +13,7 @@ import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility.StandEntityBarrage;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModEntityAttributes;
 import rotp.core.init.ModGamerules;
@@ -34,7 +35,6 @@ import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.subsystems.ServerBlockDestroyTracker;
 import rotp.core.subsystems.entity_puppetcontrol.EntityComponentController;
 import rotp.core.subsystems.target.ActionTarget;
-import rotp.core.util.functions.MathUtil;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -256,8 +256,10 @@ public final class BarrageBlockRestoreGameTests {
             ChunkPos chunk = new ChunkPos(suite.helper.absolutePos(BlockPos.ZERO));
             Vec3 origin = new Vec3(chunk.getMiddleBlockX() + 0.5, suite.helper.absolutePos(BlockPos.ZERO).getY() + 8,
                     chunk.getMiddleBlockZ() + 0.5);
-            Vec3 userOrigin = spec.manualDecay ? origin.add(0, 0, -4) : origin;
-            Vec3 standOrigin = spec.manualDecay ? origin.add(0, 0, 4) : origin;
+            // under remote control 14 blocks from its user's feet: Silver Chariot's strength falls past its base reach of 10
+            // to 0.4 (StandMeleeReach), as it fell past its effective range of 2 in 1.16
+            Vec3 userOrigin = spec.manualDecay ? origin.add(0, 0, -9) : origin;
+            Vec3 standOrigin = spec.manualDecay ? origin.add(0, 0, 5) : origin;
             user = GameTestPlayers.makeServerMockPlayer(suite.helper, spec.creative ? GameType.CREATIVE : GameType.SURVIVAL);
             user.getAbilities().instabuild = spec.creative;
             user.setNoGravity(true);
@@ -398,10 +400,10 @@ public final class BarrageBlockRestoreGameTests {
 
         void assertResolvedStats() {
             if (spec.manualDecay) {
-                double distance = MathUtil.getAABBDistance(stand.getBoundingBox(), user.getBoundingBox());
+                double distance = stand.distanceTo(user);
                 double efficiency = stand.getStandEfficiency();
                 premise(stand.isManuallyControlled() && EntityComponentController.getControlTarget(user) == stand
-                        && distance > stand.getEffectiveRange() && distance < stand.getMaxRange(),
+                        && distance > StandMeleeReach.baseReach(stand, user) && distance < stand.getMaxRangeForMovement(user),
                         "legal native manual distance=" + distance);
                 premise(stand.getAttributeValue(Attributes.ATTACK_DAMAGE) == 8 && stand.getAttributeValue(Attributes.ATTACK_SPEED) == 14
                         && efficiency >= 0.25 && efficiency < 0.5

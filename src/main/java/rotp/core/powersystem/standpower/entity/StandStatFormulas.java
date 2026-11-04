@@ -206,6 +206,24 @@ public class StandStatFormulas {
 				? rangeStrengthFactor(rangeEffective, rangeMax, distance)
 				: 1F;
 	}
+
+	/**
+	 * The owner's reach rule for close-range Stands (2026-10-30): past the base reach, the larger of the user's reach and
+	 * the Stand's max range, a margin of a quarter of it, at least a block, or of half of it under remote control, at least
+	 * two blocks.
+	 */
+	public static double meleeReachMargin(double baseReach, boolean remoteControl) {
+		return remoteControl ? Math.max(baseReach * 0.5, 2) : Math.max(baseReach * 0.25, 1);
+	}
+
+	/** Full strength up to the base reach, then down in a line to a quarter at the end of the margin. */
+	public static float meleeReachStrengthFactor(double distance, double baseReach, double margin) {
+		if (distance <= baseReach || margin <= 0) {
+			return 1F;
+		}
+		double past = Math.min((distance - baseReach) / margin, 1);
+		return (float) (1 - 0.75 * past);
+	}
 	
 	// * 8.5618
 	public static float projectileVelocityScaling(double strength, float velocity) {

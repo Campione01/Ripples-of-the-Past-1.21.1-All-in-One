@@ -14,6 +14,7 @@ import rotp.core.client.entityanim.PreFrameEntityAnimCalc.LivingAnimState;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.customobjects.entity_projectile.DamagingEntity;
 import rotp.core.entityattachment.syncheddata.SynchedDataHelper;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.init.ModDamageTypes;
 import rotp.core.network.NetworkPayloadValidation;
 import rotp.core.powersystem.Power;
@@ -545,14 +546,16 @@ public class EntityActionInstance implements HeldInput {
 		Vec3 targetPos = target != null && !target.isEmpty(level) ? target.getCenterPos() : null;
 		if (targetPos != null) {
 			double backAway = 1.5;
-			if (target.getType() == ActionTarget.TargetType.ENTITY) {
-				Entity targetEntity = target.getMainEntity();
-				if (targetEntity != null) {
-					backAway = 1.0 + targetEntity.getBoundingBox().getXsize() / 2.0;
-				}
+			Entity targetEntity = target.getType() == ActionTarget.TargetType.ENTITY ? target.getMainEntity() : null;
+			if (targetEntity != null) {
+				backAway = 1.0 + targetEntity.getBoundingBox().getXsize() / 2.0;
 			}
 			double offsetToTarget = targetPos.subtract(user.position()).multiply(1, 0, 1).length() - backAway;
 			frontOffset = Mth.clamp(offsetToTarget, minOffset, maxOffset);
+			// a close-range Stand's attack flies out to an entity past its user's reach
+			if (targetEntity != null) {
+				frontOffset = StandMeleeReach.flyOutOffset(standEntity, targetEntity, offsetToTarget, frontOffset);
+			}
 		}
 		_setStandOffset(standEntity, new Vec3(0, 0, frontOffset), StandOffsetFromUser.Rotations.HEAD_XY, false);
 		return true;
@@ -881,6 +884,9 @@ public class EntityActionInstance implements HeldInput {
 	public static boolean standEntityAttack(StandEntity stand, Entity target, DamageSource dmgSource, float dmgAmount,
 			boolean mainTarget) {
 		ServerLevel level = (ServerLevel) target.level();
+		if (mainTarget) {
+			dmgAmount = weakenPastBaseReach(stand, target, dmgSource, dmgAmount);
+		}
 		// 1.16 StandEntity.attackEntity: a main target the Stand cannot harm is not hit, a grabbed one included
 		boolean hurt = (!mainTarget || stand.canAttackEntity(target)) && stand.hurtWithStandAttack(target, dmgSource, dmgAmount);
 		if (hurt && mainTarget && !stand.isManuallyControlled()) {
@@ -911,6 +917,23 @@ public class EntityActionInstance implements HeldInput {
 			wearBlockingShield(level, target, dmgAmount);
 		}
 		return hurt;
+	}
+
+	// a close-range Stand's attack that reached past its base reach deals less damage and knockback (StandMeleeReach)
+	private static float weakenPastBaseReach(StandEntity stand, Entity target, DamageSource dmgSource, float dmgAmount) {
+		float factor = StandMeleeReach.strikeFactor(stand, target);
+		if (factor >= 1) {
+			return dmgAmount;
+		}
+		if (dmgSource instanceof DamageSourceModified modified) {
+			modified.jojo_ripples$modifyKnockback(modified.jojo_ripples$addKnockback(),
+					modified.jojo_ripples$knockbackMultiplier() * factor);
+			float vertical = modified.jojo_ripples$verticalKnockbackStrength();
+			if (vertical != 0) {
+				modified.jojo_ripples$verticalKnockback(vertical * factor, modified.jojo_ripples$verticalKnockbackAngleRatio());
+			}
+		}
+		return dmgAmount * factor;
 	}
 
 	// 1.16 StandEntityPunch.doHit: a blocked Stand hit under 3 (vanilla wears none) still wears a player's shield

@@ -157,8 +157,23 @@ public final class DistanceStrengthDecayPolicySmokeTest {
 		check(entity.contains("entityStandType.usesDistanceStrengthDecay()"),
 				"stand entities must initialize the type policy");
 		check(entity.contains(
-				"distanceStrengthDecayEnabled && isManuallyControlled(),"),
+				"if (user == null || !distanceStrengthDecayEnabled || !isManuallyControlled()) {"),
 				"distance strength decay must require active O-key manual control and the initialized type policy");
+		// owner 2026-10-30: a close-range Stand under remote control decays only past its base reach (StandMeleeReach)
+		check(entity.contains("StandMeleeReach.isCloseRange(this) ? StandMeleeReach.remoteStrengthFactor(this, user)"),
+				"close-range manual control must decay by the base-reach margin, longer-range Stands by 1.16's interval");
+		check(StandStatFormulas.meleeReachMargin(5, false) == 1.25
+				&& StandStatFormulas.meleeReachMargin(2, false) == 1
+				&& StandStatFormulas.meleeReachMargin(10, true) == 5
+				&& StandStatFormulas.meleeReachMargin(2, true) == 2,
+				"the reach margin must be a quarter of the base reach (a block at least), half under remote control (two at least)");
+		float atMarginStart = StandStatFormulas.meleeReachStrengthFactor(5, 5, 2.5);
+		float midMargin = StandStatFormulas.meleeReachStrengthFactor(6.25, 5, 2.5);
+		float atMarginEnd = StandStatFormulas.meleeReachStrengthFactor(7.5, 5, 2.5);
+		check(StandStatFormulas.meleeReachStrengthFactor(1.5, 5, 2.5) == 1F && atMarginStart == 1F
+				&& midMargin == 0.625F && atMarginEnd == 0.25F
+				&& StandStatFormulas.meleeReachStrengthFactor(9, 5, 2.5) == 0.25F,
+				"full strength up to the base reach, then down in a line to a quarter at the end of the margin");
 		check(entity.contains("double range = getMaxRangeForMovement(user);"),
 				"manual movement must remain capped independently by max range");
 

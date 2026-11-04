@@ -78,6 +78,7 @@ import rotp.core.util.sound.MultiSoundEventResolver;
 import rotp.core.impl.stands._entitybase.StandEntityAutoBlockAction;
 import rotp.core.impl.stands._entitybase.StandEntityManualControlToggle;
 import rotp.core.impl.stands._entitybase.StandEntityUnsummonAction;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.impl.stands.silverchariot.SCRapierEntity;
 import rotp.core.impl.stands.silverchariot.SilverChariotState;
 
@@ -736,6 +737,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 				if (!isArmsOnlyMode()) {
 					pos = collideNextPos(pos);
 				}
+				pos = limitStrikeFlight(user, pos);
 				setPos(pos.x, pos.y, pos.z);
 				defaultRotation(user);
 				curAction = standAction.getAction();
@@ -767,6 +769,30 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		}
 	}
 	
+	/*
+	 * Server, owner 2026-11-01: a close-range Stand flies out to strike and back at its own speed (StandMeleeReach), so
+	 * while it is going to or coming from a place past its usual ones it moves that far a tick relative to its user; its
+	 * clients glide between offsets as before (StandOffsetFromUser.LERP_TIME)
+	 */
+	private Vec3 limitStrikeFlight(LivingEntity user, Vec3 pos) {
+		Vec3 current = _offsetFromUserVec;
+		if (level().isClientSide() || current == null || !StandMeleeReach.isCloseRange(this)) {
+			return pos;
+		}
+		Vec3 userPos = user.position();
+		Vec3 target = pos.subtract(userPos);
+		double away = StandMeleeReach.awayDistance(this);
+		if (target.lengthSqr() <= away * away && current.lengthSqr() <= away * away) {
+			return pos;
+		}
+		Vec3 step = target.subtract(current);
+		double speed = StandMeleeReach.flightSpeed(this);
+		if (step.lengthSqr() <= speed * speed) {
+			return pos;
+		}
+		return userPos.add(current.add(step.normalize().scale(speed)));
+	}
+
 	public Vec3 collideNextPos(Vec3 pos) {
 		if (noPhysics) {
 			return pos;
@@ -1114,8 +1140,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		}
 	}
 
+	// owner 2026-10-30: a close-range Stand goes past its base reach by the remote control margin (StandMeleeReach)
 	public double getMaxRangeForMovement(LivingEntity user) {
-		return getMaxRange();
+		return StandMeleeReach.isCloseRange(this) ? StandMeleeReach.maxReach(this, user, true) : getMaxRange();
 	}
 
 	// 1.16 StandEntity.move: one-time warning when manual control goes past the server view distance
@@ -1842,10 +1869,15 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	public void updateStrengthMultipliers() {
 		LivingEntity user = getUser();
 
-		// 1.16 measured it feet to feet (distanceTo(user)); the port decays only under manual control (D-core-03)
-		rangeEfficiency = user != null ? StandStatFormulas.rangeStrengthFactor(
-				distanceStrengthDecayEnabled && isManuallyControlled(),
-				getEffectiveRange(), getMaxRange(), distanceTo(user)) : 1;
+		// 1.16 measured it feet to feet (distanceTo(user)); the port decays only under manual control (D-core-03), and a
+		// close-range Stand only past its base reach (owner 2026-10-30, StandMeleeReach)
+		if (user == null || !distanceStrengthDecayEnabled || !isManuallyControlled()) {
+			rangeEfficiency = 1;
+		}
+		else {
+			rangeEfficiency = StandMeleeReach.isCloseRange(this) ? StandMeleeReach.remoteStrengthFactor(this, user)
+					: StandStatFormulas.rangeStrengthFactor(getEffectiveRange(), getMaxRange(), distanceTo(user));
+		}
 
 		if (user != null && userPower != null) {
 			staminaCondition = StandUtil.staminaCondition(userPower);
@@ -2764,8 +2796,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 						|| curAction.ability instanceof StandEntityAutoBlockAction);
 	}
 
+	// owner 2026-11-01: a Stand away from its user to strike cannot guard until it is back (StandMeleeReach)
 	public boolean canStartBlocking() {
-		return canBlockOrParryNow() && entityData.get(NO_BLOCKING_TICKS) <= 0;
+		return canBlockOrParryNow() && entityData.get(NO_BLOCKING_TICKS) <= 0 && !StandMeleeReach.isAwayToStrike(this);
 	}
 
 	public void breakStandBlocking(int lockTicks) {

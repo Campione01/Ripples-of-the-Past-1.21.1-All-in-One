@@ -410,8 +410,12 @@ public final class StandAttackAimRulesGameTests {
 	// changed (StandEntity.setTaskTarget, TrStandTaskTargetPacket): nothing here
 	@GameTest(template = "empty", timeoutTicks = 80, batch = BATCH + "kept_mob_heavy_leaves_reach")
 	public static void heavyPunchStrikesTheMobItWasPressedAtThatLeftTheStandsReachInTheWindupAsIn116(GameTestHelper helper) {
-		pressedMobLeavesInTheWindup(helper, "heavy_punch", 4.0, true);
+		pressedMobLeavesInTheWindup(helper, "heavy_punch", OUT_OF_REACH_AWAY, true);
 	}
+
+	// how far a cow 2 blocks ahead moves to leave the Stand's reach and the 6.25 blocks from its user's eyes Star Platinum
+	// reaches out to (StandMeleeReach: the user's 5 and a quarter of it), staying within the action's range of 8
+	private static final double OUT_OF_REACH_AWAY = 5.5;
 
 	// beyond the action's range 1.16 dropped the task target for good: the Stand no longer turns to the mob, and the strike
 	// aims again at what the crosshair meets, though the mob is back within reach. Tracking clients were sent the empty
@@ -427,7 +431,7 @@ public final class StandAttackAimRulesGameTests {
 	@GameTest(template = "empty", timeoutTicks = 80, batch = BATCH + "kept_mob_heavy_attack_punch_leaves_reach")
 	public static void heavyAttackPunchStrikesTheMobItWasPressedAtThatLeftTheStandsReachInTheWindupAsIn116(
 			GameTestHelper helper) {
-		pressedMobLeavesInTheWindup(helper, HEAVY_ATTACK_PUNCH, 4.0, true);
+		pressedMobLeavesInTheWindup(helper, HEAVY_ATTACK_PUNCH, OUT_OF_REACH_AWAY, true);
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 80, batch = BATCH + "kept_mob_heavy_attack_punch_leaves_range")
@@ -1313,8 +1317,9 @@ public final class StandAttackAimRulesGameTests {
 						&& entityOf(helper, action[0].standRotationTarget) == cow, "Fixture: the " + name + " input started "
 								+ action[0] + ", struck at once, or keeps " + savedTarget(action[0]) + " and turns the Stand to "
 								+ action[0].standRotationTarget + " instead of the cow");
-				// out of the Stand's reach, within the action's range (8 blocks)
-				cow.moveTo(cow.getX(), cow.getY(), cow.getZ() + 4.0, 0, 0);
+				// out of the Stand's reach and past the 6.25 blocks Star Platinum reaches out to (StandMeleeReach), within the
+				// action's range (8 blocks)
+				cow.moveTo(cow.getX(), cow.getY(), cow.getZ() + OUT_OF_REACH_AWAY, 0, 0);
 				if (meets == StrikeMeets.NOTHING) {
 					scene.user.lookAt(EntityAnchorArgument.Anchor.EYES, scene.user.getEyePosition().add(0, 10, 0.01));
 				}

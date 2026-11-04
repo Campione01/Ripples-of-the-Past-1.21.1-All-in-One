@@ -59,7 +59,7 @@ public final class StandStrikeTurnGameTests {
 	/*
 	 * The turn went toward an entity's eyes, the yaw and the pitch each by at most attackSpeed / 16 x 18 degrees, the head
 	 * onto the new yaw, before the hit: toward a cow in the Stand's reach, which the strike then hit, and toward one beyond
-	 * it, which the punch missed.
+	 * the reach of its arms only, which the punch missed.
 	 */
 	@GameTest(template = "empty", timeoutTicks = 100)
 	public static void eachStrikeTurnsTheStandTowardItsAimByAtMostItsAttackSpeedBeforeTheHitAsIn116(GameTestHelper helper) {
@@ -85,6 +85,12 @@ public final class StandStrikeTurnGameTests {
 		stand.updatePosition(user);
 		Cow[] cowRef = { null };
 		if (!dash) {
+			// beyond: Star Platinum's arms only, which do not reach out past where they are (StandMeleeReach), as a whole
+			// Stand would to a cow its user aims at
+			if (beyond) {
+				stand.setArmsOnlyMode();
+				stand.updatePosition(user);
+			}
 			Cow cow = scene.cow(new Vec3(0.0D, 0.0D, beyond ? 4.5D : 1.6D));
 			cowRef[0] = cow;
 			user.lookAt(EntityAnchorArgument.Anchor.EYES, cow.getEyePosition());
