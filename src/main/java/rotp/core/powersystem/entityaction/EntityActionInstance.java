@@ -104,6 +104,11 @@ public class EntityActionInstance implements HeldInput {
 	@Nullable private Vec3 standOffsetSync;
 	@Nullable private StandOffsetFromUser.Rotations standOffsetSyncRotations;
 	private boolean standOffsetSyncCanInvertSide = true;
+	// A reaching attack (StandMeleeReach) is placed by the server alone: what it flies out to is the server's pick, so a
+	// client keeps the offsets the server sends, with the action and after it, instead of working out its own.
+	private boolean decodedFromServer;
+	private boolean keepsServerStandOffset;
+	private boolean sendsStandOffsetChanges;
 	
 	/** Stores the target of the punch action, to be able to communicate with other internal systems, like Stand effects */
 	@Nullable public ActionTarget punchedTarget;
@@ -506,13 +511,26 @@ public class EntityActionInstance implements HeldInput {
 	
 	public void _setStandOffset(StandEntity standEntity, Vec3 relativeOffset, StandOffsetFromUser.Rotations rotations, boolean armsOnlyMode, boolean canInvertSide) {
 		LivingEntity user = standEntity.getUser();
-		if (user != null && standEntity.isArmsOnlyMode() == armsOnlyMode) {
+		if (user != null && standEntity.isArmsOnlyMode() == armsOnlyMode && !keepsServerStandOffset) {
+			boolean changed = !relativeOffset.equals(standOffsetSync) || rotations != standOffsetSyncRotations
+					|| canInvertSide != standOffsetSyncCanInvertSide;
 			standEntity.offsetFromUser.setOffset(relativeOffset, rotations, canInvertSide);
 			standEntity.offsetFromUser.standAbility = this.ability;
 			standOffsetSync = relativeOffset;
 			standOffsetSyncRotations = rotations;
 			standOffsetSyncCanInvertSide = canInvertSide;
+			if (changed && sendsStandOffsetChanges) {
+				standEntity.offsetFromUser.syncToTracking();
+			}
 		}
+	}
+
+	/**
+	 * Server: whether this action sends its clients each change of its Stand's offset itself, as a reaching attack does
+	 * once it has started (its clients keep the server's placement).
+	 */
+	public boolean sendsStandOffsetChanges() {
+		return sendsStandOffsetChanges;
 	}
 
 	// The offset this action sends to clients with itself, null when it leaves the Stand where it is.
@@ -1290,10 +1308,14 @@ public class EntityActionInstance implements HeldInput {
 	@ApiStatus.Internal
 	public void _onActionStarted(@Nullable EntityActionInstance prevAction) {
 		applyStandUserWalkSpeed(phase);
+		boolean clientSide = performer != null && performer.level().isClientSide();
+		keepsServerStandOffset = clientSide && decodedFromServer && StandMeleeReach.isReachingAttack(this);
 		onActionSet(prevAction);
 		onSetPhase(phase);
 		initTaskTarget(prevAction);
 		applySyncedStandOffset();
+		// the offset set so far goes to the clients with the action; later changes go by themselves
+		sendsStandOffsetChanges = performer != null && !clientSide && StandMeleeReach.isReachingAttack(this);
 	}
 
 	// 1.16 StandEntityAction.getUserWalkSpeed: a Stand's action sets its user's walk speed from its registration in every
@@ -1890,6 +1912,7 @@ public class EntityActionInstance implements HeldInput {
 				}
 				action.taskTarget = NetworkUtil.readOptional(buffer, ActionTarget.STREAM_CODEC_UNRESOLVED_ENTITY_ID).orElse(null);
 				action.fromBuf(buffer);
+				action.decodedFromServer = true;
 				return action;
 			}
 		}

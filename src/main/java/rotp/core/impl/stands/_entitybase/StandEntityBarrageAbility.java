@@ -810,7 +810,7 @@ public class StandEntityBarrageAbility extends StandEntityAbility {
 			offsetTarget = target.copy().resolveEntityId(stand.level()).withClipPos(Optional.empty());
 		}
 		action.setStandFrontOffsetFromTarget(stand, offsetTarget, minOffset, maxOffset);
-		if (!Objects.equals(previous, action.getSyncedStandOffset())) {
+		if (!Objects.equals(previous, action.getSyncedStandOffset()) && !action.sendsStandOffsetChanges()) {
 			stand.offsetFromUser.syncToTracking();
 		}
 	}
