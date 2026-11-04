@@ -437,6 +437,41 @@ public class TimeStopState {
     }
 
     /**
+     * For an add-on that moves an entity of this level on purpose while time may be stopped around it (a rewind, a
+     * dodge, a teleport): call it right after the move. While the entity stays frozen in stopped time, the freeze
+     * holds it where it now is (it put it back where it froze on every tick before); its motion, fall distance and AI
+     * state stay as they were frozen. An entity the move took out of stopped time (or out of every stop's reach) is
+     * released at once, as time resuming releases it. Server side; nothing happens to an entity no stop covers.
+     * @return whether the entity stays frozen
+     */
+    public boolean repinOrRelease(Entity entity) {
+        if (entity.level() != level) {
+            return false;
+        }
+        if (!shouldFreeze(entity)) {
+            unfreezeEntity(entity);
+            return false;
+        }
+        FrozenEntityState state = frozenEntities.get(entity.getId());
+        if (state == null) {
+            freezeEntity(entity);
+        }
+        else {
+            frozenEntities.put(entity.getId(), new FrozenEntityState(entity.position(), state.fallDistance(), state.wasNoAi()));
+        }
+        return frozenEntities.containsKey(entity.getId());
+    }
+
+    /** {@link #repinOrRelease} in the entity's own server level; false on the client and where time never stopped. */
+    public static boolean repinOrReleaseOnServer(Entity entity) {
+        if (!(entity.level() instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+        var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+        return serverLevel.hasData(attachmentType) && serverLevel.getData(attachmentType).repinOrRelease(entity);
+    }
+
+    /**
      * Knockback on a stopped entity adds up on its waiting motion instead of halving it (1.16 stackKnockbackInstead).
      * An angled hit keeps its angle: 1.16 punches knocked back by strength * cos(xRot) and added strength * -sin(xRot)
      * upwards on their own, which the port does after the vanilla knockback a stopped entity never reaches.
