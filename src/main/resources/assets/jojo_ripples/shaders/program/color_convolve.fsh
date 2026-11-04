@@ -34,5 +34,5 @@ void main() {
     vec3 Chroma = OutColor - Luma;
     OutColor = (Chroma * Saturation) + Luma;
 
-    fragColor = vec4(OutColor, InTexel.a);
+    fragColor = vec4(OutColor, 1.0);
 }
