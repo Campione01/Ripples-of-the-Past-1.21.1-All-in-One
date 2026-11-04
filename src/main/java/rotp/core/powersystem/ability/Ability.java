@@ -252,6 +252,17 @@ public class Ability {
 		return true;
 	}
 
+	/**
+	 * Whether this ability is its power's guard for the keys: a key that binds it to its hold and another ability to its
+	 * click waits the guard's click/hold threshold (AmbiguousKeyPress.guardClickTimeIsHold, 400 ms) before it takes the
+	 * hold. 1.16 knew a guard by its BLOCK pose, whatever its slot. By default the ability in the "guard" slot, and
+	 * StandEntityBlockAbility in any slot; an add-on guard of its own kind overrides this. Blocking and the auto-guard do
+	 * not ask it (JojoModUtil#isStandGuardAbility, StandEntity#isStandBlocking).
+	 */
+	public boolean isGuard() {
+		return "guard".equals(name());
+	}
+
 	public boolean canUserSeeInStoppedTime(LivingEntity user, Power<?> context) {
 		return false;
 	}

@@ -70,7 +70,6 @@ import rotp.core.impl.powers.hamon.ClHamonMeditationPacket;
 import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.ModHamonSkills;
 import rotp.core.impl.powers.hamon.entity.LeavesGliderEntity;
-import rotp.core.impl.stands._entitybase.StandEntityBlockAbility;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.InputConstants.Key;
 
@@ -769,8 +768,7 @@ public class InputHandler {
 		// A guard in any slot counts: 1.16 keyed the guard on StandPose.BLOCK, not on a slot name.
 		return heldAbility != null && clickAbility != null
 				&& heldAbility.baseAbility != null
-				&& ("guard".equals(heldAbility.baseAbility.name())
-						|| heldAbility.baseAbility instanceof StandEntityBlockAbility);
+				&& heldAbility.baseAbility.isGuard();
 	}
 	
 	// 1.16 InputHandler (:343-349) posed only for both buttons clicked in the same client tick, not for a press while the

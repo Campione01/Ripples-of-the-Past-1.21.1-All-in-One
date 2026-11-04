@@ -94,6 +94,19 @@ public final class ClickReleaseAndGuardSlotSmokeTest {
 				"whatever fills the guard slot keeps counting as before");
 		check(!JojoModUtil.isStandGuardAbility(entityAbility("kiss_bomb")), "another action is not a guard");
 		check(!JojoModUtil.isStandGuardAbility((EntityActionType) null), "no action is not a guard");
+
+		check(guard("kiss_block").isGuard() && subclass.isGuard() && entityAbility("guard").isGuard(),
+				"the keys take a StandEntityBlockAbility in any slot and whatever fills the guard slot for a guard");
+		check(!entityAbility("host_crush").isGuard(), "another ability is no guard for the keys");
+		EntityActionAbility declared = new AbilityType<EntityActionAbility>(id("click_release_declared_guard"),
+				(type, abilityId) -> new EntityActionAbility(type, abilityId, EntityActionInstance::new) {
+					@Override
+					public boolean isGuard() {
+						return true;
+					}
+				}).createInstance(abilityId("fluid_guard"));
+		check(declared.isGuard(), "an ability that declares itself a guard is one for the keys");
+		check(!JojoModUtil.isStandGuardAbility(declared), "the declaration leaves blocking and the auto-guard alone");
 	}
 
 	// The key's input method reaches setOrBufferAction, which marks a click before the action is set.
@@ -150,9 +163,8 @@ public final class ClickReleaseAndGuardSlotSmokeTest {
 		check(input.contains(squash("ambiguousKeyPress = isGuardClickAmbiguity(heldAbility, clickAbility)")),
 				"an ambiguous key must ask the guard check for its click timing");
 		String ambiguity = body(input, "privatestaticbooleanisGuardClickAmbiguity(");
-		check(ambiguity.contains(squash("\"guard\".equals(heldAbility.baseAbility.name())"))
-				&& ambiguity.contains(squash("heldAbility.baseAbility instanceof StandEntityBlockAbility")),
-				"the RMB guard timing must cover a guard in any slot");
+		check(ambiguity.contains(squash("heldAbility.baseAbility.isGuard()")),
+				"the RMB guard timing must cover a guard in any slot and an add-on's declared guard");
 	}
 
 	private static final class ReleaseRecorder extends EntityActionInstance {
