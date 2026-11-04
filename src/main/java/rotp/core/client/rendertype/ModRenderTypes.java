@@ -79,10 +79,12 @@ public final class ModRenderTypes extends RenderType {
 						.setLightmapState(LIGHTMAP)
 						.setOverlayState(OVERLAY)
 						.setOutputState(renderState.isolatedOutput ? MAIN_TARGET : STAND_TRANSLUCENCY_TARGET)
+						.setWriteMaskState(renderState.depthWrite ? COLOR_DEPTH_WRITE : COLOR_WRITE)
 						.createCompositeState(renderState.outline);
 				String suffix = (renderState.nearestSurface ? "_surface_diagnostic" : "")
 						+ (renderState.coverageGlow ? "_surface_glow" : "")
-						+ (renderState.cull ? "_cull" : "");
+						+ (renderState.cull ? "_cull" : "")
+						+ (renderState.depthWrite ? "" : "_no_depth_write");
 				return create(JojoMod.MOD_ID + ":stand_translucent" + suffix, DefaultVertexFormat.NEW_ENTITY,
 						VertexFormat.Mode.QUADS, 1536, true, true, state);
 			});
@@ -96,6 +98,20 @@ public final class ModRenderTypes extends RenderType {
 				.createCompositeState(OutlineProperty.IS_OUTLINE);
 		return create(JojoMod.MOD_ID + ":stand_outline", DefaultVertexFormat.POSITION_TEX_COLOR,
 				VertexFormat.Mode.QUADS, 1536, false, false, state);
+	});
+	// RenderType.entityTranslucent without its depth write, for the Iris shadow pass of standTranslucentNoDepthWrite
+	private static final Function<ResourceLocation, RenderType> ENTITY_TRANSLUCENT_NO_DEPTH_WRITE = Util.memoize(texture -> {
+		RenderType.CompositeState state = RenderType.CompositeState.builder()
+				.setShaderState(RENDERTYPE_ENTITY_TRANSLUCENT_SHADER)
+				.setTextureState(new RenderStateShard.TextureStateShard(texture, false, false))
+				.setTransparencyState(TRANSLUCENT_TRANSPARENCY)
+				.setCullState(NO_CULL)
+				.setLightmapState(LIGHTMAP)
+				.setOverlayState(OVERLAY)
+				.setWriteMaskState(COLOR_WRITE)
+				.createCompositeState(false);
+		return create(JojoMod.MOD_ID + ":entity_translucent_no_depth_write", DefaultVertexFormat.NEW_ENTITY,
+				VertexFormat.Mode.QUADS, 1536, true, true, state);
 	});
 
 	@Deprecated
@@ -114,6 +130,23 @@ public final class ModRenderTypes extends RenderType {
 
 	public static RenderType standTranslucentCull(ResourceLocation texture) {
 		return queuedStandTranslucent(texture, true, true);
+	}
+
+	/**
+	 * {@link #standTranslucent(ResourceLocation)} for an effect that must not hide what lies behind it, such as a dome
+	 * around a Stand user (1.16 DomainRenderer drew its spheres with depthMask false): the same blending and queue, no
+	 * culling, no outline, and no depth write, so the far side of a sphere, another layer inside it and a Stand within it
+	 * blend through its near side. The world still hides it.
+	 */
+	public static RenderType standTranslucentNoDepthWrite(ResourceLocation texture) {
+		int ownerId = RenderStateCrutches.currentStandEntityRenderState instanceof StandEntityRenderState state
+				? state.entityId : 0;
+		return new StandSurfaceRenderType(
+				STAND_TRANSLUCENT.apply(texture, new StandTranslucentState(false, false, false, true, false, false)),
+				STAND_TRANSLUCENT.apply(texture, new StandTranslucentState(false, false, false, true, false, false)),
+				STAND_TRANSLUCENT.apply(texture, new StandTranslucentState(false, false, false, false, false, false)),
+				ENTITY_TRANSLUCENT_NO_DEPTH_WRITE.apply(texture), 0.0, ownerId, true,
+				surfaceGroupKey(), nextSurfaceOrder(), false, false);
 	}
 
 	private static RenderType queuedStandTranslucent(ResourceLocation texture, boolean outline, boolean cull) {
@@ -410,7 +443,11 @@ public final class ModRenderTypes extends RenderType {
 	}
 
 	private record StandTranslucentState(boolean outline, boolean cull, boolean nearestSurface, boolean isolatedOutput,
-			boolean coverageGlow) {
+			boolean coverageGlow, boolean depthWrite) {
+		private StandTranslucentState(boolean outline, boolean cull, boolean nearestSurface, boolean isolatedOutput,
+				boolean coverageGlow) {
+			this(outline, cull, nearestSurface, isolatedOutput, coverageGlow, true);
+		}
 		private StandTranslucentState(boolean outline, boolean cull, boolean nearestSurface, boolean isolatedOutput) {
 			this(outline, cull, nearestSurface, isolatedOutput, false);
 		}
