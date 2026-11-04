@@ -5,6 +5,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import rotp.core.api.stand.ManualControlBlocker;
 import rotp.core.api.stand.ManualControlBlockers;
 import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.core.JojoMod;
@@ -25,6 +26,7 @@ import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
@@ -36,6 +38,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class ManualControlBlockerGameTests {
 	private static final Set<UUID> BLOCKED_USERS = ConcurrentHashMap.newKeySet();
+	private static final Set<UUID> TOLD_USERS = ConcurrentHashMap.newKeySet();
+	private static final Component REFUSAL = Component.literal("gametest manual control refusal");
 	private static final AtomicBoolean REGISTERED = new AtomicBoolean();
 
 	private ManualControlBlockerGameTests() {}
@@ -44,6 +48,8 @@ public final class ManualControlBlockerGameTests {
 		if (REGISTERED.compareAndSet(false, true)) {
 			ManualControlBlockers.register(JojoMod.resLoc("gametest_manual_control_blocker"),
 					(user, stand) -> BLOCKED_USERS.contains(user.getUUID()));
+			ManualControlBlockers.register(JojoMod.resLoc("gametest_manual_control_refusal"),
+					ManualControlBlocker.withMessage((user, stand) -> TOLD_USERS.contains(user.getUUID()), REFUSAL));
 		}
 	}
 
@@ -82,7 +88,19 @@ public final class ManualControlBlockerGameTests {
 			StandEntityManualControlToggle.on(level, stand);
 			assertControlled(helper, user, stand, false, "Direct entry ignored the manual-control veto");
 
+			// A blocker with a message refuses with it, also behind a silent one, as 1.16 Highway Star's split form
+			TOLD_USERS.add(user.getUUID());
+			ConditionCheck toldEntry = toggle.checkSpecificConditions(power);
+			helper.assertTrue(!toldEntry.isPositive() && REFUSAL.equals(toldEntry.getWarning()),
+					"A blocker's refusal message was not the refusal's warning: " + toldEntry.getWarning());
 			BLOCKED_USERS.remove(user.getUUID());
+			toldEntry = toggle.checkSpecificConditions(power);
+			helper.assertTrue(!toldEntry.isPositive() && REFUSAL.equals(toldEntry.getWarning()),
+					"A blocker alone did not refuse with its message: " + toldEntry.getWarning());
+			toggle.onClick(level, user, null);
+			assertControlled(helper, user, stand, false, "A refusal with a message entered manual control");
+			TOLD_USERS.remove(user.getUUID());
+
 			helper.assertTrue(toggle.checkSpecificConditions(power).isPositive(),
 					"Lifting the veto did not restore manual-control eligibility");
 			toggle.onClick(level, user, null);
@@ -97,6 +115,7 @@ public final class ManualControlBlockerGameTests {
 		}
 		finally {
 			BLOCKED_USERS.remove(user.getUUID());
+			TOLD_USERS.remove(user.getUUID());
 			if (user.hasData(ModDataAttachmentTypes.CONTROLLER)) {
 				user.getData(ModDataAttachmentTypes.CONTROLLER).stopControlling();
 			}

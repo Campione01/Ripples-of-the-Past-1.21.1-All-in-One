@@ -61,10 +61,16 @@ public class StandEntityManualControlToggle extends Ability {
 		StandEntity stand = StandUtil.getSummonedStand(context);
 		LivingEntity user = context.getUser();
 		if (stand != null && user != null && !stand.isManuallyControlled()
-				&& EntityComponentController.getControlTarget(user) != stand
-				// 1.16 add-on vetoes (Sticky Fingers headless user) also refused silently; exit stays allowed
-				&& (stand.isArmsOnlyMode() || ManualControlBlockers.isBlocked(user, stand))) {
-			return ConditionCheck.NEGATIVE;
+				&& EntityComponentController.getControlTarget(user) != stand) {
+			if (stand.isArmsOnlyMode()) {
+				return ConditionCheck.NEGATIVE;
+			}
+			// 1.16 add-on vetoes refused silently (Sticky Fingers headless user) or with their Stand entity's
+			// canBeManuallyControlled message (Highway Star's split form); exit stays allowed
+			ConditionCheck refusal = ManualControlBlockers.refusal(user, stand);
+			if (refusal != null) {
+				return refusal;
+			}
 		}
 		return ConditionCheck.POSITIVE;
 	}
