@@ -133,6 +133,38 @@ public class AnimationSet {
 	}
 
 	/**
+	 * The set's own clip for the request, without the legacy aliases: in arms-only mode its armsOnly_ clip first, then the
+	 * name itself or its mirrored base, as {@link #getNamedAnim(ActionAnimIdentifier, boolean)} finds them before it follows
+	 * an alias.
+	 */
+	@Nullable
+	public RotpAnimDefinition getOwnNamedAnim(ActionAnimIdentifier animId, boolean armsOnly) {
+		if (armsOnly) {
+			RotpAnimDefinition armsOnlyAnim = getNamedAnim("armsOnly_" + animId.name(), animId.index());
+			if (armsOnlyAnim != null) {
+				return armsOnlyAnim;
+			}
+		}
+		RotpAnimDefinition directAnim = getNamedAnim(animId.name(), animId.index());
+		if (directAnim != null) {
+			return directAnim;
+		}
+		String handedName = mirroredBaseFallback(animId.name(), namedAnimations::containsKey);
+		return handedName != null ? getNamedAnim(handedName, animId.index()) : null;
+	}
+
+	private static final String GRAB_MOVE_PREFIX = "grab_";
+
+	/**
+	 * A grab move (grab_punch, grab_barrage, grab_throw, grab_uppercut...) that a Stand's clips lack is drawn with the core's
+	 * generic clip of that move (stand_default) before the legacy aliases, which name the Stand's own free-handed move: a
+	 * two-handed barrage or a punch of either arm would hit the held entity with the hand that holds it.
+	 */
+	public static boolean prefersGenericClipToAliases(String name) {
+		return name.startsWith(GRAB_MOVE_PREFIX);
+	}
+
+	/**
 	 * Mirroring replaces a clip's base key with its _left/_right keys, so an unsuffixed request
 	 * plays the right-hand variant (then the left one) instead of dropping to idle.
 	 */

@@ -540,20 +540,37 @@ public class PreFrameEntityAnimCalc {
 	/**
 	 * The 1.16 humanoid Stand model carried built-in poses for the generic Stand actions, so ported add-on
 	 * skins may never have shipped those clips. A skin (or its default skin) that has no clip for a non-idle
-	 * action falls back to the generic humanoid set, which only moves the canonical humanoid bones.
+	 * action falls back to the generic humanoid set, which only moves the canonical humanoid bones. A grab move
+	 * takes the generic set's clip before the skin's legacy aliases (AnimationSet#prefersGenericClipToAliases).
 	 */
 	@Nullable
 	private static RotpAnimDefinition lookupStandAnim(
 			StandSkin skin, ActionAnimIdentifier animId, boolean armsOnly, boolean implicitHandMirror) {
+		if (!animId.isIdle() && AnimationSet.prefersGenericClipToAliases(animId.name())) {
+			RotpAnimDefinition own = skin.getStandAnimation(anims -> anims.getOwnNamedAnim(animId, armsOnly));
+			if (own != null) {
+				return own;
+			}
+			AnimationSet defaults = defaultStandAnims();
+			RotpAnimDefinition generic = defaults != null ? defaults.getOwnNamedAnim(animId, armsOnly) : null;
+			if (generic != null) {
+				return generic;
+			}
+		}
 		RotpAnimDefinition anim = skin.getStandAnimation(anims -> anims.getNamedAnim(animId, armsOnly, implicitHandMirror));
 		if (anim == null && !animId.isIdle()) {
-			AnimationLoader loader = AnimationLoader.getInstance();
-			AnimationSet defaults = loader != null ? loader.getAnimSet(DEFAULT_STAND_ANIMS) : null;
+			AnimationSet defaults = defaultStandAnims();
 			if (defaults != null) {
 				anim = defaults.getNamedAnim(animId, armsOnly, implicitHandMirror);
 			}
 		}
 		return anim;
+	}
+
+	@Nullable
+	private static AnimationSet defaultStandAnims() {
+		AnimationLoader loader = AnimationLoader.getInstance();
+		return loader != null ? loader.getAnimSet(DEFAULT_STAND_ANIMS) : null;
 	}
 
 	public static AnimWithId getStandAnim(StandSkin skin, ActionAnimIdentifier animId, ActionAnimIdentifier curIdleAnim) {

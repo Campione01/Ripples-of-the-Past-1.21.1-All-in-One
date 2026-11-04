@@ -371,9 +371,16 @@ public final class CoreClipPhases116GameTests {
 	// a core ability whose clip comes from stand_default (the humanoid set PreFrameEntityAnimCalc falls back to), and why
 	private record Fallback(String stand, String ability, String clip, String reason) {}
 
+	private static final String GRAB_MOVE = "a grab move The World's file lacks: the port's one-handed hold move (1.16 had no"
+			+ " grab) before the legacy alias to its own free-handed one (player report 14.png, 15.mp4)";
 	private static final List<Fallback> STAND_DEFAULT_FALLBACKS = List.of(new Fallback("the_world", "grab", "grab",
 			"the grab is a port addition (1.16 had none, so no 1.16 pose to match), and The World keeps the port's animation"
-					+ " files (D-core-67)"));
+					+ " files (D-core-67)"),
+			new Fallback("the_world", "grab_punch", "grab_punch", GRAB_MOVE),
+			new Fallback("the_world", "grab_barrage", "grab_barrage", GRAB_MOVE),
+			new Fallback("the_world", "grab_throw", "grab_throw", GRAB_MOVE),
+			new Fallback("crazy_diamond", "grab_throw", "grab_throw", "the grab throw Crazy Diamond's file lacks: the port's"
+					+ " throw before the legacy alias to Crazy Diamond's own grab reach"));
 
 	/*
 	 * 1.16 drew a Java-model humanoid's moves it had no pose of its own for with HumanoidStandModel's (the jab, the
@@ -382,7 +389,8 @@ public final class CoreClipPhases116GameTests {
 	 * own move, converted from its 1.16 model or JSON or the official port's), so none falls back to stand_default but
 	 * the listed ones: the clip each press asks for (as the action asks it, the combo index read as punch2-4, a handed
 	 * clip as its base) resolves in the Stand's own file as AnimationSet does (direct, the mirrored base, the legacy
-	 * aliases) before stand_default is asked.
+	 * aliases) before stand_default is asked; a grab move takes stand_default's own clip before the legacy aliases
+	 * (AnimationSet.prefersGenericClipToAliases, PreFrameEntityAnimCalc.lookupStandAnim).
 	 */
 	@GameTest(template = "empty", timeoutTicks = 20)
 	public static void theCoreStandsDrawTheirOwnClipsAndFallBackToStandDefaultOnlyWhereListed(GameTestHelper helper) {
@@ -402,10 +410,17 @@ public final class CoreClipPhases116GameTests {
 					continue;
 				}
 				asked++;
-				if (resolve(own, clip) != null) {
+				boolean grabMove = AnimationSet.prefersGenericClipToAliases(clip);
+				if ((grabMove ? ownClip(own, clip) : resolve(own, clip)) != null) {
 					continue;
 				}
-				String fallback = resolve(defaults, clip);
+				String fallback = grabMove ? ownClip(defaults, clip) : null;
+				if (fallback == null) {
+					if (grabMove && resolve(own, clip) != null) {
+						continue;
+					}
+					fallback = resolve(defaults, clip);
+				}
 				if (fallback == null) {
 					continue;
 				}
@@ -518,11 +533,14 @@ public final class CoreClipPhases116GameTests {
 	// the key AnimationSet.getNamedAnim finds for a clip name in a file: the name, its mirrored base, its legacy alias chain
 	@Nullable
 	private static String resolve(JsonObject anims, String clip) {
-		if (anims.has(clip)) {
-			return clip;
-		}
-		String handed = AnimationSet.mirroredBaseFallback(clip, anims::has);
-		return handed != null ? handed : AnimationSet.aliasedKey(clip, anims::has);
+		String own = ownClip(anims, clip);
+		return own != null ? own : AnimationSet.aliasedKey(clip, anims::has);
+	}
+
+	// the key AnimationSet.getOwnNamedAnim finds: the name or its mirrored base, no alias
+	@Nullable
+	private static String ownClip(JsonObject anims, String clip) {
+		return anims.has(clip) ? clip : AnimationSet.mirroredBaseFallback(clip, anims::has);
 	}
 
 	private static double[][] composedHead(JsonObject clip, float time, float[] look) {
