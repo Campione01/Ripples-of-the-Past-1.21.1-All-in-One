@@ -371,6 +371,20 @@ public class InputHandler {
 				&& !ClientGlobals.isPlayerStandFullBodyUnsummoning();
 	}
 
+	/**
+	 * The server unsummons the Stand otherwise than by its user (a skill, a rule; StandType#keepUsersStandHud): 1.16 kept
+	 * the HUD in the Stand mode, so the bar the summoned Stand showed by itself stays as the Stand toggle, which the next
+	 * summon key press clears again.
+	 */
+	public void keepStandHudAfterForcedUnsummon() {
+		if (curPowerClassToggle == null && mc.player != null) {
+			StandPower standPower = ClientPowerCache.getPower(PowerClass.STAND);
+			if (standPower != null && isStandSummonedForDefaultControls(standPower)) {
+				curPowerClassToggle = PowerClass.STAND;
+			}
+		}
+	}
+
 	private ClientControlScheme getActiveControlSchemeForInput(ClientKey key, KeyModifier keyModifier) {
 		ClientControlScheme activeControlScheme = getActiveControlScheme();
 		boolean vanillaUseTrigger =

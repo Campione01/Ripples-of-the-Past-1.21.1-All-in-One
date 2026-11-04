@@ -330,6 +330,19 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	public boolean isSummoned() {
 		return summonedStand != null;
 	}
+
+	private boolean unsummonedByItsUser;
+
+	/** Server: the unsummon under way is its user's own (StandType#unsummon), not one a skill or a rule forces. */
+	@ApiStatus.Internal
+	public boolean isUnsummonedByItsUser() {
+		return unsummonedByItsUser;
+	}
+
+	@ApiStatus.Internal
+	public void setUnsummonedByItsUser(boolean byUser) {
+		this.unsummonedByItsUser = byUser;
+	}
 	
 	public void setSummonedStand(@Nullable SummonedStand summonedStand) {
 		this.summonedStand = summonedStand;

@@ -39,6 +39,7 @@ import rotp.core.powersystem.standpower.entity.StandControlType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.powersystem.standpower.type.SummonedStand.BlankSummonedStand;
+import rotp.core.util.constants.EntityEvents;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.util.functions.AttributeUtil;
 import rotp.core.util.sound.MultiSoundEventResolver;
@@ -50,7 +51,9 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -363,11 +366,21 @@ public class StandType extends PowerType {
 	}
 	
 	public void unsummon(LivingEntity user, StandPower standPower) {
-		forceUnsummon(user, standPower);
+		boolean wasByUser = standPower.isUnsummonedByItsUser();
+		standPower.setUnsummonedByItsUser(true);
+		try {
+			forceUnsummon(user, standPower);
+		}
+		finally {
+			standPower.setUnsummonedByItsUser(wasByUser);
+		}
 	}
-	
+
 	public void forceUnsummon(LivingEntity user, StandPower standPower) {
 		if (standPower.isSummoned()) {
+			if (user != null && !user.level().isClientSide() && !standPower.isUnsummonedByItsUser()) {
+				keepUsersStandHud(user);
+			}
 			standPower.setSummonedStand(null);
 			if (user != null && !user.level().isClientSide()) {
 				PacketDistributor.sendToPlayersTrackingEntityAndSelf(user, new TrNonEntityStandSummonPacket(user.getId(), false));
@@ -381,6 +394,18 @@ public class StandType extends PowerType {
 	}
 	
 	
+	/**
+	 * 1.16 left its user's HUD in the Stand mode through every unsummon but the user's own (ActionsOverlayGui.onStandUnsummon,
+	 * from the unsummon task only), so a skill or a rule that unsummons the Stand leaves the bar to use it with again; a
+	 * dimension change and a respawn reset the HUD (UpdateClientCapCachePacket), and a dead user keeps nothing. Tells the
+	 * user's client, before the Stand is gone, to keep the Stand HUD its summoned Stand showed (InputHandler).
+	 */
+	protected static void keepUsersStandHud(LivingEntity user) {
+		if (user instanceof ServerPlayer player && player.isAlive() && player.connection != null) {
+			player.connection.send(new ClientboundEntityEventPacket(player, EntityEvents.KEEP_STAND_HUD));
+		}
+	}
+
 	public boolean usesStamina(StandPower standPower) {
 		return true;
 	}

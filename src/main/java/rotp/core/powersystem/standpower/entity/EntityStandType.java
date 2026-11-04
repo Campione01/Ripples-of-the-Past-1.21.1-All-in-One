@@ -7,8 +7,10 @@ import java.util.function.Consumer;
 import rotp.core.client.ClientProxy;
 import rotp.core.init.ModCriteriaTriggers;
 import rotp.core.init.ModEntityTypes;
+import rotp.core.init.ModSpecialActions;
 import rotp.core.network.s2c.TrSetStandEntityPacket;
 import rotp.core.powersystem.MovesetBuilder;
+import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.standpower.StandPower;
@@ -339,6 +341,9 @@ public class EntityStandType extends StandType {
 		if (!user.level().isClientSide()) {
 			StandEntity standEntity = standPower.getSummonedStandEntity();
 			if (standEntity != null) {
+				if (keepsUsersStandHud(user, standPower, standEntity)) {
+					keepUsersStandHud(user);
+				}
 				clearStandActionBeforeRemoval(standEntity);
 				settleStandBeforeForcedUnsummon(standEntity);
 				standPower.setSummonedStand(null);
@@ -352,6 +357,18 @@ public class EntityStandType extends StandType {
 				settleStandBeforeForcedUnsummon(standEntity);
 			}
 		}
+	}
+
+	/*
+	 * Every unsummon of a whole Stand in its user's level but the one its unsummon action ends with (the summon key, the
+	 * retraction after an auto-summon), as 1.16's StandEntityUnsummon.onTaskSet alone closed the HUD; a Stand that a press
+	 * made and never added was never shown, and the arms an action took out leave the HUD as it was before them.
+	 */
+	private static boolean keepsUsersStandHud(LivingEntity user, StandPower standPower, StandEntity standEntity) {
+		EntityActionInstance action = standEntity.getCurStandAction();
+		return standEntity.isAddedToLevel() && !standEntity.isArmsOnlyMode() && standEntity.level() == user.level()
+				&& !standPower.isUnsummonedByItsUser()
+				&& (action == null || action.ability != ModSpecialActions.STAND_UNSUMMON.get());
 	}
 
 	/**
