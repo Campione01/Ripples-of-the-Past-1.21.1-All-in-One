@@ -385,6 +385,17 @@ public class StandTypePersistentData extends PowerData {
 		return Mth.clamp(Math.max(highestResolveLevel, resolveLevel), 0, getMaxResolveLevel());
 	}
 
+	/** The levels reached before the current one no longer unlock anything (the stand_skills reset command). */
+	public void resetHighestResolveLevel(StandPower userPower) {
+		if (highestResolveLevel != resolveLevel) {
+			highestResolveLevel = resolveLevel;
+			LivingEntity user = userPower.getUser();
+			if (user != null && !user.level().isClientSide()) {
+				syncOnUpdate(user);
+			}
+		}
+	}
+
 	public boolean setResolveLevel(StandPower userPower, int level) {
 		int clamped = Mth.clamp(level, 0, getMaxResolveLevel());
 		if (resolveLevel != clamped) {

@@ -104,9 +104,8 @@ public class StandSkillsCommand {
 	private static int resetSkills(CommandSourceStack source, Collection<ServerPlayer> targets) throws CommandSyntaxException {
 		Collection<StandPower> stands = StandCommand.getStands(targets);
 		for (StandPower stand : stands) {
-			StandTypePersistentData data = stand.getCurTypeData();
-			if (data != null) {
-				data.resetUnlockedSkills(stand);
+			if (stand.getCurTypeData() != null) {
+				stand.resetSkillProgression();
 			}
 		}
 		return RESET_MSG.success.send(source, true, targets, stands.size(), new Object[] {}, new Object[] {});

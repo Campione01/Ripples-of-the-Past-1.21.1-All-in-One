@@ -412,6 +412,25 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		return skippedProgression;
 	}
 
+	/**
+	 * The stand_skills reset command (the port's; 1.16 had none): undoes unlock_all (skipProgression) and what earlier
+	 * Resolve levels unlocked, so the Stand's skills and Resolve gates follow its current level again; its training and
+	 * EXP stay. 1.16's full reset is /stand clear (applyDestructiveTransition(true)).
+	 */
+	public void resetSkillProgression() {
+		StandTypePersistentData data = getCurTypeData();
+		if (data == null || user.level().isClientSide()) {
+			return;
+		}
+		if (skippedProgression) {
+			skippedProgression = false;
+			syncSkippedProgression();
+		}
+		data.resetHighestResolveLevel(this);
+		data.resetUnlockedSkills(this);
+		cachedMovesThisTick = false;
+	}
+
 	@ApiStatus.Internal
 	public void applySyncedProgressionSkipped(boolean skipped) {
 		skippedProgression = skipped;
