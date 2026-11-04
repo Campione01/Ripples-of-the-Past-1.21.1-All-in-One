@@ -9,6 +9,9 @@
     "damage.DamageSourceMixin",
 	"damage.LivingEntityMixin",
 	"damage.WitchMagicResistanceMixin",
+	"motiontime.EntityBubbleColumnTimeMixin",
+	"motiontime.FireworkRocketBoostTimeMixin",
+	"motiontime.LivingEntityMotionTimeMixin",
 	"vampirism.NearestAttackableTargetGoalAccessor",
 	"vampirism.TargetingConditionsAccessor",
 
