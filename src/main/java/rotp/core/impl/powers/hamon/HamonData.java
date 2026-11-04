@@ -19,6 +19,7 @@ import java.util.function.BooleanSupplier;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.hamon.HamonEfficiencyFactors;
 import rotp.core.JojoModConfig;
 import rotp.core.client.ClientProxy;
 import rotp.core.client.ui.hud_power.PowerHud;
@@ -981,7 +982,7 @@ public class HamonData extends PlayerPowerData {
 			efficiency *= 1.0F - freeze;
 		}
 
-		return efficiency;
+		return HamonEfficiencyFactors.apply(user, efficiency);
 	}
 
 	public int getAbilityCooldown(String abilityName) {
