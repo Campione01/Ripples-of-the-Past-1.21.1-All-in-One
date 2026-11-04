@@ -9,6 +9,7 @@ import rotp.core.core.JojoRegistries;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility.StandEntityBarrage;
 import rotp.core.impl.stands._entitybase.StandMeleeReach;
+import rotp.core.impl.stands.magiciansred.MagiciansRedKickAbility.MagiciansRedKick;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.controls.InputMethod;
@@ -17,6 +18,8 @@ import rotp.core.powersystem.ability.input.ActionInputBuffer.BufferingState;
 import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
+import rotp.core.powersystem.entityaction.netcode.SyncType;
+import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
@@ -75,6 +78,111 @@ public final class StandMeleeReachGameTests {
 	public static void theWorldStrikesAMobItsUserAimsAtPastItsUsersReachWeakerInTheMargin(GameTestHelper helper) {
 		Run run = new Run(helper);
 		helper.onEachTick(run::tick);
+	}
+
+	/*
+	 * Magician's Red (range 5 to 10, base reach 10, margin 2.5) kicks a cow 12.3 blocks ahead: the kick flies out in front
+	 * of it and follows its user through the strike instead of moving by itself, so the strike reaches out at about 0.44
+	 * of its strength; a kick at a cow 3 blocks ahead keeps 1.16's slide and moves by itself.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 60, batch = "rotp_t2_melee_reach_kick")
+	public static void magiciansRedsKickFliesOutAndStrikesWeakerPastItsBaseReach(GameTestHelper helper) {
+		List<Runnable> cleanup = new ArrayList<>();
+		Runnable close = () -> {
+			for (int i = cleanup.size() - 1; i >= 0; i--) {
+				cleanup.get(i).run();
+			}
+			cleanup.clear();
+		};
+		try {
+			ChunkPos chunk = new ChunkPos(helper.absolutePos(BlockPos.ZERO));
+			Vec3 origin = new Vec3(chunk.getMiddleBlockX() + 0.5D, helper.absolutePos(BlockPos.ZERO).getY() + 60,
+					chunk.getMinBlockZ() + 0.5D);
+			Player user = GameTestPlayers.makeServerMockPlayer(helper, GameType.SURVIVAL);
+			user.setNoGravity(true);
+			user.noPhysics = true;
+			user.moveTo(origin.x, origin.y, origin.z, 0.0F, 0.0F);
+			user.setYHeadRot(0.0F);
+			helper.assertTrue(helper.getLevel().addFreshEntity(user), "Fixture: the user could not be added");
+			cleanup.add(user::discard);
+			StandPower power = PowerClass.STAND.attachGet(user);
+			StandType type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("magicians_red"));
+			helper.assertTrue(type != null && StandPowerTransitions.insert(power, new StandInstance(type)).status()
+					== StandPowerTransitions.Status.APPLIED && type.summon(user, power), "Fixture: could not give and summon"
+							+ " Magician's Red");
+			cleanup.add(() -> {
+				if (power.isSummoned()) {
+					LivingComponentAction.getComponent(power.getSummonedStandEntity()).setAction(null, SyncType.NO_SYNC);
+					type.forceUnsummon(user, power);
+				}
+			});
+			StandEntity stand = power.getSummonedStandEntity();
+			helper.assertTrue(stand != null && stand.getUser() == user && stand.isFollowingUser(),
+					"Fixture: no Magician's Red following its user");
+			stand.summonLockTicks = 0;
+			stand.gradualSummonWeaknessTicks = 0;
+			stand.updatePosition(user);
+			Cow cow = EntityType.COW.create(helper.getLevel());
+			helper.assertTrue(cow != null, "Fixture: no cow");
+			cow.setNoAi(true);
+			cow.setNoGravity(true);
+			cow.noPhysics = true;
+			cow.moveTo(origin.x, origin.y, origin.z + 3.0D, 0.0F, 0.0F);
+			helper.assertTrue(helper.getLevel().addFreshEntity(cow), "Fixture: the cow could not be added");
+			cleanup.add(cow::discard);
+			helper.assertTrue(StandMeleeReach.isCloseRange(stand)
+					&& Math.abs(StandMeleeReach.baseReach(stand, user) - 10.0D) < 1.0E-6, "Fixture: Magician's Red's base"
+							+ " reach is " + StandMeleeReach.baseReach(stand, user));
+
+			MagiciansRedKick near = kickAt(helper, power, user, stand, cow);
+			near.setPhase(ActionPhase.WINDUP, 8);
+			helper.assertTrue(!near.fliesOut() && !stand.isFollowingUser(),
+					"A kick at a cow 3 blocks ahead, within the Stand's own reach, flew out (" + near.fliesOut()
+							+ ") or kept following its user in its last windup ticks (" + stand.isFollowingUser()
+							+ "); 1.16's slide moves it by itself");
+			LivingComponentAction.getComponent(stand).setAction(null, SyncType.NO_SYNC);
+
+			cow.moveTo(origin.x, origin.y, origin.z + 12.3D, 0.0F, 0.0F);
+			stand.updatePosition(user);
+			MagiciansRedKick far = kickAt(helper, power, user, stand, cow);
+			double forward = stand.offsetFromUser.getRelativeOffset().z;
+			helper.assertTrue(far.fliesOut() && forward > 10.0D && forward < 11.5D,
+					"A kick at a cow 12.3 blocks ahead did not fly out in front of it (10.85 forward): flies out "
+							+ far.fliesOut() + ", offset " + stand.offsetFromUser.getRelativeOffset());
+			far.setPhase(ActionPhase.WINDUP, 8);
+			helper.assertTrue(stand.isFollowingUser(), "A kick that flew out moved by itself in its last windup ticks");
+			far.setPhase(ActionPhase.PERFORM, 0);
+			float factor = StandMeleeReach.strikeFactor(stand, cow);
+			helper.assertTrue(stand.isFollowingUser() && StandMeleeReach.reachable(stand, cow) && factor > 0.4F
+							&& factor < 0.5F,
+					"A kick that flew out to a cow " + StandMeleeReach.userDistance(user, cow) + " from its user's eyes"
+							+ " did not strike it at about 0.44 of its strength (base reach 10, margin 2.5): following "
+							+ stand.isFollowingUser() + ", reachable " + StandMeleeReach.reachable(stand, cow)
+							+ ", factor " + factor);
+		}
+		finally {
+			close.run();
+		}
+		helper.succeed();
+	}
+
+	// the kick as its press sets it: the Stand's aim met the cow, as its user's client sent it
+	private static MagiciansRedKick kickAt(GameTestHelper helper, StandPower power, Player user, StandEntity stand,
+			Cow cow) {
+		LivingComponentAction.getComponent(stand).entityAim.setTarget(new ActionTarget(cow));
+		helper.assertTrue(power.getAbility("kick") instanceof EntityActionType, "Fixture: Magician's Red has no kick");
+		EntityActionType kickType = (EntityActionType) power.getAbility("kick");
+		EntityActionInstance kick = kickType.createActionObj();
+		kickType.initActionFromConfig(kick, helper.getLevel(), user, stand);
+		kick.phasesLength.put(ActionPhase.BUTTON_CHARGE, 0.0F);
+		kick.phasesLength.put(ActionPhase.WINDUP, 10.0F);
+		kick.phasesLength.put(ActionPhase.PERFORM, 1.0F);
+		kick.phasesLength.put(ActionPhase.RECOVERY, 10.0F);
+		kick.setStartingPhase();
+		LivingComponentAction.getComponent(stand).setAction(kick, user, SyncType.NO_SYNC);
+		helper.assertTrue(stand.getCurStandAction() == kick && kick instanceof MagiciansRedKick,
+				"Fixture: the kick was not set: " + stand.getCurStandAction());
+		return (MagiciansRedKick) kick;
 	}
 
 	private static final class Run implements GameTestListener {
