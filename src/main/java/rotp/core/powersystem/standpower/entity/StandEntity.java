@@ -146,6 +146,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.scores.PlayerTeam;
 import net.neoforged.neoforge.common.CommonHooks;
 import net.neoforged.neoforge.common.damagesource.DamageContainer;
 import net.neoforged.neoforge.common.util.TriState;
@@ -2353,6 +2354,23 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	
 	@Override
 	public void pushEntities() {}
+
+	// 1.16 StandEntity: a Stand is in its user's team, and the ally of its user and of whoever its user is allied to
+	@Override
+	@Nullable
+	public PlayerTeam getTeam() {
+		LivingEntity user = getUser();
+		return user != null ? user.getTeam() : super.getTeam();
+	}
+
+	@Override
+	public boolean isAlliedTo(Entity entity) {
+		LivingEntity user = getUser();
+		if (user != null) {
+			return entity == user || user.isAlliedTo(entity);
+		}
+		return super.isAlliedTo(entity);
+	}
 
 	@Override
 	public boolean isPickable() {
