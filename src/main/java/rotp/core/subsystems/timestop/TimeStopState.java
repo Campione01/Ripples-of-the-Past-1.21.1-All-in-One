@@ -100,6 +100,9 @@ public class TimeStopState {
     private final Map<Integer, AbilityId> timeStopStarters = new HashMap<>();
     // Server-only: the stamina each instance's start actually took, and the part of it no early end gives back.
     private final Map<Integer, StartCharge> timeStopStartCharges = new HashMap<>();
+    // Server-only: the game time each instance began stopping time. A held stop's ticksPassed starts below 0 (the
+    // opening settle, already frozen), so it cannot give the start that rule G1 compares with a rewind's point.
+    private final Map<Integer, Long> timeStopStartTimes = new HashMap<>();
     private final Map<Integer, FrozenEntityState> frozenEntities = new HashMap<>();
     private final Map<Integer, List<Runnable>> onTimeResume = new HashMap<>();
     private final Set<UUID> playersVisionFrozen = new HashSet<>();
@@ -213,6 +216,10 @@ public class TimeStopState {
             freezeTimeStopGamerulesIfNeeded();
         }
         Instance replaced = instances.put(instance.id(), instance);
+        // a running stop put again (extended or cut by an add-on) keeps its first start
+        if (replaced == null || !replaced.isActive() || !timeStopStartTimes.containsKey(instance.id())) {
+            timeStopStartTimes.put(instance.id(), level.getGameTime());
+        }
         if (replaced != null) {
             reconcileFrozenEntities();
         }
@@ -472,7 +479,8 @@ public class TimeStopState {
         long now = level.getGameTime();
         List<Integer> ended = new ArrayList<>();
         for (Instance instance : instances.values()) {
-            if (now - instance.ticksPassed() > rewindPoint && meetsRegion(instance, region)) {
+            long started = timeStopStartTimes.getOrDefault(instance.id(), now - Math.max(instance.ticksPassed(), 0));
+            if (started > rewindPoint && meetsRegion(instance, region)) {
                 ended.add(instance.id());
             }
         }
@@ -637,6 +645,7 @@ public class TimeStopState {
         }
         timeStopStarters.clear();
         timeStopStartCharges.clear();
+        timeStopStartTimes.clear();
         for (Instance removed : removedInstances) {
             removeTimeStopEffectIfNoActiveInstance(removed);
         }
@@ -997,6 +1006,7 @@ public class TimeStopState {
             if (!instances.containsKey(removed.id())) {
                 timeStopStarters.remove(removed.id());
                 timeStopStartCharges.remove(removed.id());
+                timeStopStartTimes.remove(removed.id());
             }
         }
         for (TimeStopSettlement settlement : settlements) {
