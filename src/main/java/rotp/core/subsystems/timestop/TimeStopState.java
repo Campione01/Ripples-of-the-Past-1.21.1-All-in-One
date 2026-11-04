@@ -476,11 +476,9 @@ public class TimeStopState {
      * @return how many stops it ended
      */
     public int endStopsBegunAfter(long rewindPoint, AABB region) {
-        long now = level.getGameTime();
         List<Integer> ended = new ArrayList<>();
         for (Instance instance : instances.values()) {
-            long started = timeStopStartTimes.getOrDefault(instance.id(), now - Math.max(instance.ticksPassed(), 0));
-            if (started > rewindPoint && meetsRegion(instance, region)) {
+            if (endsOnRewind(instance, rewindPoint, region)) {
                 ended.add(instance.id());
             }
         }
@@ -488,6 +486,24 @@ public class TimeStopState {
             removeInstance(id, RemovalReason.INTERRUPTED);
         }
         return ended.size();
+    }
+
+    /**
+     * Rule G1 for one stop of this level: whether a rewind to this point in this region ends it, as
+     * {@link #endStopsBegunAfter} decides. For a rewind that must know before it posts its RewindAppliedEvent which
+     * stops go on (what they hold stays as it is).
+     */
+    public boolean endsOnRewind(Instance instance, long rewindPoint, AABB region) {
+        return getStartGameTime(instance) > rewindPoint && meetsRegion(instance, region);
+    }
+
+    /**
+     * The level's game time the stop began stopping time: when it was first committed, a held stop's opening included
+     * (its ticksPassed starts below 0 there). Server side.
+     */
+    public long getStartGameTime(Instance instance) {
+        Long started = timeStopStartTimes.get(instance.id());
+        return started != null ? started : level.getGameTime() - Math.max(instance.ticksPassed(), 0);
     }
 
     private static boolean meetsRegion(Instance instance, AABB region) {

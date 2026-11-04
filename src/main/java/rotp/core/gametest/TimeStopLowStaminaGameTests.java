@@ -171,6 +171,14 @@ public final class TimeStopLowStaminaGameTests {
 			helper.runAfterDelay(10, () -> point[0] = scene.level.getGameTime());
 			helper.runAfterDelay(15, () -> {
 				try {
+					TimeStopState state = scene.level.getData(ModDataAttachmentTypes.TIME_STOP.get());
+					TimeStopState.Instance running = scene.instance();
+					long reportedStart = running != null ? state.getStartGameTime(running) : Long.MIN_VALUE;
+					helper.assertTrue(running != null && reportedStart == started
+									&& !state.endsOnRewind(running, point[0], region)
+									&& state.endsOnRewind(running, started - 1, region),
+							"Asked before a rewind (rule G1), a stop begun at " + started + " must give that start and end"
+									+ " only for a point before it: start=" + reportedStart + " running=" + running);
 					RewindAppliedEvent.post(null, scene.level, point[0], region, source);
 					TimeStopState.Instance kept = scene.instance();
 					boolean effectKept = scene.player.hasEffect(ModStatusEffects.TIME_STOP);
