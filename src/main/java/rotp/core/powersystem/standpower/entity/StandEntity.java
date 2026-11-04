@@ -1034,29 +1034,32 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		return jump;
 	}
 	
+	/**
+	 * 1.16 StandEntity.moveStandManually set the input's motion as the Stand's velocity, which LivingEntity.aiStep scaled
+	 * by 0.98 on the controlling client and travel then moved it by, once a tick.
+	 */
+	public static final double MANUAL_STEP_FACTOR = 0.98D;
+
+	/**
+	 * The controlling side moves the Stand by this tick's manual input (times {@link #MANUAL_STEP_FACTOR}) once. The step
+	 * is not left as the Stand's velocity: travel, which runs first in the next tick, would move it by it again.
+	 */
 	protected void moveStandManualControl() {
 		LivingEntity user = getUser();
 		if (user != null && isControlledByLocalInstance()) {
 			if (_offsetFromUserVec == null) {
 				updateUserOffset(user);
 			}
-			
+			Vec3 step = _manualControlInput.scale(MANUAL_STEP_FACTOR);
+			_manualControlInput = Vec3.ZERO;
+
 			if (_offsetFromUserVec != null) {
-				_offsetFromUserVec = _offsetFromUserVec.add(_manualControlInput);
-				_manualControlInput = Vec3.ZERO;
-				
-				Vec3 userPos = user.position();
-				Vec3 newPos = userPos.add(_offsetFromUserVec);
-				Vec3 move = newPos.subtract(this.position());
-				Vec3 oldPos = position();
-				move(MoverType.SELF, move);
-				setDeltaMovement(position().subtract(oldPos));
+				_offsetFromUserVec = _offsetFromUserVec.add(step);
+				Vec3 newPos = user.position().add(_offsetFromUserVec);
+				move(MoverType.SELF, newPos.subtract(this.position()));
 			}
 			else {
-				Vec3 oldPos = position();
-				move(MoverType.SELF, _manualControlInput);
-				setDeltaMovement(position().subtract(oldPos));
-				_manualControlInput = Vec3.ZERO;
+				move(MoverType.SELF, step);
 			}
 		}
 	}
