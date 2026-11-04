@@ -164,6 +164,7 @@ public class PreFrameEntityAnimCalc {
 		}
 
 		LivingAnimState animVariables = LivingAnimState.reusedInstance;
+		boolean swingsFramed = false;
 		if (hasPrimaryPose || rebuffTail != null) {
 			if (persistentHamonPose != null) {
 				animVariables.reset();
@@ -330,6 +331,7 @@ public class PreFrameEntityAnimCalc {
 					if (barrageSwings != null) {
 						barrageSwings.frameStandBarrage(Minecraft.getInstance(), anim, timeSeconds, living, living.tickCount + partialTick);
 					}
+					swingsFramed = true;
 				}
 				
 				if (ClientModSettings.getSettingsReadOnly().standMotionTilt && stand != null && !userPoseCopied) {
@@ -349,6 +351,14 @@ public class PreFrameEntityAnimCalc {
 			}
 			else if (performPose != null) {
 				stand.endPerformPose();
+			}
+		}
+		// 1.16 aged the afterimages every frame (BarrageSwingsHolder): a frame drawn without a clip (a Stand without an idle
+		// clip, a player whose action ended) lets the last barrage's swings run out instead of freezing them on the model
+		if (newFrame && !swingsFramed) {
+			BarrageSwings barrageSwings = getBarrageSwings(living);
+			if (barrageSwings != null) {
+				barrageSwings.frameWithoutClip(Minecraft.getInstance(), living.tickCount + partialTick);
 			}
 		}
 		return pose;
