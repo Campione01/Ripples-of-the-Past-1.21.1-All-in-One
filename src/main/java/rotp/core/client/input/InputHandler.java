@@ -23,7 +23,6 @@ import org.lwjgl.glfw.GLFW;
 import rotp.core.client.ClientGlobals;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.client.ClientTickHandler;
-import rotp.core.client.ClientTimeStopHandler;
 import rotp.core.client.input.clickhold.AmbiguousKeyPress;
 import rotp.core.client.input.controlscheme.AllControlSchemes;
 import rotp.core.client.input.controlscheme.ClientControlScheme;
@@ -62,7 +61,7 @@ import rotp.core.powersystem.playerpower.PlayerPower;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
-import rotp.core.subsystems.timestop.TimeStopClientAwareness;
+import rotp.core.subsystems.timestop.TimeStopState;
 import rotp.core.util.enums.Direction2D;
 import rotp.core.util.mod.IPlayerLeap;
 import rotp.core.impl.powers.hamon.ClHamonDoubleShiftPressPacket;
@@ -1498,12 +1497,13 @@ public class InputHandler {
 
 
 	// 1.16 shouldVanillaInputStun: vanilla attack and use clicks do nothing while stunned or stopped in someone else's time
-	// (!mc.player.canUpdate(); Ability.isUserStoppedInTime asks the same on the client).
+	// (!mc.player.canUpdate(): whether the player's own client holds it still, so the LAN host too, whom the server lets
+	// move in a guest's stop while his client freezes him; TimeStopState.shouldFreezeClientEntity is the port's analogue).
 	// Ability clicks are handled earlier and still reach the server's own stun checks.
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public void cancelVanillaClickInStun(InteractionKeyMappingTriggered event) {
 		cancelVanillaClickWhileStunned(event, mc.player != null && ModStatusEffects.isStunned(mc.player),
-				mc.player != null && ClientTimeStopHandler.isTimeStoppedStatic() && !TimeStopClientAwareness.canMove());
+				mc.player != null && TimeStopState.shouldFreezeClientEntity(mc.player));
 	}
 
 	@ApiStatus.Internal
