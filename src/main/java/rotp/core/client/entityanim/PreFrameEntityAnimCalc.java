@@ -28,6 +28,7 @@ import rotp.core.client.ClientTimeStopHandler;
 import rotp.core.powersystem.playerpower.PlayerPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandIdleSway;
+import rotp.core.subsystems.entity_grab.LivingComponentGrab;
 import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.entity.HamonMasterEntity;
 import rotp.core.impl.powers.pillarman.PillarmanData;
@@ -74,6 +75,7 @@ public class PreFrameEntityAnimCalc {
 	private static final ActionAnimIdentifier SUMMON_ANIM = ActionAnimIdentifier.getOrCreate("summon", false);
 	private static final ActionAnimIdentifier SC_NO_RAPIER_IDLE_ANIM = ActionAnimIdentifier.getOrCreate("no_rapier_idle", true);
 	private static final ActionAnimIdentifier SC_NO_ARMOR_IDLE_ANIM = ActionAnimIdentifier.getOrCreate("no_armor_idle", true);
+	private static final ActionAnimIdentifier GRAB_ANIM = ActionAnimIdentifier.getOrCreate("grab", false);
 
 	public static void onBeforeEntitiesRender(ClientLevel level) {
 		Minecraft mc = Minecraft.getInstance();
@@ -221,6 +223,7 @@ public class PreFrameEntityAnimCalc {
 				StandSkin standSkin = StandSkinsLoader.getInstance().getSkin(stand);
 				ActionAnimIdentifier idleAnim = StandEntityRenderer.IDLE_ANIM;
 				idleAnim = selectStandIdleAnim(stand, idleAnim);
+				boolean grabHold = false;
 				String idleRequest = action != null && animVariables.animId != null && animVariables.animId.isIdle()
 						? AnimationSet.requestedIdleKey(animVariables.animId.name(), idleAnim.name()) : null;
 				if (idleRequest != null) {
@@ -240,12 +243,25 @@ public class PreFrameEntityAnimCalc {
 					}
 					else {
 						stand.endSummonPose();
+						grabHold = LivingComponentGrab.getEntityGrabbedBy(stand) != null;
+						if (newFrame && stand.clientStuff != null && stand.clientStuff.grabHoldPosed != grabHold) {
+							if (!grabHold) {
+								stand.nonIdlePoseTimeStamp = stand.tickCount;
+							}
+							stand.clientStuff.grabHoldPosed = grabHold;
+						}
 						float idleTime = stand.tickCount - stand.nonIdlePoseTimeStamp + partialTick;
-						animVariables.animId = idleAnim;
-						animVariables.time = idleTime;
+						if (grabHold) {
+							fillGrabHoldPose(animVariables, idleTime);
+						}
+						else {
+							animVariables.animId = idleAnim;
+							animVariables.time = idleTime;
+						}
 					}
 				}
-				if (newFrame && !animVariables.animId.isIdle()) {
+				// the hold goes on from the end of the last action, as the idle would
+				if (newFrame && !animVariables.animId.isIdle() && !grabHold) {
 					stand.nonIdlePoseTimeStamp = stand.tickCount;
 				}
 
@@ -347,6 +363,20 @@ public class PreFrameEntityAnimCalc {
 		animVariables.actionPhase = ActionPhase.PERFORM;
 		animVariables.phaseTime = stand.getPerformPoseTicks(partialTick);
 		animVariables.time = animVariables.phaseTime;
+		animVariables.phaseCompletion = 1;
+	}
+
+	/*
+	 * The grab action ends a tick into its perform, and the grab moves (punch, barrage, throw) are actions of their own, while
+	 * the grab clip's perform loops (0.625 s, then 2.625 to 4.625 s in stand_default and Star Platinum's) as the hold it was
+	 * made for: a Stand that holds an entity and runs no action plays that perform on from the end of its last action.
+	 */
+	private static void fillGrabHoldPose(LivingAnimState animVariables, float ticksSinceAction) {
+		animVariables.animId = GRAB_ANIM;
+		animVariables.actionPhase = ActionPhase.PERFORM;
+		// the grab had performed for one tick when its action ended
+		animVariables.phaseTime = ticksSinceAction + 1;
+		animVariables.time = ticksSinceAction;
 		animVariables.phaseCompletion = 1;
 	}
 
