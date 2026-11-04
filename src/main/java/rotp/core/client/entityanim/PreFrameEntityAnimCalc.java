@@ -26,6 +26,7 @@ import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.LivingComponentAction.RebuffVisualTail;
 import rotp.core.client.ClientTimeStopHandler;
 import rotp.core.powersystem.playerpower.PlayerPower;
+import rotp.core.powersystem.standpower.entity.ClientStandEntityStuff;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandIdleSway;
 import rotp.core.subsystems.entity_grab.LivingComponentGrab;
@@ -33,6 +34,7 @@ import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.entity.HamonMasterEntity;
 import rotp.core.impl.powers.pillarman.PillarmanData;
 import rotp.core.impl.powers.pillarman.PillarmanPowerType;
+import rotp.core.impl.stands._entitybase.StandEntityGrabAbility.StandEntityGrab;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility.StandEntityPunch;
 
 import net.minecraft.client.DeltaTracker;
@@ -76,6 +78,7 @@ public class PreFrameEntityAnimCalc {
 	private static final ActionAnimIdentifier SC_NO_RAPIER_IDLE_ANIM = ActionAnimIdentifier.getOrCreate("no_rapier_idle", true);
 	private static final ActionAnimIdentifier SC_NO_ARMOR_IDLE_ANIM = ActionAnimIdentifier.getOrCreate("no_armor_idle", true);
 	private static final ActionAnimIdentifier GRAB_ANIM = ActionAnimIdentifier.getOrCreate("grab", false);
+	private static final ActionAnimIdentifier GRAB_MISS_ANIM = ActionAnimIdentifier.getOrCreate("grab_miss", false);
 
 	public static void onBeforeEntitiesRender(ClientLevel level) {
 		Minecraft mc = Minecraft.getInstance();
@@ -234,6 +237,14 @@ public class PreFrameEntityAnimCalc {
 					animVariables.time = stand.tickCount - stand.nonIdlePoseTimeStamp + partialTick;
 				}
 
+				if (action instanceof StandEntityGrab && action.getPhase() != null && action.getPhase() != ActionPhase.WINDUP) {
+					fillGrabMissPose(animVariables, stand, standSkin, partialTick, newFrame);
+				}
+				else if (action != null && newFrame && stand.clientStuff != null) {
+					// any other action, a new grab's reach included, ends the empty-handed return
+					stand.clientStuff.grabMissTick = -1;
+				}
+
 				if (animVariables.animId == null) {
 					float standTicks = stand.tickCount + partialTick;
 					RotpAnimDefinition summonAnim = standSkin != null ?
@@ -253,9 +264,12 @@ public class PreFrameEntityAnimCalc {
 						}
 						float idleTime = stand.tickCount - stand.nonIdlePoseTimeStamp + partialTick;
 						if (grabHold) {
+							if (newFrame && stand.clientStuff != null) {
+								stand.clientStuff.grabMissTick = -1;
+							}
 							fillGrabHoldPose(animVariables, idleTime);
 						}
-						else {
+						else if (!fillGrabMissPose(animVariables, stand, standSkin, partialTick, newFrame)) {
 							animVariables.animId = idleAnim;
 							animVariables.time = idleTime;
 						}
@@ -388,6 +402,44 @@ public class PreFrameEntityAnimCalc {
 		animVariables.phaseTime = ticksSinceAction + 1;
 		animVariables.time = ticksSinceAction;
 		animVariables.phaseCompletion = 1;
+	}
+
+	/*
+	 * The official port ships grab_miss (stand_default, Star Platinum, Crazy Diamond) and never plays it: a grab whose
+	 * perform closed on no entity swings on empty-handed and draws back to its stance over the rest of that clip (the
+	 * skin's own, else stand_default's), from its swing (its PERFORM marker, else its middle) on, in place of the grab's
+	 * perform and of the idle after it, until the clip ends or another action starts.
+	 */
+	private static boolean fillGrabMissPose(LivingAnimState animVariables, StandEntity stand, @Nullable StandSkin skin,
+			float partialTick, boolean newFrame) {
+		ClientStandEntityStuff stuff = stand.clientStuff;
+		if (stuff == null || stuff.grabMissTick < 0) {
+			return false;
+		}
+		RotpAnimDefinition miss = skin != null ? lookupStandAnim(skin, GRAB_MISS_ANIM, stand.isArmsOnlyMode(), false) : null;
+		float ticks = stand.tickCount - stuff.grabMissTick + partialTick;
+		float swing = miss != null ? grabMissSwingTime(miss) : 0;
+		if (miss == null || swing + miss.clock.elapsed(ticks) >= miss.lengthInSeconds) {
+			if (newFrame) {
+				stuff.grabMissTick = -1;
+			}
+			return false;
+		}
+		animVariables.reset();
+		animVariables.animId = GRAB_MISS_ANIM;
+		animVariables.time = swing * 20 / miss.clock.speed + ticks;
+		return true;
+	}
+
+	private static float grabMissSwingTime(RotpAnimDefinition anim) {
+		if (anim.instructionTimelines.phases != null) {
+			for (var entry : anim.instructionTimelines.phases.getEntries()) {
+				if (entry.getValue().phase == ActionPhase.PERFORM) {
+					return entry.getFloatKey();
+				}
+			}
+		}
+		return anim.lengthInSeconds / 2;
 	}
 
 	// EntityActionInstance.extractAnim of the charge as it was let go of

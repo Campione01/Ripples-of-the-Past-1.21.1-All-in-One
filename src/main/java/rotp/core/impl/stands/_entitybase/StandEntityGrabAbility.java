@@ -114,6 +114,11 @@ public class StandEntityGrabAbility extends StandEntityAbility {
 				else {
 					aimAs = AimingEntity.CAMERA_ENTITY;
 				}
+				if (level.isClientSide() && standEntity.clientStuff != null) {
+					// a client tells a miss by its own look; an entity the server grabs anyway takes the hold pose instead
+					standEntity.clientStuff.grabMissTick = target.getType() == TargetType.ENTITY
+							&& target.getMainEntity() instanceof LivingEntity ? -1 : standEntity.tickCount;
+				}
 			}
 		}
 

@@ -16,6 +16,8 @@ public class ClientStandEntityStuff {
 	public float lastMotionTiltTick = -1;
 	// the last frame drew the hold pose of a grabbed entity, so the idle starts over once the Stand lets go
 	public boolean grabHoldPosed;
+	// the Stand's tick a grab of this client closed on no entity, so its empty-handed return (grab_miss) follows; -1: none
+	public int grabMissTick = -1;
 
 	public float getAlpha(StandEntity standEntity, float partialTick) {
 		return (float) standEntity.rangeEfficiency * standEntity.modelAlpha.lerp(partialTick);
