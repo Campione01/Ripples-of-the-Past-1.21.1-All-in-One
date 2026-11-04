@@ -27,6 +27,8 @@ public final class EntityTimeRates {
 	public static final float NO_RATE = Float.NaN;
 	/** The fastest rate the core applies: a step count per tick above it is capped there. */
 	public static final float MAX_RATE = 64.0F;
+	/** The most extra entity ticks ({@link Channel#ENTITY_TICK}) a level runs in one server tick; the rest tick once. */
+	public static final int MAX_EXTRA_ENTITY_TICKS = 2048;
 
 	public enum Channel {
 		/**
@@ -47,8 +49,10 @@ public final class EntityTimeRates {
 		 */
 		MOTION,
 		/**
-		 * The level tick of a non-living entity (never a living one, so never a player or a Stand): above 1 it ticks
-		 * again in the same server tick, below 1 it waits, the fraction carried; extra ticks within a per-level budget.
+		 * The server tick of a non-living entity that carries no passenger (never a living one, so never a player or a
+		 * Stand): above 1 it ticks again in the same server tick, within {@link #MAX_EXTRA_ENTITY_TICKS} a level and
+		 * not while stopped time freezes it; below 1 it waits; the fraction carried. Asked for every such entity each
+		 * tick while any provider is registered, so a provider answers it cheaply.
 		 */
 		ENTITY_TICK
 	}

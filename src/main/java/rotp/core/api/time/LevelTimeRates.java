@@ -15,17 +15,38 @@ import net.minecraft.world.level.Level;
  * Owner-keyed per-level time rates, on both sides: how many times faster a level's time runs (Made in Heaven's
  * multiplier m while it accelerates). A provider answers a rate above 0 for a level and a {@link Channel}, or
  * {@link #NO_RATE} when it has nothing to say; when several answer, the slowest counts, the earliest registered on a
- * tie (owner rule G4). Without a provider every rate is 1.
+ * tie (owner rule G4). The core applies the tick channels on the server, up to {@link EntityTimeRates#MAX_RATE}; it
+ * asks them once per level tick, and for scheduled ticks once per level tick and channel. Weather and the day time are
+ * not among them. Without a provider every rate is 1 and nothing is asked.
  */
 public final class LevelTimeRates {
 	public static final float NO_RATE = Float.NaN;
+	/** The most extra block entity ticks a level runs in one server tick above rate 1; the rest tick once. */
+	public static final int MAX_EXTRA_BLOCK_ENTITY_TICKS = 1024;
 
 	public enum Channel {
 		/**
 		 * How many times faster the level's own time runs, for add-ons that measure time in it (Mandom's rewind goes
 		 * back 6 seconds of its user's own time but only 6 / rate seconds of the world's). The core does not apply it.
 		 */
-		TIME
+		TIME,
+		/**
+		 * Random ticks (crops, leaves, ice and snow, farmland, copper) and precipitation: the random tick speed each chunk
+		 * gets this tick, the fraction carried.
+		 */
+		RANDOM_TICKS,
+		/** Scheduled fluid ticks: the delay of each one scheduled is divided by the rate (at least one tick). */
+		FLUID_TICKS,
+		/**
+		 * Scheduled block ticks (fire, redstone, falling and growing blocks that schedule their next step): the delay of
+		 * each one scheduled is divided by the rate (at least one tick).
+		 */
+		BLOCK_TICKS,
+		/**
+		 * Ticking block entities (furnaces, hoppers, brewing stands, spawners): above 1 each ticks again in the same
+		 * server tick, within {@link #MAX_EXTRA_BLOCK_ENTITY_TICKS}; below 1 it waits; the fraction carried.
+		 */
+		BLOCK_ENTITIES
 	}
 
 	@FunctionalInterface

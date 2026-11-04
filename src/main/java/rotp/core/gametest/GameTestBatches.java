@@ -33,5 +33,8 @@ final class GameTestBatches {
 	/** The eye beam scenes hold their stops over their cells for several ticks, one scene at a time. */
 	static final String HELD_TIME_STOP_EYE_BEAM = "jojo_ripples_held_time_stop_eye_beam";
 
+	/** A level's tick rates act on the whole level, so the test that sets them runs alone. */
+	static final String LEVEL_TICK_RATES = "jojo_ripples_level_tick_rates";
+
 	private GameTestBatches() {}
 }

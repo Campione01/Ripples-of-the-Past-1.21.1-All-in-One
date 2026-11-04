@@ -12,6 +12,9 @@
 	"motiontime.EntityBubbleColumnTimeMixin",
 	"motiontime.FireworkRocketBoostTimeMixin",
 	"motiontime.LivingEntityMotionTimeMixin",
+	"timerate.BlockEntityTickRateMixin",
+	"timerate.LevelTicksRateMixin",
+	"timerate.ServerLevelTickRateMixin",
 	"vampirism.NearestAttackableTargetGoalAccessor",
 	"vampirism.TargetingConditionsAccessor",
 
