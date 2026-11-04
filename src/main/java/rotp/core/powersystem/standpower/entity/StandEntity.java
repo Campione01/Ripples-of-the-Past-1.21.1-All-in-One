@@ -1420,13 +1420,25 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		return !isManuallyControlled()
 				&& followingUserIsEnabled()
 				&& !isBeingRetracted()
-				&& !curActionDisablesUserOffset();
+				&& (followCheckLeavesActionOffsetOut || !curActionDisablesUserOffset());
 	}
 
+	private boolean followCheckLeavesActionOffsetOut;
+
+	/**
+	 * 1.16 StandEntity.isFollowingUser as clearTask and retractStand asked it: this Stand's own {@link #isFollowingUser}
+	 * (an add-on's override included, with the action still current), without the current action's
+	 * noAdheringToUserOffset, which 1.16's had not, so that a Stand its action moved by itself is still called back.
+	 */
 	private boolean isFollowingUserForRetractionDecision() {
-		return !isManuallyControlled()
-				&& followingUserIsEnabled()
-				&& !isBeingRetracted();
+		boolean leftOut = followCheckLeavesActionOffsetOut;
+		followCheckLeavesActionOffsetOut = true;
+		try {
+			return isFollowingUser();
+		}
+		finally {
+			followCheckLeavesActionOffsetOut = leftOut;
+		}
 	}
 	
 	private boolean curActionDisablesUserOffset() {
