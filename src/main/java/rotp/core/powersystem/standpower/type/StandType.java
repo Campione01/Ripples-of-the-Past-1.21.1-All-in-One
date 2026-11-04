@@ -81,6 +81,7 @@ public class StandType extends PowerType {
 	private boolean nonEntityManualControl;
 	private boolean nonEntityDistanceStrengthDecay;
 	private boolean nonEntityStandControlPolicyConfigured;
+	private volatile boolean nonEntityStandControlPolicyLogged;
 	
 	public StandCreationSource createdIn = StandCreationSource.REGISTRY;
 	public List<Component> discExtraTooltip = new ArrayList<>();
@@ -138,27 +139,42 @@ public class StandType extends PowerType {
 		return cast;
 	}
 
-	private void validateNonEntityStandControlPolicy() {
-		if (!nonEntityStandControlPolicyConfigured
-				|| nonEntityStandControlType == null) {
-			throw new IllegalStateException(
-					"standControlType is required for " + getId());
+	/**
+	 * What this Stand's control policy lacks, naming the Stand and the field; null when it is complete. The core's
+	 * common setup refuses to load with any registered Stand that has one.
+	 */
+	@Nullable
+	public String standControlPolicyProblem() {
+		return !nonEntityStandControlPolicyConfigured || nonEntityStandControlType == null
+				? "Stand " + getId() + " (" + getClass().getName() + "): standControlType is required"
+						+ " (StandType.nonEntityStandControlPolicy)"
+				: null;
+	}
+
+	// At run time a missing policy is logged once and the core's default stands in: an automatic Stand.
+	private boolean checkNonEntityStandControlPolicy() {
+		String problem = standControlPolicyProblem();
+		if (problem == null) {
+			return true;
 		}
+		if (!nonEntityStandControlPolicyLogged) {
+			nonEntityStandControlPolicyLogged = true;
+			JojoMod.getLogger().error("{}; using standControlType AUTOMATIC without manual control or distance decay",
+					problem);
+		}
+		return false;
 	}
 
 	public StandControlType getStandControlType() {
-		validateNonEntityStandControlPolicy();
-		return nonEntityStandControlType;
+		return checkNonEntityStandControlPolicy() ? nonEntityStandControlType : StandControlType.AUTOMATIC;
 	}
 
 	public boolean canBeManuallyControlled() {
-		validateNonEntityStandControlPolicy();
-		return nonEntityManualControl;
+		return checkNonEntityStandControlPolicy() && nonEntityManualControl;
 	}
 
 	public boolean usesDistanceStrengthDecay() {
-		validateNonEntityStandControlPolicy();
-		return nonEntityDistanceStrengthDecay;
+		return checkNonEntityStandControlPolicy() && nonEntityDistanceStrengthDecay;
 	}
 
 	public <T extends StandType> T summonShout(Supplier<? extends Holder<SoundEvent>> summonShoutSupplier) {

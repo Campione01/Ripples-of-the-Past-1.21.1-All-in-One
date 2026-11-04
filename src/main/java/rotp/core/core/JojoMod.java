@@ -1,5 +1,8 @@
 package rotp.core.core;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.slf4j.Logger;
 
 import rotp.core.JojoModConfig;
@@ -34,6 +37,7 @@ import rotp.core.init.power.ModStandAbilities;
 import rotp.core.init.power.ModStands;
 import rotp.core.mechanics.TempleMapTradeHandler;
 import rotp.core.impl.powers.hamon.ModHamonSkills;
+import rotp.core.powersystem.standpower.type.StandType;
 import com.mojang.logging.LogUtils;
 
 import net.minecraft.resources.ResourceLocation;
@@ -106,11 +110,32 @@ public class JojoMod {
 	
 	@SubscribeEvent
 	private void commonSetup(FMLCommonSetupEvent event) {
+		checkStandControlPolicies();
 		event.enqueueWork(() -> {
 			ModGamerules.load();
 			TempleMapTradeHandler
 					.registerContextualTrades();
 		});
+	}
+	
+	/**
+	 * A registered Stand whose control policy lacks a field (or breaks its type's rules) stops the load here, naming the
+	 * Stand and the field, where a module's game test server and the boot check see it; in play the policy getters only
+	 * log it once and use the core's defaults.
+	 */
+	public static void checkStandControlPolicies() {
+		List<String> problems = new ArrayList<>();
+		for (StandType stand : JojoRegistries.DEFAULT_STANDS_REG) {
+			String problem = stand.standControlPolicyProblem();
+			if (problem != null) {
+				problems.add(problem);
+			}
+		}
+		if (!problems.isEmpty()) {
+			problems.forEach(LOGGER::error);
+			throw new IllegalStateException(problems.size() + " registered Stand(s) with an incomplete control policy: "
+					+ String.join("; ", problems));
+		}
 	}
 	
 	@SubscribeEvent
