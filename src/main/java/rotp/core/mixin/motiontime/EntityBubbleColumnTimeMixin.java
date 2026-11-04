@@ -9,8 +9,9 @@ import rotp.core.api.time.EntityTimeRates;
 import net.minecraft.world.entity.Entity;
 
 /**
- * EntityTimeRates' MOTION rate r on a bubble column's push, as if the entity's time ran r times as fast: the speed caps
- * times r, the per-tick pushes times r squared. At r = 1 every value is vanilla.
+ * EntityTimeRates' MOTION rate r on a bubble column's push, the way the attributes scale walking: the speed caps and the
+ * per-tick pushes times r, the water's drag per tick kept, so the entity rises or sinks r times as fast. At r = 1 every
+ * value is vanilla.
  */
 @Mixin(Entity.class)
 public abstract class EntityBubbleColumnTimeMixin {
@@ -25,8 +26,7 @@ public abstract class EntityBubbleColumnTimeMixin {
 
 	@ModifyConstant(method = "onAboveBubbleCol", constant = { @Constant(doubleValue = 0.03), @Constant(doubleValue = 0.1) })
 	private double jojo_ripples$aboveColumnPush(double push) {
-		float rate = jojo_ripples$motionRate();
-		return push * rate * rate;
+		return push * jojo_ripples$motionRate();
 	}
 
 	@ModifyConstant(method = "onInsideBubbleColumn", constant = { @Constant(doubleValue = -0.3), @Constant(doubleValue = 0.7) })
@@ -36,7 +36,6 @@ public abstract class EntityBubbleColumnTimeMixin {
 
 	@ModifyConstant(method = "onInsideBubbleColumn", constant = { @Constant(doubleValue = 0.03), @Constant(doubleValue = 0.06) })
 	private double jojo_ripples$insideColumnPush(double push) {
-		float rate = jojo_ripples$motionRate();
-		return push * rate * rate;
+		return push * jojo_ripples$motionRate();
 	}
 }

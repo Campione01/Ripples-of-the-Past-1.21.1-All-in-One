@@ -36,5 +36,8 @@ final class GameTestBatches {
 	/** A level's tick rates act on the whole level, so the test that sets them runs alone. */
 	static final String LEVEL_TICK_RATES = "jojo_ripples_level_tick_rates";
 
+	/** The motion-rate scenes build columns and ladders above their cells and time their pigs to the tick. */
+	static final String MOTION_TIME_RATES = "jojo_ripples_motion_time_rates";
+
 	private GameTestBatches() {}
 }

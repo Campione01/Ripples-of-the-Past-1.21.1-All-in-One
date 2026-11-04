@@ -47,7 +47,11 @@ public final class EntityTimeRates {
 		STAND_ACTIONS,
 		/**
 		 * Motion of an entity that no attribute scales: ladder and vine climbing, levitation, bubble columns, the
-		 * firework rocket's elytra boost and Jump Boost's bonus to a jump.
+		 * firework rocket's elytra boost, Jump Boost's bonus to a jump and the threshold under which LivingEntity.aiStep
+		 * stops a slow velocity. Scaled as a provider's attributes scale walking (speeds, pushes, caps and that threshold
+		 * times r, every per-tick drag unchanged; the provider slows gravity itself, Made in Heaven by r squared): a climb
+		 * rises r times as far a tick under the gravity the entity has, and a jump with Jump Boost reaches the height it
+		 * reaches at the entity's base gravity.
 		 */
 		MOTION,
 		/**
