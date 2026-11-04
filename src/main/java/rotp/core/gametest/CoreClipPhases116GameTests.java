@@ -306,6 +306,59 @@ public final class CoreClipPhases116GameTests {
 		helper.succeed();
 	}
 
+	/*
+	 * The core guard (StandEntityBlockAbility) asks for 'block' whatever the ability is called. Add-on skins that named
+	 * their guard clip 'guard' and ship no 'block' (Little Feet, Spice Girl, whose guard is the port of its 1.16 block,
+	 * Wonder of U) draw it through the legacy alias block -> guard before stand_default's block is asked; a skin with both
+	 * (OVA The World, Whitesnake, Made in Heaven) keeps its block, one with neither still draws stand_default's, and the
+	 * core Stands' guards draw their own block.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void aGuardDrawsTheSkinsGuardClipWhereTheSkinShipsNoBlock(GameTestHelper helper) {
+		List<String> wrong = new ArrayList<>();
+		JsonObject guardOnly = clipNames("idle", "guard", "punch");
+		JsonObject both = clipNames("idle", "guard", "block");
+		JsonObject neither = clipNames("idle", "punch");
+		if (!"guard".equals(resolve(guardOnly, "block"))) {
+			wrong.add("a skin with only a guard clip resolves block to " + resolve(guardOnly, "block"));
+		}
+		if (!"block".equals(resolve(both, "block"))) {
+			wrong.add("a skin with block and guard resolves block to " + resolve(both, "block"));
+		}
+		JsonObject defaults = StandClipPoses116GameTests.readJson(helper, DEFAULT_ANIMS).getAsJsonObject("animations");
+		if (resolve(neither, "block") != null || !"block".equals(resolve(defaults, "block"))) {
+			wrong.add("a skin with neither resolves block to " + resolve(neither, "block") + " and stand_default to "
+					+ resolve(defaults, "block"));
+		}
+		int guards = 0;
+		Player user = GameTestPlayers.makeServerMockPlayer(helper, GameType.SURVIVAL);
+		for (String stand : CORE_STANDS) {
+			Ability guard = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc(stand)).getBaseMoveset().getAbility("guard");
+			String clip = guard != null ? clipPlayed(helper, guard, user) : null;
+			if (clip == null) {
+				continue;
+			}
+			guards++;
+			JsonObject own = StandClipPoses116GameTests.readJson(helper, "stand_skins/" + stand + "/assets/jojo_ripples/animations/"
+					+ stand + ".animation.json").getAsJsonObject("animations");
+			if (!"block".equals(clip) || !clip.equals(resolve(own, clip))) {
+				wrong.add(stand + "'s guard asks for " + clip + " and draws its " + resolve(own, clip));
+			}
+		}
+		user.discard();
+		helper.assertTrue(guards >= 3, "setup: only " + guards + " core guards asked for a clip");
+		helper.assertTrue(wrong.isEmpty(), "A guard draws the skin's block, else its guard, else stand_default's block: " + wrong);
+		helper.succeed();
+	}
+
+	private static JsonObject clipNames(String... names) {
+		JsonObject anims = new JsonObject();
+		for (String name : names) {
+			anims.add(name, new JsonObject());
+		}
+		return anims;
+	}
+
 	private static final String SP_ANIMS =
 			"stand_skins/star_platinum/assets/jojo_ripples/animations/star_platinum.animation.json";
 	// Star Platinum's clips taken from 1.16's star_platinum.animation.json, the start of their last segment, and the bones

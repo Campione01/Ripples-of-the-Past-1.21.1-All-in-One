@@ -60,6 +60,8 @@ public class AnimationSet {
 			Map.entry("light_attack", "attack"),
 			Map.entry("no_rapier_light_attack", "light_attack"),
 			Map.entry("no_rapier_block", "block"),
+			// add-on skins that named their guard clip after the ability (Little Feet, Spice Girl, Wonder of U)
+			Map.entry("block", "guard"),
 			Map.entry("melee_barrage", "barrage"),
 			Map.entry("rapier_launch", "rangedAttack"),
 			Map.entry("sweeping_attack", "heavyPunch"),
