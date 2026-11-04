@@ -414,6 +414,14 @@ public class EntityStandType extends StandType {
 		return standLeapEnabled;
 	}
 
+	/**
+	 * Client: whether the view of this type's Stand inside a view-blocking block is covered with that block's in-wall
+	 * texture (StandEntity#coversCameraInsideBlocks, which an entity class can override instead).
+	 */
+	public boolean coversCameraInsideBlocks(StandEntity standEntity) {
+		return true;
+	}
+
 	@Override
 	public boolean usesDistanceStrengthDecay() {
 		validateStandControlPolicy();

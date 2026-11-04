@@ -15,6 +15,7 @@ import net.minecraft.world.phys.Vec3;
  * Which block's in-wall texture covers the view of a Stand camera (manual control, where standBodyThroughWalls on
  * "phasing" lets the Stand into blocks), so that a view from inside a block never shows the terrain behind it. Vanilla
  * draws its in-wall overlay only for the player and only in first person; the player's own overlay is left to vanilla.
+ * A Stand that travels inside blocks on purpose opts out (StandEntity#coversCameraInsideBlocks).
  */
 public final class StandCameraInWall {
 	// Camera.getMaxZoom keeps the camera 0.1 short of a block from the eyes; nearer than this, the zoom has collapsed
@@ -37,7 +38,7 @@ public final class StandCameraInWall {
 	 */
 	@Nullable
 	public static BlockPos eyeOverlayBlock(@Nullable Entity cameraEntity) {
-		if (!(cameraEntity instanceof StandEntity stand)) {
+		if (!(cameraEntity instanceof StandEntity stand) || !stand.coversCameraInsideBlocks()) {
 			return null;
 		}
 		BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -63,7 +64,7 @@ public final class StandCameraInWall {
 	 */
 	@Nullable
 	public static BlockPos cameraOverlayBlock(@Nullable Entity cameraEntity, BlockGetter level, Vec3 cameraPos, Vec3 eyePos) {
-		if (!(cameraEntity instanceof StandEntity stand)) {
+		if (!(cameraEntity instanceof StandEntity stand) || !stand.coversCameraInsideBlocks()) {
 			return null;
 		}
 		BlockPos pos = BlockPos.containing(cameraPos);

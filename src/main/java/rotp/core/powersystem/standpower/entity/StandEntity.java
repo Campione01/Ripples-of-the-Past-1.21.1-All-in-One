@@ -1606,6 +1606,17 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		return false;
 	}
 
+	/**
+	 * Client: whether a view from this Stand (its camera under remote control) is covered with the in-wall texture of the
+	 * view-blocking block it is in (StandCameraInWall, a port addition: 1.16 drew none for a Stand camera). A Stand that
+	 * travels inside blocks on purpose opts out to keep 1.16's view, for good or while it does: its entity class overrides
+	 * this, or its type overrides EntityStandType#coversCameraInsideBlocks, which this asks by default.
+	 */
+	public boolean coversCameraInsideBlocks() {
+		return !(StandType.fromId(standId) instanceof EntityStandType entityStandType)
+				|| entityStandType.coversCameraInsideBlocks(this);
+	}
+
 	public void setNoPhysics(boolean noPhysics) {
 		if (noPhysics || standCanHaveNoPhysics) {
 			setStandFlag(StandFlag.NO_PHYSICS, noPhysics);
