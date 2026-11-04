@@ -272,8 +272,12 @@ public class StandEntityAbility extends EntityActionAbility {
 	 * Crazy Diamond's heavy punches give) or else at ActionTarget.getTargetPos(true): the eyes of any entity, a boat, a
 	 * minecart or primed TNT too, a block's centre. The Stand's head keeps the yaw this leaves it (yHeadRot)
 	 * for the tick, so an override that turns only the Stand's yaw and body afterwards leaves the head on the target.
+	 * Never to the entity the Stand holds ({@link StandEntity#isHeldEntity}).
 	 */
 	public void rotateStandTowardsTarget(StandEntity standEntity, EntityActionInstance action, ActionTarget target) {
+		if (standEntity.isHeldEntity(target)) {
+			return;
+		}
 		Vec3 actionPos = action.getStandLookTargetPosition(standEntity, target);
 		standEntity.lookAtPos(actionPos != null ? actionPos : StandOffsetFromUser.taskTargetPos(target), true);
 	}

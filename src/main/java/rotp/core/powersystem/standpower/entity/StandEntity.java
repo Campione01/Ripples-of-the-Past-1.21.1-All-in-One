@@ -59,6 +59,7 @@ import rotp.core.powersystem.standpower.type.SummonedStand;
 import rotp.core.subsystems.EntityHandItemsAsInventory;
 import rotp.core.subsystems.entity_externalcontainer.PlayerExternalContainers;
 import rotp.core.subsystems.entity_externalcontainer._stand.StandHandsContainerMenu;
+import rotp.core.subsystems.entity_grab.LivingComponentGrab;
 import rotp.core.subsystems.entity_puppetcontrol.client.ClientEntityController;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTarget.TargetType;
@@ -817,7 +818,24 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 			curAction.standRotationTarget = null;
 			lookTarget = ActionTarget.EMPTY;
 		}
+		else if (isHeldEntity(lookTarget)) {
+			lookTarget = ActionTarget.EMPTY;
+		}
 		return lookAtTarget(lookTarget, true);
+	}
+
+	/**
+	 * Whether the target is the entity this Stand holds (LivingComponentGrab), which no look, task turn or strike turn faces:
+	 * the held entity hangs from the Stand's own hand and is placed every tick from the Stand's body yaw and pose
+	 * (LivingComponentGrab#setGrabbedPos), so each turn to it moved it again and the Stand chased its own hand, its head
+	 * twitching. The Stand keeps the rotation it copied from its user instead.
+	 */
+	public boolean isHeldEntity(@Nullable ActionTarget target) {
+		if (target == null || target.getType() != TargetType.ENTITY) {
+			return false;
+		}
+		LivingEntity held = LivingComponentGrab.getEntityGrabbedBy(this);
+		return held != null && (target.getMainEntity() == held || target.sameTarget(new ActionTarget(held)));
 	}
 
 	/**
@@ -825,7 +843,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	 * ({@link EntityActionInstance#getTaskTarget}) and the Stand is not manually controlled, the action turns the Stand to
 	 * it ({@link StandEntityAbility#rotateStandTowardsTarget}), whether the Stand follows its user or moves by itself. Each
 	 * side turns by the target it holds, a client by the one its server sent. The head stays where that turn left it for the
-	 * rest of the tick, as 1.16's MCUtil.rotateTowards set it, even if the Stand's yaw is turned elsewhere after it.
+	 * rest of the tick, as 1.16's MCUtil.rotateTowards set it, even if the Stand's yaw is turned elsewhere after it. A task
+	 * target that is the entity the Stand holds ({@link #isHeldEntity}) turns nothing and counts as none.
 	 * @return whether the task held a target
 	 */
 	public boolean lookAtTaskTarget() {
@@ -834,7 +853,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 			return false;
 		}
 		ActionTarget taskTarget = curAction.getTaskTarget(level());
-		if (taskTarget.getType() == TargetType.EMPTY) {
+		if (taskTarget.getType() == TargetType.EMPTY || isHeldEntity(taskTarget)) {
 			return false;
 		}
 		headTurnedToTaskTarget = true;
@@ -918,11 +937,12 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	/**
 	 * Server: 1.16 StandEntity.aimWithThisOrUser turned the Stand toward what a punch, a heavy punch or a barrage hit aimed
 	 * at, just before the hit (MCUtil.rotateTowards): its yaw and its pitch each by at most attackSpeed / 16 x 18 degrees,
-	 * toward an entity's eyes or a block's centre, and its head onto the new yaw; never toward the Stand itself. The Stand
-	 * keeps that rotation for the rest of the tick, until its next tick turns it as usual.
+	 * toward an entity's eyes or a block's centre, and its head onto the new yaw; never toward the Stand itself or the entity
+	 * it holds ({@link #isHeldEntity}). The Stand keeps that rotation for the rest of the tick, until its next tick turns it
+	 * as usual.
 	 */
 	public void turnTowardsStrike(ActionTarget aimed) {
-		if (aimed.getType() == TargetType.EMPTY || aimed.getEntity() == this) {
+		if (aimed.getType() == TargetType.EMPTY || aimed.getEntity() == this || isHeldEntity(aimed)) {
 			return;
 		}
 		Vec3 targetPos = StandOffsetFromUser.taskTargetPos(aimed);
