@@ -208,14 +208,22 @@ public class EntityStandType extends StandType {
 		return problem != null ? "Stand " + getId() + " (" + getClass().getName() + "): " + problem : null;
 	}
 
+	// Logged again only if the problem changes (a data pack or config changed the policy).
+	@Override
+	public boolean reportStandControlPolicyProblem() {
+		String problem = standControlPolicyProblem();
+		if (problem == null || problem.equals(loggedStandControlPolicyProblem)) {
+			return false;
+		}
+		loggedStandControlPolicyProblem = problem;
+		JojoMod.getLogger().error("{}; using standControlType {}, manualControl {}, distanceStrengthDecay {}",
+				problem, effectiveStandControlType(), effectiveManualControl(), effectiveDistanceStrengthDecay());
+		return true;
+	}
+
 	// At run time a broken policy is logged once and the core's defaults stand in for the missing fields.
 	private void checkStandControlPolicyAtRunTime() {
-		String problem = standControlPolicyProblem();
-		if (problem != null && !problem.equals(loggedStandControlPolicyProblem)) {
-			loggedStandControlPolicyProblem = problem;
-			JojoMod.getLogger().error("{}; using standControlType {}, manualControl {}, distanceStrengthDecay {}",
-					problem, effectiveStandControlType(), effectiveManualControl(), effectiveDistanceStrengthDecay());
-		}
+		reportStandControlPolicyProblem();
 	}
 
 	// A Stand that names no type: as 1.16's StandEntity, manual control and strength decaying with distance, unless it

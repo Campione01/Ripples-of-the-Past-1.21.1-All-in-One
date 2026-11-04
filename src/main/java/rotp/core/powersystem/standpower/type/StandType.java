@@ -151,17 +151,26 @@ public class StandType extends PowerType {
 				: null;
 	}
 
+	/**
+	 * Logs this Stand's control policy problem with the defaults the core uses for it in play, once: the core's common
+	 * setup in a player's game, then the policy getters, report it here. False when it has none or it was logged before.
+	 */
+	public boolean reportStandControlPolicyProblem() {
+		String problem = standControlPolicyProblem();
+		if (problem == null || nonEntityStandControlPolicyLogged) {
+			return false;
+		}
+		nonEntityStandControlPolicyLogged = true;
+		JojoMod.getLogger().error("{}; using standControlType AUTOMATIC without manual control or distance decay", problem);
+		return true;
+	}
+
 	// At run time a missing policy is logged once and the core's default stands in: an automatic Stand.
 	private boolean checkNonEntityStandControlPolicy() {
-		String problem = standControlPolicyProblem();
-		if (problem == null) {
+		if (standControlPolicyProblem() == null) {
 			return true;
 		}
-		if (!nonEntityStandControlPolicyLogged) {
-			nonEntityStandControlPolicyLogged = true;
-			JojoMod.getLogger().error("{}; using standControlType AUTOMATIC without manual control or distance decay",
-					problem);
-		}
+		reportStandControlPolicyProblem();
 		return false;
 	}
 

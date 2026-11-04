@@ -47,6 +47,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
@@ -119,23 +120,46 @@ public class JojoMod {
 	}
 	
 	/**
-	 * A registered Stand whose control policy lacks a field (or breaks its type's rules) stops the load here, naming the
-	 * Stand and the field, where a module's game test server and the boot check see it; in play the policy getters only
-	 * log it once and use the core's defaults.
+	 * Checks the control policy of every registered Stand (core and add-ons) as the load ends, see
+	 * {@link #checkStandControlPolicies(Iterable, boolean)}.
 	 */
 	public static void checkStandControlPolicies() {
+		checkStandControlPolicies(JojoRegistries.DEFAULT_STANDS_REG, standControlPolicyProblemsStopTheLoad());
+	}
+
+	/**
+	 * Whether a Stand whose control policy lacks a field stops the load: in a development environment and on a game test
+	 * server, where our modules' game test servers and the boot check see it. In a player's game one faulty add-on must
+	 * not keep the game from starting.
+	 */
+	public static boolean standControlPolicyProblemsStopTheLoad() {
+		return !FMLEnvironment.production || Boolean.getBoolean("neoforge.gameTestServer")
+				|| Boolean.getBoolean("neoforge.enableGameTest");
+	}
+
+	/**
+	 * A Stand whose control policy lacks a field (or breaks its type's rules), named with the field. With stopTheLoad
+	 * each is logged and one IllegalStateException lists them all; otherwise each is logged once, with the core's
+	 * defaults its Stand then uses in play (StandType#reportStandControlPolicyProblem), and the load goes on.
+	 * @return the problems found
+	 */
+	public static List<String> checkStandControlPolicies(Iterable<? extends StandType> stands, boolean stopTheLoad) {
 		List<String> problems = new ArrayList<>();
-		for (StandType stand : JojoRegistries.DEFAULT_STANDS_REG) {
+		for (StandType stand : stands) {
 			String problem = stand.standControlPolicyProblem();
 			if (problem != null) {
 				problems.add(problem);
+				if (!stopTheLoad) {
+					stand.reportStandControlPolicyProblem();
+				}
 			}
 		}
-		if (!problems.isEmpty()) {
+		if (stopTheLoad && !problems.isEmpty()) {
 			problems.forEach(LOGGER::error);
 			throw new IllegalStateException(problems.size() + " registered Stand(s) with an incomplete control policy: "
 					+ String.join("; ", problems));
 		}
+		return problems;
 	}
 	
 	@SubscribeEvent
