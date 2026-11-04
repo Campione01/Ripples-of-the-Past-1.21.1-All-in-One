@@ -1,5 +1,8 @@
 package rotp.core.impl.stands.theworld;
 
+import java.util.function.Predicate;
+
+import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.api.stand.StandSkillWalls;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.init.ModCriteriaTriggers;
@@ -558,6 +561,11 @@ public class TheWorldTSPunchAbility extends StandEntityAbility {
 			else {
 				blinkPos = stand.collideNextPos(blinkPos);
 			}
+			// the Stand does not land on or next to what its user cannot perceive: it strikes from where it stands
+			if (TimeStopBlinkAbility.landsByUnperceived(serverLevel, stand, blinkPos)) {
+				blinkPos = stand.position();
+				timeStopTicks = Math.min(timeStopTicks, ticksForWindup);
+			}
 			stand.moveTo(blinkPos.x, blinkPos.y, blinkPos.z);
 
 			skipTicksForStandAndUser(standPower, stand, timeStopTicks);
@@ -598,11 +606,13 @@ public class TheWorldTSPunchAbility extends StandEntityAbility {
 		private static ActionTarget rayTraceTsPunchTarget(StandEntity stand, LivingEntity aimingEntity,
 				TheWorldTSPunchAbility punchAbility) {
 			boolean wallsHideEntities = StandSkillWalls.wallsHideEntities(stand.level(), punchAbility);
+			Predicate<Entity> perceived = PerceptionBlockers.hasBlockers()
+					? entity -> !PerceptionBlockers.isBlocked(stand, entity, PerceptionBlockers.Sight.INSTANT_TIME_STOP) : null;
 			if (!StandEntityPunchAbility.aimAssist(stand.getUser())) {
-				return StandPrecisionRay.crosshair(aimingEntity, stand, stand.getMaxRange(), false, wallsHideEntities);
+				return StandPrecisionRay.crosshair(aimingEntity, stand, stand.getMaxRange(), false, wallsHideEntities, perceived);
 			}
 			return StandPrecisionRay.trace(aimingEntity, stand, stand.getMaxRange(), stand.getPrecision() / 16D, false,
-					wallsHideEntities);
+					wallsHideEntities, perceived);
 		}
 
 		private static Vec3 calcBlinkPos(StandEntity stand, LivingEntity aimingEntity, ActionTarget target) {

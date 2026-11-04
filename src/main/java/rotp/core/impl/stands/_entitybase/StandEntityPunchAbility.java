@@ -7,6 +7,7 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.api.stand.StandSkillWalls;
 import rotp.core.client.ClientGlobals;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
@@ -1438,7 +1439,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	
 	// TODO make stand entities not pickable, add a separate OR predicate to CAN_BE_PICKED
 	public static boolean canStandPick(StandEntity stand, Entity target) {
-		return _EntitySelector.CAN_BE_PICKED.test(target);
+		return _EntitySelector.CAN_BE_PICKED.test(target) && !PerceptionBlockers.isBlocked(stand, target);
 	}
 	
 	public static boolean playHitSound(ActionTarget target, Level level) {

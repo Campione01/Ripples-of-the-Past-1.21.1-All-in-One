@@ -3,6 +3,8 @@ package rotp.core.subsystems.target;
 import java.util.List;
 import java.util.function.Predicate;
 
+import javax.annotation.Nullable;
+
 import rotp.core.api.stand.StandSkillWalls;
 import rotp.core.mechanics.resolve.ResolveCounter;
 import rotp.core.powersystem.standpower.entity.StandEntity;
@@ -44,7 +46,14 @@ public final class StandPrecisionRay {
 	 */
 	public static ActionTarget trace(Entity aiming, StandEntity stand, double reach, double rayTraceInflate,
 			boolean friendlyFire, boolean wallsHideEntities) {
-		Predicate<Entity> filter = targetFilter(stand, friendlyFire);
+		return trace(aiming, stand, reach, rayTraceInflate, friendlyFire, wallsHideEntities, null);
+	}
+
+	/** @param alsoTakes a further test an entity must pass, null for none */
+	public static ActionTarget trace(Entity aiming, StandEntity stand, double reach, double rayTraceInflate,
+			boolean friendlyFire, boolean wallsHideEntities, @Nullable Predicate<Entity> alsoTakes) {
+		Predicate<Entity> filter = alsoTakes != null ? targetFilter(stand, friendlyFire).and(alsoTakes)
+				: targetFilter(stand, friendlyFire);
 		List<ActionTarget> targets = clipTargets(aiming, reach, filter, rayTraceInflate, stand.getPrecision(),
 				wallsHideEntities);
 		return closestWithPriority(targets);
@@ -62,7 +71,16 @@ public final class StandPrecisionRay {
 	/** @param wallsHideEntities false: an entity on the crosshair line behind a block is met before the block */
 	public static ActionTarget crosshair(Entity aiming, StandEntity stand, double reach, boolean friendlyFire,
 			boolean wallsHideEntities) {
+		return crosshair(aiming, stand, reach, friendlyFire, wallsHideEntities, null);
+	}
+
+	/** @param alsoTakes a further test an entity must pass, null for none */
+	public static ActionTarget crosshair(Entity aiming, StandEntity stand, double reach, boolean friendlyFire,
+			boolean wallsHideEntities, @Nullable Predicate<Entity> alsoTakes) {
 		Predicate<Entity> filter = targetFilter(stand, friendlyFire).and(entity -> !entity.isSpectator() && entity.isPickable());
+		if (alsoTakes != null) {
+			filter = filter.and(alsoTakes);
+		}
 		return HitResultUtil.clip(aiming.getEyePosition(), aiming.getLookAngle(), reach, reach, aiming.level(), filter,
 				aiming, 0, wallsHideEntities, 0, ClipContext.Block.OUTLINE);
 	}

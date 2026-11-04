@@ -7,6 +7,7 @@ import java.util.function.BiFunction;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.api.stand.StandSkillWalls;
 import rotp.core.api.timestop.TimeStopTicksModifiers;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
@@ -218,6 +219,10 @@ public class TimeStopBlinkAbility extends Ability {
 			target = rayTraceBlinkTarget(user, maxDistance, wallsHideEntities);
 		}
 		Vec3 blinkPos = calcBlinkPos(serverLevel, user, target, maxDistance);
+		if (landsByUnperceived(serverLevel, user, blinkPos)) {
+			power.setStamina(staminaBeforeCost);
+			return false;
+		}
 		int impliedTicks = getImpliedTicks(user, blinkPos, playerSpeed, timeStopTicks);
 		power.consumeStamina(effectiveTimeStopCost(power, impliedTicks * getBlinkStaminaCostTicking(power, learningName)));
 		Vec3 soundPos = user.position();
@@ -303,7 +308,8 @@ public class TimeStopBlinkAbility extends Ability {
 			Entity entity = target.getEntity();
 			if (entity == null || entity == user || entity.level() != user.level() || entity.isRemoved()
 					|| entity.isSpectator() || !entity.isPickable()
-					|| entity instanceof StandEntity stand && stand.getUser() == user) {
+					|| entity instanceof StandEntity stand && stand.getUser() == user
+					|| PerceptionBlockers.isBlocked(user, entity, PerceptionBlockers.Sight.INSTANT_TIME_STOP)) {
 				return ActionTarget.EMPTY;
 			}
 		}
@@ -328,7 +334,17 @@ public class TimeStopBlinkAbility extends Ability {
 		if (entity instanceof StandEntity stand && stand.getUser() == user) {
 			return false;
 		}
-		return true;
+		return !PerceptionBlockers.isBlocked(user, entity, PerceptionBlockers.Sight.INSTANT_TIME_STOP);
+	}
+
+	/**
+	 * Whether the user would land on or next to an entity it cannot perceive (half a block around its own box there): the
+	 * blink is refused, as it may not reach what its user does not know is there.
+	 */
+	public static boolean landsByUnperceived(Level level, Entity user, Vec3 landingPos) {
+		return PerceptionBlockers.hasBlockers() && PerceptionBlockers.anyBlockedIn(level, user,
+				user.getDimensions(user.getPose()).makeBoundingBox(landingPos).inflate(0.5D),
+				PerceptionBlockers.Sight.INSTANT_TIME_STOP);
 	}
 
 	private Vec3 calcBlinkPos(ServerLevel level, LivingEntity user, ActionTarget target, double maxDistance) {

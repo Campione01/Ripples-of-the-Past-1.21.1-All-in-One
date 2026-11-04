@@ -8,6 +8,7 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.api.stand.StandSkillWalls;
 import rotp.core.util.functions.AABBUtil;
 
@@ -103,8 +104,9 @@ public class HitResultUtil {
 			new AABB(startingPos, endPos).inflate(1.0D);
 		double maxDistanceSqr = entityMaxRange * entityMaxRange;
 		List<EntityClip> clippedTargets = new ArrayList<>();
+		Predicate<Entity> perceived = PerceptionBlockers.perceivedBy(aiming, entityFilter, PerceptionBlockers.Sight.AIM);
 		for (Entity potentialTarget : level.getEntities(aiming, boundingBox, e -> !e.isSpectator() && e.isPickable() && 
-				(entityFilter == null || entityFilter.test(e)))) {
+				(perceived == null || perceived.test(e)))) {
 			AABB targetAABB = potentialTarget.getBoundingBox().inflate(potentialTarget.getPickRadius() + rayTraceInflate);
 			AABB precisionAABB = standPrecisionTargetHitbox(targetAABB, standPrecision);
 			Optional<Vec3> clipOptional = precisionAABB.clip(startingPos, endPos);
@@ -219,7 +221,8 @@ public class HitResultUtil {
 		Vec3 closestEntityPos = null;
 		AABB entityHitAABB = null;
 
-		for (Entity potentialTarget : level.getEntities(aiming, boundingBox, entityFilter)) {
+		for (Entity potentialTarget : level.getEntities(aiming, boundingBox,
+				PerceptionBlockers.perceivedBy(aiming, entityFilter, PerceptionBlockers.Sight.AIM))) {
 			AABB targetAABB = potentialTarget.getBoundingBox().inflate(potentialTarget.getPickRadius() + entityInflate);
 			AABB precisionAABB = standPrecisionTargetHitbox(targetAABB, standPrecision);
 			

@@ -546,7 +546,7 @@ public class ClAbilityInputPacket implements CustomPacketPayload {
 				boolean playerMissing = playerSentEntity
 						&& playerTarget.getType() == ActionTarget.TargetType.EMPTY;
 				// never the player, as ClAimTargetPacket stores it (LivingComponentAction.setUserAimFromClient)
-				if (playerAction.isUserItself(playerResolved)) {
+				if (playerAction.isUserItself(playerResolved) || playerAction.isUnperceived(playerResolved)) {
 					playerTarget = ActionTarget.EMPTY;
 				}
 				StandEntity stand = StandUtil.getSummonedStand(player);
@@ -560,6 +560,9 @@ public class ClAbilityInputPacket implements CustomPacketPayload {
 								.resolveEntityId(player.level())) : null;
 				boolean standMissing = standTarget != null && standSentEntity
 						&& standTarget.getType() == ActionTarget.TargetType.EMPTY;
+				if (standTarget != null && standAction.isUnperceived(standTarget)) {
+					standTarget = ActionTarget.EMPTY;
+				}
 				if (standTarget != null
 						&& standTarget.getType() == ActionTarget.TargetType.EMPTY
 						&& playerTarget.getType() != ActionTarget.TargetType.EMPTY) {

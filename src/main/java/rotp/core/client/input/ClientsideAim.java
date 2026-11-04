@@ -1,5 +1,6 @@
 package rotp.core.client.input;
 
+import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.client.ClientGlobals;
 import rotp.core.core.JojoMod;
 import rotp.core.network.c2s.ClAimTargetPacket;
@@ -31,13 +32,16 @@ public class ClientsideAim {
 			// and a power other than a Stand took it unchanged (IPowerType.clientHitResult)
 			playerAim.setTarget(cameraEntityAimTarget);
 			// but Action.checkTarget emptied it when it was the user
-			if (cameraEntityAimTarget.getType() == ActionTarget.TargetType.ENTITY && cameraEntityAimTarget.getEntity() == mc.player) {
+			if (cameraEntityAimTarget.getType() == ActionTarget.TargetType.ENTITY && (cameraEntityAimTarget.getEntity() == mc.player
+					|| PerceptionBlockers.isBlocked(mc.player, cameraEntityAimTarget.getEntity()))) {
 				playerAim.setTarget(ActionTarget.EMPTY);
 			}
 			
 			StandEntity stand = ClientGlobals.playerStandEntity;
 			if (stand != null) {
-				standAim.setTarget(StandEntityPunchAbility.clientStandAim(stand, mc.player, mc.cameraEntity, cameraEntityAimTarget));
+				ActionTarget standTarget = StandEntityPunchAbility.clientStandAim(stand, mc.player, mc.cameraEntity, cameraEntityAimTarget);
+				standAim.setTarget(standTarget.getType() == ActionTarget.TargetType.ENTITY
+						&& PerceptionBlockers.isBlocked(stand, standTarget.getEntity()) ? ActionTarget.EMPTY : standTarget);
 			}
 			else {
 				standAim.setTarget(ActionTarget.EMPTY);

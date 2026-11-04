@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.api.time.EntityTimeRates;
 import rotp.core.core.JojoMod;
 import rotp.core.client.entityanim.pose.AnimFramePose;
@@ -788,12 +789,13 @@ public class LivingComponentAction implements SynchronizablePlayerData, TickingE
 	/**
 	 * Server: stores the aim a player's client sent for the player itself (its camera's pick, ClientsideAim), as
 	 * {@link ActionTargetAim#setTargetFromClient} does, but never the player: 1.16 Action.checkTarget emptied a target that
-	 * was the user, which another camera's pick (a manually controlled Stand's, a member's view) may meet. The aim a press
-	 * packet carries is kept by the same rule ({@link #isUserItself}).
+	 * was the user, which another camera's pick (a manually controlled Stand's, a member's view) may meet. Nor an entity
+	 * the player cannot perceive ({@link #isUnperceived}). The aim a press packet carries is kept by the same rules
+	 * ({@link #isUserItself}).
 	 */
 	public void setUserAimFromClient(ActionTarget received) {
 		entityAim.setTargetFromClient(received, entity.level());
-		if (isUserItself(entityAim.getTarget())) {
+		if (isUserItself(entityAim.getTarget()) || isUnperceived(entityAim.getTarget())) {
 			entityAim.setTarget(ActionTarget.EMPTY);
 		}
 	}
@@ -802,6 +804,16 @@ public class LivingComponentAction implements SynchronizablePlayerData, TickingE
 	@ApiStatus.Internal
 	public boolean isUserItself(ActionTarget resolved) {
 		return resolved.getType() == ActionTarget.TargetType.ENTITY && resolved.getEntity() == entity;
+	}
+
+	/**
+	 * Whether a resolved aim of this entity (a player or its Stand) is an entity it cannot perceive
+	 * ({@link PerceptionBlockers}), which its aim never keeps: the client's pick does not know the rule.
+	 */
+	@ApiStatus.Internal
+	public boolean isUnperceived(ActionTarget resolved) {
+		return resolved.getType() == ActionTarget.TargetType.ENTITY && resolved.getEntity() != null
+				&& PerceptionBlockers.isBlocked(entity, resolved.getEntity());
 	}
 
 }
