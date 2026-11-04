@@ -22,8 +22,9 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The reach of a close-range Stand's melee attacks (owner, 2026-10-30 and 2026-11-01). Its punches, heavy punches and
- * barrages strike an entity as far as its base reach, the larger of its user's reach (1.16 StandEntity.getAimDistance)
+ * The reach of a close-range Stand's melee attacks (owner, 2026-10-30 and 2026-11-01). Its punches, heavy punches (the
+ * charged one too), barrages and the add-on melee specials that opt in (EntityActionType#isReachingMeleeAttack) strike an
+ * entity as far as its base reach, the larger of its user's reach (1.16 StandEntity.getAimDistance)
  * and its max range (The World 10, Star Platinum its user's 5), plus a margin past it, a quarter of the base reach and
  * at least a block (StandStatFormulas#meleeReachMargin): an entity the Stand cannot reach from where it stands, which is
  * on its user's look and in its user's sight ({@link #reachable}). The Stand flies out to it ({@link #flyOutOffset}) at
@@ -66,20 +67,33 @@ public final class StandMeleeReach {
 		return base + StandStatFormulas.meleeReachMargin(base, remoteControl);
 	}
 
-	/** A punch, heavy punch or barrage, an add-on's that extends them too, but not a grab's. */
+	/**
+	 * A punch, heavy punch (the charged one too) or barrage, an add-on's that extends them too, but not a grab's. An
+	 * action of another class reaches as they do when its ability opts in ({@link #isReachingAttack(EntityActionInstance)}).
+	 */
 	public static boolean isReachingAttack(@Nullable EntityActionType ability) {
 		return ability != null && ability.getAbilityUsageCategory() != AbilityUsageGroup.GRAB
 				&& (ability instanceof StandEntityPunchAbility || ability instanceof StandEntityHeavyPunchAbility
-						|| ability instanceof StandEntityBarrageAbility);
+						|| ability instanceof StandEntityHeavyPunchChargedAbility || ability instanceof StandEntityBarrageAbility);
 	}
 
 	/**
-	 * Whether the Stand's current action reaches out: a reaching attack ({@link #isReachingAttack}) of a close-range Stand
-	 * whose user aims it and that follows its user whole, not under remote control nor in its arms-only mode.
+	 * Whether the action is a reaching attack: its ability is one ({@link #isReachingAttack(EntityActionType)}), or answers
+	 * {@link EntityActionType#isReachingMeleeAttack} for it, as an add-on's melee special built on another class does.
+	 */
+	public static boolean isReachingAttack(@Nullable EntityActionInstance action) {
+		return action != null && action.ability != null
+				&& (isReachingAttack(action.ability) || action.ability.isReachingMeleeAttack(action));
+	}
+
+	/**
+	 * Whether the Stand's current action reaches out: a reaching attack ({@link #isReachingAttack(EntityActionInstance)})
+	 * of a close-range Stand whose user aims it and that follows its user whole, not under remote control nor in its
+	 * arms-only mode.
 	 */
 	public static boolean reachesOut(StandEntity stand) {
 		EntityActionInstance action = LivingComponentAction.getCurEntityAction(stand);
-		return action != null && isReachingAttack(action.ability) && stand.getUser() != null && isCloseRange(stand)
+		return isReachingAttack(action) && stand.getUser() != null && isCloseRange(stand)
 				&& !stand.aimsWithoutUser() && stand.isFollowingUser() && !stand.isArmsOnlyMode();
 	}
 

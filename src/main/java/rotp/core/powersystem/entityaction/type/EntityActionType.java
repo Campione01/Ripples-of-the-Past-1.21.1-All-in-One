@@ -98,6 +98,17 @@ public interface EntityActionType {
 	default boolean canContinueAction(EntityActionInstance action) {
 		return true;
 	}
+
+	/**
+	 * Whether this action of a close-range Stand reaches out as the core's punches, heavy punches and barrages do
+	 * (StandMeleeReach): the Stand flies out to an entity its user aims at past the Stand's own reach
+	 * (EntityActionInstance#setStandFrontOffsetFromTarget), its strike reaches it
+	 * (StandEntityPunchAbility#validatePunchTarget) and hits weaker past the base reach (EntityActionInstance#standEntityAttack).
+	 * For an add-on's melee special of another class (one 1.16 built as a heavy or light attack); false by default.
+	 */
+	default boolean isReachingMeleeAttack(EntityActionInstance action) {
+		return false;
+	}
 	
 	
 	default ResourceLocation getEntityAnimSet(LivingEntity user) {
