@@ -72,6 +72,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.phys.Vec3;
@@ -460,6 +461,35 @@ public class TimeStopState {
             frozenEntities.put(entity.getId(), new FrozenEntityState(entity.position(), state.fallDistance(), state.wasNoAi()));
         }
         return frozenEntities.containsKey(entity.getId());
+    }
+
+    /**
+     * Rule G1, for a rewind (RewindAppliedEvent): ends every stop of this level that began after the rewind's point
+     * and whose chunks meet its region, as an interrupted stop ends; older stops go on.
+     * @return how many stops it ended
+     */
+    public int endStopsBegunAfter(long rewindPoint, AABB region) {
+        long now = level.getGameTime();
+        List<Integer> ended = new ArrayList<>();
+        for (Instance instance : instances.values()) {
+            if (now - instance.ticksPassed() > rewindPoint && meetsRegion(instance, region)) {
+                ended.add(instance.id());
+            }
+        }
+        for (int id : ended) {
+            removeInstance(id, RemovalReason.INTERRUPTED);
+        }
+        return ended.size();
+    }
+
+    private static boolean meetsRegion(Instance instance, AABB region) {
+        if (instance.chunkRange() <= 0) {
+            return true;
+        }
+        int reach = instance.chunkRange() - 1;
+        ChunkPos center = instance.centerPos();
+        return (center.x - reach) * 16.0 < region.maxX && (center.x + reach + 1) * 16.0 > region.minX
+                && (center.z - reach) * 16.0 < region.maxZ && (center.z + reach + 1) * 16.0 > region.minZ;
     }
 
     /** {@link #repinOrRelease} in the entity's own server level; false on the client and where time never stopped. */
