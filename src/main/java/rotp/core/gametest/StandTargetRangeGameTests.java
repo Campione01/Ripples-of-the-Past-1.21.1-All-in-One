@@ -2154,12 +2154,13 @@ public final class StandTargetRangeGameTests {
 	 * entity the Stand may attack, StandEntity.canAttack :1932-1949, unless the action had friendly fire): a refused target
 	 * left the action without one, so its Stand faced its user's look. The port's synced Stand aim is that unfiltered target
 	 * again, and the actions that take it at their press (captureActionTargetFromAim, keepStandAimedAtTarget) turned to,
-	 * dashed at or homed on the user's own pet, as the idle Stand looked at it. The user's own tamed wolf on the look past
-	 * the vanilla pick's reach, which the precision ray of a client takes; a husk in its place is the control. Before
-	 * checkStandTarget, StandEntityAction.checkTarget refused any target of an action with no target requirement unless its
-	 * standKeepsTarget kept it: Silver Chariot's sweep (a heavy attack, which kept an entity) turns to the husk, its dash
-	 * (standKeepsTarget false) and Crossfire Hurricane (no standKeepsTarget) take no target, a husk or a block; the grab is
-	 * the port's own. A block as the synced aim is taken by none of them.
+	 * dashed at or homed on the user's own pet. The user's own tamed wolf on the look past the vanilla pick's reach, which
+	 * the precision ray of a client takes; a husk in its place is the control. Before checkStandTarget,
+	 * StandEntityAction.checkTarget refused any target of an action with no target requirement unless its standKeepsTarget
+	 * kept it: Silver Chariot's sweep (a heavy attack, which kept an entity) turns to the husk, its dash (standKeepsTarget
+	 * false) and Crossfire Hurricane (no standKeepsTarget) take no target, a husk or a block; the grab is the port's own. A
+	 * block as the synced aim is taken by none of them. The idle Stand looks at neither, as 1.16's StandEntity
+	 * .defaultRotation gave it its user's look.
 	 */
 	@GameTest(template = "empty", batch = BATCH)
 	public static void aStandActionPressedAtTheUsersOwnPetTakesNoTargetAsIn116(GameTestHelper helper) {
@@ -2189,10 +2190,9 @@ public final class StandTargetRangeGameTests {
 					LivingComponentAction.getComponent(fixture.user).entityAim.setTargetFromClient(vanillaPick, fixture.level);
 					if (kind == null) {
 						boolean looked = stand.lookAtCurTarget(stand.rotO);
-						if (looked == pet) {
-							wrong.add("OWN-PET " + row + ": the idle Stand " + (looked ? "looks at it" : "does not look at it")
-									+ "; " + (pet ? "the port's idle look kept off what the Stand may not attack"
-											: "the idle look turns to an aimed entity the Stand may attack"));
+						if (looked) {
+							wrong.add("OWN-PET " + row + ": the idle Stand looks at it; 1.16's idle Stand looked where its user"
+									+ " looks (StandEntity.defaultRotation), at no entity of its aim");
 						}
 						continue;
 					}

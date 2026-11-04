@@ -803,36 +803,21 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		if (lookAtTaskTarget()) {
 			return true;
 		}
-		ActionTarget lookTarget;
 		EntityActionInstance curAction = standAction.getAction();
-		boolean fullyRotateBody = curAction != null;
-		if (curAction != null) {
-			lookTarget = curAction.standRotationTarget;
-			if (lookTarget == null) {
-				lookTarget = ActionTarget.EMPTY;
-			}
-			else if (lookTarget.isEmpty(level())) {
-				curAction.standRotationTarget = null;
-				lookTarget = ActionTarget.EMPTY;
-			}
+		// 1.16 StandEntity.defaultRotation: without an action the Stand looks where its user looks, whatever entity the aim
+		// holds
+		if (curAction == null) {
+			return false;
 		}
-		else {
-			ActionTarget crosshairTarget = standAction.entityAim.getTarget();
-			// the synced aim may be the user's pet, mount or ally (1.16's mouse target); the idle look stays off them
-			if (crosshairTarget.getType() == TargetType.ENTITY && crosshairTarget.getEntity() != null
-					&& canAttackEntity(crosshairTarget.getEntity())) {
-				lookTarget = crosshairTarget;
-			}
-			else {
-				lookTarget = ActionTarget.EMPTY;
-			}
-			// the 75 degrees from where the user faces, as when the idle Stand took its user's body: the Stand's own body
-			// trails the yaw this look gives it, so the look would never let the entity go
-			LivingEntity user = getUser();
-			return lookAtPos(getPosToLookAt(lookTarget), false, user != null ? user.yBodyRot : yBodyRot);
+		ActionTarget lookTarget = curAction.standRotationTarget;
+		if (lookTarget == null) {
+			lookTarget = ActionTarget.EMPTY;
 		}
-
-		return lookAtTarget(lookTarget, fullyRotateBody);
+		else if (lookTarget.isEmpty(level())) {
+			curAction.standRotationTarget = null;
+			lookTarget = ActionTarget.EMPTY;
+		}
+		return lookAtTarget(lookTarget, true);
 	}
 
 	/**
@@ -902,10 +887,6 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	}
 
 	public boolean lookAtPos(@Nullable Vec3 targetPos, boolean fullyRotateBody) {
-		return lookAtPos(targetPos, fullyRotateBody, yBodyRot);
-	}
-
-	private boolean lookAtPos(@Nullable Vec3 targetPos, boolean fullyRotateBody, float headTurnFromYaw) {
 		if (targetPos != null) {
 			Vec2 rotations = MathUtil.lookAnglesTowards(targetPos, this, EntityAnchorArgument.Anchor.EYES);
 			if (fullyRotateBody) {
@@ -918,7 +899,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 			}
 			else {
 				float maxHeadYRot = 75;
-				float f2 = Mth.wrapDegrees(headTurnFromYaw - rotations.y);
+				float f2 = Mth.wrapDegrees(yBodyRot - rotations.y);
 				if (Math.abs(f2) < maxHeadYRot) {
 					this.setXRot(rotations.x);
 					this.setYRot(rotations.y);
