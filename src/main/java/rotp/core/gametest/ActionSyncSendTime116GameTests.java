@@ -13,6 +13,7 @@ import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
 import rotp.core.impl.stands._entitybase.StandEntityBlockAbility.StandEntityBlock;
 import rotp.core.init.ModDataAttachmentTypes;
+import rotp.core.network.s2c.TrSyncStandOffsetPacket;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
@@ -29,6 +30,7 @@ import rotp.core.powersystem.entityaction.netcode.TrEntityActionPhaseTimePacket;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
 import rotp.core.powersystem.standpower.type.StandType;
 import com.mojang.authlib.GameProfile;
 
@@ -140,6 +142,41 @@ public final class ActionSyncSendTime116GameTests {
 					"the release's phase sync carries the phase lengths it was sent with: the guard's recovery, changed to "
 							+ (recovery + 7.0F) + " after the send, reads " + release.phasesLength().getFloat(ActionPhase.RECOVERY)
 							+ " in it");
+		}
+		helper.succeed();
+	}
+
+	/*
+	 * Made in Heaven's mode A: a far punch's last fly-out packet reached a slowed guest after his copy of the punch had
+	 * ended, and his client drew the Stand at that spot for 61 s, until the next action. Clearing an action that left the
+	 * Stand off its idle spot now sends the idle offset after that packet; one that left it there sends nothing.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 100)
+	public static void clearingAnActionThatLeftTheStandOffItsIdleSpotSendsTheIdleOffset(GameTestHelper helper) {
+		try (Scene s = new Scene(helper, "IdleOffsetSync")) {
+			StandOffsetFromUser offset = s.stand.offsetFromUser;
+			Vec3 flyOut = new Vec3(0.0D, 0.0D, 9.8D);
+			s.pressGuard();
+			offset.setOffset(flyOut, StandOffsetFromUser.Rotations.HEAD, false);
+			offset.syncToTracking();
+			int sentBefore = s.recording.packets.size();
+			LivingComponentAction.getComponent(s.stand).setAction(null, SyncType.NO_SYNC);
+			TrSyncStandOffsetPacket sent = s.lastOffsetSync(sentBefore);
+			helper.assertTrue(offset.isIdle() && sent != null, "the server cleared the action off the idle spot (idle now: "
+					+ offset.isIdle() + ") and sent its trackers " + sent + ", not the idle offset");
+			// as TrSyncStandOffsetPacket.Handler applies it on a client whose copy ended before the fly-out packet came
+			offset.setOffset(flyOut, StandOffsetFromUser.Rotations.HEAD, false);
+			offset.setOffset(sent.absoluteOffset(), sent.rotations(), sent.canInvertSide());
+			helper.assertTrue(offset.isIdle(), "the packet sent as the action cleared leaves a client's Stand at "
+					+ sent.absoluteOffset() + " " + sent.rotations() + ", not at its idle spot");
+		}
+		try (Scene s = new Scene(helper, "IdleOffsetKept")) {
+			s.pressGuard();
+			s.stand.offsetFromUser.resetToIdle();
+			int sentBefore = s.recording.packets.size();
+			LivingComponentAction.getComponent(s.stand).setAction(null, SyncType.NO_SYNC);
+			helper.assertTrue(s.lastOffsetSync(sentBefore) == null,
+					"an action that left the Stand at its idle spot has no offset to send as it clears");
 		}
 		helper.succeed();
 	}
@@ -286,6 +323,20 @@ public final class ActionSyncSendTime116GameTests {
 						&& custom.payload() instanceof TrEntityActionPhaseTimePacket phaseSync
 						&& phaseSync.performerId() == stand.getId()) {
 					last = phaseSync;
+				}
+			}
+			return last;
+		}
+
+		// the last offset sync for the Stand sent to the user since the given packet count
+		@Nullable
+		private TrSyncStandOffsetPacket lastOffsetSync(int from) {
+			TrSyncStandOffsetPacket last = null;
+			for (Packet<?> packet : recording.packets.subList(from, recording.packets.size())) {
+				if (packet instanceof ClientboundCustomPayloadPacket custom
+						&& custom.payload() instanceof TrSyncStandOffsetPacket offsetSync
+						&& offsetSync.standEntityId() == stand.getId()) {
+					last = offsetSync;
 				}
 			}
 			return last;

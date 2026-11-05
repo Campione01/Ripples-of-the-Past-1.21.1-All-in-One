@@ -1743,7 +1743,13 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 				}
 			}
 			updateNoPhysics();
+			boolean leftOffIdle = !level().isClientSide() && curAction != null && !offsetFromUser.isIdle();
 			offsetFromUser.resetToIdle();
+			// Each client ends its own copy of the action by its own count: one that ended it before the action's last
+			// offset packet arrived has no action left to clear that offset.
+			if (leftOffIdle) {
+				offsetFromUser.syncToTracking();
+			}
 		}
 		return false;
 	}
