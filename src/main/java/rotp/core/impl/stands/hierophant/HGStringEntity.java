@@ -89,6 +89,11 @@ public class HGStringEntity extends OwnerBoundProjectileEntity {
 	}
 
 	@Override
+	protected boolean runsInOwnerTime() {
+		return true;
+	}
+
+	@Override
 	protected void moveProjectile() {
 		if (isAttachedToAnEntity()) {
 			LivingEntity attached = getEntityAttachedTo();
@@ -114,9 +119,11 @@ public class HGStringEntity extends OwnerBoundProjectileEntity {
 			return;
 		}
 		setRot(owner.getYRot(), owner.getXRot());
-		double nextDistance = retracting ? distance - retractSpeed() * speedFactor : distance + movementSpeed() * speedFactor;
+		double nextDistance = retracting
+				? distance - retractSpeed() * speedFactor * ownerTimeStep()
+				: distance + movementSpeed() * speedFactor * ownerTimeStep();
 		// Complete the donor's final outward step before switching to retraction.
-		if (!retracting && tickCount >= forwardTicks()) {
+		if (!retracting && ownerTicks() >= forwardTicks()) {
 			setRetracting(true);
 		}
 		if (isRetracting() && nextDistance <= 0.0D) {
@@ -276,7 +283,7 @@ public class HGStringEntity extends OwnerBoundProjectileEntity {
 	}
 
 	private void applyBindingEffect(LivingEntity target) {
-		int duration = Math.max(1, ticksLifespan() - tickCount);
+		int duration = Math.max(1, serverTicksLeftInLifespan());
 		target.addEffect(new MobEffectInstance(ModStatusEffects.IMMOBILIZE, duration));
 	}
 

@@ -53,10 +53,10 @@ public class SatiporojaScarfEntity extends PillarmanExtendingBodyPartEntity {
 	@Override
 	protected float updateDistance() {
 		if (side == HumanoidArm.RIGHT) {
-			yRotOffset = Math.min(yRotOffset + 135.0F / ticksLifespan(), 67.5F);
+			yRotOffset = Math.min(yRotOffset + 135.0F / ticksLifespan() * ownerTimeStep(), 67.5F);
 		}
 		else {
-			yRotOffset = Math.max(yRotOffset - 135.0F / ticksLifespan(), -67.5F);
+			yRotOffset = Math.max(yRotOffset - 135.0F / ticksLifespan() * ownerTimeStep(), -67.5F);
 		}
 		return super.updateDistance();
 	}

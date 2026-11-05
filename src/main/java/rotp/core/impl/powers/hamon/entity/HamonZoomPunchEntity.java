@@ -98,6 +98,11 @@ public class HamonZoomPunchEntity extends OwnerBoundProjectileEntity {
 	}
 
 	@Override
+	protected boolean runsInOwnerTime() {
+		return true;
+	}
+
+	@Override
 	protected Vec3 getOwnerRelativeOffset() {
 		return side == HumanoidArm.LEFT ? LEFT_HAND_OFFSET : RIGHT_HAND_OFFSET;
 	}
@@ -268,10 +273,10 @@ public class HamonZoomPunchEntity extends OwnerBoundProjectileEntity {
 	private double updateDistance() {
 		double nextDistance = distance;
 		if (isRetracting()) {
-			nextDistance -= movementSpeed() * speedFactor;
+			nextDistance -= movementSpeed() * speedFactor * ownerTimeStep();
 		}
 		else if (isMovingForward()) {
-			nextDistance += movementSpeed() * speedFactor;
+			nextDistance += movementSpeed() * speedFactor * ownerTimeStep();
 		}
 		updateMotionFlags();
 		return (float) nextDistance;
@@ -282,10 +287,10 @@ public class HamonZoomPunchEntity extends OwnerBoundProjectileEntity {
 		// Keep the donor's float rounding before truncating the turnaround tick.
 		float maxDistance = moveSpeed * moveSpeed * lifeSpan / (moveSpeed + moveSpeed);
 		int forwardTicks = Math.max(1, (int) ((double) maxDistance / moveSpeed));
-		if (isMovingForward() && tickCount >= forwardTicks) {
+		if (isMovingForward() && ownerTicks() >= forwardTicks) {
 			setMovingForward(false);
 		}
-		if (!isRetracting() && tickCount >= forwardTicks) {
+		if (!isRetracting() && ownerTicks() >= forwardTicks) {
 			setRetracting(true);
 		}
 	}
@@ -392,7 +397,7 @@ public class HamonZoomPunchEntity extends OwnerBoundProjectileEntity {
 	// Punch cooldown, which ran over the punch's flight (1.16 cleared its fixed HAMON_ZOOM_PUNCH action, here the move's
 	// moveset name)
 	private void endZoomPunchCooldownIfRemovedEarly() {
-		if (level().isClientSide() || isRemoved() || tickCount >= lifeSpan) {
+		if (level().isClientSide() || isRemoved() || ownerTicks() >= lifeSpan) {
 			return;
 		}
 		LivingEntity owner = getOwner();

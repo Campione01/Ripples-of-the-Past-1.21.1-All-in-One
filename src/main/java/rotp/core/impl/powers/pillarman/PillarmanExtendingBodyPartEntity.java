@@ -59,6 +59,11 @@ public abstract class PillarmanExtendingBodyPartEntity extends OwnerBoundProject
 	}
 
 	@Override
+	protected boolean runsInOwnerTime() {
+		return true;
+	}
+
+	@Override
 	protected void moveProjectile() {
 		if (moveToEntityAttached()) {
 			return;
@@ -159,10 +164,10 @@ public abstract class PillarmanExtendingBodyPartEntity extends OwnerBoundProject
 
 	protected float updateDistance() {
 		if (isRetracting()) {
-			return (float) (getDistance() - retractSpeed() * speedFactor);
+			return (float) (getDistance() - retractSpeed() * speedFactor * ownerTimeStep());
 		}
 		if (isMovingForward()) {
-			return (float) (getDistance() + movementSpeed() * speedFactor);
+			return (float) (getDistance() + movementSpeed() * speedFactor * ownerTimeStep());
 		}
 		return (float) getDistance();
 	}
@@ -179,10 +184,10 @@ public abstract class PillarmanExtendingBodyPartEntity extends OwnerBoundProject
 
 	protected void updateMotionFlags() {
 		int stopForwardMotionMark = (int) (maxDistance() / movementSpeed());
-		if (isMovingForward() && tickCount >= stopForwardMotionMark) {
+		if (isMovingForward() && ownerTicks() >= stopForwardMotionMark) {
 			setIsMovingForward(false);
 		}
-		if (!isRetracting() && tickCount >= stopForwardMotionMark + timeAtFullLength()) {
+		if (!isRetracting() && ownerTicks() >= stopForwardMotionMark + timeAtFullLength()) {
 			setIsRetracting(true);
 		}
 	}

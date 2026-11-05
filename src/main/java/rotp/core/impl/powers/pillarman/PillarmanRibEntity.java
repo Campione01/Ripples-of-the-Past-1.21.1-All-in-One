@@ -67,7 +67,7 @@ public class PillarmanRibEntity extends PillarmanExtendingBodyPartEntity {
 			Entity target = entityRayTraceResult.getEntity();
 			if (target instanceof LivingEntity livingTarget && !JojoModUtil.isTargetBlocking(livingTarget)) {
 				attachToEntity(livingTarget);
-				int duration = Math.max(1, ticksLifespan() - tickCount);
+				int duration = Math.max(1, serverTicksLeftInLifespan());
 				livingTarget.addEffect(new MobEffectInstance(ModStatusEffects.STUN, duration));
 			}
 		}

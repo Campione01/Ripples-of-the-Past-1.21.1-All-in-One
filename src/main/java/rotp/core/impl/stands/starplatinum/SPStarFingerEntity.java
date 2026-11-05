@@ -72,6 +72,11 @@ public class SPStarFingerEntity extends OwnerBoundProjectileEntity {
 	}
 
 	@Override
+	protected boolean runsInOwnerTime() {
+		return true;
+	}
+
+	@Override
 	protected Vec3 getOwnerRelativeOffset() {
 		return OFFSET;
 	}
@@ -142,7 +147,7 @@ public class SPStarFingerEntity extends OwnerBoundProjectileEntity {
 
 	private Vec3 getNextOriginOffset(LivingEntity owner) {
 		int retractMark = Math.max(1, (int) (maxDistance() / movementSpeed())) + timeAtFullLength();
-		if (level().isClientSide() && !retracting && tickCount < retractMark) {
+		if (level().isClientSide() && !retracting && ownerTicks() < retractMark) {
 			StarFingerInstance action = activeStarFingerAction();
 			if (action != null && action.extendableOBB().isRetracting()) {
 				movingForward = false;
@@ -160,20 +165,20 @@ public class SPStarFingerEntity extends OwnerBoundProjectileEntity {
 
 	private double updateDistance() {
 		if (retracting) {
-			return distance - retractSpeed() * speedFactor;
+			return distance - retractSpeed() * speedFactor * ownerTimeStep();
 		}
 		if (movingForward) {
-			return distance + movementSpeed() * speedFactor;
+			return distance + movementSpeed() * speedFactor * ownerTimeStep();
 		}
 		return distance;
 	}
 
 	private void updateMotionFlags() {
 		int stopForwardMotionMark = Math.max(1, (int) (maxDistance() / movementSpeed()));
-		if (movingForward && tickCount >= stopForwardMotionMark) {
+		if (movingForward && ownerTicks() >= stopForwardMotionMark) {
 			movingForward = false;
 		}
-		if (!retracting && tickCount >= stopForwardMotionMark + timeAtFullLength()) {
+		if (!retracting && ownerTicks() >= stopForwardMotionMark + timeAtFullLength()) {
 			retracting = true;
 		}
 	}

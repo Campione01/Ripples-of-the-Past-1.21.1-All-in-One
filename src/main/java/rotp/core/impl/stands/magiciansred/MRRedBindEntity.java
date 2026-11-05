@@ -162,6 +162,11 @@ public class MRRedBindEntity extends OwnerBoundProjectileEntity {
 	}
 
 	@Override
+	protected boolean runsInOwnerTime() {
+		return true;
+	}
+
+	@Override
 	protected void moveProjectile() {
 		if (isAttachedToAnEntity()) {
 			LivingEntity bound = getEntityAttachedTo();
@@ -223,20 +228,20 @@ public class MRRedBindEntity extends OwnerBoundProjectileEntity {
 
 	private double updateDistance() {
 		if (retracting) {
-			return distance - retractSpeed() * speedFactor;
+			return distance - retractSpeed() * speedFactor * ownerTimeStep();
 		}
 		if (movingForward) {
-			return distance + movementSpeed() * speedFactor;
+			return distance + movementSpeed() * speedFactor * ownerTimeStep();
 		}
 		return distance;
 	}
 
 	private void updateMotionFlags() {
 		int stopForwardMotionMark = Math.max(1, (int) (maxDistance() / movementSpeed()));
-		if (movingForward && tickCount >= stopForwardMotionMark) {
+		if (movingForward && ownerTicks() >= stopForwardMotionMark) {
 			movingForward = false;
 		}
-		if (!retracting && tickCount >= stopForwardMotionMark + timeAtFullLength()) {
+		if (!retracting && ownerTicks() >= stopForwardMotionMark + timeAtFullLength()) {
 			retracting = true;
 		}
 	}
@@ -265,7 +270,7 @@ public class MRRedBindEntity extends OwnerBoundProjectileEntity {
 			attachToEntity(living);
 			if (!level().isClientSide()) {
 				boolean thisEffect = immobilizedEffect == living.getEffect(ModStatusEffects.IMMOBILIZE);
-				living.addEffect(new MobEffectInstance(ModStatusEffects.IMMOBILIZE, ticksLifespan() - tickCount));
+				living.addEffect(new MobEffectInstance(ModStatusEffects.IMMOBILIZE, serverTicksLeftInLifespan()));
 				if (thisEffect) {
 					immobilizedEffect = living.getEffect(ModStatusEffects.IMMOBILIZE);
 				}
@@ -325,7 +330,7 @@ public class MRRedBindEntity extends OwnerBoundProjectileEntity {
 		LivingEntity target = getEntityAttachedTo();
 		if (target != null && !level().isClientSide()) {
 			removeBoundEffect(target);
-			target.addEffect(new MobEffectInstance(ModStatusEffects.STUN, ticksLifespan() - tickCount));
+			target.addEffect(new MobEffectInstance(ModStatusEffects.STUN, serverTicksLeftInLifespan()));
 			immobilizedEffect = target.getEffect(ModStatusEffects.STUN);
 		}
 	}
