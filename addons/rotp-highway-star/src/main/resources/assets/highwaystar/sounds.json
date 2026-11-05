@@ -1,0 +1,46 @@
+{
+  "summon": {
+    "category": "player",
+    "sounds": ["highwaystar:summon"]
+  },
+  "summon2": {
+    "category": "player",
+    "sounds": ["highwaystar:summon2"]
+  },
+  "unsummon": {
+    "category": "player",
+    "sounds": ["highwaystar:unsummon"]
+  },
+  "summon_voiceline": {
+    "category": "player",
+    "sounds": ["highwaystar:summon_voiceline"]
+  },
+  "barrage": {
+    "category": "player",
+    "sounds": ["highwaystar:barrage"]
+  },
+  "barrage2": {
+    "category": "player",
+    "sounds": ["highwaystar:barrage2"]
+  },
+  "drain": {
+    "category": "player",
+    "sounds": ["highwaystar:drain"]
+  },
+  "drain2": {
+    "category": "player",
+    "sounds": ["highwaystar:drain2"]
+  },
+  "smell": {
+    "category": "player",
+    "sounds": ["highwaystar:smell"]
+  },
+  "tracking": {
+    "category": "player",
+    "sounds": ["highwaystar:tracking"]
+  },
+  "tracking2": {
+    "category": "player",
+    "sounds": ["highwaystar:tracking2"]
+  }
+}

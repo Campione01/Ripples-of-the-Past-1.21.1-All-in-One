@@ -25,6 +25,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -33,7 +34,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
+import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -62,9 +63,7 @@ public final class TuskPortalOperationsGameTests {
 
     private static void portalMoveReceiptAndPersistedStateMatchDonorBody(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        ServerPlayer owner = FakePlayerFactory.get(
-                level,
-                new GameProfile(OWNER_UUID, "TuskPortalMove"));
+        ServerPlayer owner = freshOwner(level, OWNER_UUID, "TuskPortalMove");
         StandType standType = TuskAddon.TUSK_ACT_3.get();
         StandPower power = null;
         WormholeEntity source = null;
@@ -289,9 +288,7 @@ public final class TuskPortalOperationsGameTests {
 
     private static void portalStepUpFollowsVerticalCollisionOnlyBody(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        ServerPlayer owner = FakePlayerFactory.get(
-                level,
-                new GameProfile(STEP_OWNER_UUID, "TuskPortalStep"));
+        ServerPlayer owner = freshOwner(level, STEP_OWNER_UUID, "TuskPortalStep");
         StandType standType = TuskAddon.TUSK_ACT_3.get();
         StandPower power = null;
         WormholeEntity source = null;
@@ -460,9 +457,7 @@ public final class TuskPortalOperationsGameTests {
 
     private static void remoteArmEmptiesTheArmHandBody(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        ServerPlayer owner = FakePlayerFactory.get(
-                level,
-                new GameProfile(ARM_OWNER_UUID, "TuskArmHand"));
+        ServerPlayer owner = freshOwner(level, ARM_OWNER_UUID, "TuskArmHand");
         StandType standType = TuskAddon.TUSK_ACT_3.get();
         StandPower power = null;
         WormholeEntity source = null;
@@ -587,6 +582,16 @@ public final class TuskPortalOperationsGameTests {
             }
             owner.discard();
         }
+    }
+
+    // FakePlayerFactory keeps one player per profile, and a discarded one cannot join the level again: a second run
+    // of a test in the same server (a rerun, another attempt) could not add its owner.
+    private static ServerPlayer freshOwner(ServerLevel level, UUID uuid, String name) {
+        Entity lingering = level.getEntity(uuid);
+        if (lingering != null) {
+            lingering.discard();
+        }
+        return new FakePlayer(level, new GameProfile(uuid, name));
     }
 
     private static WormholePortalEntity portal(

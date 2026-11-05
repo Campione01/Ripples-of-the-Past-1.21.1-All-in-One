@@ -25,17 +25,17 @@
     "source_bytes": 7076,
     "source_sha256": "2B7DE6F4CE7E8163D4C7D28B7969C0EB2D38F7486E8FA8FA73E33A812F49B132",
     "identifier": "geometry.rotp_sg.spice_girl",
-    "target_sha256": "8BAFE12DD78E45A54CA1C4873CD366F31D57CE4F2A2AAC276539D7D04467D02E",
-    "conversion": "Legacy camelCase bones renamed and reparented to the current humanoid Stand anchor contract; torso_lower added; per-face UVs reproduce the core Gecko loader's donor box-UV face mapping."
+    "target_sha256": "0A02DB78D4EF6841CC31A89B4ACCCC4C5D082C4553B948307CFF329405F9F1B5",
+    "conversion": "Legacy camelCase bones renamed and reparented to the current humanoid Stand anchor contract; torso_lower added; per-face UVs reproduce the core Gecko loader's donor box-UV face mapping; an empty left_item locator in the left hand holds the core grab's held entity."
   },
   "converted_animation": {
     "source_bytes": 145471,
     "source_sha256": "835FD987B3E49523358A2DD00607EA73D5833DE3B6C5325CD31DEA9898FAA6DF",
-    "target_sha256": "AC90750DD6FEA246FD634A54B7B699DDC28045202CF417340021CA7F067C742A",
+    "target_sha256": "4A54CB780820C715D6F0C2EE89D28020C573AD7ED53FBCF76FA6858DE6EA815B",
     "legacy_clip_count": 16,
-    "target_clip_count": 18,
-    "dedicated_current_clips": ["wall_climb", "heavy_charged"],
-    "conversion": "Legacy bone targets and action clip names renamed to current moveset aliases; collapse-driving held summon keys use the donor final H1 torso/limb pose under current runtime timing; a looping wall_climb clip targets only validated H1 Stand bones; heavy_charged is built from heavy_punch (charge into the pulled-back pose, WINDUP hold loop, the original swing as PERFORM) so the charged heavy no longer plays the swing while charging."
+    "target_clip_count": 22,
+    "dedicated_current_clips": ["wall_climb", "heavy_charged", "grab", "grab_punch", "grab_barrage", "grab_throw"],
+    "conversion": "Legacy bone targets and action clip names renamed to current moveset aliases; collapse-driving held summon keys use the donor final H1 torso/limb pose under current runtime timing; a looping wall_climb clip targets only validated H1 Stand bones; heavy_charged is built from heavy_punch (charge into the pulled-back pose, WINDUP hold loop, the original swing as PERFORM) so the charged heavy no longer plays the swing while charging; grab, grab_punch, grab_barrage and grab_throw are the core's stand_default clips with their forward bend played on body (Spice Girl's torso_bend pivots at the hips and its head hangs from body) and taken back off the legs on the leg xrot bones."
   },
   "sound_event_count": 22,
   "sound_definition_count": 15,

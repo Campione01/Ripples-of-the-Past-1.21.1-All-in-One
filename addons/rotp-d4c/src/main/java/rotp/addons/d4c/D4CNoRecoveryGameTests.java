@@ -34,8 +34,13 @@ public final class D4CNoRecoveryGameTests {
 
     private D4CNoRecoveryGameTests() {}
 
-    @GameTest(template = "empty", batch = "d4cSpecialsNoRecovery", timeoutTicks = 100)
+    @GameTest(template = "empty", batch = "d4cSpecialsNoRecovery", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void specialActionsHaveNoRecoveryAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> specialActionsHaveNoRecoveryAsIn116Body(h));
+    }
+
+    private static void specialActionsHaveNoRecoveryAsIn116Body(GameTestHelper helper) {
         List<String> wrong = new ArrayList<>();
         try (D4CGameTestScene scene = new D4CGameTestScene(helper, "d4c-no-recovery")) {
             for (String name : SPECIALS) {

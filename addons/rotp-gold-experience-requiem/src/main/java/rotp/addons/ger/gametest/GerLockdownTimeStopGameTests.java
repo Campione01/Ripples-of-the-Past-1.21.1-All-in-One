@@ -391,7 +391,7 @@ public final class GerLockdownTimeStopGameTests {
     // what the payload's handler does on the player's client
     private static void applyTold(LivingEntity player, List<Object> received) {
         GerDisablerPayloads.StatePayload last = lastTold(player, received);
-        GerDisablerClientState.setDisabled(last.entityId(), last.disabled());
+        GerDisablerClientState.setDisabled(last.entityId(), last.disabled(), last.byDisabler());
     }
 
     /** A Star Platinum user (Stand out) and a vampire aiming Blood Drain at a cow, for one kind of lockdown. */
@@ -427,8 +427,8 @@ public final class GerLockdownTimeStopGameTests {
                 drain.setAction(null, vampire.player(), SyncType.NO_SYNC);
                 asOwnClient(standUser.user(), false);
                 asOwnClient(vampire.player(), false);
-                GerDisablerClientState.setDisabled(standUser.user().getId(), false);
-                GerDisablerClientState.setDisabled(vampire.player().getId(), false);
+                GerDisablerClientState.setDisabled(standUser.user().getId(), false, false);
+                GerDisablerClientState.setDisabled(vampire.player().getId(), false, false);
                 LivingComponentAction.CLIENT_PLAYER_AIM.setTarget(ActionTarget.EMPTY);
             });
             scene.premise(standUser.power().isSummoned(), "Star Platinum is out");
@@ -581,8 +581,8 @@ public final class GerLockdownTimeStopGameTests {
                     scene.id + ": 1.16's checkConditions refused a user under the " + lockdownName(returnToZero)
                             + " every Stand and non-Stand action with " + ON_DISABLE + "; on the server the time stop"
                             + " answers " + timeStop + ", Blood Drain " + drain);
-            GerDisablerClientState.setDisabled(standUser.user().getId(), false);
-            GerDisablerClientState.setDisabled(vampire.player().getId(), false);
+            GerDisablerClientState.setDisabled(standUser.user().getId(), false, false);
+            GerDisablerClientState.setDisabled(vampire.player().getId(), false, false);
             String[] untold = ownClientAnswers();
             applyTold(standUser.user(), standUser.received());
             applyTold(vampire.player(), vampire.received());

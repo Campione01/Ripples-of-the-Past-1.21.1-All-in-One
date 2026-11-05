@@ -2,12 +2,15 @@ package rotp.addons.cream;
 
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.event.RipplesAbilityKeyPressEvent;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
+import rotp.core.powersystem.standpower.entity.StandEntity;
 
 import rotp.addons.cream.entity.CreamEntity;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -51,10 +54,15 @@ public final class CreamGameEvents {
             LivingIncomingDamageEvent event) {
         LivingEntity target = event.getEntity();
         CreamEntity active = CreamEntity.activeFor(target);
+        // 1.16 SemiVoidUserDamageMixin let a Stand's own blow reach the user
+        // inside Cream; the ball and the dash (VoidedEffect) let nothing in.
         if (active != null
                 && active.isInVoidState()
                 && !event.getSource().is(
-                        DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+                        DamageTypeTags.BYPASSES_INVULNERABILITY)
+                && !(active.getVoidMode() == CreamEntity.VoidMode.SEMI
+                        && event.getSource().getDirectEntity()
+                                instanceof StandEntity)) {
             event.setCanceled(true);
             return;
         }
@@ -219,66 +227,94 @@ public final class CreamGameEvents {
         }
 
         LivingEntity target = event.getEntity();
+        // Owner T2: past the base reach these blows set their own damage
+        // and knockback over the core's weakened ones, so they and their
+        // effects take the core's factor (1 within the base reach).
+        float reach = StandMeleeReach.strikeFactor(stand, target);
         String path = id.getPath();
         switch (path) {
             case CreamAddon.CREAM_CLAW_NAME -> {
                 event.setAmount(Math.max(
                         1.0F,
-                        (float) stand.getAttackDamage() - 10.0F));
-                applyStackingBleeding(target, 25);
-                reduceKnockback(event, 0.5F);
+                        (float) stand.getAttackDamage() - 10.0F)
+                        * reach);
+                applyStackingBleeding(stand, target, 25, reach);
+                reduceKnockback(event, 1.5F, reach);
             }
             case CreamAddon.CREAM_HEAVY_CLAW_NAME -> {
                 event.setAmount(Math.max(
                         1.0F,
-                        (float) stand.getAttackDamage() - 0.5F));
-                applyEffect(target, CreamAddon.BLEEDING, 35, 1);
-                interruptBlocking(target);
-                reduceKnockback(event, 0.35F);
+                        (float) stand.getAttackDamage() - 0.5F)
+                        * reach);
+                applyEffect(target, CreamAddon.BLEEDING,
+                        scaled(35, reach), 1);
+                interruptBlocking(stand, target, reach);
+                reduceKnockback(event, 3.0F, reach);
             }
             case CreamAddon.CREAM_DOUBLE_CLAW_FINISHER_NAME -> {
-                applyEffect(target, CreamAddon.BLEEDING, 40, 2);
-                interruptBlocking(target);
-                reduceKnockback(event, 0.1F);
+                applyEffect(target, CreamAddon.BLEEDING,
+                        scaled(40, reach), 2);
+                interruptBlocking(stand, target, reach);
+                reduceKnockback(event, 15.0F, reach);
             }
             case CreamAddon.CREAM_FINISHER_PUNCH_NAME -> {
                 applyEffect(
                         target,
                         MobEffects.MOVEMENT_SLOWDOWN,
-                        120,
+                        scaled(120, reach),
                         1);
-                applyEffect(target, MobEffects.CONFUSION, 120, 0);
-                interruptBlocking(target);
-                reduceKnockback(event, 0.1F);
+                applyEffect(target, MobEffects.CONFUSION,
+                        scaled(120, reach), 0);
+                interruptBlocking(stand, target, reach);
+                reduceKnockback(event, 15.0F, reach);
             }
             case CreamAddon.CREAM_CHOP_NAME -> {
                 event.setAmount(
-                        (float) stand.getAttackDamage() * 1.05F);
-                applyEffect(target, CreamAddon.WEAK_NECK, 35, 0);
-                applyEffect(target, CreamAddon.BLEEDING, 35, 2);
+                        (float) stand.getAttackDamage() * 1.05F
+                                * reach);
+                applyEffect(target, CreamAddon.WEAK_NECK,
+                        scaled(35, reach), 0);
+                applyEffect(target, CreamAddon.BLEEDING,
+                        scaled(35, reach), 2);
                 applyEffect(
                         target,
                         MobEffects.MOVEMENT_SLOWDOWN,
-                        120,
+                        scaled(120, reach),
                         1);
-                applyEffect(target, MobEffects.POISON, 120, 0);
-                interruptBlocking(target);
-                reduceKnockback(event, 0.25F);
+                // 1.16 CreamChop :97: Effects.field_76437_t, WEAKNESS
+                applyEffect(target, MobEffects.WEAKNESS,
+                        scaled(120, reach), 0);
+                interruptBlocking(stand, target, reach);
+                reduceKnockback(event, 5.0F, reach);
             }
             default -> {}
         }
     }
 
+    private static int scaled(int duration, float reach) {
+        return reach >= 1.0F
+                ? duration
+                : Math.max(1, Math.round(duration * reach));
+    }
+
+    // A weakened claw still bleeds; its stack climbs by the factor's chance.
     private static void applyStackingBleeding(
-            LivingEntity target, int duration) {
+            CreamEntity stand,
+            LivingEntity target,
+            int duration,
+            float reach) {
         MobEffectInstance current =
                 target.getEffect(CreamAddon.BLEEDING);
         int amplifier = current == null
                 ? 0
-                : Math.min(2, current.getAmplifier() + 1);
+                : reach >= 1.0F
+                                || stand.getRandom().nextFloat() < reach
+                        ? Math.min(2, current.getAmplifier() + 1)
+                        : current.getAmplifier();
         target.removeEffect(CreamAddon.BLEEDING);
         applyEffect(
-                target, CreamAddon.BLEEDING, duration, amplifier);
+                target, CreamAddon.BLEEDING,
+                scaled(duration, reach), amplifier);
     }
 
     private static void applyEffect(
@@ -296,17 +332,28 @@ public final class CreamGameEvents {
                 true));
     }
 
+    // 1.16 StandEntityPunch.reduceKnockback(value) set the knockback to
+    // clamp(value, 0, 1): Cream's 1.5 to 15 kept the plain hit's knockback
+    // and dropped the attack's extra push.
     private static void reduceKnockback(
-            LivingIncomingDamageEvent event, float multiplier) {
+            LivingIncomingDamageEvent event,
+            float legacyValue,
+            float reach) {
         if (event.getSource()
                 instanceof DamageSourceModified modified) {
             modified.jojo_ripples$modifyKnockback(
-                    0.0F, multiplier);
+                    0.0F,
+                    Mth.clamp(legacyValue, 0.0F, 1.0F) * reach);
         }
     }
 
-    private static void interruptBlocking(LivingEntity target) {
-        if (target.isBlocking()) {
+    // A guard break has no strength: past the base reach it lands with
+    // the factor as its chance.
+    private static void interruptBlocking(
+            CreamEntity stand, LivingEntity target, float reach) {
+        if (target.isBlocking()
+                && (reach >= 1.0F
+                        || stand.getRandom().nextFloat() < reach)) {
             target.stopUsingItem();
         }
     }

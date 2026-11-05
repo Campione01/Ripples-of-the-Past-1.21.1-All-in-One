@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 
 import com.mojang.authlib.GameProfile;
@@ -73,6 +74,7 @@ public final class HeavyPunchKnockbackGameTests {
     private static final short KEY = 7693;
     private static final double EPSILON = 1.0E-4D;
     private static final int CHUNK_WAIT_TICKS = 60;
+    private static final long CHUNK_WAIT_NANOS = 30_000_000_000L;
     private static final TicketType<UUID> TICKET = TicketType.create(
             "cmoon_heavy_knockback", Comparator.<UUID>naturalOrder());
     private static boolean bindingPrinted;
@@ -275,7 +277,20 @@ public final class HeavyPunchKnockbackGameTests {
                 for (int z = -1; z <= 1; z++) {
                     ChunkPos chunk = new ChunkPos(centre.x + x, centre.z + z);
                     helper.getLevel().getChunkSource().addRegionTicket(TICKET, chunk, 2, ticketId);
+                    helper.getLevel().getChunk(chunk.x, chunk.z);
                     chunks.add(chunk);
+                }
+            }
+            awaitSceneChunks();
+        }
+
+        // The game test server does not pace its ticks, so a wait counted in ticks can end before the ring around a
+        // newly held chunk has generated; this one is real time, and the server thread runs the chunk tasks meanwhile.
+        private void awaitSceneChunks() {
+            long start = System.nanoTime();
+            while (!idleSceneSpots().isEmpty() && System.nanoTime() - start < CHUNK_WAIT_NANOS) {
+                if (!helper.getLevel().getChunkSource().pollTask()) {
+                    LockSupport.parkNanos(1_000_000L);
                 }
             }
         }

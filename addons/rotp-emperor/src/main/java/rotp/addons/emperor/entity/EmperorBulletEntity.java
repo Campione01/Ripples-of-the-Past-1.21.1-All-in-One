@@ -149,6 +149,10 @@ public final class EmperorBulletEntity extends ModdedProjectileEntity {
     @Override
     protected void moveProjectile() {
         super.moveProjectile();
+        // 1.3 EmperorBullet: the bullet flies straight for its first ticks
+        if (tickCount <= 2) {
+            return;
+        }
         LivingEntity target = getTargetEntity();
         if (target == null
                 || !target.isAlive()

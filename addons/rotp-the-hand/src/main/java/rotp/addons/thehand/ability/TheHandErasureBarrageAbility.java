@@ -25,6 +25,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -131,6 +132,7 @@ public final class TheHandErasureBarrageAbility
         private boolean missTeleportResolved;
         private boolean missTeleportFromPerform;
         private boolean actionCleared;
+        private boolean clearedIntoAnotherAction;
         // 1.16 recoveryCount: server ticks spent in RECOVERY.
         private int recoveryTicks;
         private int performTicks;
@@ -145,6 +147,14 @@ public final class TheHandErasureBarrageAbility
             LivingEntity user = getPowerUser();
             attract = user != null && user.isShiftKeyDown();
             super.onActionSet(previousAction);
+        }
+
+        // 1.16 onTaskSet left the off hand as the last swing: the next
+        // punching hand, on which the one-handed afterimages are drawn, is
+        // then the right hand that carries the erase plate.
+        @Override
+        protected void onBarrageSet(Level level, StandEntity stand) {
+            stand.applySyncedPunchingHand(InteractionHand.OFF_HAND);
         }
 
         @Override
@@ -245,16 +255,27 @@ public final class TheHandErasureBarrageAbility
             setCooldownFromHeldTicks();
             super.onActionCleared(newAction);
             actionCleared = true;
+            clearedIntoAnotherAction = newAction != null;
             teleportAfterMissIfEligible();
         }
 
         private void teleportAfterMissIfEligible() {
+            // 1.1.0d onTaskSet starts with nothing erased: a barrage that
+            // ends before its first strike teleports too, unless another
+            // move replaced it.
             if (missTeleportResolved
                     || level().isClientSide()
                     || !performed
+                            && (!actionCleared || clearedIntoAnotherAction)
                     || targetSelected
                     || erasedTargets > 0
                     || !(getPerformer() instanceof StandEntity stand)) {
+                return;
+            }
+            if (!performed
+                    && (stand.isRemoved()
+                            || getPowerUser() == null
+                            || !getPowerUser().isAlive())) {
                 return;
             }
             // 1.16 onTaskStopped: the pull waits for the action to end.

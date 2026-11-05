@@ -255,6 +255,28 @@ public final class BlockAgingData extends SavedData {
         clearClient(level, position);
     }
 
+    /** 0.1.13 Remove Aging on a block: its aging fades over the given ticks. */
+    public boolean startFade(
+            ServerLevel level, BlockPos position, int ticks) {
+        Entry entry = entries.get(position.asLong());
+        if (entry == null || entry.fading()) {
+            return false;
+        }
+        int duration = Math.max(1, ticks);
+        Entry next = new Entry(
+                entry.position(),
+                entry.owner(),
+                entry.ownerGeneration(),
+                entry.progress(),
+                true,
+                entry.progress() / duration,
+                duration);
+        replace(next);
+        setDirty();
+        sync(level, next);
+        return true;
+    }
+
     public boolean crumbleOnContact(
             ServerLevel level, BlockPos position) {
         Entry entry = entries.get(position.asLong());

@@ -9,6 +9,7 @@ import java.util.function.IntPredicate;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.api.stand.StandSkillWalls;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.powersystem.PowerClass;
@@ -21,6 +22,7 @@ import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTargetRange;
 import rotp.core.subsystems.target.HitResultUtil;
 import rotp.core.subsystems.target.StandPrecisionRay;
+import rotp.core.subsystems.timestop.TimeStopState;
 
 import rotp.addons.d4c.ability.D4CPhase2BAbility.Mode;
 import rotp.addons.d4c.entity.D4CAnnihilationCloneEntity;
@@ -45,6 +47,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -702,11 +705,8 @@ public final class D4CPhase2BService {
                 SoundSource.PLAYERS,
                 1.0F,
                 1.2F);
-        spawnKickFlag(
-                level,
-                owner,
-                owner,
-                D4CMarkerEntity.Mode.KICK_ORIGIN);
+        // one flag, the one the parallel self comes out of; 1.16 also
+        // whirled a mode-0 flag on the user (aa/aa/ae.java:96-98)
         spawnKickFlag(
                 level,
                 owner,
@@ -848,6 +848,19 @@ public final class D4CPhase2BService {
         return true;
     }
 
+    // Love Train ran out: clear what the manual exit clears, so no light
+    // wall, Lucky Goddess, Stand protection or presentation outlives it
+    public static void endExpiredLoveTrain(ServerPlayer player) {
+        player.removeEffect(D4CAddon.LUCKY_GODDESS);
+        player.removeEffect(D4CAddon.LOVE_TRAIN_LIGHT_WALL);
+        StandPower power = StandPower.get(player);
+        if (power != null && power.getSummonedStandEntity() != null) {
+            power.getSummonedStandEntity()
+                    .removeEffect(D4CAddon.LOVE_TRAIN);
+        }
+        D4CLoveTrainSync.cancel(player);
+    }
+
     private static boolean activateLightWall(LivingEntity user) {
         if (!user.hasEffect(D4CAddon.LOVE_TRAIN)) {
             return false;
@@ -946,7 +959,8 @@ public final class D4CPhase2BService {
         // 1.16 aa/aj:129-146: raw living boxes; blocks and synced aim do not participate.
         for (LivingEntity candidate : user.level().getEntitiesOfClass(
                 LivingEntity.class, new AABB(start, end).inflate(1.0D),
-                entity -> entity != user && !entity.isSpectator())) {
+                entity -> entity != user && !entity.isSpectator()
+                        && canBePulledIn(user, entity))) {
             var hit = candidate.getBoundingBox().clip(start, end);
             if (hit.isPresent()) {
                 double distance = start.distanceTo(hit.get());
@@ -957,6 +971,28 @@ public final class D4CPhase2BService {
             }
         }
         return nearest;
+    }
+
+    /**
+     * RS-T3 rows T3-09 and T3-19 (owner, 2026-11-04): pull-in neither takes nor carries an entity frozen in stopped time
+     * or one its user cannot perceive (an erasing King Crimson, through the core's PerceptionBlockers). Both sides: the
+     * user's client asks it for the HUD and the press.
+     */
+    public static boolean canBePulledIn(@Nullable LivingEntity user, Entity entity) {
+        boolean frozen = entity.level().isClientSide()
+                ? TimeStopState.shouldFreezeClientEntity(entity)
+                : TimeStopState.shouldFreezeOnServer(entity);
+        return !frozen && !PerceptionBlockers.isBlocked(user, entity)
+                && !doorMeetsUnperceived(user, entity.level(), entity.blockPosition());
+    }
+
+    /**
+     * The pull-in's door opens in its target's block and carries whatever stands there (D4CPortalBlock), so a door
+     * block that holds an entity its user cannot perceive (an erasing King Crimson on his own decoy's spot) would pull
+     * him in after all (T3-19). The core's blink refuses its landing spot the same way.
+     */
+    public static boolean doorMeetsUnperceived(@Nullable LivingEntity user, Level level, BlockPos door) {
+        return PerceptionBlockers.anyBlockedIn(level, user, new AABB(door), PerceptionBlockers.Sight.AIM);
     }
 
     /**

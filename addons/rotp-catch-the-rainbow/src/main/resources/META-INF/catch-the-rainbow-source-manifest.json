@@ -97,7 +97,7 @@
     ],
     "special_wheel": [
       "C_X_CLICK:catch_the_rainbow_rain_blades",
-      "C_X_HOLD:catch_the_rainbow_rain_stop",
+      "C_X_CLICK:catch_the_rainbow_rain_stop",
       "C_X_CLICK:catch_the_rainbow_rain_blink",
       "C_X_HOLD:catch_the_rainbow_rain_merge",
       "C_X_HOLD:catch_the_rainbow_temp_health",
@@ -107,7 +107,7 @@
       "catch_the_rainbow_rain_resume"
     ],
     "wheel_direct_duplication": "none",
-    "rationale": "Rain Blade is the repetitive ranged primary. Six non-primary weather and state actions share the C/X special wheel. Core TimeStopAbility resumes through the rain-stop input while the legacy rain-resume ID remains registered for data compatibility."
+    "rationale": "Rain Blade is the repetitive ranged primary. Six non-primary weather and state actions share the C/X special wheel. Rain Stop is a click toggle that stops the raindrops around its user (R772 F44, after the manga; 1.16 had an unreachable time stop under this ID), and the legacy rain-resume ID remains registered for data compatibility."
   },
   "eligibility": {
     "stand_id": "rotp_ctr:catch_the_rainbow",
@@ -130,7 +130,7 @@
     "rain_walk_state": "SynchedEntityData:RAIN_WALK_ACTIVE",
     "rain_walk_client_prediction": "synced_state_only",
     "falling_blades": "server_spawn_bounded_radius_25",
-    "rain_stop": "core_TimeStopAbility_lifecycle",
+    "rain_stop": "server_controller_toggle_SynchedEntityData:RAIN_STOP_ACTIVE",
     "replication": "SynchedEntityData",
     "custom_packets": 0,
     "world_block_mutation": false
@@ -155,15 +155,15 @@
   "art": {
     "visual_topology": "H2",
     "primary_source_resolution": "256x256",
-    "joint_uv_material_upgrade_required": true,
+    "joint_uv_material_upgrade_required": false,
     "blind_upscale": false,
     "source_pixels_preserved": true,
-    "reconstruction_status": "implemented_pending_runtime",
-    "physical_texture_bytes": 2159,
-    "physical_texture_sha256": "9871D6AE0344E10928704703EFE0E455F0B4DE40457507DBDA67A5C7D79F304B",
-    "visible_pixels": 8396,
+    "reconstruction_status": "donor_texture_restored",
+    "physical_texture_bytes": 933,
+    "physical_texture_sha256": "A91CEB001C7E3DABB8703FA54E6F53984B5150ABD75502AB65D7F9A0AA51D505",
+    "visible_pixels": 968,
     "donor_nontransparent_pixels_preserved": 968,
-    "reconstruction": "Donor-visible head and identity pixels are unchanged; the previously empty torso and limb UV islands are intentionally reconstructed with the donor gray, blue, green, and red palette, directional face shading, and bounded edge contrast.",
+    "reconstruction": "R772 F43: the donor texture is used byte for byte. Its torso and limb UV islands are empty, so the Stand that shares its user's position shows only the mask pixels; the earlier filled body was drawn over the player.",
     "runtime_proof": "pending_manual_runtime_matrix"
   },
   "resources": {
@@ -171,8 +171,8 @@
     "legacy_asset_files": 56,
     "legacy_data_files": 2,
     "legacy_pack_metadata_files": 1,
-    "byte_identical": 46,
-    "format_adapted": 9,
+    "byte_identical": 47,
+    "format_adapted": 8,
     "archive_evidence": 3,
     "build_supplied": 1,
     "deferred": 0,

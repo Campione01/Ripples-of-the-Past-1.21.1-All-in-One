@@ -235,6 +235,20 @@ public final class KraftWorkGameEvents {
                 || direct instanceof StandEntity) {
             return;
         }
+        // 1.1.0d GameplayEventHandler: only a projectile that is not Stand
+        // damage, or a melee hit by an attacker with a non-Stand item in
+        // its main hand, is cut and locked
+        boolean projectileHit = source.is(DamageTypeTags.IS_PROJECTILE)
+                && !(direct instanceof DamagingEntity damaging
+                        && damaging.standDamage());
+        boolean armedMeleeHit = isMeleeDamage(source)
+                && direct instanceof LivingEntity armed
+                && !armed.getMainHandItem().isEmpty()
+                && !KraftWorkLockService.isStandItem(
+                        armed.getMainHandItem());
+        if (!projectileHit && !armedMeleeHit) {
+            return;
+        }
         StandPower power = StandPower.get(target);
         float reduction = Math.min(
                 0.8F,

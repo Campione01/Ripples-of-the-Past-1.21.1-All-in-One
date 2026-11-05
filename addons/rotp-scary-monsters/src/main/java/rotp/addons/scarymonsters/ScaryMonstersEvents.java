@@ -149,6 +149,19 @@ public final class ScaryMonstersEvents {
         }
     }
 
+    // 1.16 DinosaurFormEvents.onLivingHurt / onPlayerAttack (LivingHurtEvent; LivingDamageEvent.Pre here, as above)
+    @SubscribeEvent
+    public static void onOwnerFight(LivingDamageEvent.Pre event) {
+        LivingEntity hurt = event.getEntity();
+        if (hurt.level().isClientSide()) return;
+        if (hurt instanceof ServerPlayer owner && event.getSource().getEntity() instanceof LivingEntity attacker) {
+            ScaryMonstersService.sendOwnedDinosaursAfter(owner, attacker);
+        }
+        if (event.getSource().getEntity() instanceof ServerPlayer owner) {
+            ScaryMonstersService.sendOwnedDinosaursAfter(owner, hurt);
+        }
+    }
+
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {

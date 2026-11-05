@@ -11,12 +11,20 @@ import rotp.addons.stickyfingers.state.ZipperLeaseData;
 import rotp.addons.stickyfingers.state.ZipperLeaseRecord;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.client.model.data.ModelData;
+import net.neoforged.neoforge.client.model.data.ModelProperty;
 
 public final class StickyFingersZipperBlockEntity
         extends BlockEntity {
@@ -28,6 +36,11 @@ public final class StickyFingersZipperBlockEntity
     private static final String ORIGINAL_STATE_TAG = "OriginalState";
     private static final String ORIGINAL_BLOCK_ENTITY_TAG =
             "OriginalBlockEntity";
+    // 1.16 kept the wall block and drew the zipper in the free cell in
+    // front of it; here the zipper replaces the block, so the client
+    // draws the replaced block's model in its place.
+    public static final ModelProperty<BlockState> SHOWN_BLOCK =
+            new ModelProperty<>();
 
     @Nullable
     private UUID leaseId;
@@ -41,6 +54,8 @@ public final class StickyFingersZipperBlockEntity
     private CompoundTag originalState;
     @Nullable
     private CompoundTag originalBlockEntity;
+    @Nullable
+    private BlockState shownBlock;
     private int reconciliationDelay;
 
     public StickyFingersZipperBlockEntity(
@@ -60,8 +75,37 @@ public final class StickyFingersZipperBlockEntity
         expiresAt = record.expiresAt();
         originalState = record.originalState();
         originalBlockEntity = record.originalBlockEntity();
+        shownBlock = decodeShownBlock(originalState);
         reconciliationDelay = 20;
         setChanged();
+    }
+
+    // The replaced block as the client draws it, null when it has no
+    // block model of its own.
+    @Nullable
+    public BlockState getShownBlock() {
+        return shownBlock;
+    }
+
+    @Override
+    public ModelData getModelData() {
+        return shownBlock == null
+                ? ModelData.EMPTY
+                : ModelData.of(SHOWN_BLOCK, shownBlock);
+    }
+
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        CompoundTag tag = new CompoundTag();
+        if (originalState != null) {
+            tag.put(ORIGINAL_STATE_TAG, originalState.copy());
+        }
+        return tag;
+    }
+
+    @Override
+    public ClientboundBlockEntityDataPacket getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     @Nullable
@@ -184,7 +228,42 @@ public final class StickyFingersZipperBlockEntity
                                         ORIGINAL_BLOCK_ENTITY_TAG)
                                 .copy()
                         : null;
+        shownBlock = decodeShownBlock(originalState);
         reconciliationDelay = 0;
+    }
+
+    // A new zipper's block update reaches the client before this data;
+    // redraw its section once the replaced block is known.
+    @Override
+    public void onDataPacket(
+            Connection connection,
+            ClientboundBlockEntityDataPacket packet,
+            HolderLookup.Provider registries) {
+        super.onDataPacket(connection, packet, registries);
+        if (level != null) {
+            requestModelDataUpdate();
+            level.sendBlockUpdated(
+                    worldPosition,
+                    getBlockState(),
+                    getBlockState(),
+                    Block.UPDATE_IMMEDIATE);
+        }
+    }
+
+    @Nullable
+    private static BlockState decodeShownBlock(
+            @Nullable CompoundTag tag) {
+        if (tag == null || tag.isEmpty()) {
+            return null;
+        }
+        BlockState state = NbtUtils.readBlockState(
+                BuiltInRegistries.BLOCK.asLookup(), tag);
+        return state.isAir()
+                        || state.getBlock()
+                                instanceof StickyFingersZipperBlock
+                        || state.getRenderShape() != RenderShape.MODEL
+                ? null
+                : state;
     }
 
     private static boolean equalNullable(

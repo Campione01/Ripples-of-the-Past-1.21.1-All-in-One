@@ -6,6 +6,7 @@ import rotp.addons.kingcrimson.entity.KingCrimsonTimeEraseDecoyEntity;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.world.entity.player.PlayerModelPart;
 
@@ -15,6 +16,18 @@ public final class KingCrimsonTimeEraseDecoyRenderer
     public KingCrimsonTimeEraseDecoyRenderer(
             EntityRendererProvider.Context context) {
         super(context);
+    }
+
+    // T1: whoever sees in a stopped world does not see the decoy of an erase that is frozen in it
+    @Override
+    public boolean shouldRender(
+            KingCrimsonTimeEraseDecoyEntity entity,
+            Frustum frustum,
+            double cameraX,
+            double cameraY,
+            double cameraZ) {
+        return !KingCrimsonTemporalClientState.hidesDecoyFromLocalViewer(entity)
+                && super.shouldRender(entity, frustum, cameraX, cameraY, cameraZ);
     }
 
     @Override

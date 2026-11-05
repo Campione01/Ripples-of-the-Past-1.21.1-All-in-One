@@ -56,8 +56,11 @@ import rotp.addons.madeinheaven.ability.LightSpeedDashAbility;
 import rotp.addons.madeinheaven.ability.TimeAuraAbility;
 import rotp.addons.madeinheaven.ability.TimeSystemAbility;
 import rotp.addons.madeinheaven.ability.UniverseResetAbility;
+import rotp.addons.madeinheaven.state.TimeAccelerationMode;
 import rotp.addons.madeinheaven.state.TimeAccelerationService;
 import rotp.addons.madeinheaven.state.TimeAccelerationState;
+import rotp.addons.madeinheaven.state.TimeLagRates;
+import rotp.addons.madeinheaven.state.TimeLagService;
 import rotp.core.customobjects.AfterimageEntity;
 import rotp.core.JojoModConfig;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
@@ -263,7 +266,7 @@ public final class LightSpeedDashGameTests {
                         "1.16 stopHeldAction set a hold-only action's cooldown when the hold stopped, but it was"
                                 + " already " + power.getAbilityCooldown(MadeInHeavenAddon.DASH_NAME)
                                 + " on the press");
-                int multiplier = TimeAccelerationService.calculatedMultiplier(TimeAccelerationService.BUFF_PHASE);
+                int multiplier = TimeLagRates.legacyMultiplier(TimeAccelerationService.BUFF_PHASE);
                 for (int tick = 1; tick <= 4; tick++) {
                     tickStand(fixture);
                     EntityActionInstance action = LivingComponentAction.getCurEntityAction(fixture.stand());
@@ -711,6 +714,46 @@ public final class LightSpeedDashGameTests {
         });
     }
 
+    /*
+     * Mode B runs the adapted owner's Stand actions several action ticks a server tick (STAND_ACTIONS m): the aura
+     * strikes at that pace, but its upkeep and its 1000-tick hold count server ticks, as stamina regenerates per
+     * server tick. Here 1200 action ticks run in one server tick, as the core steps them.
+     */
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 40, batch = "mihAuraServerTicks")
+    public static void timeAuraUpkeepAndHoldCountServerTicks(GameTestHelper helper) {
+        helper.runAfterDelay(2, () -> {
+            Fixture fixture = user(helper, "mih-aura-ticks", true);
+            try {
+                StandPower power = fixture.power();
+                Ability aura = power.getAbility(MadeInHeavenAddon.TIME_AURA_NAME);
+                helper.assertTrue(aura != null && !power.isStaminaInfinite(), "Setup: finite stamina and the aura");
+                power.setStamina(400.0F);
+                helper.assertTrue(tryAbility(fixture, aura, AURA_KEY, InputMethod.HOLD), "Setup: the aura did not start");
+                EntityActionInstance action = LivingComponentAction.getCurEntityAction(fixture.stand());
+                helper.assertTrue(action instanceof TimeAuraAbility.TimeAuraAction, "Setup: no aura action: " + action);
+                tickStand(fixture);
+                float afterFirst = power.getStamina();
+                helper.assertTrue(afterFirst > 0.0F && afterFirst < 400.0F,
+                        "Setup: the aura's first tick did not take its start and upkeep from 400, left " + afterFirst);
+                int steps = TimeAuraAbility.HOLD_TICKS + 200;
+                for (int step = 1; step < steps; step++) {
+                    tickStand(fixture);
+                }
+                helper.assertTrue(LivingComponentAction.getCurEntityAction(fixture.stand()) == action
+                                && !action.isOver() && action.getPhase() == ActionPhase.PERFORM,
+                        "The aura's 1000-tick hold counts server ticks, but " + steps
+                                + " action ticks in one server tick ended it");
+                helper.assertTrue(power.getStamina() == afterFirst,
+                        "The aura's upkeep is one charge a server tick: " + afterFirst + " stamina after its first"
+                                + " action tick, " + power.getStamina() + " after " + steps + " in the same tick");
+            } finally {
+                AbilityInput.keyRelease(AURA_KEY, fixture.player());
+                cleanup(fixture);
+            }
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 40, batch = "mihAuraCutByPunch")
     public static void anotherStandActionCutsTheAuraOffOnThePress(GameTestHelper helper) {
         helper.runAfterDelay(2, () -> {
@@ -1015,9 +1058,14 @@ public final class LightSpeedDashGameTests {
                         overworld.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(false, overworld.getServer());
                     }
                     else {
-                        state.begin(UUID.randomUUID());
+                        state.begin(UUID.randomUUID(), TimeAccelerationMode.OTHERS_FALL_BEHIND);
                     }
-                    tickStand(fixture);
+                    // A player another user's acceleration holds back runs his Stand actions m times slower
+                    // (A2-TIMESCALE), so his hold asks its check on his next action tick, within m ticks.
+                    int ticks = byRule ? 1 : TimeLagService.multiplier(overworld);
+                    for (int tick = 0; tick < ticks && !hold.isOver(); tick++) {
+                        tickStand(fixture);
+                    }
                     helper.assertTrue(hold.isOver(),
                             "1.16 PowerBaseImpl.tickHeldAction asked TimeUtil.checkConditions on every held tick, so"
                                     + " the hold ends once " + why + "; it went on");
@@ -1386,8 +1434,12 @@ public final class LightSpeedDashGameTests {
                                 && hold.getPhase() == ActionPhase.WINDUP,
                         "Setup: the hold did not stand at the start of its firing tick");
                 int messages = fixture.listener().overlayMessages().size();
-                state.begin(UUID.randomUUID());
-                tickStand(fixture);
+                state.begin(UUID.randomUUID(), TimeAccelerationMode.OTHERS_FALL_BEHIND);
+                // Held back by the other user's acceleration, the hold reaches its firing tick on its next action
+                // tick (A2-TIMESCALE), within m ticks.
+                for (int tick = 0; tick < TimeLagService.multiplier(overworld) && !hold.isOver(); tick++) {
+                    tickStand(fixture);
+                }
                 helper.assertTrue(hold.isOver() && !state.isOwner(fixture.player().getUUID())
                                 && power.getAbilityCooldown(MadeInHeavenAddon.TIME_SYSTEM_NAME) == 0,
                         "A hold whose check failed as it fired still started the acceleration or went on");
@@ -1827,7 +1879,7 @@ public final class LightSpeedDashGameTests {
 
     private static void accelerate(Fixture fixture) {
         TimeAccelerationState state = MadeInHeavenAddon.accelerationState(fixture.player().level());
-        state.begin(fixture.player().getUUID());
+        state.begin(fixture.player().getUUID(), TimeAccelerationMode.OTHERS_FALL_BEHIND);
         state.advance(TimeAccelerationService.BUFF_PHASE);
     }
 

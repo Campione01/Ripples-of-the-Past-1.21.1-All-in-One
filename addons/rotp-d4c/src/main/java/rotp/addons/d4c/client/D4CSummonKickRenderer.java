@@ -158,6 +158,14 @@ public final class D4CSummonKickRenderer
                         rightLeg.xRot + 0.2F, -2.0F);
                 body.xRot -= 0.1F;
             }
+            // super.setupAnim copied the outer skin layer before the kick
+            // pose was set; without this it stays behind in the walk pose
+            hat.copyFrom(head);
+            jacket.copyFrom(body);
+            leftSleeve.copyFrom(leftArm);
+            rightSleeve.copyFrom(rightArm);
+            leftPants.copyFrom(leftLeg);
+            rightPants.copyFrom(rightLeg);
         }
     }
 }

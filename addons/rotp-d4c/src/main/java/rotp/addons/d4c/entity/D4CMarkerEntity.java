@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import rotp.addons.d4c.D4CAddon;
+import rotp.addons.d4c.D4CPhase2BService;
 import rotp.addons.d4c.D4CPhase2BSpec;
 import rotp.addons.d4c.D4CRuntimeRules;
 import rotp.addons.d4c.travel.D4CDimensionTravelService;
@@ -246,10 +247,15 @@ public final class D4CMarkerEntity extends Entity {
         }
         // Once committed, 1.16 aa/aj completes even if its captured target dies.
         // An absent owner uses the last observed selection, not invented history.
+        // R772 T3-09 / T3-19: no door opens under a target that froze in stopped time or that its puller stopped
+        // perceiving after the press, nor in a block that holds an entity the puller cannot perceive
         if (age >= D4CPhase2BSpec.PORTAL_ARM_TICKS
                 && age <= D4CPhase2BSpec.PORTAL_LIFESPAN_TICKS
                 && !entityData.get(PORTAL_PLACED)
                 && pullPosition != null && pullDestination != null
+                && (targetEntity == null
+                        || D4CPhase2BService.canBePulledIn(owner, targetEntity))
+                && !D4CPhase2BService.doorMeetsUnperceived(owner, sourceLevel, pullPosition)
                 && D4CDimensionTravelService.placePulledPortal(
                         sourceLevel, pullPosition, pullDestination)) {
             entityData.set(PORTAL_PLACED, true);

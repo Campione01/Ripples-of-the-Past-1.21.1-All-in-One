@@ -328,6 +328,21 @@ public final class KillerQueenHeldRecheckGameTests {
      */
     @GameTest(template = "empty", batch = "kqDetonationBoom", timeoutTicks = 60)
     public static void detonationBoomsAtTheStandAsItsRecoveryBeginsAsIn116(GameTestHelper helper) {
+        detonationBooms(helper, Vec3.ZERO);
+    }
+
+    /**
+     * The scene of the test above 256 blocks west of the grid, where no chunk of the framework or of another test
+     * reaches, its user 3.5 blocks short of a chunk's south edge and so the bombed cow in the next chunk: the bomb, the
+     * task and the perform find the cow there only as the scene holds that chunk itself.
+     */
+    @GameTest(template = "empty", batch = "kqDetonationBoomAway", timeoutTicks = 60)
+    public static void detonationBoomsAtTheStandWithItsCowAcrossAChunkBorder(GameTestHelper helper) {
+        int z = helper.absolutePos(BlockPos.ZERO).getZ();
+        detonationBooms(helper, new Vec3(-256.0D, 0.0D, 11 - (z & 15)));
+    }
+
+    private static void detonationBooms(GameTestHelper helper, Vec3 shift) {
         List<String> wrong = new ArrayList<>();
         // aimed at the bombed cow, finisher meter at the recovery, arms only at the recovery, booms
         Object[][] rows = {
@@ -351,7 +366,7 @@ public final class KillerQueenHeldRecheckGameTests {
                 }
             };
             NeoForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, PlayLevelSoundEvent.AtPosition.class, sounds);
-            try (Scene scene = new Scene(helper, "kq-detonation-boom-" + (key - 220))) {
+            try (Scene scene = new Scene(helper, "kq-detonation-boom-" + (key - 220), shift)) {
                 LivingComponentAction component = LivingComponentAction.getComponent(scene.stand);
                 component.entityAim.setTarget(aimed ? new ActionTarget(scene.cow) : ActionTarget.EMPTY);
                 EntityActionInstance fired = scene.pressAndHold(KillerQueenAddon.PRIMARY_BOMB_DETONATE_NAME, key);
@@ -2491,21 +2506,31 @@ public final class KillerQueenHeldRecheckGameTests {
         final StandPower power;
         final StandEntity stand;
         final KillerQueenState state;
+        private final KillerQueenChunkTickets chunks;
         String fixtureFailure = "";
         private short key = -1;
 
         Scene(GameTestHelper helper, String name) {
+            this(helper, name, Vec3.ZERO);
+        }
+
+        // The cow stands 4 blocks from its user and the tests move it up to 8 blocks away in x and z: often another
+        // chunk than the template's, which the scene holds itself before anything joins.
+        Scene(GameTestHelper helper, String name, Vec3 shift) {
             this.helper = helper;
             ServerLevel level = helper.getLevel();
+            chunks = new KillerQueenChunkTickets(helper).hold(
+                    helper.absoluteVec(new Vec3(-2.0D, 0.0D, -2.0D)).add(shift),
+                    helper.absoluteVec(new Vec3(10.0D, 0.0D, 10.0D)).add(shift));
             owner = new RecordingPlayer(level, new GameProfile(UUID.randomUUID(), name));
             owner.getAbilities().instabuild = false;
-            owner.setPos(helper.absoluteVec(new Vec3(1.5D, 3.0D, 1.5D)));
+            owner.setPos(helper.absoluteVec(new Vec3(1.5D, 3.0D, 1.5D)).add(shift));
             level.addNewPlayer(owner);
             cow = EntityType.COW.create(level);
             helper.assertTrue(cow != null, "fixture: no cow");
             cow.setNoAi(true);
             cow.setNoGravity(true);
-            cow.setPos(helper.absoluteVec(new Vec3(1.5D, 3.0D, 5.5D)));
+            cow.setPos(helper.absoluteVec(new Vec3(1.5D, 3.0D, 5.5D)).add(shift));
             helper.assertTrue(level.addFreshEntity(cow), "fixture: the cow could not join the level");
             power = PowerClass.STAND.attachGet(owner);
             power.setStand(KillerQueenAddon.KILLER_QUEEN.get());
@@ -2725,6 +2750,7 @@ public final class KillerQueenHeldRecheckGameTests {
             cow.discard();
             EventHooks.firePlayerLoggedOut(owner);
             owner.discard();
+            chunks.release();
         }
     }
 

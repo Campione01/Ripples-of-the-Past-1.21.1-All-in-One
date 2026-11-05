@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "module_id": "rotp_nextalbum",
-  "version": "0.1.11-port.7",
+  "version": "0.1.13-port.8",
   "status": "residual_content_active_after_standalone_split",
   "registered_ids": [
     {
@@ -33,22 +33,103 @@
       "registry": "minecraft:item",
       "id": "rotp_nextalbum:aja_stone_necklace",
       "type": "AjaStoneNecklaceItem"
+    },
+    {
+      "registry": "minecraft:mob_effect",
+      "id": "rotp_nextalbum:focus",
+      "type": "CigaretteMoodEffect.BENEFICIAL"
+    },
+    {
+      "registry": "minecraft:mob_effect",
+      "id": "rotp_nextalbum:lax",
+      "type": "CigaretteMoodEffect.HARMFUL"
+    },
+    {
+      "registry": "minecraft:item",
+      "id": "rotp_nextalbum:spirit_cigarette",
+      "type": "SpiritCigaretteItem"
+    },
+    {
+      "registry": "minecraft:item",
+      "id": "rotp_nextalbum:pesci_suit_cloth",
+      "type": "CharacterSuitArmorItem.PESCI.CHESTPLATE"
+    },
+    {
+      "registry": "minecraft:item",
+      "id": "rotp_nextalbum:pesci_suit_pants",
+      "type": "CharacterSuitArmorItem.PESCI.LEGGINGS"
+    },
+    {
+      "registry": "minecraft:item",
+      "id": "rotp_nextalbum:pesci_suit_boots",
+      "type": "CharacterSuitArmorItem.PESCI.BOOTS"
+    },
+    {
+      "registry": "minecraft:item",
+      "id": "rotp_nextalbum:prosciutto_suit_cloth",
+      "type": "CharacterSuitArmorItem.PROSCIUTTO.CHESTPLATE"
+    },
+    {
+      "registry": "minecraft:item",
+      "id": "rotp_nextalbum:prosciutto_suit_pants",
+      "type": "CharacterSuitArmorItem.PROSCIUTTO.LEGGINGS"
+    },
+    {
+      "registry": "minecraft:item",
+      "id": "rotp_nextalbum:prosciutto_suit_boots",
+      "type": "CharacterSuitArmorItem.PROSCIUTTO.BOOTS"
+    },
+    {
+      "registry": "minecraft:particle_type",
+      "id": "rotp_nextalbum:sound_go_orange",
+      "type": "SimpleParticleType"
+    },
+    {
+      "registry": "minecraft:particle_type",
+      "id": "rotp_nextalbum:sound_do_orange",
+      "type": "SimpleParticleType"
+    },
+    {
+      "registry": "minecraft:particle_type",
+      "id": "rotp_nextalbum:sound_ba_orange",
+      "type": "SimpleParticleType"
+    },
+    {
+      "registry": "minecraft:particle_type",
+      "id": "rotp_nextalbum:stand_resolve_aura",
+      "type": "SimpleParticleType"
+    },
+    {
+      "registry": "minecraft:sound_event",
+      "id": "rotp_nextalbum:prosciutto_dead",
+      "type": "SoundEvent"
     }
   ],
   "event_subscribers": [
     "rotp.addons.nextalbum.NextAlbumGameEvents",
     "rotp.addons.nextalbum.client.NextAlbumClientGameEvents",
-    "rotp.addons.nextalbum.client.NextAlbumClientSetup"
+    "rotp.addons.nextalbum.client.NextAlbumClientSetup",
+    "rotp.addons.nextalbum.CharacterSuitGameEvents",
+    "rotp.addons.nextalbum.client.CharacterSuitClientEvents",
+    "rotp.addons.nextalbum.client.ResolveAuraClientEvents",
+    "rotp.addons.nextalbum.ResolveDownedGameEvents",
+    "rotp.addons.nextalbum.client.ResolveDownedClient"
   ],
   "network_payloads": [
     "rotp_nextalbum:necklace_beam_sync",
-    "rotp_nextalbum:necklace_charge_state"
+    "rotp_nextalbum:necklace_charge_state",
+    "rotp_nextalbum:cigarette_mouth",
+    "rotp_nextalbum:cigarette_smoke",
+    "rotp_nextalbum:prosciutto_shadow",
+    "rotp_nextalbum:prosciutto_suit_mode",
+    "rotp_nextalbum:resolve_downed",
+    "rotp_nextalbum:resolve_downed_give_up"
   ],
   "surface_counts": {
-    "live_java": 23,
-    "live_asset_and_data": 37,
+    "live_java": 52,
+    "live_asset_and_data": 114,
     "menus": 0,
-    "advancements": 2
+    "advancements": 8
   },
   "mixin_configs": [
     "rotp_nextalbum_current.mixins.json"
@@ -58,14 +139,27 @@
   ],
   "advancements": [
     "rotp_nextalbum:full_mista_suit",
-    "rotp_nextalbum:get_aja_stone"
+    "rotp_nextalbum:get_aja_stone",
+    "rotp_nextalbum:jotaro_trick",
+    "rotp_nextalbum:smoked_the_world",
+    "rotp_nextalbum:full_pesci_suit",
+    "rotp_nextalbum:full_prosciutto_suit",
+    "rotp_nextalbum:glorious_death",
+    "rotp_nextalbum:last_words"
   ],
   "recipes": [
     "rotp_nextalbum:aja_stone_necklace",
+    "rotp_nextalbum:cigarette",
     "rotp_nextalbum:luck_pluck",
     "rotp_nextalbum:mista_boots",
     "rotp_nextalbum:mista_cloth",
     "rotp_nextalbum:mista_pants",
+    "rotp_nextalbum:pesci_cloth",
+    "rotp_nextalbum:pesci_pants",
+    "rotp_nextalbum:pesci_shoes",
+    "rotp_nextalbum:prosciutto_cloth",
+    "rotp_nextalbum:prosciutto_pants",
+    "rotp_nextalbum:prosciutto_shoes",
     "rotp_nextalbum:super_aja_from_aja_stone_necklace"
   ],
   "curios": {
@@ -78,7 +172,11 @@
     "collapse": "Harmful 0x6F6F7A, uncurable, per-tick Slowness II and Weakness II, swimming pose lock, fall-flying stop, Stand held-input interruption, and Stand force-unsummon.",
     "luck_pluck": "Diamond sword tool semantics, main-hand +7 attack, -2.4 attack speed, +0.5 block and entity interaction range, enchantability 22, GeckoLib idle model, and owner-keyed hand-free eligibility.",
     "mista_suit": "Durability factor 16, defense 3/2/1, enchantability 15, projectile or revolver_bullet reduction of 15 percent per residual piece, overlay hiding, GeckoLib armor models.",
-    "aja_stone_necklace": "Vanilla head or Curios necklace equip, sneak use starts a charge from the server's item and block use events or, for a bare hand in the air, the server payload (sneak only starts it; no start while an item is in use; a use an entity interaction takes, or an item on cooldown, fires no use event and gets no keepalive, so it starts nothing); a use is taken from vanilla only while the server charges, on the client only once the clientbound charge-state payload confirms it and never for an entity interaction; a use pressed again within the 8-tick keepalive timeout goes on with the charge; the charge sound plays for the charger only; new-use PlayerPower held-input exclusion, Hamon gate, immediate Aja Stone Keeper fire or 50-tick light-gated charge, 40 damage, 36 range, 150-tick cooldown, GeckoLib armor and Curio render."
+    "aja_stone_necklace": "Vanilla head or Curios necklace equip, sneak use starts a charge from the server's item and block use events or, for a bare hand in the air, the server payload (sneak only starts it; no start while an item is in use; a use an entity interaction takes, or an item on cooldown, fires no use event and gets no keepalive, so it starts nothing); a use is taken from vanilla only while the server charges, on the client only once the clientbound charge-state payload confirms it and never for an entity interaction; a use pressed again within the 8-tick keepalive timeout goes on with the charge; the charge sound plays for the charger only; new-use PlayerPower held-input exclusion, Hamon gate, immediate Aja Stone Keeper fire or 50-tick light-gated charge, 40 damage, 36 range, 150-tick cooldown, GeckoLib armor and Curio render.",
+    "spirit_cigarette": "Next Album 0.1.13: stacks to 16; use lights it, held use inhales (4x burn), release after 8+ ticks gives 15 Focus ticks per inhaled tick and an exhale puff; Sneak+use holds up to five lit ones in the mouth (80 Focus ticks each per second, synced mouth count, head render layer); a lit one burns out in 2400 ticks. Focus (levels at 2400/6000 ticks, max 12000): Stand durability and precision x(1+0.1 level), stamina regen x(1+0.15 level) through StandStaminaModifiers; a Focus of 600+ ticks becomes Lax for the same time (x(1-0.1 level), regen not below 0.4). Advancements jotaro_trick and smoked_the_world.",
+    "character_suits": "Next Album 0.1.13 Pesci and Prosciutto suits (cloth/pants/shoes, CHARACTER_SUIT defense 6/5/2, enchantability 9, unbreakable, general_suit GeckoLib models, slim cloth variant, Stand-user recipes: Beach Boy for Pesci, The Grateful Dead for Prosciutto). Full Pesci set: the summoned Stand's damage, attack speed, durability, precision, interaction ranges and movement x(0.8 + 0.7 x Resolve ratio). Full Prosciutto set: right-click a worn piece in an inventory to cycle default / no coat / stealth; in stealth the player becomes a shadow after 200 ticks out of combat or at once when aged or in light 7 or less: name shown as Unknown, no name tag, drawn with the 0.1.13 shadow skin (slim or wide by the player's model type, first-person arms included), armor not drawn, footsteps silent and other player sounds at 30%, visibility x0.25, mobs drop it as a target (hostiles only beyond 8 blocks). Inherited Will and Glorious Death need the downed Resolve state (NA-4).",
+    "onomatopoeia": "Next Album 0.1.13: every footstep sound a Stand user hears shows one of the orange GO / DO / BA words near it (rising, wobbling, 18 ticks); client option onomatopoeiaParticlesEnabled (default on).",
+    "resolve_aura": "Next Album 0.1.13: a player under the core Resolve effect (or with resolveAuraOnSummon, with a summoned Stand) whose Stand is from Next Album (or any Stand with resolveAuraForAllStands) gives off aura flames in the Stand skin's colour: 7 a tick on the body (3 when only summoned), about 1.4 a tick on each first-person arm, 5 on the Stand (standResolveAura), 1 every 3 ticks on small Stands."
   },
   "core_integrations": [
     {
@@ -124,5 +222,16 @@
   "unsupported_api_gaps": [],
   "live_resource_authority": "migration/manifests/residual-resource-disposition.json",
   "owner_authority": "migration/manifests/residual-owner-disposition.json",
-  "runtime_validation": "not_run"
+  "runtime_validation": "not_run",
+  "client_config": {
+    "file": "rotp_nextalbum-client.toml",
+    "section": "Stand Settings",
+    "values": [
+      "resolveAuraForAllStands",
+      "standResolveAura",
+      "onomatopoeiaParticlesEnabled",
+      "resolveAuraOnSummon"
+    ],
+    "screen": "NeoForge ConfigurationScreen"
+  }
 }

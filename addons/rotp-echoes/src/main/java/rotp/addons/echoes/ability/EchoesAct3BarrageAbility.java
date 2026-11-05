@@ -6,16 +6,14 @@ import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
-import rotp.core.powersystem.standpower.entity.StandEntity;
 
-import rotp.addons.echoes.init.EchoesSounds;
 import net.minecraft.core.Holder;
 import net.minecraft.sounds.SoundEvent;
-import net.minecraft.world.level.Level;
 
 /**
- * 092 ACT3 barrage: the ACT3 voice is the cry (set in EchoesAct3Stand),
- * one random voice of three plays at the start, and hits have no impact sound.
+ * ACT3 barrage: one voice per barrage, the cry set in EchoesAct3Stand (one of the author's two barrage voices, cut off
+ * when the barrage leaves PERFORM), and no impact sound on hits. A second, uncut start voice used to play on top of
+ * the cry; in the donor that cry pointed at a missing file, so only one voice was ever heard there.
  */
 public final class EchoesAct3BarrageAbility extends StandEntityBarrageAbility {
 
@@ -28,17 +26,6 @@ public final class EchoesAct3BarrageAbility extends StandEntityBarrageAbility {
 
         public Act3Barrage(EntityActionType ability) {
             super(ability);
-        }
-
-        // 092 standPerform: one voice at the Stand as the barrage starts
-        @Override
-        protected void onBarrageSet(Level level, StandEntity stand) {
-            super.onBarrageSet(level, stand);
-            if (!level.isClientSide()) {
-                level.playSound(null, stand.getX(), stand.getY(), stand.getZ(),
-                        EchoesSounds.randomBarrageHitSound(),
-                        stand.getSoundSource(), 0.8F, 1.0F);
-            }
         }
 
         // 092 barrageHitSound(null): no impact sound on hits

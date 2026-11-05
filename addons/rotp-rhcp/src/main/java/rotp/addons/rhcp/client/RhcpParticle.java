@@ -1,9 +1,11 @@
 package rotp.addons.rhcp.client;
 
 import rotp.core.client.ClientGlobals;
+import rotp.addons.rhcp.entity.RhcpStandEntity;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.ParticleProvider;
@@ -12,10 +14,13 @@ import net.minecraft.client.particle.SpriteSet;
 import net.minecraft.client.particle.TextureSheetParticle;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 
 public final class RhcpParticle extends TextureSheetParticle {
     private final SpriteSet sprites;
     private final boolean flash;
+    // Beta2 RHCPParticle.entity: the RHCP that gave off the spark.
+    private final Entity source;
 
     private RhcpParticle(
             ClientLevel level,
@@ -30,6 +35,7 @@ public final class RhcpParticle extends TextureSheetParticle {
         super(level, x, y, z, dx, dy, dz);
         this.sprites = sprites;
         this.flash = flash;
+        this.source = flash ? null : RhcpStandEntity.sparkSource();
         hasPhysics = false;
         friction = flash ? 1.0F : 0.96F;
         lifetime = flash ? 5 : Math.max(
@@ -68,6 +74,12 @@ public final class RhcpParticle extends TextureSheetParticle {
 
     @Override
     public void render(VertexConsumer buffer, Camera camera, float partialTick) {
+        // Beta2 RHCPParticle.renderParticle: not in the first-person view of the RHCP that gave it off.
+        Minecraft minecraft = Minecraft.getInstance();
+        if (source != null && minecraft.getCameraEntity() == source
+                && minecraft.options.getCameraType().isFirstPerson()) {
+            return;
+        }
         if (flash) {
             alpha = Mth.clamp(
                     0.6F - (age + partialTick - 1.0F) * 0.125F,

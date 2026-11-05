@@ -9,7 +9,8 @@ public record RevolverMuzzleFlashPayload(
         int entityId,
         boolean aiming,
         float random,
-        boolean applyRecoil)
+        boolean applyRecoil,
+        boolean critical)
         implements CustomPacketPayload {
     public static final Type<RevolverMuzzleFlashPayload> TYPE =
             new Type<>(SexPistolsIds.id(
@@ -27,6 +28,7 @@ public record RevolverMuzzleFlashPayload(
                 buffer.readVarInt(),
                 buffer.readBoolean(),
                 buffer.readFloat(),
+                buffer.readBoolean(),
                 buffer.readBoolean());
     }
 
@@ -35,6 +37,7 @@ public record RevolverMuzzleFlashPayload(
         buffer.writeBoolean(aiming);
         buffer.writeFloat(random);
         buffer.writeBoolean(applyRecoil);
+        buffer.writeBoolean(critical);
     }
 
     @Override

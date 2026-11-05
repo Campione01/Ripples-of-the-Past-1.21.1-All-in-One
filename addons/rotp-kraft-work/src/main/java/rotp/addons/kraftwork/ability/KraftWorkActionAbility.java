@@ -1071,8 +1071,13 @@ public final class KraftWorkActionAbility
         // crosshair: an entity on it first, else the block by its outline
         private static ActionTarget releaseAim(
                 LivingEntity user) {
-            Vec3 eyes = user.getEyePosition();
-            Vec3 look = user.getLookAngle();
+            // 1.1.0d: under manual control the ray leaves Kraft Work's eyes
+            StandEntity stand = StandUtil.getSummonedStand(user);
+            LivingEntity aiming = stand != null && stand.isManuallyControlled()
+                    ? stand
+                    : user;
+            Vec3 eyes = aiming.getEyePosition();
+            Vec3 look = aiming.getLookAngle();
             ActionTarget hit = HitResultUtil.clip(
                     eyes,
                     look,
@@ -1080,12 +1085,12 @@ public final class KraftWorkActionAbility
                     KraftWorkSpec.LOCK_RANGE,
                     user.level(),
                     entity -> isReleaseAimable(entity, user),
-                    user,
+                    aiming,
                     0.0D);
             return hit.getType() == ActionTarget.TargetType.ENTITY
                     ? hit
                     : ActionTarget.fromVanilla(outlineBlock(
-                            user, eyes, look, KraftWorkSpec.LOCK_RANGE));
+                            aiming, eyes, look, KraftWorkSpec.LOCK_RANGE));
         }
 
         // vanilla's pick (Entity.pick) and 1.16's JojoModUtil.rayTrace met a

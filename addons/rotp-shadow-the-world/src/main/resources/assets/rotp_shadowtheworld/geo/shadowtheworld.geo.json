@@ -52,7 +52,7 @@
         },
         {
           "name": "head",
-          "parent": "torso_bend",
+          "parent": "body_rot",
           "pivot": [
             0,
             24,

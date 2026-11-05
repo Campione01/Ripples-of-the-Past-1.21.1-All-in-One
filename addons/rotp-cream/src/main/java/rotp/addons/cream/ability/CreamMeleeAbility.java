@@ -4,6 +4,7 @@ import rotp.core.powersystem.Power;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
+import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
 import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.standpower.entity.StandEntity;
@@ -17,6 +18,8 @@ import net.minecraft.world.level.Level;
 
 public final class CreamMeleeAbility
         extends StandEntityPunchAbility {
+    private static final String PUNCH_CLIP = "punch";
+
     private final Style style;
 
     public CreamMeleeAbility(
@@ -28,6 +31,18 @@ public final class CreamMeleeAbility
         if (style == Style.CHOP) {
             resolveLevelToUnlock(2);
         }
+        // 1.16 CreamClaw kept StandEntityLightAttack's LIGHT_ATTACK pose,
+        // the punch's alternating jab; Cream ships no claw clip of its own.
+        if (style == Style.CLAW) {
+            anim = ActionAnimIdentifier.getOrCreate(PUNCH_CLIP, false);
+        }
+    }
+
+    // 1.16 CreamModel's CHOP pose swung the right arm whichever hand
+    // punched last: the clip is never mirrored.
+    @Override
+    public ActionAnimIdentifier getEntityAnim(EntityActionInstance action) {
+        return style == Style.CHOP ? anim : super.getEntityAnim(action);
     }
 
     @Override

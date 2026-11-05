@@ -1,17 +1,22 @@
 {
   "summon_voice_act3": {
-    "sounds": ["rotp_echoes:summon_voice_act3"]
+    "subtitle": "jojo_ripples.subtitle.stand_summon",
+    "sounds": ["rotp_echoes:summon_voice_act3", "rotp_echoes:summon_1", "rotp_echoes:summon_2"]
   },
   "heavy_attack": {
+    "subtitle": "jojo_ripples.subtitle.stand_attack_strong",
     "sounds": ["rotp_echoes:heavy_attack"]
   },
   "barrage_hit_sound": {
-    "sounds": ["rotp_echoes:barrage_hit_sound"]
+    "subtitle": "jojo_ripples.subtitle.stand_attack_barrage",
+    "sounds": ["rotp_echoes:barrage_hit_sound_2", "rotp_echoes:barrage_hit_sound_3"]
   },
   "barrage_hit_sound_2": {
+    "subtitle": "jojo_ripples.subtitle.stand_attack_barrage",
     "sounds": ["rotp_echoes:barrage_hit_sound_2"]
   },
   "barrage_hit_sound_3": {
+    "subtitle": "jojo_ripples.subtitle.stand_attack_barrage",
     "sounds": ["rotp_echoes:barrage_hit_sound_3"]
   },
   "skill_use_sound": {
@@ -22,5 +27,26 @@
   },
   "skill_bgm": {
     "sounds": ["rotp_echoes:skill_bgm"]
+  },
+  "act1_summon": {
+    "sounds": ["rotp_echoes:act1_summon"]
+  },
+  "act2_summon": {
+    "sounds": ["rotp_echoes:act2_summon"]
+  },
+  "echoes_summon_bgm_act3": {
+    "sounds": ["rotp_echoes:echoes_summon_bgm_act3"]
+  },
+  "echoes_summon_bgm_common": {
+    "sounds": ["rotp_echoes:echoes_summon_bgm_common"]
+  },
+  "echoes_recall_bgm": {
+    "sounds": ["rotp_echoes:echoes_recall_bgm"]
+  },
+  "freeze_voice": {
+    "sounds": ["rotp_echoes:freeze_1", "rotp_echoes:freeze_2", "rotp_echoes:freeze_3", "rotp_echoes:freeze_4", "rotp_echoes:freeze_5", "rotp_echoes:freeze_6", "rotp_echoes:freeze_7", "rotp_echoes:skill_use_sound", "rotp_echoes:skill_use_sound_2"]
+  },
+  "easter_egg_summon": {
+    "sounds": ["rotp_echoes:easter_egg_summon"]
   }
 }

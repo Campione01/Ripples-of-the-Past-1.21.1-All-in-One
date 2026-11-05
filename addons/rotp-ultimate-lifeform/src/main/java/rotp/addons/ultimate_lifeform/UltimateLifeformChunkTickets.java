@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -65,6 +66,12 @@ final class UltimateLifeformChunkTickets implements GameTestListener {
         }
         await();
         return this;
+    }
+
+    /** For a scene that reaches 8 to 10 blocks out of the 8-block template, past the chunks the framework holds. */
+    static UltimateLifeformChunkTickets holdScene(GameTestHelper helper) {
+        return new UltimateLifeformChunkTickets(helper).hold(Vec3.atLowerCornerOf(helper.absolutePos(BlockPos.ZERO)),
+                Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(10, 0, 10))));
     }
 
     List<ChunkPos> notTickingEntities() {

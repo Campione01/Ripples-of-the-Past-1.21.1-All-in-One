@@ -149,8 +149,8 @@ public final class StickyFingersZipperAbility extends Ability {
         }
 
         BlockHitResult hitResult = aim(serverLevel, user);
+        // 1.16 place_zipper needed a block target and said nothing without one
         if (hitResult.getType() != HitResult.Type.BLOCK) {
-            reject(serverPlayer);
             return null;
         }
 

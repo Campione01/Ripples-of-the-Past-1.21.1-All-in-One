@@ -79,6 +79,8 @@ public final class ScaryMonstersService {
     private static final Map<UUID, Boolean> WAS_SWIMMING = new HashMap<>();
     // Vanilla fall damage starts beyond three blocks.
     private static final double SAFE_FALL_BLOCKS = 3.0D;
+    // Twice the dinosaur's 32-block follow range.
+    private static final double OWNED_PURSUIT_RANGE = 64.0D;
 
     private ScaryMonstersService() {}
 
@@ -369,22 +371,15 @@ public final class ScaryMonstersService {
         sync(player);
     }
 
+    /**
+     * 1.16 DinosaurFormAction put no dinosaur in the world: the player walks as itself and every client draws it as a
+     * dinosaur (DinoFormMorphHandler, here {@code client.DinosaurFormMorph}). The port's ridden dinosaur could
+     * neither be steered nor kept from being dismounted.
+     */
     public static void enableDinosaurForm(ServerPlayer player) {
         ScaryMonstersState state = ScaryMonstersAddon.state(player);
         if (state.dinosaurForm()) return;
         if (state.dragonForm()) disableDragonForm(player);
-        ScaryDinosaurEntity dinosaur = ScaryMonstersAddon.DINOSAUR.get()
-                .create(player.serverLevel());
-        if (dinosaur == null) return;
-        dinosaur.moveTo(player.position());
-        dinosaur.setOwnerUuid(player.getUUID());
-        dinosaur.setPlayerControlled(true);
-        // 1.16 DinoFormMorphHandler: the user's own dinosaur is drawn 1.7x the player's box
-        dinosaur.setSourceSize(player.getBbWidth() * 1.7F, player.getBbHeight() * 1.7F);
-        player.serverLevel().addFreshEntity(dinosaur);
-        player.startRiding(dinosaur, true);
-        state.applyOwnedEffect(FACET_DINOSAUR, player,
-                new MobEffectInstance(MobEffects.INVISIBILITY, Integer.MAX_VALUE));
         // 1.16 DinosaurFormAction: the form, speed III, jump boost III and
         // resistance I (field_76429_m), all without particles.
         player.addEffect(new MobEffectInstance(
@@ -398,7 +393,6 @@ public final class ScaryMonstersService {
         applyHealthModifier(player, DINOSAUR_HEALTH, 30.0D);
         player.setHealth(player.getMaxHealth());
         state.setDinosaurForm(true);
-        state.setControlledDinosaur(dinosaur.getUUID());
         // 1.16 DINOSAUR_FORM standSound plus DinosaurFormAction's world sound at the player
         ScaryMonstersStandEntity stand = activeStand(player);
         if (stand != null) {
@@ -415,6 +409,7 @@ public final class ScaryMonstersService {
         if (!state.dinosaurForm()
                 && state.controlledDinosaur() == null
                 && !state.ownsFacet(FACET_DINOSAUR)) return;
+        // A form saved by a build that still mounted the player on a dinosaur
         if (state.controlledDinosaur() != null) {
             Entity entity = player.serverLevel().getEntity(state.controlledDinosaur());
             if (entity instanceof ScaryDinosaurEntity dinosaur) {
@@ -426,6 +421,7 @@ public final class ScaryMonstersService {
         state.setControlledDinosaur(null);
         state.setDinosaurForm(false);
         player.removeEffect(ScaryMonstersAddon.DINOSAUR_FORM);
+        // the mounted form also owned invisibility
         state.restoreOwnedEffect(
                 FACET_DINOSAUR, player, MobEffects.INVISIBILITY);
         state.restoreOwnedEffect(
@@ -504,6 +500,23 @@ public final class ScaryMonstersService {
         ScaryMonstersState state = ScaryMonstersAddon.state(player);
         return state.possessedDinosaur() != null || state.ownsFacet(FACET_POSSESSION)
                 || recoveries.get(player.getUUID()) != null;
+    }
+
+    /**
+     * 1.16 DinosaurFormEvents / DinosaurEntity.findOwnedAndPursuit: outside dinosaur form, the owner's dinosaurs go
+     * after whatever hurts the owner and whatever the owner hurts. 1.16 asked every loaded dinosaur it owned; one
+     * farther than its follow range cannot path to the fight, so the search stops at twice that.
+     */
+    public static void sendOwnedDinosaursAfter(ServerPlayer owner, LivingEntity target) {
+        if (target == owner || !target.isAlive() || ScaryMonstersAddon.state(owner).dinosaurForm()) return;
+        if (target instanceof ScaryDinosaurEntity own && owner.getUUID().equals(own.getOwnerUuid())) return;
+        for (ScaryDinosaurEntity dinosaur : owner.serverLevel().getEntitiesOfClass(
+                ScaryDinosaurEntity.class,
+                owner.getBoundingBox().inflate(OWNED_PURSUIT_RANGE),
+                entity -> entity.isAlive() && !entity.isPlayerControlled()
+                        && owner.getUUID().equals(entity.getOwnerUuid()))) {
+            dinosaur.setPursuitTarget(target);
+        }
     }
 
     /**

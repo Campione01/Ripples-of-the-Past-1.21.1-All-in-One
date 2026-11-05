@@ -310,8 +310,23 @@ public final class HeavensDoorTargetTimerGameTests {
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void legacyExpiredAndAbsentTimersStayGoneWhileUntimedStaysUntimed(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> legacyExpiredAndAbsentTimersStayGoneWhileUntimedStaysUntimedInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void legacyExpiredAndAbsentTimersStayGoneWhileUntimedStaysUntimedAcrossAChunkBorder(
+            GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 9);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> legacyExpiredAndAbsentTimersStayGoneWhileUntimedStaysUntimedInLoadedArea(away));
+    }
+
+    private static void legacyExpiredAndAbsentTimersStayGoneWhileUntimedStaysUntimedInLoadedArea(
+            GameTestHelper helper) {
         Cow writer = helper.spawnWithNoFreeWill(EntityType.COW, 1, 2, 2);
         Cow target = helper.spawnWithNoFreeWill(EntityType.COW, 3, 2, 2);
         try {
@@ -336,8 +351,23 @@ public final class HeavensDoorTargetTimerGameTests {
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void legacyOverlapUsesSurvivingHiddenLayersAndInfiniteExternalStaysExternal(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> legacyOverlapUsesSurvivingHiddenLayersAndInfiniteExternalStaysExternalInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void legacyOverlapUsesSurvivingHiddenLayersAndInfiniteExternalStaysExternalAcrossAChunkBorder(
+            GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 10);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> legacyOverlapUsesSurvivingHiddenLayersAndInfiniteExternalStaysExternalInLoadedArea(away));
+    }
+
+    private static void legacyOverlapUsesSurvivingHiddenLayersAndInfiniteExternalStaysExternalInLoadedArea(
+            GameTestHelper helper) {
         Cow first = helper.spawnWithNoFreeWill(EntityType.COW, 1, 2, 2);
         Cow second = helper.spawnWithNoFreeWill(EntityType.COW, 2, 2, 2);
         Cow hidden = helper.spawnWithNoFreeWill(EntityType.COW, 3, 2, 2);
@@ -375,7 +405,8 @@ public final class HeavensDoorTargetTimerGameTests {
             second.setHealth(second.getMaxHealth() * BookStateRules.COMMAND_RELEASE_HEALTH_FRACTION);
             WrittenCommandService.observeOwner(first);
             WrittenCommandService.observeOwner(second);
-            helper.assertTrue(hidden.getEffect(HeavensDoorAddon.CANNOT_MOVE).save().equals(external.save())
+            helper.assertTrue(WrittenCommandService.sameSavedState(
+                                    hidden.getEffect(HeavensDoorAddon.CANNOT_MOVE).save(), external.save())
                             && infinite.getEffect(HeavensDoorAddon.CANNOT_MOVE).isInfiniteDuration(),
                     "Legacy source release changed the external active/hidden/infinite effects");
             helper.succeed();
@@ -385,8 +416,22 @@ public final class HeavensDoorTargetTimerGameTests {
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void releaseBeforeTheFirstTickKeepsTheOtherWritersLegacyCommands(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> releaseBeforeTheFirstTickKeepsTheOtherWritersLegacyCommandsInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void releaseBeforeTheFirstTickKeepsTheOtherWritersLegacyCommandsAcrossAChunkBorder(
+            GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 11);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> releaseBeforeTheFirstTickKeepsTheOtherWritersLegacyCommandsInLoadedArea(away));
+    }
+
+    private static void releaseBeforeTheFirstTickKeepsTheOtherWritersLegacyCommandsInLoadedArea(GameTestHelper helper) {
         Cow first = helper.spawnWithNoFreeWill(EntityType.COW, 1, 2, 2);
         Cow second = helper.spawnWithNoFreeWill(EntityType.COW, 2, 2, 2);
         Cow target = helper.spawnWithNoFreeWill(EntityType.COW, 3, 2, 2);

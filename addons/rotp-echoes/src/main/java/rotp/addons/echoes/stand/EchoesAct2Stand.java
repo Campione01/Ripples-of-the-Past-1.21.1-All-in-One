@@ -14,6 +14,7 @@ import rotp.core.powersystem.standpower.entity.StandControlType;
 
 import rotp.addons.echoes.init.EchoesAbilities;
 import rotp.addons.echoes.init.EchoesEntities;
+import rotp.addons.echoes.init.EchoesSounds;
 import net.minecraft.resources.ResourceLocation;
 
 public final class EchoesAct2Stand {
@@ -23,17 +24,26 @@ public final class EchoesAct2Stand {
         MovesetBuilder moveset = new MovesetBuilder()
                 .addHumanoidStandStuff()
                 .addAbility("act2_punch", ModStandAbilities.PUNCH)
-                .addAbility(
-                        "act2_heavy_punch",
-                        ModStandAbilities.HEAVY_PUNCH)
+                // master InitStands 173-187: heavy_attack at the PERFORM (1.16 standSound) of the heavy and of its
+                // finisher variation, which takes the heavy's key at a finisher meter of 0.5 (both open with ACT2)
+                .addAbility("act2_heavy_punch", ModStandAbilities.HEAVY_PUNCH,
+                        heavy -> heavy.heavyPunchPerformSound(EchoesSounds.HEAVY_ATTACK))
                 .addAbility("act2_guard", ModStandAbilities.GUARD)
-                .addAbility("act2_finisher", EchoesAbilities.ACT2_FINISHER)
-                // 092 Resolve gate: ACT2 evolves at level 1
-                .addAbility(
-                        "evolve_to_act3",
-                        EchoesAbilities.EVOLVE_TO_ACT3,
-                        ability -> ability.resolveLevelToUnlock(1))
-                .addAbility("degrade_to_act1", EchoesAbilities.DEGRADE_TO_ACT1)
+                .addAbility("act2_finisher", EchoesAbilities.ACT2_FINISHER, finisher -> {
+                    finisher.heavyPunchPerformSound(EchoesSounds.HEAVY_ATTACK);
+                    finisher.initIsFinisher("act2_heavy_punch");
+                })
+                .addAbility("select_act", EchoesAbilities.SELECT_ACT)
+                // R772 F11: the master's onomatopoeia; each cancel is the Shift variation of its slot
+                .addAbility("onomatopoeia_select", EchoesAbilities.ONOMATOPOEIA_SELECT)
+                .addAbility("onomatopoeia_cancel", EchoesAbilities.ONOMATOPOEIA_CANCEL)
+                .addAbility("onomatopoeia_attach", EchoesAbilities.ONOMATOPOEIA_ATTACH)
+                .addAbility("onomatopoeia_attach_cancel", EchoesAbilities.ONOMATOPOEIA_ATTACH_CANCEL)
+                .addAbility("onomatopoeia_self", EchoesAbilities.ONOMATOPOEIA_SELF)
+                .addAbility("onomatopoeia_self_cancel", EchoesAbilities.ONOMATOPOEIA_SELF_CANCEL)
+                .addAbility("tail_needle", EchoesAbilities.TAIL_NEEDLE)
+                .addAbility("tail_needle_recall", EchoesAbilities.TAIL_NEEDLE_RECALL)
+                .addAbility("onomatopoeia_entity_toggle", EchoesAbilities.ONOMATOPOEIA_ENTITY_TOGGLE)
                 .makeControlScheme("hotbar")
                     .bind("act2_punch", InputMethod.CLICK, InputKey.LMB)
                     .bind(
@@ -42,9 +52,20 @@ public final class EchoesAct2Stand {
                             InputKey.RMB)
                     .bind("act2_guard", InputMethod.HOLD, InputKey.RMB)
                     .makeHotbar(0, USE_SPECIAL, SWITCH_SPECIAL)
-                    .addToHotbar("act2_finisher", 0, InputMethod.CLICK)
-                    .addToHotbar("evolve_to_act3", 0, InputMethod.CLICK)
-                    .addToHotbar("degrade_to_act1", 0, InputMethod.CLICK)
+                    .addToHotbar("select_act", 0, InputMethod.CLICK)
+                    .addToHotbar("onomatopoeia_select", 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            "onomatopoeia_cancel", "onomatopoeia_select", InputKey.Modifier.SHIFT, InputMethod.CLICK)
+                    .addToHotbar("tail_needle", 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            "tail_needle_recall", "tail_needle", InputKey.Modifier.SHIFT, InputMethod.CLICK)
+                    .addToHotbar("onomatopoeia_attach", 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation("onomatopoeia_attach_cancel", "onomatopoeia_attach",
+                            InputKey.Modifier.SHIFT, InputMethod.CLICK)
+                    .addToHotbar("onomatopoeia_entity_toggle", 0, InputMethod.CLICK)
+                    .addToHotbar("onomatopoeia_self", 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation("onomatopoeia_self_cancel", "onomatopoeia_self",
+                            InputKey.Modifier.SHIFT, InputMethod.CLICK)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")
                     .bind("act2_punch", InputMethod.CLICK, InputKey.LMB)
@@ -59,20 +80,27 @@ public final class EchoesAct2Stand {
                         "act2_heavy_punch"))
                 .addSkill(StandUnlockableSkill.startingAbility(
                         "act2_finisher"))
-                .addSkill(StandUnlockableSkill.startingAbility(
-                        "evolve_to_act3"))
-                .addSkill(StandUnlockableSkill.startingAbility(
-                        "degrade_to_act1"))
+                .addSkill(StandUnlockableSkill.startingAbility("select_act"))
+                .addSkill(StandUnlockableSkill.startingAbility("onomatopoeia_select"))
+                .addSkill(StandUnlockableSkill.startingAbility("onomatopoeia_cancel"))
+                .addSkill(StandUnlockableSkill.startingAbility("onomatopoeia_attach"))
+                .addSkill(StandUnlockableSkill.startingAbility("onomatopoeia_attach_cancel"))
+                .addSkill(StandUnlockableSkill.startingAbility("onomatopoeia_self"))
+                .addSkill(StandUnlockableSkill.startingAbility("onomatopoeia_self_cancel"))
+                .addSkill(StandUnlockableSkill.startingAbility("tail_needle"))
+                .addSkill(StandUnlockableSkill.startingAbility("tail_needle_recall"))
+                .addSkill(StandUnlockableSkill.startingAbility("onomatopoeia_entity_toggle"))
                 .addHumanoidStandSkills();
 
         return new EntityStandType(
+                // master EchoesStandStats ACT2; the arrow now gives ACT0, the egg
                 new StandStats.Builder()
-                        .power(14.0, 14.0)
-                        .speed(12.0, 12.0)
-                        .range(10.0, 20.0)
-                        .durability(10.0, 10.0)
-                        .precision(10.0)
-                        .randomWeight(2.0D)
+                        .power(8.0, 8.0)
+                        .speed(5.0, 5.0)
+                        .range(10.0, 50.0)
+                        .durability(11.0, 11.0)
+                        .precision(8.0)
+                        .randomWeight(0.0D)
                         .build(),
                 moveset,
                 EchoesEntities.ACT2.get(),
@@ -80,6 +108,10 @@ public final class EchoesAct2Stand {
                 .standControlType(StandControlType.LONG_DISTANCE_OPERATION)
                 .manualControl(true)
                 .distanceStrengthDecay(false)
-                .standDimensions(0.4F, 1.25F);
+                .standDimensions(0.4F, 1.25F)
+                // master EchoesEntity: the ACT2 voice, the common summon stinger, the recall stinger
+                .summonShout(() -> EchoesSounds.ACT2_SUMMON)
+                .summonSound(() -> EchoesSounds.ECHOES_SUMMON_BGM_COMMON)
+                .unsummonSound(() -> EchoesSounds.ECHOES_RECALL_BGM);
     }
 }

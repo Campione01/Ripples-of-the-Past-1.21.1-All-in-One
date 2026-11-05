@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-frost-traveler`, mod id `rotp_zcs`, version `1.2.1-port.26`.
+- Module: `rotp-frost-traveler`, mod id `rotp_zcs`, version `1.2.1-port.27`.
 - Original 1.16.5 add-on: `RotP-护霜旅行者-1.2.1.jar` (RotP 护霜旅行者, mod id `rotp_zcs`), by Makuta Zeml, StandoByte; declared license: GNU GPL v3.0; SHA-256 `B39D35D35AF8F34AB13F442E60DE3048EFF07E6D8A4DC3F38ED004DCBD88513C`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-24); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

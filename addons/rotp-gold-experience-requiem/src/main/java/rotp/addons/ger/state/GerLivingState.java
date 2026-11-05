@@ -52,6 +52,7 @@ public final class GerLivingState
     private final Map<UUID, ReturnToZeroDisable>
             returnToZeroDisables = new LinkedHashMap<>();
     private boolean actionsDisabledSent;
+    private boolean disablerSent;
 
     /**
      * 1.16's ger_disabler tag, which the Disabler and Return to Zero's
@@ -62,11 +63,14 @@ public final class GerLivingState
     }
 
     /** @return whether the holder's client has to be told the new state */
-    public boolean markActionsDisabledSent(boolean disabled) {
-        if (actionsDisabledSent == disabled) {
+    public boolean markActionsDisabledSent(
+            boolean disabled, boolean byDisabler) {
+        if (actionsDisabledSent == disabled
+                && disablerSent == byDisabler) {
             return false;
         }
         actionsDisabledSent = disabled;
+        disablerSent = byDisabler;
         return true;
     }
 
@@ -200,6 +204,14 @@ public final class GerLivingState
     public void startReturnToZeroDisable(
             UUID owner, LivingEntity entity, int ticks) {
         returnToZeroDisables.remove(owner);
+        // This rewind moved the entity: an older lockdown that outlasts this
+        // one must not pull it back to where that one held it.
+        returnToZeroDisables.replaceAll((other, disable) ->
+                new ReturnToZeroDisable(
+                        disable.ticks(),
+                        entity.position(),
+                        entity.getYRot(),
+                        entity.getXRot()));
         returnToZeroDisables.put(
                 owner,
                 new ReturnToZeroDisable(

@@ -26,5 +26,13 @@
   "rotp_mih.configuration.Client config": "Client Settings",
   "rotp_mih.configuration.Client config.tooltip": "Settings that only change what this game client shows.",
   "rotp_mih.config.client.enableNewTSIcons": "New Time System Icons",
-  "rotp_mih.config.client.enableNewTSIcons.tooltip": "Use the new clock icons for the Time System's Acceleration and Clear."
+  "rotp_mih.config.client.enableNewTSIcons.tooltip": "Use the new clock icons for the Time System's Acceleration and Clear.",
+  "rotp_mih.configuration.section.rotp.mih.server.toml": "Server Settings",
+  "rotp_mih.configuration.section.rotp.mih.server.toml.title": "Made in Heaven Server Configuration",
+  "rotp_mih.config.server.timeAcceleration": "Time Acceleration",
+  "rotp_mih.config.server.timeAcceleration.tooltip": "How Made in Heaven's time acceleration works on this server.",
+  "rotp_mih.config.server.accelerationMode": "Acceleration Mode",
+  "rotp_mih.config.server.accelerationMode.tooltip": "The World Accelerates: living beings keep their own time; projectiles, items, falling blocks, crops, fluids, furnaces and the weather run m times faster, and the user attacks, mines, uses items and his Stand at that pace. Others Fall Behind: the user keeps normal speed and every other living being runs m times slower. An acceleration keeps the mode it started with.",
+  "rotp_mih.config.server.accelerationMode.others_fall_behind": "Others Fall Behind",
+  "rotp_mih.config.server.accelerationMode.world_accelerates": "The World Accelerates"
 }

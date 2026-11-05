@@ -20,6 +20,7 @@ import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 
 import rotp.addons.madeinheaven.MadeInHeavenAddon;
 import rotp.addons.madeinheaven.state.TimeAccelerationService;
+import rotp.addons.madeinheaven.state.TimeLagRates;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -247,8 +248,10 @@ public final class LightSpeedDashAbility
                         STAMINA_COST,
                         false);
             }
+            // The dash keeps the 1.16 table: the lag of the others rises
+            // to 20 in the last phases, which as Speed would be x41.
             int multiplier =
-                    TimeAccelerationService.calculatedMultiplier(
+                    TimeLagRates.legacyMultiplier(
                             TimeAccelerationService.phase(
                                     user.level()));
             // 1.16 LightSpeedDash: field_76429_m = Resistance,

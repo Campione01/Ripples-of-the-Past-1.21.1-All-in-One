@@ -124,6 +124,30 @@ public final class TheHandEraseAbility extends StandEntityAbility {
         }
     }
 
+    // Extra Stands 1.1.0d onLivingDamage set wasInterrupted for any damage
+    // to the user during the charge; only a hit from an attacker also drops
+    // the charge (the core held-action rule above).
+    public static void onUserDamaged(LivingEntity user) {
+        StandEntity stand = StandPower.getOptional(user)
+                .map(StandPower::getSummonedStandEntity)
+                .orElse(null);
+        if (stand != null
+                && stand.getCurStandAction() instanceof EraseAction erase) {
+            erase.markInterrupted();
+        }
+    }
+
+    // The core sends a failed held check through the hit handler; only a
+    // hit keeps 1.1.0d's teleport back.
+    @Override
+    public void stopHeldActionOnFailedCheck(EntityActionInstance action) {
+        if (action instanceof EraseAction eraseAction) {
+            eraseAction.dropFromFailedCheck();
+        } else {
+            super.stopHeldActionOnFailedCheck(action);
+        }
+    }
+
     // 1.16 ActionsOverlayGui heldReadyToFire: green once held for
     // getHoldDurationToFire, half of getHoldDurationMax (TheHandErase
     // :290-292), while the charge waits for the release or its maximum;
@@ -224,6 +248,9 @@ public final class TheHandEraseAbility extends StandEntityAbility {
         private boolean performed;
         private boolean targetSelected;
         private boolean cancelled;
+        // 1.1.0d wasInterrupted: the user hurt during the charge.
+        private boolean cancelledByDamage;
+        private boolean clearedIntoAnotherAction;
         private boolean missTeleportResolved;
         private boolean missTeleportFromPerform;
         private boolean actionCleared;
@@ -470,17 +497,29 @@ public final class TheHandEraseAbility extends StandEntityAbility {
                 clearCallbackPhase = getPhase();
             }
             actionCleared = true;
+            clearedIntoAnotherAction = newAction != null;
             teleportAfterMissIfEligible();
         }
 
         private void teleportAfterMissIfEligible() {
+            // 1.1.0d onTaskSet starts with nothing erased, so an Erase that
+            // ends before its swipe (let go early, dropped) teleports too,
+            // unless a hit cut the charge. Kept from 1.1.0c: one replaced by
+            // another move before its swipe does not.
             if (missTeleportResolved
                     || level().isClientSide()
+                    || cancelledByDamage
                     || !performed
-                    || cancelled
+                            && (!actionCleared || clearedIntoAnotherAction)
                     || targetSelected
                     || erasedTargets > 0
                     || !(getPerformer() instanceof StandEntity stand)) {
+                return;
+            }
+            if (!performed
+                    && (stand.isRemoved()
+                            || getPowerUser() == null
+                            || !getPowerUser().isAlive())) {
                 return;
             }
             // 1.16 onTaskStopped: the pull waits for the action to end,
@@ -530,12 +569,28 @@ public final class TheHandEraseAbility extends StandEntityAbility {
                     clearCallbackPhase);
         }
 
-        public void cancelFromDamage() {
+        public void dropFromFailedCheck() {
             if (getPhase() == ActionPhase.BUTTON_CHARGE) {
                 rememberPreparation(getPhaseTick() / liveChargeMaximum());
                 cancelled = true;
                 forceStop();
                 syncPhaseChanges();
+            }
+        }
+
+        public void cancelFromDamage() {
+            if (getPhase() == ActionPhase.BUTTON_CHARGE) {
+                rememberPreparation(getPhaseTick() / liveChargeMaximum());
+                cancelled = true;
+                cancelledByDamage = true;
+                forceStop();
+                syncPhaseChanges();
+            }
+        }
+
+        void markInterrupted() {
+            if (getPhase() == ActionPhase.BUTTON_CHARGE) {
+                cancelledByDamage = true;
             }
         }
 

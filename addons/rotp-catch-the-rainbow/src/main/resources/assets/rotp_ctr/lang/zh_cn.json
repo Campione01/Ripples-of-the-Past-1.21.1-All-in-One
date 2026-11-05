@@ -15,7 +15,7 @@
   "action.rotp_ctr.catch_the_rainbow_rain_redemption": "觉悟",
   "rotp_ctr.ability.catch_the_rainbow_rain_blade": "雨刃",
   "rotp_ctr.ability.catch_the_rainbow_rain_blades": "雨刃范围攻击",
-  "rotp_ctr.ability.catch_the_rainbow_rain_stop": "\"雨停\"（%s 秒）",
+  "rotp_ctr.ability.catch_the_rainbow_rain_stop": "雨停",
   "rotp_ctr.ability.catch_the_rainbow_rain_resume": "雨停解除",
   "rotp_ctr.ability.catch_the_rainbow_rain_blink": "瞬移",
   "rotp_ctr.ability.catch_the_rainbow_rain_merge": "拆解身体",

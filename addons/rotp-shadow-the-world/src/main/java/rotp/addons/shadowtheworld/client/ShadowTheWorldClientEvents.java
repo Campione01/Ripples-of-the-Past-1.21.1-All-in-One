@@ -1,7 +1,5 @@
 package rotp.addons.shadowtheworld.client;
 
-import rotp.core.client.entityrender.stand.StandEntityRenderer;
-
 import rotp.addons.shadowtheworld.ShadowTheWorldAddon;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
@@ -23,7 +21,7 @@ public final class ShadowTheWorldClientEvents {
                 ShadowTheWorldAddon
                         .SHADOW_THE_WORLD_ENTITY
                         .get(),
-                StandEntityRenderer::new);
+                ShadowStandRenderer::new);
     }
 
     /** 1.16 attached the post-evolution glow layer to the Stand renderer. */

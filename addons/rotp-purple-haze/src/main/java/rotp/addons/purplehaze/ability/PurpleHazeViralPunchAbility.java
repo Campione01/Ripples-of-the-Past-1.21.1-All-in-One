@@ -10,6 +10,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import rotp.addons.purplehaze.effect.PurpleHazeVirusEffect;
 import rotp.addons.purplehaze.entity.PurpleHazeCloudEntity;
@@ -86,9 +87,12 @@ public final class PurpleHazeViralPunchAbility
                 boolean hurt) {
             if (stand instanceof PurpleHazeEntity purpleHaze
                     && purpleHaze.useCapsule()) {
+                // Owner T2: past the base reach the virus lasts as much
+                // shorter as the punch's damage is weaker.
+                float reach = StandMeleeReach.strikeFactor(stand, target);
                 PurpleHazeVirusEffect
                         .applyVirusUnattenuated(
-                                target, 0, 200);
+                                target, 0, Math.round(200 * reach));
             }
         }
 

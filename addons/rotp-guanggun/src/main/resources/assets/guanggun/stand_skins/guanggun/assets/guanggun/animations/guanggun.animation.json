@@ -1,0 +1,47 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "idle": {
+      "loop": true,
+      "animation_length": 4,
+      "bones": {
+        "head": {
+          "rotation": [0, 0, 0]
+        }
+      }
+    },
+    "punch": {
+      "loop": "hold_on_last_frame",
+      "bones": {
+        "head": {
+          "rotation": [0, 0, 0]
+        }
+      }
+    },
+    "barrage": {
+      "loop": "hold_on_last_frame",
+      "bones": {
+        "head": {
+          "rotation": [0, 0, 0]
+        }
+      }
+    },
+    "heavy_punch": {
+      "loop": "hold_on_last_frame",
+      "bones": {
+        "head": {
+          "rotation": [0, 0, 0]
+        }
+      }
+    },
+    "block": {
+      "loop": "hold_on_last_frame",
+      "bones": {
+        "head": {
+          "rotation": [0, 0, 0]
+        }
+      }
+    }
+  },
+  "geckolib_format_version": 2
+}

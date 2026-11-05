@@ -29,6 +29,8 @@ public final class EpitaphState
     private UUID predictedAttackerUuid;
     @Nullable
     private ResourceLocation predictedDamageType;
+    // Server only: the user is frozen in someone's time stop, and expiresAt moves on with each frozen tick.
+    private transient boolean paused;
     /** Server only and never saved: the creatures bound to what this Epitaph foresaw, by creature UUID. */
     private final Map<UUID, EpitaphFate> fates = new HashMap<>();
     /** Server only and never saved: creatures just released from a fate, until the game time they are foreseen again. */
@@ -92,6 +94,28 @@ public final class EpitaphState
         return changed;
     }
 
+    /** One server tick frozen in a time stop: the window does not run. True when the pause starts with it. */
+    public boolean pauseTick() {
+        if (stage == Stage.IDLE) {
+            return false;
+        }
+        expiresAt++;
+        boolean started = !paused;
+        paused = true;
+        return started;
+    }
+
+    public boolean isPaused() {
+        return paused && stage != Stage.IDLE;
+    }
+
+    /** Ends the pause; true when there was one. */
+    public boolean resume() {
+        boolean was = paused;
+        paused = false;
+        return was;
+    }
+
     public boolean recordDodge(
             @Nullable UUID attackerUuid,
             @Nullable ResourceLocation damageType,
@@ -117,6 +141,7 @@ public final class EpitaphState
         expiresAt = 0L;
         predictedAttackerUuid = null;
         predictedDamageType = null;
+        paused = false;
         return changed;
     }
 

@@ -626,6 +626,8 @@ public final class UltimatePillarRulesGameTests {
     @GameTest(template = "empty", timeoutTicks = 40, skyAccess = true)
     public static void phantomOrbitsAboveItsOwnerAndSwoopsBack(
             GameTestHelper helper) {
+        // the phantom that swoops back starts on block (2, 4, 8)
+        UltimateLifeformChunkTickets.holdScene(helper);
         Holder holder = holder(helper, "UltimatePillarPhantoms",
                 "b2d1e3f5-1c2e-4d3f-9a4b-6c7d8e9f0a15", GameType.SURVIVAL,
                 false);
@@ -680,6 +682,16 @@ public final class UltimatePillarRulesGameTests {
             holder.close();
             helper.succeed();
         });
+    }
+
+    // the same scene with the phantom that swoops back in the chunk next to
+    // the template's
+    @GameTest(template = "empty", timeoutTicks = 40, skyAccess = true,
+            batch = "ulf_phantom_across_a_chunk_border")
+    public static void phantomOrbitsAboveItsOwnerAndSwoopsBackAcrossAChunkBorder(
+            GameTestHelper helper) {
+        phantomOrbitsAboveItsOwnerAndSwoopsBack(
+                new UltimateLifeformAwayHelper(helper, 2));
     }
 
     // 1.16 KillerRabbitsSummon / PhantomSummon.perform: each summon at a
@@ -932,6 +944,7 @@ public final class UltimatePillarRulesGameTests {
                         exception);
             }
         }
+        UltimateLifeformFixtures.claim(helper, player);
         player.setPos(at(helper, new Vec3(2.5D, 2.0D, 2.5D)));
         player.setGameMode(gameType);
         if (!helper.getLevel().addFreshEntity(player)) {

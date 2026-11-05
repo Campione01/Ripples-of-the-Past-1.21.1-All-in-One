@@ -31,6 +31,10 @@ public final class ScaryDinosaurRenderer extends SimpleEntityRenderer<
     private static final float BASE_SCALE = 0.6F;
     private static final float MIN_SCALE = 0.3F;
     private static final float MAX_SCALE = 3.0F;
+    /** The loader puts the geometry's ground (y 0) at model y 24, i.e. 1.5 blocks. */
+    private static final float MODEL_GROUND_Y = 24.0F / 16.0F;
+    /** GeckoLib's GeoEntityRenderer.render lifted every model 0.01 off the ground. */
+    private static final float GECKO_LIFT = 0.01F;
 
     private final ResourceModelEntry controlledModel;
 
@@ -66,6 +70,21 @@ public final class ScaryDinosaurRenderer extends SimpleEntityRenderer<
     @Override
     public ResourceLocation getTextureLocation(ScaryDinosaurEntity entity) {
         return isPlayerControlled(entity) ? CONTROLLED_TEXTURE : DINOSAUR_TEXTURE;
+    }
+
+    /**
+     * 1.16 GeckoLib drew the geometry's y 0 at the entity's feet (0.01 above). The core's default offset is for
+     * projectiles (half the box height), which left the feet 0.9 blocks, times the source scale, under the ground.
+     */
+    @Override
+    protected void offsetFromDimensions(
+            ScaryDinosaurEntity entity,
+            ScaryDinosaurModel model,
+            float partialTick,
+            PoseStack poseStack,
+            MultiBufferSource buffer,
+            int packedLight) {
+        poseStack.translate(0.0F, -(MODEL_GROUND_Y + GECKO_LIFT), 0.0F);
     }
 
     public static float sourceScale(ScaryDinosaurEntity entity) {

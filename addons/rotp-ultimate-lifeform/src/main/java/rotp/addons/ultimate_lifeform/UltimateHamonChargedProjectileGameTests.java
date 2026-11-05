@@ -18,7 +18,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
+import net.neoforged.neoforge.common.util.FakePlayer;
 import rotp.addons.ultimate_lifeform.entity.UltimateAreaEffectEntity;
 import rotp.addons.ultimate_lifeform.entity.UltimateScaleProjectileEntity;
 import rotp.addons.ultimate_lifeform.power.UltimateLifeformSpec;
@@ -485,6 +485,7 @@ public final class UltimateHamonChargedProjectileGameTests {
             scene.check(impacts == 1 && molotov.isRemoved() && waves.isEmpty(),
                     "1.16 ProjectileUltimateHamonChargeCap.onTargetHit has no Molotov branch, but the block hit started "
                             + waves.size() + " Sendo Overdrive entities; impacts=" + impacts);
+            UltimateLifeformFixtures.discardSent(helper, shooter);
         }
         finally {
             scene.close();
@@ -973,7 +974,7 @@ public final class UltimateHamonChargedProjectileGameTests {
 
         /** A real server player with the Ultimate Lifeform power, so that its abilities run through the production input. */
         ServerPlayer ultimateServerPlayer(Vec3 feet, int hamonCharge) {
-            ServerPlayer player = FakePlayerFactory.get(level, new GameProfile(UUID.randomUUID(), "HamonChargeInfuser"));
+            ServerPlayer player = new FakePlayer(level, new GameProfile(UUID.randomUUID(), "HamonChargeInfuser"));
             player.setPos(feet);
             player.setNoGravity(true);
             player.setGameMode(GameType.SURVIVAL);

@@ -261,6 +261,11 @@
       "legacy": "global RenderLivingEvent player pose mutation",
       "current": "native item use animation and narrow player layers",
       "reason": "No global living-render hook or player-renderer replacement."
+    },
+    {
+      "legacy": "catch_the_rainbow_rain_stop registered as a TheWorldTimeStop but on neither hotbar (unreachable)",
+      "current": "C/X click toggle: raindrops within 8 blocks stop in mid-air and cut whoever moves through them",
+      "reason": "R772 F44, owner decision to follow the manga: Catch the Rainbow stops raindrops, not time."
     }
   ],
   "source_artifact_gaps": [

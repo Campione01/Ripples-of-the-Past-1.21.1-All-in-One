@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-tusk`, mod id `rotp_t`, version `1.0.2-port.26`.
+- Module: `rotp-tusk`, mod id `rotp_t`, version `1.0.2-port.27`.
 - Original 1.16.5 add-on: `RotP-牙-1.0.2.jar` (Tusk RotP Stand Addon, mod id `rotp_t`), by HK47bot, TheDoGGyS; declared license: GNU GPL v3.0; SHA-256 `7C1231E2C76903D82AE9922C00AA50DF7E616E1DF739264CCBA6A28D4BB169B1`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-24); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

@@ -1,9 +1,15 @@
 package rotp.addons.heavensdoor.state;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.UUID;
 
 import net.minecraft.core.Holder;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.effect.MobEffect;
@@ -168,7 +174,7 @@ public final class WrittenCommandService {
         }
         MobEffectInstance current = target.getEffect(effect);
         if (desired == null && current == null
-                || desired != null && current != null && desired.save().equals(current.save())) {
+                || desired != null && current != null && sameSavedState(desired.save(), current.save())) {
             return;
         }
         Projection previous = PROJECTION.get();
@@ -214,6 +220,48 @@ public final class WrittenCommandService {
             }
         }
         return BookCommand.INVALID;
+    }
+
+    private static final String EFFECT_CURES_KEY = "neoforge:cures";
+
+    // NeoForge saves an effect's cures from an identity hash set, so an equal copy can list them in another order.
+    public static boolean sameSavedState(Tag first, Tag second) {
+        return first == null ? second == null
+                : second != null && curesSorted(first).equals(curesSorted(second));
+    }
+
+    private static Tag curesSorted(Tag tag) {
+        if (tag instanceof CompoundTag compound) {
+            CompoundTag key = new CompoundTag();
+            for (String name : compound.getAllKeys()) {
+                Tag value = compound.get(name);
+                if (EFFECT_CURES_KEY.equals(name) && value instanceof ListTag cures
+                        && cures.getElementType() == Tag.TAG_STRING) {
+                    List<String> names = new ArrayList<>();
+                    for (int index = 0; index < cures.size(); index++) {
+                        names.add(cures.getString(index));
+                    }
+                    names.sort(null);
+                    ListTag sorted = new ListTag();
+                    for (String cure : names) {
+                        sorted.add(StringTag.valueOf(cure));
+                    }
+                    key.put(name, sorted);
+                }
+                else {
+                    key.put(name, curesSorted(value));
+                }
+            }
+            return key;
+        }
+        if (tag instanceof ListTag list) {
+            ListTag key = new ListTag();
+            for (Tag element : list) {
+                key.add(curesSorted(element));
+            }
+            return key;
+        }
+        return tag;
     }
 
     private record Projection(LivingEntity target, MobEffectInstance effect) {}

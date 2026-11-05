@@ -1,15 +1,29 @@
 package rotp.addons.speedking;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.locks.LockSupport;
 
 import com.mojang.authlib.GameProfile;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.GameTestInfo;
+import net.minecraft.gametest.framework.GameTestListener;
+import net.minecraft.gametest.framework.GameTestRunner;
+import net.minecraft.server.level.ServerChunkCache;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.TicketType;
 import net.minecraft.util.Mth;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -568,6 +582,12 @@ public final class SpeedKingGameTests {
         helper.succeed();
     }
 
+    // the same scene with the punched cow in the chunk next to the template's
+    @GameTest(template = "empty", timeoutTicks = 80, batch = "speedking_melee_across_a_chunk_border")
+    public static void meleeMovesAreTheCoreAttacksAsIn116AcrossAChunkBorder(GameTestHelper helper) {
+        meleeMovesAreTheCoreAttacksAsIn116(new AwayHelper(helper));
+    }
+
     // 1.16 StandEntityAction.onClick summoned the Stand for a press with it away by the action's auto-summon mode: 099
     // InitStands :65 example_stand_block = new StandEntityBlock(), whose constructor (StandEntityBlock :17) set ARMS, so
     // the guard brought out only the arms; the pickaxe throw and the heat moves (:66-72) kept the builder's FULL.
@@ -645,10 +665,14 @@ public final class SpeedKingGameTests {
         final FakePlayer owner;
         final StandPower power;
         final SpeedKingEntity stand;
+        final ChunkTickets chunks;
         net.minecraft.world.entity.Entity extra;
 
         Scene(GameTestHelper helper, String name) {
             this.helper = helper;
+            // the owner, its Stand and the targets up to (6.5, 2, 5.5), past the template's chunk at some grid places
+            chunks = new ChunkTickets(helper).hold(helper.absoluteVec(Vec3.ZERO),
+                    helper.absoluteVec(new Vec3(7.0D, 0.0D, 6.0D)));
             owner = new FakePlayer(helper.getLevel(), new GameProfile(UUID.randomUUID(), name));
             owner.setPos(helper.absoluteVec(new Vec3(1.5D, 2.0D, 1.5D)));
             helper.getLevel().addNewPlayer(owner);
@@ -711,6 +735,139 @@ public final class SpeedKingGameTests {
             }
             EventHooks.firePlayerLoggedOut(owner);
             owner.discard();
+            chunks.release();
+        }
+    }
+
+    /**
+     * Chunks a scene holds itself (the pattern of rotp-king-crimson's KingCrimsonChunkTickets). The framework holds only
+     * the chunk of the one-block template, and its grid puts that template on any block of a chunk, so a scene's
+     * entities often stand in other chunks. There an added entity stays in a hidden section until the chunk is
+     * accessible, so level.getEntity does not find it and a target kept by its id resolves to nothing. The scene
+     * therefore holds every chunk within MARGIN blocks of its box at the entity-ticking level, with a ticket value of
+     * its own, and returns once all of them tick entities. A newly held chunk gets there only after the ring around it
+     * has generated, which takes real time under load; the game test server does not pace its ticks, so the budget is
+     * real time and the server thread runs the chunk tasks meanwhile, no game tick passing. The tickets go when the
+     * scene closes, at the latest when its test ends.
+     */
+    private static final class ChunkTickets implements GameTestListener {
+        static final double MARGIN = 3.0D;
+        // Level 31 is the entity-ticking level, the one the template's chunk gets.
+        static final int TICKET_RADIUS = 2;
+        static final TicketType<UUID> TICKET =
+                TicketType.create("rotp_speedking_gametest", Comparator.<UUID>naturalOrder());
+        private static final long WAIT_NANOS = 30_000_000_000L;
+        private static final long PAUSE_NANOS = 1_000_000L;
+        private final ServerLevel level;
+        private final UUID id = UUID.randomUUID();
+        private final Set<ChunkPos> chunks = new LinkedHashSet<>();
+
+        ChunkTickets(GameTestHelper helper) {
+            level = helper.getLevel();
+            helper.testInfo.addListener(this);
+        }
+
+        /** Every chunk within MARGIN blocks of the box between the two corners; returns once they all tick entities. */
+        ChunkTickets hold(Vec3 corner, Vec3 otherCorner) {
+            int minX = SectionPos.blockToSectionCoord(Mth.floor(Math.min(corner.x, otherCorner.x) - MARGIN));
+            int maxX = SectionPos.blockToSectionCoord(Mth.floor(Math.max(corner.x, otherCorner.x) + MARGIN));
+            int minZ = SectionPos.blockToSectionCoord(Mth.floor(Math.min(corner.z, otherCorner.z) - MARGIN));
+            int maxZ = SectionPos.blockToSectionCoord(Mth.floor(Math.max(corner.z, otherCorner.z) + MARGIN));
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    ChunkPos key = new ChunkPos(x, z);
+                    if (chunks.add(key)) {
+                        level.getChunkSource().addRegionTicket(TICKET, key, TICKET_RADIUS, id);
+                        level.getChunk(key.x, key.z);
+                    }
+                }
+            }
+            ServerChunkCache cache = level.getChunkSource();
+            long start = System.nanoTime();
+            List<ChunkPos> idle;
+            while (!(idle = notTickingEntities()).isEmpty()) {
+                long waited = System.nanoTime() - start;
+                if (waited > WAIT_NANOS) {
+                    throw new GameTestAssertException("The held chunks " + idle + " do not tick entities after "
+                            + waited / 1_000_000L + " ms");
+                }
+                if (!cache.pollTask()) {
+                    LockSupport.parkNanos(PAUSE_NANOS);
+                }
+            }
+            return this;
+        }
+
+        private List<ChunkPos> notTickingEntities() {
+            List<ChunkPos> idle = new ArrayList<>();
+            for (ChunkPos chunk : chunks) {
+                if (!level.isPositionEntityTicking(chunk.getWorldPosition())) {
+                    idle.add(chunk);
+                }
+            }
+            return idle;
+        }
+
+        void release() {
+            for (ChunkPos chunk : chunks) {
+                level.getChunkSource().removeRegionTicket(TICKET, chunk, TICKET_RADIUS, id);
+            }
+            chunks.clear();
+        }
+
+        @Override
+        public void testStructureLoaded(GameTestInfo test) {}
+
+        @Override
+        public void testPassed(GameTestInfo test, GameTestRunner runner) {
+            release();
+        }
+
+        @Override
+        public void testFailed(GameTestInfo test, GameTestRunner runner) {
+            release();
+        }
+
+        @Override
+        public void testAddedForRerun(GameTestInfo oldTest, GameTestInfo newTest, GameTestRunner runner) {
+            release();
+        }
+    }
+
+    /**
+     * A test's helper whose template stands 512 blocks west of its grid place, where no chunk of the framework or of
+     * another test reaches, with its corner on block (8, 13) of a chunk: the owner at (1.5, 2, 1.5) is in the corner's
+     * chunk and the cow at (1.5, 2, 3.5) in the next one, as at a grid place on block 13 to 15 in z.
+     */
+    private static final class AwayHelper extends GameTestHelper {
+        private final BlockPos shift;
+
+        AwayHelper(GameTestHelper helper) {
+            super(helper.testInfo);
+            BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+            int x = SectionPos.sectionToBlockCoord(SectionPos.blockToSectionCoord(origin.getX() - 512)) + 8;
+            int z = SectionPos.sectionToBlockCoord(SectionPos.blockToSectionCoord(origin.getZ())) + 13;
+            shift = new BlockPos(x - origin.getX(), 0, z - origin.getZ());
+        }
+
+        @Override
+        public BlockPos absolutePos(BlockPos pos) {
+            return super.absolutePos(pos).offset(shift);
+        }
+
+        @Override
+        public Vec3 absoluteVec(Vec3 pos) {
+            return super.absoluteVec(pos).add(shift.getX(), shift.getY(), shift.getZ());
+        }
+
+        @Override
+        public BlockPos relativePos(BlockPos pos) {
+            return super.relativePos(pos.subtract(shift));
+        }
+
+        @Override
+        public Vec3 relativeVec(Vec3 pos) {
+            return super.relativeVec(pos.subtract(shift.getX(), shift.getY(), shift.getZ()));
         }
     }
 }

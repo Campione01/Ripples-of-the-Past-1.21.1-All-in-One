@@ -3,6 +3,6 @@
   "minVersion": "0.8",
   "package": "rotp.addons.kingcrimson.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": ["TimeEraseAttackPhaseMixin", "TimeEraseTargetMixin", "TimeEraseStandPickMixin"],
+  "mixins": ["TimeEraseAttackPhaseMixin", "TimeEraseStandPickMixin"],
   "injectors": {"defaultRequire": 1}
 }

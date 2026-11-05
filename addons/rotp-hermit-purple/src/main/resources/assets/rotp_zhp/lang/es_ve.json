@@ -83,14 +83,14 @@
   "rotp_zhp.configuration.section.rotp.zhp.common.toml": "Ajustes comunes",
   "rotp_zhp.configuration.section.rotp.zhp.common.toml.title": "Configuración común de Hermito Púrpura",
   "rotp_zhp.configuration.hamon": "Hamon",
-  "rotp_zhp.configuration.hamonToHermit": "El Hamon puede despertar a Hermito Púrpura",
+  "rotp_zhp.configuration.hamonToHermit": "Despertar con Hamon",
   "rotp_zhp.configuration.hamonToHermit.tooltip": "Intenta otorgar Hermito Púrpura cuando un usuario de Hamon alcanza todos los niveles configurados.",
-  "rotp_zhp.configuration.hermitHamon": "Hermito Púrpura permite que los ataques de Hamon golpeen a los Stands",
+  "rotp_zhp.configuration.hermitHamon": "Hamon contra Stands",
   "rotp_zhp.configuration.hermitHamon.tooltip": "Permite que los usuarios de Hermito Púrpura con Hamon y una determinación alta apliquen Hamon a los Stands.",
   "rotp_zhp.configuration.controlThreshold": "Control de Hamon Requerido",
   "rotp_zhp.configuration.controlThreshold.tooltip": "Nivel de control de Hamon que necesita un usuario de Hamon para que Hermito Púrpura pueda despertar.",
   "rotp_zhp.configuration.strengthThreshold": "Fuerza de Hamon Requerida",
   "rotp_zhp.configuration.strengthThreshold.tooltip": "Nivel de fuerza de Hamon que necesita un usuario de Hamon para que Hermito Púrpura pueda despertar.",
-  "rotp_zhp.configuration.breathingThreshold": "Respiración de Hamon Requerida",
+  "rotp_zhp.configuration.breathingThreshold": "Respiración Requerida",
   "rotp_zhp.configuration.breathingThreshold.tooltip": "Nivel de respiración de Hamon que necesita un usuario de Hamon para que Hermito Púrpura pueda despertar."
 }

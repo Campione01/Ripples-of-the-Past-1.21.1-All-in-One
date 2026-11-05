@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-pearl-jam`, mod id `rotp_pj`, version `1.0.3-port.19`.
+- Module: `rotp-pearl-jam`, mod id `rotp_pj`, version `1.0.3-port.20`.
 - Original 1.16.5 add-on: `RotP-珍珠果酱-1.0.3.jar` (RotP-PearlJam, mod id `rotp_pj`), by Weever; declared license: GNU GPL v3.0; SHA-256 `9C8B98E92CD2D148CE0D2D7E74E556273AA7EB1838F59C749820891FC75C315E`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

@@ -130,6 +130,12 @@
       "rotp_sex_pistols:item/revolver/revolver_speedloader"
     ]
   },
+  "revolver_shot": {
+    "subtitle": "rotp_sex_pistols.subtitle.fire",
+    "sounds": [
+      "rotp_sex_pistols:item/revolver/revolver_shot"
+    ]
+  },
   "fire": {
     "subtitle": "rotp_sex_pistols.subtitle.fire",
     "sounds": [

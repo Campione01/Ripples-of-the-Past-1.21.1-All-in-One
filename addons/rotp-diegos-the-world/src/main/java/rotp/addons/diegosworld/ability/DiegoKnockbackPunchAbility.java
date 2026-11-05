@@ -8,6 +8,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
@@ -54,8 +55,11 @@ public final class DiegoKnockbackPunchAbility
                                 / effectiveRange),
                         0.0F,
                         1.0F);
-                if (stand.getRandom().nextFloat()
-                        < Math.max(proximity - 0.25F, 0.0F)) {
+                // Owner T2: past the base reach the guard break's chance
+                // falls with the punch's damage.
+                float chance = Math.max(proximity - 0.25F, 0.0F)
+                        * StandMeleeReach.strikeFactor(stand, targetStand);
+                if (stand.getRandom().nextFloat() < chance) {
                     targetStand.breakStandBlocking(
                             StandStatFormulas.getGuardBreakTicks(
                                     targetStand.getDurability()));

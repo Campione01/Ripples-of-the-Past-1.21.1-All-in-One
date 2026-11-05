@@ -85,6 +85,7 @@ public final class D4CCorpseService {
             tickLoveTrain(player);
         } else if (D4CPhase2BService.ownsLoveTrainCorpse(player)) {
             // Love Train expired: 1.16 af.ab returned the corpse with a message
+            D4CPhase2BService.endExpiredLoveTrain(player);
             D4CPhase2BService.returnLoveTrainCorpse(player);
             D4CPhase2BService.notify(player,
                     D4CPhase2BService.MSG_LOVE_TRAIN_EXPIRE_RETURN_CORPSE);

@@ -18,6 +18,7 @@ import rotp.core.impl.powers.vampirism.abilities.VampirismClawLacerateAbility;
 import rotp.core.impl.powers.zombie.abilities.ZombieClawLacerateAbility;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandEntityManualControlToggle;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.init.ModDamageTypes;
 import rotp.core.init.ModSoundEvents;
@@ -109,12 +110,11 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class RhcpService {
     private static final double MELEE_RANGE = 5.0D;
-    private static final double DRAG_RANGE = 8.0D;
     private static final double CARRIED_TARGET_MAX_DISTANCE_SQR = 4.0D;
-    // 1.16 RHCPRecharge: sources count within 3 blocks of RHCP's box,
-    // lightning within 10.
+    // 1.16 RHCPRecharge: sources count within 3 blocks of RHCP's box;
+    // Beta2 also takes lightning only within 3 (was 10, then 8).
     private static final double SOURCE_RANGE = 3.0D;
-    private static final double LIGHTNING_RANGE = 10.0D;
+    private static final double LIGHTNING_RANGE = 3.0D;
 
     private RhcpService() {}
 
@@ -215,8 +215,10 @@ public final class RhcpService {
 
     /**
      * 1.16 RHCPRecharge.energyCharge: the held recharge (passive false) and
-     * RHCP's own charging (passive true, RhcpStandEntity.tick). A lightning
-     * bolt within 8 fills the battery and adds a potency level. Otherwise,
+     * RHCP's own charging (passive true, RhcpStandEntity.tick). Beta2: a
+     * lightning bolt within 3 fills the battery for the held recharge and
+     * gives RHCP's own charging 300 + 50 a potency level; from 400 energy it
+     * adds a potency level. Otherwise,
      * below Resolve 4 with standPos (the conductor block RHCP is in), half
      * that block's signal; else 7.5 (passive 2.5) for each redstone torch or
      * block held within 3 blocks, and half (passive a sixth) the signal of
@@ -233,17 +235,21 @@ public final class RhcpService {
         }
         ServerLevel level = player.serverLevel();
         for (LightningBolt bolt : sourceLightning(stand)) {
-            if (stand.distanceTo(bolt) <= 8.0F) {
-                int potency = state.potency();
-                state.setEnergy(RhcpState.MAX_ENERGY);
-                bolt.discard();
-                if (potency < 5) {
-                    state.setPotency(potency + 1);
-                }
-                sync(player);
-                emitElectricParticles(level, stand, 30);
-                return;
+            // Read first: setEnergy already lifts potency 0 to 1 at 400.
+            int potency = state.potency();
+            if (passive) {
+                state.addEnergy(300.0F + potency * 50.0F);
             }
+            else {
+                state.setEnergy(RhcpState.MAX_ENERGY);
+            }
+            bolt.discard();
+            if (state.energy() >= 400.0F && potency < 5) {
+                state.setPotency(potency + 1);
+            }
+            sync(player);
+            emitElectricParticles(level, stand, 30);
+            return;
         }
         StandPower power = StandPower.get(player);
         float gain = 0.0F;
@@ -367,33 +373,67 @@ public final class RhcpService {
         stand.setRecentBlock(pos);
         teleportStand(stand, conductorSpot(pos));
         setTravelling(stand, true);
+        // Beta2 RHCPGettingIntoTheMechanism.standPerform: the travel direction
+        // by the look of RHCP under manual control, else of its user.
+        LivingEntity looking = stand.isManuallyControlled() ? stand : player;
+        stand.setEntryDirection(RhcpConductorTravel.entryDirection(
+                stand.level().getBlockState(pos), looking.getYHeadRot(),
+                stand.entryDirection()));
+        // Beta2 RHCPGettingIntoTheMechanism.standPerform :226-228: manual
+        // control on as RHCP enters (ClToggleStandManualControlPacket), after
+        // the direction took the look it entered with.
+        if (!stand.isManuallyControlled()
+                && RhcpAddon.RHCP.get().canBeManuallyControlled()) {
+            StandEntityManualControlToggle.on(stand.level(), stand);
+        }
         playStandSound(player, stand, RhcpAddon.RHCP_ENTERING.get(), 1.0F);
         sync(player);
         return true;
     }
 
     public static void leaveConductor(ServerPlayer player) {
+        leaveConductor(player, false);
+    }
+
+    // The rhcp_exit ability: Beta2 RHCPExit.standPerform.
+    public static void exitConductor(ServerPlayer player) {
+        leaveConductor(player, true);
+    }
+
+    private static void leaveConductor(
+            ServerPlayer player, boolean lookForWayOut) {
         RhcpState state = RhcpAddon.state(player);
         if (!state.inConductor()) {
             return;
         }
         RhcpStandEntity stand = activeStand(player);
+        // Beta2 RHCPExit.standPerform: inside a full block RHCP steps out
+        // into the first free neighbour (lookForAWayOut).
+        Vec3 exitSpot = stand != null ? stand.position() : null;
+        if (lookForWayOut && stand != null && inFullBlock(stand)) {
+            exitSpot = wayOut(stand, player);
+        }
         LivingEntity carried = carriedTarget(player, state);
         boolean carriedWasNoPhysics = state.carriedTargetWasNoPhysics();
         if (carried != null) {
             carried.noPhysics = carriedWasNoPhysics;
-            if (stand != null) {
-                Vec3 exit = stand.position().add(1.0D, 0.0D, 0.0D);
+            if (exitSpot != null) {
+                Vec3 exit = exitSpot.add(1.0D, 0.0D, 0.0D);
                 carried.teleportTo(exit.x, exit.y, exit.z);
                 carried.setDeltaMovement(Vec3.ZERO);
             }
         }
         state.leaveConductor();
         if (stand != null) {
-            // 1.16 RHCPExit.standPerform :62-68: RHCP stays where it is,
-            // and the block it leaves is its recent block.
+            // 1.16 RHCPExit.standPerform :62-68: RHCP stays where it is
+            // (Beta2: or where it found a way out), and the block it leaves
+            // is its recent block.
             stand.setRecentBlock(stand.blockPosition());
             setTravelling(stand, false);
+            if (!exitSpot.equals(stand.position())) {
+                teleportStand(stand, exitSpot);
+            }
+            stand.setDeltaMovement(Vec3.ZERO);
         }
         playStandSound(player, stand, RhcpAddon.RHCP_ENTERING.get(), 0.8F);
         sync(player);
@@ -546,56 +586,140 @@ public final class RhcpService {
     // 1.16 RHCPExit.checkSpecificConditions :49-50: RHCP's block has the
     // full cube shape.
     public static boolean inFullBlock(RhcpStandEntity stand) {
+        return fullBlock(stand.level(), stand.blockPosition());
+    }
+
+    // Beta2 RHCPExit.checkSpecificConditions: the exit is refused only when
+    // RHCP's block and all six around it are full cubes.
+    public static boolean enclosedInFullBlocks(RhcpStandEntity stand) {
         BlockPos pos = stand.blockPosition();
-        return stand.level().getBlockState(pos)
-                .getShape(stand.level(), pos) == Shapes.block();
-    }
-
-    public static LivingEntity findDragTarget(LivingEntity user) {
-        RhcpStandEntity stand = activeStand(user);
-        if (stand == null || !RhcpAddon.state(user).inConductor()) {
-            return null;
-        }
-        Vec3 look = user.getViewVector(1.0F).normalize();
-        Vec3 eye = user.getEyePosition(1.0F);
-        for (LivingEntity candidate : user.level().getEntitiesOfClass(
-                LivingEntity.class,
-                user.getBoundingBox().inflate(DRAG_RANGE),
-                entity -> entity.isAlive()
-                        && entity != user
-                        && entity != stand)) {
-            Vec3 targetCenter = candidate.position().add(
-                    0.0D, candidate.getBbHeight() * 0.5D, 0.0D);
-            Vec3 direction = targetCenter.subtract(eye);
-            if (direction.length() <= DRAG_RANGE
-                    && look.dot(direction.normalize()) > 0.5D
-                    && stand.distanceTo(candidate) <= DRAG_RANGE) {
-                return candidate;
-            }
-        }
-        return null;
-    }
-
-    public static boolean dragIntoLine(ServerPlayer player) {
-        RhcpState state = RhcpAddon.state(player);
-        RhcpStandEntity stand = activeStand(player);
-        LivingEntity target = findDragTarget(player);
-        if (stand == null || target == null || !state.inConductor()) {
+        if (!fullBlock(stand.level(), pos)) {
             return false;
         }
-
-        releaseCarriedTarget(player, state);
-        Vec3 standPosition = stand.position();
-        target.teleportTo(
-                standPosition.x, standPosition.y, standPosition.z);
-        target.setDeltaMovement(Vec3.ZERO);
-        state.setCarriedTarget(target.getId(), target.noPhysics);
-        DamageUtil.hurtThroughInvulTicks(
-                target,
-                standAttack(stand, player),
-                60.0F);
-        emitElectricParticles(player.serverLevel(), stand, 50);
+        for (Direction direction : Direction.values()) {
+            if (!fullBlock(stand.level(), pos.relative(direction))) {
+                return false;
+            }
+        }
         return true;
+    }
+
+    private static boolean fullBlock(Level level, BlockPos pos) {
+        return level.getBlockState(pos).getShape(level, pos) == Shapes.block();
+    }
+
+    // Beta2 RHCPExit.lookForAWayOut, by RHCP's facing, which in a conductor
+    // is its travel direction (under manual control the controller's, which
+    // Beta2's server never learnt and took the entry one): ahead, the two
+    // sides, behind, then up or down (down first while the user sneaks).
+    // Beta2's east case tested south twice; west is used as the last side.
+    private static Vec3 wayOut(RhcpStandEntity stand, LivingEntity user) {
+        Direction[] order = switch (stand.getDirection()) {
+            case SOUTH -> new Direction[] {Direction.SOUTH, Direction.WEST,
+                    Direction.EAST, Direction.NORTH};
+            case WEST -> new Direction[] {Direction.WEST, Direction.SOUTH,
+                    Direction.NORTH, Direction.EAST};
+            case NORTH -> new Direction[] {Direction.NORTH, Direction.EAST,
+                    Direction.WEST, Direction.SOUTH};
+            default -> new Direction[] {Direction.EAST, Direction.NORTH,
+                    Direction.SOUTH, Direction.WEST};
+        };
+        // Under manual control the sneak key is the Stand's.
+        boolean down = user != null
+                && StandManualInput.isShiftHeld(user, stand);
+        Direction[] vertical = down
+                ? new Direction[] {Direction.DOWN, Direction.UP}
+                : new Direction[] {Direction.UP, Direction.DOWN};
+        Vec3 from = stand.position();
+        BlockPos pos = stand.blockPosition();
+        // Of those, the first where RHCP fits; Beta2's first only if none does.
+        Vec3 cramped = null;
+        for (Direction[] group : new Direction[][] {order, vertical}) {
+            for (Direction direction : group) {
+                if (!fullBlock(stand.level(), pos.relative(direction))) {
+                    Vec3 spot = from.add(direction.getStepX(),
+                            direction.getStepY(), direction.getStepZ());
+                    // Under the conductor RHCP (1.15 high) fits only with its
+                    // head below the conductor's bottom.
+                    Vec3 room = direction == Direction.DOWN
+                            ? new Vec3(spot.x, pos.getY() - stand.getBbHeight() - 0.01D, spot.z)
+                            : spot;
+                    if (roomFor(stand, room)) {
+                        return room;
+                    }
+                    if (cramped == null) {
+                        cramped = spot;
+                    }
+                }
+            }
+        }
+        return cramped != null ? cramped : from;
+    }
+
+    // RHCP's box meets no block there and its eyes are in no view-blocking
+    // block, which under manual control the core would push it out of
+    // without collision (1.16 StandEntity.tick), into the ground or a wall.
+    private static boolean roomFor(RhcpStandEntity stand, Vec3 spot) {
+        return stand.level().noBlockCollision(stand,
+                        stand.getDimensions(stand.getPose()).makeBoundingBox(spot))
+                && !stand.isInsideViewBlockingBlock(spot);
+    }
+
+    // Beta2 RHCPGettingIntoTheMechanism.gadgetBlock: the devices among the
+    // conductors (isConductor also counts the port's lightning rod and
+    // comparator-output blocks as conductors, not gadgets).
+    public static boolean isGadget(BlockState state) {
+        Block block = state.getBlock();
+        return block instanceof DirectionalBlock
+                        && !(block instanceof EndRodBlock)
+                || block instanceof DaylightDetectorBlock
+                || block instanceof DispenserBlock
+                || block instanceof RedstoneLampBlock
+                || block instanceof TntBlock
+                || block instanceof DetectorRailBlock
+                || block instanceof PoweredRailBlock
+                || block instanceof NoteBlock;
+    }
+
+    public static boolean inGadgetBlock(@Nullable RhcpStandEntity stand) {
+        return stand != null
+                && isGadget(stand.level().getBlockState(stand.blockPosition()));
+    }
+
+    /**
+     * Beta2 RHCPSelfDestruct.standPerform: unless it is TNT, the gadget block
+     * RHCP is in breaks (no drop) and everything within 1.5 blocks of it
+     * takes explosion damage 0.2 * (3 * 1.5^2 - distance^2); a tiny
+     * explosion (power 0.25, BREAK) goes off at RHCP either way. RHCP then
+     * goes back to the conductor block it came from, if that still is one.
+     */
+    public static void selfDestruct(ServerPlayer player) {
+        RhcpStandEntity stand = activeStand(player);
+        RhcpState state = RhcpAddon.state(player);
+        if (stand == null || !state.inConductor()) {
+            return;
+        }
+        ServerLevel level = player.serverLevel();
+        BlockPos pos = stand.blockPosition();
+        float range = 1.5F;
+        if (!(level.getBlockState(pos).getBlock() instanceof TntBlock)) {
+            Vec3 center = Vec3.atCenterOf(pos);
+            DamageSource blast = level.damageSources().explosion(null, null);
+            for (Entity entity : level.getEntities(
+                    stand, new AABB(pos).inflate(range))) {
+                entity.hurt(blast, 0.2F * (3.0F * range * range
+                        - (float) entity.distanceToSqr(center)));
+            }
+            level.destroyBlock(pos, false);
+        }
+        level.explode(null, stand.getX(), stand.getY(), stand.getZ(),
+                range / 6.0F, Level.ExplosionInteraction.BLOCK);
+        BlockPos previous = stand.previousConductor();
+        if (previous != null && isConductor(level.getBlockState(previous))) {
+            state.enterConductor(previous);
+            teleportStand(stand, conductorSpot(previous));
+            sync(player);
+        }
     }
 
     public static void tickCarriedTarget(

@@ -10,6 +10,8 @@ public final class SexPistolsConfig {
     public static final double DEFAULT_CLOSE_DAMAGE_DROP_DISTANCE = 5.0D;
     public static final double DEFAULT_MIN_DISTANCE_DAMAGE = 1.0D;
     public static final int DEFAULT_MAX_RICOCHET_COUNT = 2;
+    public static final double DEFAULT_RECOIL_MULTIPLIER = 1.0D;
+    public static final double DEFAULT_MELEE_DAMAGE_MULTIPLIER = 1.0D;
     public static final double DEFAULT_TARGET_SEARCH_RANGE = 32.0D;
     public static final double DEFAULT_TRANSFER_ASSIST_RANGE = 18.0D;
     public static final int DEFAULT_SEX_PISTOLS_REVIVE_TICKS = 1_200;
@@ -22,6 +24,8 @@ public final class SexPistolsConfig {
     public static final double MAX_MIN_DISTANCE_DAMAGE = 1_000.0D;
     public static final double MAX_TARGET_SEARCH_RANGE = 128.0D;
     public static final double MAX_TRANSFER_ASSIST_RANGE = 128.0D;
+    public static final double MAX_RECOIL_MULTIPLIER = 10.0D;
+    public static final double MAX_MELEE_DAMAGE_MULTIPLIER = 10.0D;
 
     public static final ModConfigSpec SPEC;
     public static final ModConfigSpec.DoubleValue BULLET_DAMAGE_MULTIPLIER;
@@ -31,6 +35,8 @@ public final class SexPistolsConfig {
     public static final ModConfigSpec.DoubleValue CLOSE_DAMAGE_DROP_DISTANCE;
     public static final ModConfigSpec.DoubleValue MIN_DISTANCE_DAMAGE;
     public static final ModConfigSpec.IntValue MAX_RICOCHET_COUNT;
+    public static final ModConfigSpec.DoubleValue RECOIL_MULTIPLIER;
+    public static final ModConfigSpec.DoubleValue MELEE_DAMAGE_MULTIPLIER;
     public static final ModConfigSpec.DoubleValue SEX_PISTOLS_TARGET_SEARCH_RANGE;
     public static final ModConfigSpec.DoubleValue SEX_PISTOLS_TRANSFER_ASSIST_RANGE;
     public static final ModConfigSpec.IntValue SEX_PISTOLS_REVIVE_TICKS;
@@ -115,6 +121,26 @@ public final class SexPistolsConfig {
                         DEFAULT_MAX_RICOCHET_COUNT,
                         0,
                         Integer.MAX_VALUE);
+        RECOIL_MULTIPLIER = builder
+                .comment(
+                        "Global multiplier applied to revolver camera and visual recoil.",
+                        "1.0 = default. 0.0 disables recoil.")
+                .translation("rotp_sex_pistols.config.recoilMultiplier")
+                .defineInRange(
+                        "recoilMultiplier",
+                        DEFAULT_RECOIL_MULTIPLIER,
+                        0.0D,
+                        MAX_RECOIL_MULTIPLIER);
+        MELEE_DAMAGE_MULTIPLIER = builder
+                .comment(
+                        "Global multiplier applied to melee hits made with a revolver in the main hand.",
+                        "1.0 = default.")
+                .translation("rotp_sex_pistols.config.meleeDamageMultiplier")
+                .defineInRange(
+                        "meleeDamageMultiplier",
+                        DEFAULT_MELEE_DAMAGE_MULTIPLIER,
+                        0.0D,
+                        MAX_MELEE_DAMAGE_MULTIPLIER);
         builder.pop();
 
         builder.comment("Stand Settings")
@@ -213,6 +239,14 @@ public final class SexPistolsConfig {
 
     public static int maxRicochetCount() {
         return MAX_RICOCHET_COUNT.getAsInt();
+    }
+
+    public static double recoilMultiplier() {
+        return RECOIL_MULTIPLIER.getAsDouble();
+    }
+
+    public static double meleeDamageMultiplier() {
+        return MELEE_DAMAGE_MULTIPLIER.getAsDouble();
     }
 
     public static double targetSearchRange() {

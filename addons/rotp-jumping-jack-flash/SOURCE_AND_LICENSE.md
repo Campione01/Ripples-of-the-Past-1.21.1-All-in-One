@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-jumping-jack-flash`, mod id `jumping_jack_flash`, version `1.0.3a-port.14`.
+- Module: `rotp-jumping-jack-flash`, mod id `jumping_jack_flash`, version `1.0.3a-port.15`.
 - Original 1.16.5 add-on: `rotp-jumping_jack_flash-1.0.3a.jar` (Rotp-Jumping Jack Flash, mod id `jumping_jack_flash`), by jiutoh; declared license: GNU GPL v3.0; SHA-256 `CB4CA8BCFB04FFD6039B5AD7F05524D6C51122A50D505EFCB78C3574F54DFCCE`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-10-14); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -41,3 +41,14 @@ canonical rank-to-meter conversion.
 The donor's generic living capability called its owner UUID a "bomb". That
 name and its unused time-marker-style state are not ported. NeoForge 1.21.1
 uses an owner/source gravity lease with bounded cleanup instead.
+
+The donor's heavy punch, punch, arms-only punch and barrage clips were copied
+from The World's and still start or end in The World's idle stance (its body
+lean, crossed arms, legs and chest tilt). In the runtime skin clip file those
+keys hold Jumpin' Jack Flash's own idle values, so each move returns to its
+idle without a twist and snap back. The donor-path copy keeps its donor bytes.
+
+In the donor geometry the head hangs off the root, beside the body, so the
+punches turn the body and leave the head on the look. The runtime skin geometry
+hangs the head off `body_rot` for the same reason; under the torso it turned
+with every body swing.

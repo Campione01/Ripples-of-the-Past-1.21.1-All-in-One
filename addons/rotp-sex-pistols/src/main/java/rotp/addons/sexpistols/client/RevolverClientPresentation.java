@@ -3,6 +3,7 @@ package rotp.addons.sexpistols.client;
 import rotp.addons.sexpistols.SexPistolsIds;
 import rotp.addons.sexpistols.content.revolver.RevolverRecoil;
 import rotp.addons.sexpistols.content.revolver.RevolverRecoil.Recoil;
+import rotp.addons.sexpistols.content.revolver.item.RevolverStats;
 import rotp.addons.sexpistols.content.revolver.item.RevolverItem;
 import rotp.addons.sexpistols.content.revolver.state.RevolverState;
 import net.minecraft.client.Minecraft;
@@ -43,8 +44,14 @@ public final class RevolverClientPresentation {
         if (player == null) {
             return;
         }
+        RevolverFirstPersonMotion.addGunKick(
+                RevolverStats.of(player.getMainHandItem()));
         Recoil recoil = RevolverRecoil.values(
-                aiming, player.getRandom().nextFloat());
+                RevolverStats.of(player.getMainHandItem()),
+                aiming,
+                player.getRandom().nextFloat(),
+                SexPistolsClientConfigSnapshot.snapshot()
+                        .recoilMultiplier());
         pendingPitch = Mth.clamp(
                 pendingPitch + recoil.pitch(), 0.0F, 32.0F);
         pendingYaw = Mth.clamp(
@@ -59,7 +66,7 @@ public final class RevolverClientPresentation {
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
         float targetZoom = player != null && isActivelyAiming(player)
-                ? AIM_ZOOM_MODIFIER
+                ? RevolverStats.of(player.getMainHandItem()).adsZoom()
                 : 1.0F;
         float speed = targetZoom > aimZoomModifier
                 ? AIM_ZOOM_IN_SPEED

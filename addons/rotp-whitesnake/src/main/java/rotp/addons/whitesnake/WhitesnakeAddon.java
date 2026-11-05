@@ -23,6 +23,9 @@ import rotp.core.util.sound.OstSoundList;
 
 import rotp.addons.whitesnake.ability.WhitesnakeBlindnessAbility;
 import rotp.addons.whitesnake.ability.WhitesnakeDisguiseAbility;
+import rotp.addons.whitesnake.ability.WhitesnakeExtractOwnBuffAbility;
+import rotp.addons.whitesnake.ability.WhitesnakeInjectEffectAbility;
+import rotp.addons.whitesnake.ability.WhitesnakeInsertDiscAbility;
 import rotp.addons.whitesnake.ability.WhitesnakeMeltYourHeartAbility;
 import rotp.addons.whitesnake.ability.WhitesnakePunchAbility;
 import rotp.addons.whitesnake.ability.WhitesnakeRemoveMemoryDiscAbility;
@@ -31,6 +34,9 @@ import rotp.addons.whitesnake.ability.WhitesnakeThrowDiscAbility;
 import rotp.addons.whitesnake.blindness.BlindnessState;
 import rotp.addons.whitesnake.block.MeltHeartBlock;
 import rotp.addons.whitesnake.blockentity.MeltHeartBlockEntity;
+import rotp.addons.whitesnake.buffdisc.BuffDiscState;
+import rotp.addons.whitesnake.buffdisc.DiscEffectData;
+import rotp.addons.whitesnake.buffdisc.DiscItem;
 import rotp.addons.whitesnake.disc.MemoryDiscData;
 import rotp.addons.whitesnake.disc.MemoryDiscItem;
 import rotp.addons.whitesnake.disc.StandDiscAuthorityData;
@@ -40,6 +46,7 @@ import rotp.addons.whitesnake.entity.projectile.MeltHeartProjectile;
 import rotp.addons.whitesnake.effect.MeltHeartEffect;
 import rotp.addons.whitesnake.memory.MemoryLossState;
 import rotp.addons.whitesnake.network.DisguiseSelectionPayload;
+import rotp.addons.whitesnake.network.InjectEffectPayload;
 import rotp.addons.whitesnake.standdisc.StandDiscLossState;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
@@ -118,6 +125,16 @@ public final class WhitesnakeAddon {
                             .networkSynchronized(
                                     StandDiscAuthorityData.STREAM_CODEC)
                             .cacheEncoding());
+    // BETA-1.1.0-PATCH1 Buff disc effects (its EffectId/Amplifier/Duration/EffectIds NBT)
+    public static final Supplier<DataComponentType<DiscEffectData>>
+            DISC_EFFECT =
+            DATA_COMPONENT_TYPES.registerComponentType(
+                    "disc_effect",
+                    builder -> builder
+                            .persistent(DiscEffectData.CODEC)
+                            .networkSynchronized(
+                                    DiscEffectData.STREAM_CODEC)
+                            .cacheEncoding());
     public static final Supplier<AttachmentType<MemoryLossState>>
             MEMORY_LOSS_STATE = ATTACHMENT_TYPES.register(
                     "memory_loss_state",
@@ -143,6 +160,15 @@ public final class WhitesnakeAddon {
                                     holder -> holder
                                             instanceof LivingEntity
                                             ? new BlindnessState()
+                                            : null)
+                            .build());
+    public static final Supplier<AttachmentType<BuffDiscState>>
+            BUFF_DISC_STATE = ATTACHMENT_TYPES.register(
+                    "buff_disc_state",
+                    () -> AttachmentType.serializable(
+                                    holder -> holder
+                                            instanceof LivingEntity
+                                            ? new BuffDiscState()
                                             : null)
                             .build());
 
@@ -185,6 +211,24 @@ public final class WhitesnakeAddon {
                     "disguise",
                     key -> new AbilityType<>(
                             key, WhitesnakeDisguiseAbility::new));
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<WhitesnakeInsertDiscAbility>>
+            INSERT_DISC = ABILITY_TYPES.register(
+                    "insert_disc",
+                    key -> new AbilityType<>(
+                            key, WhitesnakeInsertDiscAbility::new));
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<WhitesnakeExtractOwnBuffAbility>>
+            EXTRACT_OWN_BUFF = ABILITY_TYPES.register(
+                    "extract_own_buff",
+                    key -> new AbilityType<>(
+                            key, WhitesnakeExtractOwnBuffAbility::new));
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<WhitesnakeInjectEffectAbility>>
+            INJECT_EFFECT = ABILITY_TYPES.register(
+                    "inject_effect",
+                    key -> new AbilityType<>(
+                            key, WhitesnakeInjectEffectAbility::new));
 
     public static final DeferredBlock<MeltHeartBlock>
             MELT_HEART_BLOCK = BLOCKS.register(
@@ -251,6 +295,12 @@ public final class WhitesnakeAddon {
                             new Item.Properties()
                                     .stacksTo(1)
                                     .rarity(Rarity.RARE)));
+    public static final DeferredHolder<Item, DiscItem>
+            DISC_ITEM = ITEMS.register(
+                    "disc",
+                    key -> new DiscItem(
+                            new Item.Properties()
+                                    .stacksTo(DiscItem.MAX_STACK_SIZE)));
     public static final DeferredHolder<MobEffect, MeltHeartEffect>
             MELT_HEART_EFFECT = MOB_EFFECTS.register(
                     "melt_heart_effect", MeltHeartEffect::new);
@@ -327,6 +377,7 @@ public final class WhitesnakeAddon {
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
         modEventBus.addListener(DisguiseSelectionPayload::register);
+        modEventBus.addListener(InjectEffectPayload::register);
         modEventBus.addListener(WhitesnakeAddon::addCreativeTabItems);
         modContainer.registerConfig(
                 ModConfig.Type.COMMON, WhitesnakeConfig.SPEC);
@@ -336,11 +387,12 @@ public final class WhitesnakeAddon {
         return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
     }
 
-    /** 1.16 listed the memory disc in the ROTP main tab. */
+    /** 1.16 listed the memory disc, and PATCH1 the Buff disc, in the ROTP main tab. */
     private static void addCreativeTabItems(
             BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == rotp.core.init.ModItems.MAIN_TAB.getKey()) {
             event.accept(MEMORY_DISC_ITEM.get());
+            event.accept(DISC_ITEM.get());
         }
     }
 
@@ -361,6 +413,10 @@ public final class WhitesnakeAddon {
 
     public static BlindnessState blindnessState(LivingEntity entity) {
         return entity.getData(BLINDNESS_STATE);
+    }
+
+    public static BuffDiscState buffDiscState(LivingEntity entity) {
+        return entity.getData(BUFF_DISC_STATE);
     }
 
     public static boolean hasWhitesnakePower(LivingEntity user) {
@@ -438,6 +494,19 @@ public final class WhitesnakeAddon {
                         "whitesnake_remove_stand_disc",
                         WHITESNAKE_REMOVE_STAND_DISC,
                         ability -> ability.resolveLevelToUnlock(2))
+                // BETA-1.1.0-PATCH1 Buff disc actions
+                .addAbility(
+                        "insert_disc",
+                        INSERT_DISC,
+                        ability -> ability.resolveLevelToUnlock(2))
+                .addAbility(
+                        "extract_own_buff",
+                        EXTRACT_OWN_BUFF,
+                        ability -> ability.resolveLevelToUnlock(1))
+                .addAbility(
+                        "inject_effect",
+                        INJECT_EFFECT,
+                        ability -> ability.resolveLevelToUnlock(0))
                 .addAbility(
                         "removing_the_memory_disk",
                         REMOVING_THE_MEMORY_DISK,
@@ -475,6 +544,18 @@ public final class WhitesnakeAddon {
                             "whitesnake_remove_stand_disc",
                             0,
                             InputMethod.HOLD)
+                    .addToHotbar(
+                            "insert_disc",
+                            0,
+                            InputMethod.HOLD)
+                    .addToHotbar(
+                            "extract_own_buff",
+                            0,
+                            InputMethod.CLICK)
+                    .addToHotbar(
+                            "inject_effect",
+                            0,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             "removing_the_memory_disk",
                             0,
@@ -531,6 +612,12 @@ public final class WhitesnakeAddon {
                         "melt_your_heart"))
                 .addSkill(StandUnlockableSkill.startingAbility(
                         "disguise"))
+                .addSkill(StandUnlockableSkill.startingAbility(
+                        "insert_disc"))
+                .addSkill(StandUnlockableSkill.startingAbility(
+                        "extract_own_buff"))
+                .addSkill(StandUnlockableSkill.startingAbility(
+                        "inject_effect"))
                 .addHumanoidStandSkills();
 
         return new EntityStandType(

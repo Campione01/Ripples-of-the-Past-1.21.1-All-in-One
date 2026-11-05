@@ -1,0 +1,28 @@
+{
+  "parent": "jojo_ripples:jojo/summon_stand",
+  "criteria": {
+    "smoked_the_world": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "advancements.rotp_nextalbum.smoked_the_world.description"
+    },
+    "frame": "challenge",
+    "hidden": true,
+    "icon": {
+      "id": "rotp_nextalbum:spirit_cigarette"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "advancements.rotp_nextalbum.smoked_the_world.title"
+    }
+  },
+  "requirements": [
+    [
+      "smoked_the_world"
+    ]
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "pesci_summon": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_summon"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_summon"
+  },
+  "pesci_summon_2": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_summon_2"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_summon"
+  },
+  "beach_boy_summon": {
+    "sounds": [
+      "rotp_beach_boy:stand/beach_boy_summon"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.beach_boy_summon"
+  },
+  "beach_boy_unsummon": {
+    "sounds": [
+      "rotp_beach_boy:stand/beach_boy_unsummon"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.beach_boy_unsummon"
+  },
+  "beach_boy_reel_back": {
+    "sounds": [
+      "rotp_beach_boy:stand/beach_boy_reel_back"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.beach_boy_reel_back"
+  },
+  "pesci_get_mob": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_get_mob"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_get_mob"
+  },
+  "pesci_get_mob_full": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_get_mob_full"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_get_mob"
+  },
+  "pesci_reel_you_in": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_reel_you_in"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_reel_you_in"
+  },
+  "pesci_wont_let_it_happen": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_wont_let_it_happen"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_wont_let_it_happen"
+  },
+  "pesci_brother": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_brother"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_brother"
+  },
+  "pesci_kill_you": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_kill_you"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_kill_you"
+  },
+  "pesci_lost_target": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_lost_target"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_lost_target"
+  },
+  "pesci_beach_boy": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_summon",
+      "rotp_beach_boy:stand_user/pesci_summon_2"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_summon"
+  },
+  "pesci_get_mob_shout": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_get_mob",
+      "rotp_beach_boy:stand_user/pesci_get_mob_full"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_get_mob"
+  },
+  "pesci_reel_in": {
+    "sounds": [
+      "rotp_beach_boy:stand_user/pesci_reel_you_in",
+      "rotp_beach_boy:stand_user/pesci_wont_let_it_happen"
+    ],
+    "subtitle": "rotp_beach_boy.subtitle.pesci_reel_you_in"
+  }
+}

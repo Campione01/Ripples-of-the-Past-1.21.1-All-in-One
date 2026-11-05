@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "combat",
+  "pattern": [
+    " bb",
+    "cdc",
+    "aac"
+  ],
+  "key": {
+    "a": {
+      "item": "minecraft:leather"
+    },
+    "b": {
+      "tag": "c:nuggets/iron"
+    },
+    "c": {
+      "tag": "c:ingots/iron"
+    },
+    "d": {
+      "tag": "c:storage_blocks/iron"
+    }
+  },
+  "result": {
+    "id": "rotp_sex_pistols:heavy_revolver"
+  }
+}

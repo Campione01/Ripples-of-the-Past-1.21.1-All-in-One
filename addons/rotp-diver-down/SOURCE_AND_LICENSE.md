@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-diver-down`, mod id `rotp_dd`, version `1.1.2.1-port.29`.
+- Module: `rotp-diver-down`, mod id `rotp_dd`, version `1.1.2.1-port.30`.
 - Original 1.16.5 add-on: `RotP-怒海潜将-1.1.2.1.0.jar` (RotP Diver Down, mod id `rotp_dd`), by HK47bot, Agamatius (sounds), FriendlyCoop (suggestion author); declared license: GNU GPL v3.0; SHA-256 `A9C2171E9A953AC19AB929411B537C4FF241ED1C425F2A07B9B5E3D3F4F4F1C9`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

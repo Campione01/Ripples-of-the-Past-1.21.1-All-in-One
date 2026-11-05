@@ -37,11 +37,16 @@
   "rotp_rhcp.ability.rhcp_counterattack": "Counterattack",
   "action.rotp_rhcp.rhcp_blitz_attack": "Blitz Attack",
   "rotp_rhcp.ability.rhcp_blitz_attack": "Blitz Attack",
-  "action.rotp_rhcp.rhcp_drag_into_line": "Drag Into Line",
-  "rotp_rhcp.ability.rhcp_drag_into_line": "Drag Into Line",
+  "action.rotp_rhcp.rhcp_self_destruct": "Self Destruct",
+  "rotp_rhcp.ability.rhcp_self_destruct": "Self Destruct",
   "jojo.message.action_condition.full_block_rhcp": "This ability is available when you are in full defense state",
   "rotp_rhcp.subtitle.rhcp_name": "\"Red Hot Chili Pepper\"",
   "rotp_rhcp.subtitle.rhcp_this_is_the_end": "\"This is the end\"",
   "rotp_rhcp.subtitle.rhcp_electricity": "Electricity",
-  "entity.rotp_rhcp.rhcp": "Red Hot Chili Pepper"
+  "entity.rotp_rhcp.rhcp": "Red Hot Chili Pepper",
+  "rotp_rhcp.configuration.title": "Red Hot Chili Pepper Configuration",
+  "rotp_rhcp.configuration.section.rotp.rhcp.common.toml": "Common Settings",
+  "rotp_rhcp.configuration.section.rotp.rhcp.common.toml.title": "Red Hot Chili Pepper Common Configuration",
+  "rotp_rhcp.configuration.SaveRHCPData": "Save energy and potency",
+  "rotp_rhcp.configuration.SaveRHCPData.tooltip": "Keep RHCP's energy and potency when it is unsummoned. Off: every summon starts at 0 energy and potency."
 }

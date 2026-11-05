@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-ultimate-lifeform`, mod id `rotp_ul`, version `1.0.0-port.26`.
+- Module: `rotp-ultimate-lifeform`, mod id `rotp_ul`, version `1.0.0-port.27`.
 - Original 1.16.5 add-on: `RotP-UltimateLifeform-1.0.jar` (RotP Ultimate Lifeform, mod id `rotp_ul`), by HK47bot, StandoByte, hkelemei; declared license: GNU GPL v3.0; SHA-256 `671F002096136DA9A342CEC1DC3031D2E8A6F47CCDECAA028075F7625D5B3C17`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

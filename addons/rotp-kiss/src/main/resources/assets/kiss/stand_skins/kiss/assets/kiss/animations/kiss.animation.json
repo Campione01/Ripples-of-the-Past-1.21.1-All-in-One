@@ -213,11 +213,30 @@
                             0
                         ]
                     }
+                },
+                "head_rot":  {
+                    "rotation":  {
+                        "0.0":  [
+                            "query.head_x_rotation",
+                            "query.head_y_rotation",
+                            0
+                        ],
+                        "4.0":  [
+                            "query.head_x_rotation",
+                            "query.head_y_rotation",
+                            0
+                        ],
+                        "8.0":  [
+                            "query.head_x_rotation",
+                            "query.head_y_rotation",
+                            0
+                        ]
+                    }
                 }
             }
         },
         "summon1":  {
-            "animation_length":  1.9167,
+            "animation_length":  0.8333,
             "bones":  {
                 "body_rot":  {
                     "position":  [
@@ -396,11 +415,18 @@
                             0
                         ]
                     }
+                },
+                "head_rot":  {
+                    "rotation":  [
+                        "query.head_x_rotation",
+                        "query.head_y_rotation",
+                        0
+                    ]
                 }
             }
         },
         "summon2":  {
-            "animation_length":  1.9167,
+            "animation_length":  0.8333,
             "bones":  {
                 "body_rot":  {
                     "position":  [
@@ -579,11 +605,18 @@
                             0
                         ]
                     }
+                },
+                "head_rot":  {
+                    "rotation":  [
+                        "query.head_x_rotation",
+                        "query.head_y_rotation",
+                        0
+                    ]
                 }
             }
         },
         "summon3":  {
-            "animation_length":  1.9167,
+            "animation_length":  0.8333,
             "bones":  {
                 "body_rot":  {
                     "position":  [
@@ -762,6 +795,13 @@
                             0
                         ]
                     }
+                },
+                "head_rot":  {
+                    "rotation":  [
+                        "query.head_x_rotation",
+                        "query.head_y_rotation",
+                        0
+                    ]
                 }
             }
         },
@@ -802,6 +842,11 @@
                         ],
                         "1.75":  [
                             -15,
+                            0,
+                            0
+                        ],
+                        "2.0":  [
+                            0,
                             0,
                             0
                         ]
@@ -847,33 +892,38 @@
                 "head_rot":  {
                     "rotation":  {
                         "0.0":  [
-                            17.5,
-                            0,
+                            "query.head_x_rotation",
+                            "query.head_y_rotation",
                             0
                         ],
                         "0.3":  [
-                            17.5,
-                            0,
+                            "query.head_x_rotation",
+                            "query.head_y_rotation",
                             0
                         ],
                         "0.5":  [
-                            30,
-                            0,
+                            "query.head_x_rotation",
+                            "query.head_y_rotation",
                             0
                         ],
                         "1.0":  [
-                            30,
-                            0,
+                            "query.head_x_rotation",
+                            "query.head_y_rotation",
                             0
                         ],
                         "1.25":  [
-                            17.5,
-                            0,
+                            "query.head_x_rotation",
+                            "query.head_y_rotation",
                             0
                         ],
                         "1.75":  [
-                            17.5,
-                            0,
+                            "query.head_x_rotation",
+                            "query.head_y_rotation",
+                            0
+                        ],
+                        "2.0":  [
+                            "query.head_x_rotation",
+                            "query.head_y_rotation",
                             0
                         ]
                     }
@@ -4763,6 +4813,56 @@
                                 17.86993
                             ],
                             "easing":  "linear"
+                        }
+                    }
+                },
+                "left_arm_xrot":  {
+                    "rotation":  {
+                        "0.0":  {
+                            "vector":  [
+                                "query.head_x_rotation",
+                                0,
+                                0
+                            ]
+                        },
+                        "6.0":  {
+                            "vector":  [
+                                "query.head_x_rotation",
+                                0,
+                                0
+                            ]
+                        },
+                        "6.2":  {
+                            "vector":  [
+                                0,
+                                0,
+                                0
+                            ]
+                        }
+                    }
+                },
+                "right_arm_xrot":  {
+                    "rotation":  {
+                        "0.0":  {
+                            "vector":  [
+                                "query.head_x_rotation",
+                                0,
+                                0
+                            ]
+                        },
+                        "6.0":  {
+                            "vector":  [
+                                "query.head_x_rotation",
+                                0,
+                                0
+                            ]
+                        },
+                        "6.2":  {
+                            "vector":  [
+                                0,
+                                0,
+                                0
+                            ]
                         }
                     }
                 }

@@ -5218,68 +5218,15 @@
                               "autouv": 0,
                               "selected": false,
                               "children": [
-                                "61e487a4-5aaf-4a33-a525-31de63d67473",
                                 {
-                                  "name": "ear",
-                                  "origin": [
-                                    -5.75,
-                                    60.65,
-                                    -1.5
-                                  ],
-                                  "rotation": [
-                                    0,
-                                    0,
-                                    2.5
-                                  ],
-                                  "color": 0,
-                                  "uuid": "8168a613-0c68-4709-2419-4f9cce3050b9",
-                                  "export": true,
-                                  "mirror_uv": false,
-                                  "isOpen": true,
-                                  "locked": false,
-                                  "visibility": true,
-                                  "autouv": 0,
-                                  "selected": false,
-                                  "children": [
-                                    "037e60e3-f3d3-2dd3-0c02-9dcc78d2cce9",
-                                    "0793b011-1cc1-3f1e-42c9-7f283ef3b174"
-                                  ]
-                                },
-                                {
-                                  "name": "ear2",
-                                  "origin": [
-                                    5.75,
-                                    60.65,
-                                    -1.5
-                                  ],
-                                  "rotation": [
-                                    0,
-                                    0,
-                                    -2.5
-                                  ],
-                                  "color": 0,
-                                  "uuid": "2c5be0b2-8215-fcba-c51c-73976c00f471",
-                                  "export": true,
-                                  "mirror_uv": false,
-                                  "isOpen": true,
-                                  "locked": false,
-                                  "visibility": true,
-                                  "autouv": 0,
-                                  "selected": false,
-                                  "children": [
-                                    "642a69b8-a7ce-3bc9-3ef5-76631ad28d88",
-                                    "fd4715a4-577b-f3eb-cebd-b7d1350e0606"
-                                  ]
-                                },
-                                {
-                                  "name": "mask",
+                                  "name": "head_style",
                                   "origin": [
                                     0,
                                     26,
                                     0
                                   ],
                                   "color": 0,
-                                  "uuid": "abb39374-4e0b-8187-0c87-10c87ee0121c",
+                                  "uuid": "8c2430f8-0082-5ddb-9ce8-276549163836",
                                   "export": true,
                                   "mirror_uv": false,
                                   "isOpen": true,
@@ -5288,66 +5235,138 @@
                                   "autouv": 0,
                                   "selected": false,
                                   "children": [
-                                    "8de542ba-5014-a888-9899-d674da6a2c22",
-                                    "a62d2184-4a0b-ebca-9ebc-ac1ce4556a05",
-                                    "4b0d334d-4ae4-35dd-0451-bb605d4d79fc",
-                                    "b93379b3-11f8-4966-9f38-ec801f6dc849",
-                                    "6099e1a2-ab9f-2966-f086-dcbbe3b6ddbd",
-                                    "7e22a84b-b452-c8b3-b9bb-3b1bf1cfba7f"
-                                  ]
-                                },
-                                {
-                                  "name": "eye",
-                                  "origin": [
-                                    -2,
-                                    28,
-                                    -3
-                                  ],
-                                  "color": 0,
-                                  "uuid": "a279f116-915c-c6e2-88b4-3c157e301244",
-                                  "export": true,
-                                  "mirror_uv": false,
-                                  "isOpen": true,
-                                  "locked": false,
-                                  "visibility": true,
-                                  "autouv": 0,
-                                  "selected": false,
-                                  "children": [
-                                    "27ab6c9d-f501-5be2-45b1-1de9852574c8",
-                                    "a4c30f15-69c6-d585-092c-4999494a3af2",
-                                    "0e8f7316-3c19-4598-d00c-a49cb084437f",
-                                    "47f5be70-aac8-86cf-8c4f-fe95512678bf",
-                                    "c7d724da-ae38-b64f-7c22-15a86c7dc5c8",
-                                    "b4a627c2-c51b-ec88-5e66-cdc30a3ba524",
-                                    "34d8b236-a627-4a3e-adf0-bcf0f52976b1",
-                                    "faa5f956-077b-9501-b5e2-d14ecf7d2b83"
-                                  ]
-                                },
-                                {
-                                  "name": "eye2",
-                                  "origin": [
-                                    2,
-                                    28,
-                                    -3
-                                  ],
-                                  "color": 0,
-                                  "uuid": "8452b858-56fe-2b0f-6859-50e38e786efa",
-                                  "export": true,
-                                  "mirror_uv": false,
-                                  "isOpen": true,
-                                  "locked": false,
-                                  "visibility": true,
-                                  "autouv": 0,
-                                  "selected": true,
-                                  "children": [
-                                    "04ccaa02-ca77-5d29-456f-1f073cf844d2",
-                                    "29e5d00d-ffd7-9fd8-32b4-e39bcf0413c2",
-                                    "73a44aa3-e7b4-1f36-b1ed-d38cd3edf3ad",
-                                    "063fdf50-17a4-8e14-99ae-219e13e16a12",
-                                    "24ae266b-9634-5bac-f68c-fcc1fd599c90",
-                                    "6341001b-0a27-70cd-cb69-3e49d800a18d",
-                                    "a1e3063b-a057-0622-4fff-1cc33541ff95",
-                                    "ba349729-4551-622d-6680-3af8a5efce9c"
+                                    "61e487a4-5aaf-4a33-a525-31de63d67473",
+                                    {
+                                      "name": "ear",
+                                      "origin": [
+                                        -5.75,
+                                        60.65,
+                                        -1.5
+                                      ],
+                                      "rotation": [
+                                        0,
+                                        0,
+                                        2.5
+                                      ],
+                                      "color": 0,
+                                      "uuid": "8168a613-0c68-4709-2419-4f9cce3050b9",
+                                      "export": true,
+                                      "mirror_uv": false,
+                                      "isOpen": true,
+                                      "locked": false,
+                                      "visibility": true,
+                                      "autouv": 0,
+                                      "selected": false,
+                                      "children": [
+                                        "037e60e3-f3d3-2dd3-0c02-9dcc78d2cce9",
+                                        "0793b011-1cc1-3f1e-42c9-7f283ef3b174"
+                                      ]
+                                    },
+                                    {
+                                      "name": "ear2",
+                                      "origin": [
+                                        5.75,
+                                        60.65,
+                                        -1.5
+                                      ],
+                                      "rotation": [
+                                        0,
+                                        0,
+                                        -2.5
+                                      ],
+                                      "color": 0,
+                                      "uuid": "2c5be0b2-8215-fcba-c51c-73976c00f471",
+                                      "export": true,
+                                      "mirror_uv": false,
+                                      "isOpen": true,
+                                      "locked": false,
+                                      "visibility": true,
+                                      "autouv": 0,
+                                      "selected": false,
+                                      "children": [
+                                        "642a69b8-a7ce-3bc9-3ef5-76631ad28d88",
+                                        "fd4715a4-577b-f3eb-cebd-b7d1350e0606"
+                                      ]
+                                    },
+                                    {
+                                      "name": "mask",
+                                      "origin": [
+                                        0,
+                                        26,
+                                        0
+                                      ],
+                                      "color": 0,
+                                      "uuid": "abb39374-4e0b-8187-0c87-10c87ee0121c",
+                                      "export": true,
+                                      "mirror_uv": false,
+                                      "isOpen": true,
+                                      "locked": false,
+                                      "visibility": true,
+                                      "autouv": 0,
+                                      "selected": false,
+                                      "children": [
+                                        "8de542ba-5014-a888-9899-d674da6a2c22",
+                                        "a62d2184-4a0b-ebca-9ebc-ac1ce4556a05",
+                                        "4b0d334d-4ae4-35dd-0451-bb605d4d79fc",
+                                        "b93379b3-11f8-4966-9f38-ec801f6dc849",
+                                        "6099e1a2-ab9f-2966-f086-dcbbe3b6ddbd",
+                                        "7e22a84b-b452-c8b3-b9bb-3b1bf1cfba7f"
+                                      ]
+                                    },
+                                    {
+                                      "name": "eye",
+                                      "origin": [
+                                        -2,
+                                        28,
+                                        -3
+                                      ],
+                                      "color": 0,
+                                      "uuid": "a279f116-915c-c6e2-88b4-3c157e301244",
+                                      "export": true,
+                                      "mirror_uv": false,
+                                      "isOpen": true,
+                                      "locked": false,
+                                      "visibility": true,
+                                      "autouv": 0,
+                                      "selected": false,
+                                      "children": [
+                                        "27ab6c9d-f501-5be2-45b1-1de9852574c8",
+                                        "a4c30f15-69c6-d585-092c-4999494a3af2",
+                                        "0e8f7316-3c19-4598-d00c-a49cb084437f",
+                                        "47f5be70-aac8-86cf-8c4f-fe95512678bf",
+                                        "c7d724da-ae38-b64f-7c22-15a86c7dc5c8",
+                                        "b4a627c2-c51b-ec88-5e66-cdc30a3ba524",
+                                        "34d8b236-a627-4a3e-adf0-bcf0f52976b1",
+                                        "faa5f956-077b-9501-b5e2-d14ecf7d2b83"
+                                      ]
+                                    },
+                                    {
+                                      "name": "eye2",
+                                      "origin": [
+                                        2,
+                                        28,
+                                        -3
+                                      ],
+                                      "color": 0,
+                                      "uuid": "8452b858-56fe-2b0f-6859-50e38e786efa",
+                                      "export": true,
+                                      "mirror_uv": false,
+                                      "isOpen": true,
+                                      "locked": false,
+                                      "visibility": true,
+                                      "autouv": 0,
+                                      "selected": true,
+                                      "children": [
+                                        "04ccaa02-ca77-5d29-456f-1f073cf844d2",
+                                        "29e5d00d-ffd7-9fd8-32b4-e39bcf0413c2",
+                                        "73a44aa3-e7b4-1f36-b1ed-d38cd3edf3ad",
+                                        "063fdf50-17a4-8e14-99ae-219e13e16a12",
+                                        "24ae266b-9634-5bac-f68c-fcc1fd599c90",
+                                        "6341001b-0a27-70cd-cb69-3e49d800a18d",
+                                        "a1e3063b-a057-0622-4fff-1cc33541ff95",
+                                        "ba349729-4551-622d-6680-3af8a5efce9c"
+                                      ]
+                                    }
                                   ]
                                 }
                               ]
@@ -5474,6 +5493,24 @@
                                         "f709b0aa-5e89-2816-f952-0f4d49f44d72",
                                         "624a9398-3eab-cf86-7476-227c8f9112ea"
                                       ]
+                                    },
+                                    {
+                                      "name": "left_item",
+                                      "origin": [
+                                        -5.75,
+                                        14.25,
+                                        -2
+                                      ],
+                                      "color": 0,
+                                      "uuid": "4071c2b9-016b-5dc0-9afc-d1137ef570bb",
+                                      "export": true,
+                                      "mirror_uv": false,
+                                      "isOpen": true,
+                                      "locked": false,
+                                      "visibility": true,
+                                      "autouv": 0,
+                                      "selected": false,
+                                      "children": []
                                     }
                                   ]
                                 }

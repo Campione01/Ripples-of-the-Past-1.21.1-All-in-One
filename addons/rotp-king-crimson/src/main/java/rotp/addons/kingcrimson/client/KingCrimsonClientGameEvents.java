@@ -18,5 +18,6 @@ public final class KingCrimsonClientGameEvents {
         EpitaphForesightClient.tick();
         KingCrimsonTemporalClientState.sync();
         KingCrimsonTemporalPostEffect.sync();
+        KingCrimsonTemporalClientState.syncDecoyStandVisibility();
     }
 }

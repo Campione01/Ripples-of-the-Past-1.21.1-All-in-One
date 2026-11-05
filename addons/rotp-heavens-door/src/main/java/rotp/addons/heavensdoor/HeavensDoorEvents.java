@@ -1,7 +1,9 @@
 package rotp.addons.heavensdoor;
 
 import rotp.core.event.RipplesAbilityKeyPressEvent;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.init.ModStatusEffects;
+import rotp.core.mechanics.resolve.ResolveCounter;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.standpower.StandPower;
@@ -42,6 +44,7 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.common.NeoForgeMod;
+import net.neoforged.neoforge.common.damagesource.DamageContainer;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeModificationEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
@@ -154,11 +157,19 @@ public final class HeavensDoorEvents {
             event.setCanceled(true);
             return;
         }
+        if (BookCommandLeaseService.protectsForbiddenStand(
+                event.getEntity(),
+                event.getSource().getDirectEntity(),
+                event.getSource().getEntity())) {
+            event.setCanceled(true);
+            return;
+        }
         HeavensDoorStandEntity stand =
                 resolveStand(event.getSource());
         if (stand != null) {
             applyCanonicalPunchModifier(
                     stand, event.getEntity(), event);
+            addHitResolve(stand, event);
             LivingEntity owner = stand.getUser();
             LivingEntity target = BookStateService.authorizedTarget(
                     owner, event.getEntity());
@@ -214,7 +225,12 @@ public final class HeavensDoorEvents {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onAttackEntity(AttackEntityEvent event) {
         if (event.getEntity().hasEffect(
-                HeavensDoorAddon.FORGOT_ATTACK)) {
+                HeavensDoorAddon.FORGOT_ATTACK)
+                || !event.getEntity().level().isClientSide()
+                        && BookCommandLeaseService.protectsForbiddenStand(
+                                event.getTarget(),
+                                event.getEntity(),
+                                event.getEntity())) {
             event.setCanceled(true);
         }
     }
@@ -483,12 +499,40 @@ public final class HeavensDoorEvents {
         if (extraDamage <= 0.0F) {
             return;
         }
-        event.setAmount(event.getAmount() + extraDamage);
+        // owner T2: past the base reach the strike's own extras fall with its damage (1 within it)
+        float reach = StandMeleeReach.strikeFactor(stand, target);
+        event.setAmount(event.getAmount() + extraDamage * reach);
         Vec3 direction = target.position()
                 .subtract(stand.position());
         if (direction.lengthSqr() > 1.0E-6D) {
-            Vec3 push = direction.normalize().scale(0.05D);
-            target.push(push.x, 0.01D, push.z);
+            Vec3 push = direction.normalize().scale(0.05D * reach);
+            target.push(push.x, 0.01D * reach, push.z);
+        }
+    }
+
+    // The author's 1.2 build: HeavensDoorFinisherPunch.punchEntity gave a flat
+    // 100 for every target it struck, and GameplayHandler.onLivingHurt 20 per
+    // damage point of each hit that landed, the latter only if
+    // ResolveCounter.attackingTargetGivesResolve passed. The build passed the
+    // user, which is always true for a player; the method asks about the target,
+    // so the victim is passed (coordinator's decision, R772 W3). The armor step is
+    // where a landed hit's damage is known (the core counts it there too).
+    private static void addHitResolve(
+            HeavensDoorStandEntity stand,
+            LivingIncomingDamageEvent event) {
+        LivingEntity user = stand.getUser();
+        if (user == null) {
+            return;
+        }
+        if (isFinisher(stand)) {
+            BookStateRules.addResolve(user, BookStateRules.FINISHER_RESOLVE);
+        }
+        if (ResolveCounter.attackingTargetGivesResolve(event.getEntity())) {
+            event.addReductionModifier(DamageContainer.Reduction.ARMOR, (container, reduction) -> {
+                BookStateRules.addResolve(user,
+                        BookStateRules.ATTACK_RESOLVE_PER_DAMAGE * container.getNewDamage());
+                return reduction;
+            });
         }
     }
 

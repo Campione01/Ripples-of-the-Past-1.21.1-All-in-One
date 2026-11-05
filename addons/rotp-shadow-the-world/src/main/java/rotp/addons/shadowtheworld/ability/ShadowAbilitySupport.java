@@ -42,6 +42,8 @@ final class ShadowAbilitySupport {
                     user.getSoundSource(),
                     1.0F,
                     0.9F);
+            // The core keeps the Stand HUD after a forced unsummon, as the
+            // 1.16 Stand mode stayed open (EntityStandType.forceUnsummon).
             power.getPowerType().forceUnsummon(user, power);
         }
     }

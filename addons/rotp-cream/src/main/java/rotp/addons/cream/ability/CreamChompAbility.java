@@ -284,11 +284,8 @@ public final class CreamChompAbility extends StandEntityAbility {
                         0,
                         false,
                         false));
-                StandUtil.playStandEntitySound(
-                        stand,
-                        CreamAddon.CREAM_CHOMP_START,
-                        1.0F,
-                        1.0F);
+                // 1.16 registered cream_chomp_start without a sounds.json
+                // entry and never played it: the bite is Chomp's one sound.
             }
             // 1.16 StandEntityTask paid staminaCost(340) after standPerform,
             // with or without a target; a short bar just drops to 0. With

@@ -1,5 +1,6 @@
 {
   "stand_type": "rotp_hd:heavens_door",
   "color": "#FFFEC5",
-  "story_part": "jojo_ripples:p4"
+  "story_part": "jojo_ripples:p4",
+  "scale": [0.4, 1.25]
 }

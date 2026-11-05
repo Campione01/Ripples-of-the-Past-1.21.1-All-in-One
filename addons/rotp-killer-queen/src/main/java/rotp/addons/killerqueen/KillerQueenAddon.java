@@ -6,6 +6,8 @@ import static rotp.core.init.power.ModStands.USE_SPECIAL;
 import java.util.function.Supplier;
 
 import rotp.core.api.RotpAddonApi;
+import rotp.core.api.power.AbilityRefusals;
+import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.MovesetBuilder;
@@ -21,6 +23,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.type.StandType;
 
 import rotp.addons.killerqueen.ability.PrimaryBombAbility;
+import rotp.addons.killerqueen.ability.BiteTheDustInsertAbility;
 import rotp.addons.killerqueen.ability.BitesTheDustAbility;
 import rotp.addons.killerqueen.ability.BitesTheDustAbility.Operation;
 import rotp.addons.killerqueen.ability.BitesTheDustKitLock;
@@ -36,11 +39,13 @@ import rotp.addons.killerqueen.ability.PrimaryBombClearAbility;
 import rotp.addons.killerqueen.ability.PrimaryBombDetonateAbility;
 import rotp.addons.killerqueen.ability.SheerHeartAttackAbility;
 import rotp.addons.killerqueen.ability.SheerHeartRecallAbility;
+import rotp.addons.killerqueen.btd.BiteTheDustManager;
 import rotp.addons.killerqueen.btd.BitesTheDustUnlockableSkill;
 import rotp.addons.killerqueen.entity.BubbleBombEntity;
 import rotp.addons.killerqueen.entity.PrimaryBombMarkerEntity;
 import rotp.addons.killerqueen.entity.SheerHeartAttackEntity;
 import rotp.addons.killerqueen.entity.SnowBombEntity;
+import rotp.addons.killerqueen.network.BtdSyncPayload;
 import rotp.addons.killerqueen.network.KillerQueenStateSyncPayload;
 import rotp.addons.killerqueen.state.KillerQueenState;
 import net.minecraft.core.registries.Registries;
@@ -52,6 +57,7 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
@@ -88,6 +94,8 @@ public final class KillerQueenAddon {
     public static final String REMOVE_MARK_NAME = "remov_mark";
     public static final String PUT_DUST_NAME = "put_dust";
     public static final String QUIT_DUST_NAME = "quit_dust";
+    // 1.6.10 of 2026-10-20 (the player's pack): Bite the Dust placed in a player
+    public static final String BITE_THE_DUST_NAME = "bite_the_dust";
     // 1.16 heavy finisher variation (KQFinisher)
     public static final String COMBO_PUNCH_NAME = "kq_combo_punch";
 
@@ -285,6 +293,12 @@ public final class KillerQueenAddon {
                             key,
                             (type, id) -> new BitesTheDustAbility(
                                     type, id, Operation.QUIT_DUST)));
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<BiteTheDustInsertAbility>>
+            BITE_THE_DUST = ABILITY_TYPES.register(
+                    BITE_THE_DUST_NAME,
+                    key -> new AbilityType<>(
+                            key, BiteTheDustInsertAbility::new));
 
     public static final DeferredHolder<
             EntityType<?>, EntityType<StandEntity>>
@@ -426,6 +440,7 @@ public final class KillerQueenAddon {
         STAND_TYPES.register(modEventBus);
         ATTACHMENT_TYPES.register(modEventBus);
         modEventBus.addListener(KillerQueenAddon::registerPayloads);
+        modEventBus.addListener(KillerQueenAddon::commonSetup);
         modEventBus.addListener(
                 KillerQueenEvents::registerAttributes);
     }
@@ -464,7 +479,25 @@ public final class KillerQueenAddon {
         event.registrar("4").playToClient(
                 KillerQueenStateSyncPayload.TYPE,
                 KillerQueenStateSyncPayload.STREAM_CODEC,
-                KillerQueenStateSyncPayload::handle);
+                KillerQueenStateSyncPayload::handle)
+                .playToClient(
+                        BtdSyncPayload.TYPE,
+                        BtdSyncPayload.STREAM_CODEC,
+                        BtdSyncPayload::handle);
+    }
+
+    // 1.6.10 of 2026-10-20: every Killer Queen action's checkConditions refused 'btd_stand_locked' while its Bite
+    // the Dust is inside a carrier
+    private static void commonSetup(FMLCommonSetupEvent event) {
+        AbilityRefusals.register(
+                id("bite_the_dust_stand_locked"),
+                (ability, context, user) ->
+                        context instanceof StandPower power
+                                && power.getPowerType() == KILLER_QUEEN.get()
+                                && BiteTheDustManager.isStandLocked(user)
+                                ? ConditionCheck.createNegative(
+                                        "btd_stand_locked")
+                                : null);
     }
 
     private static DeferredHolder<SoundEvent, SoundEvent> sound(
@@ -580,6 +613,7 @@ public final class KillerQueenAddon {
                 .addAbility(REMOVE_MARK_NAME, REMOVE_MARK)
                 .addAbility(PUT_DUST_NAME, PUT_DUST)
                 .addAbility(QUIT_DUST_NAME, QUIT_DUST)
+                .addAbility(BITE_THE_DUST_NAME, BITE_THE_DUST)
                 .makeControlScheme("hotbar")
                     .bind("punch", InputMethod.CLICK, InputKey.LMB)
                     .bind("barrage", InputMethod.HOLD, InputKey.LMB)
@@ -640,6 +674,11 @@ public final class KillerQueenAddon {
                             SHEER_HEART_RECALL_NAME,
                             0,
                             InputMethod.HOLD)
+                    // 1.6.10 of 2026-10-20 lists it after sheer_heart
+                    .addToHotbar(
+                            BITE_THE_DUST_NAME,
+                            0,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             SNOW_BOMB_NAME,
                             0,
@@ -724,6 +763,10 @@ public final class KillerQueenAddon {
                         .prerequisiteSkill(
                                 PRIMARY_BOMB_NAME))
                 .addSkill(new BitesTheDustUnlockableSkill())
+                .addSkill(StandUnlockableSkill.unlockableAbility(
+                                BITE_THE_DUST_NAME, 250)
+                        .prerequisiteSkill(
+                                PRIMARY_BOMB_NAME))
                 .addSkill(StandUnlockableSkill.startingAbility(
                         "manual_control"));
 

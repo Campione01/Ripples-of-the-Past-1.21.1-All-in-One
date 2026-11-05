@@ -34,8 +34,29 @@ public final class BookStateRules {
     public static final double OWNER_RANGE = 12.0D;
     public static final double RETURN_PAGE_RANGE = 24.0D;
     public static final int FORGOTTEN_EFFECT_DURATION = 3600;
+    // The author's 1.2 build of 2026-08-01 gives flat Resolve points instead of shares of the maximum
+    public static final float ATTACK_RESOLVE_PER_DAMAGE = 20.0F;
+    public static final float TEAR_RESOLVE = 25.0F;
+    public static final float FINISHER_RESOLVE = 100.0F;
+    public static final float RETURN_PAGE_RESOLVE_COST = 35.0F;
+    public static final int RETURN_PAGE_NO_DECAY_TICKS = 10;
 
     private BookStateRules() {}
+
+    public static void addResolve(LivingEntity user, float points) {
+        StandPower power = user != null ? StandPower.get(user) : null;
+        if (power != null && power.usesResolve()) {
+            power.getResolveCounter().addResolveValue(power, points);
+        }
+    }
+
+    public static void spendResolve(LivingEntity user, float points, int noDecayTicks) {
+        StandPower power = user != null ? StandPower.get(user) : null;
+        if (power != null && power.usesResolve()) {
+            var resolve = power.getResolveCounter();
+            resolve.setResolveValue(power, resolve.getResolveValue() - points, noDecayTicks);
+        }
+    }
 
     public static int durationFor(
             LivingEntity owner, LivingEntity target) {

@@ -1,10 +1,7 @@
 package rotp.addons.catchtherainbow;
 
-import rotp.core.api.timestop.TimeStopLifecycleEvent;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
-import rotp.core.subsystems.timestop.TimeStopLearning;
-import rotp.core.subsystems.timestop.TimeStopState;
 
 import rotp.addons.catchtherainbow.entity.CatchTheRainbowEntity;
 import rotp.addons.catchtherainbow.ability.TempHealthAbility;
@@ -124,24 +121,5 @@ public final class CatchTheRainbowEvents {
                 event.getOriginal(), controller);
         CatchTheRainbowCleanup.clearTransientState(
                 event.getEntity(), null);
-    }
-
-    // 1.16 TimeStop.getStaminaCostTicking: staminaCostTick * 100 / the
-    // stop's own ticks. The core fills in The World's 9; Rain Stop's is 7.5.
-    @SubscribeEvent
-    public static void onTimeStopPreStart(
-            TimeStopLifecycleEvent.PreStart event) {
-        TimeStopState.Instance instance = event.getInstance();
-        if (!instance.standTypeId()
-                .filter(CatchTheRainbowAddon.id("catch_the_rainbow")
-                        ::equals)
-                .isPresent()) {
-            return;
-        }
-        event.setInstance(instance.withStaminaCostTick(
-                instance.staminaCostTick()
-                        * CatchTheRainbowAddon
-                                .RAIN_STOP_STAMINA_COST_TICK
-                        / TimeStopLearning.BASE_STAMINA_COST_TICK));
     }
 }

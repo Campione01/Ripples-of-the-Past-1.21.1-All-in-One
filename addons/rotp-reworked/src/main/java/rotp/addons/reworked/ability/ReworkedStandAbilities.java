@@ -32,8 +32,10 @@ import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.timestop.TimeStopCooldowns;
 import rotp.core.subsystems.timestop.TimeStopLearning;
+import rotp.core.util.functions.MathUtil;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.impl.stands.magiciansred.MagiciansRedFlameBurstAbility;
 import rotp.core.impl.stands.magiciansred.MagiciansRedKickAbility;
 import rotp.core.impl.stands.starplatinum.HeavyPunchUppercutAbility;
@@ -52,6 +54,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
@@ -779,7 +782,7 @@ public final class ReworkedStandAbilities {
                 ActionTarget target, Level level, StandEntity stand) {
             super.hitEntity(target, level, stand);
             if (target.getMainEntity() instanceof LivingEntity living) {
-                stackSlowBurn(living, 0, 1);
+                stackSlowBurn(stand, living, 0, 1);
             }
             StandPower power = StandPower.get(getPowerUser());
             if (target.getMainEntity() instanceof LivingEntity
@@ -814,14 +817,96 @@ public final class ReworkedStandAbilities {
             detachedPunchKnockback();
             recoveryPhaseEntryTiming();
         }
+
+        // Owner T2: a kick that flew out keeps following its user through
+        // the strike; moving by itself would leave StandMeleeReach.reachesOut
+        // false there, so the margin kick struck at full strength.
+        @Override
+        public boolean noAdheringToUserOffset(
+                StandPower standPower, StandEntity standEntity) {
+            return !kickFliesOut(standEntity)
+                    && super.noAdheringToUserOffset(standPower, standEntity);
+        }
+
+        @Override
+        public boolean noAdheringToUserOffsetClientFallback(
+                StandEntity standEntity) {
+            return !kickFliesOut(standEntity)
+                    && super.noAdheringToUserOffsetClientFallback(standEntity);
+        }
+
+        @Override
+        public boolean lockStandManualMovement(
+                StandPower standPower, StandEntity standEntity) {
+            return !kickFliesOut(standEntity)
+                    && super.lockStandManualMovement(standPower, standEntity);
+        }
+
+        private static boolean kickFliesOut(StandEntity standEntity) {
+            return standEntity.getCurStandAction()
+                    instanceof ReworkedMagiciansRedKick kick
+                    && kick.fliesOut();
+        }
     }
 
     // 1.16 ReMagiciansRedKick.standPerform (:51-67): after the kick, a living
     // task target's Slow Burn went off, or it was primed, hurt or not.
     public static final class ReworkedMagiciansRedKick
             extends MagiciansRedKickAbility.MagiciansRedKick {
+        private boolean reachDecided;
+        // pressed at an entity the core flies the Stand out to (StandMeleeReach)
+        private boolean fliesOut;
+
         public ReworkedMagiciansRedKick(EntityActionType ability) {
             super(ability);
+        }
+
+        public boolean fliesOut() {
+            return fliesOut;
+        }
+
+        @Override
+        public void toBuf(FriendlyByteBuf buf) {
+            super.toBuf(buf);
+            buf.writeBoolean(fliesOut);
+        }
+
+        @Override
+        public void fromBuf(FriendlyByteBuf buf) {
+            super.fromBuf(buf);
+            fliesOut = buf.readBoolean();
+            reachDecided = true;
+        }
+
+        // Decided once, at the press (onActionSet), before the action is
+        // sent to clients, by the core's own fly-out rule for the heavy punch.
+        @Override
+        public boolean setStandFrontOffsetFromTarget(
+                StandEntity stand,
+                @Nullable ActionTarget target,
+                double minOffset,
+                double maxOffset) {
+            if (!reachDecided && !stand.level().isClientSide()) {
+                reachDecided = true;
+                Entity entity = target != null
+                        ? target.copy().resolveEntityId(stand.level())
+                                .getMainEntity()
+                        : null;
+                fliesOut = entity != null
+                        && StandMeleeReach.fliesOutTo(stand, entity, maxOffset);
+            }
+            return super.setStandFrontOffsetFromTarget(
+                    stand, target, minOffset, maxOffset);
+        }
+
+        // the 1.16 slide of the windup only for a kick within the Stand's reach
+        @Override
+        public void actionTick() {
+            super.actionTick();
+            if (fliesOut && getPhase() == ActionPhase.WINDUP
+                    && performer instanceof StandEntity stand) {
+                stand.setDeltaMovement(Vec3.ZERO);
+            }
         }
 
         @Override
@@ -831,7 +916,7 @@ public final class ReworkedStandAbilities {
             super.hitEntity(target, level, stand,
                     dmgSource, dmgAmount, explRadius);
             if (target.getMainEntity() instanceof LivingEntity living) {
-                detonateOrPrimeSlowBurn(living);
+                detonateOrPrimeSlowBurn(stand, living);
             }
         }
     }
@@ -868,7 +953,7 @@ public final class ReworkedStandAbilities {
             super.hitEntity(target, level, stand,
                     dmgSource, dmgAmount, explRadius);
             if (target.getMainEntity() instanceof LivingEntity living) {
-                stackSlowBurn(living, 4, 4);
+                stackSlowBurn(stand, living, 4, 4);
             }
         }
     }
@@ -879,13 +964,16 @@ public final class ReworkedStandAbilities {
     // 1.16 gave a target without Slow Burn amplifier 0 from the punch
     // (ReMagiciansRedLightAttack :52) but 4 from the heavy punch
     // (ReMagiciansRedHeavyPunch :51), not one less than the increment.
+    // Owner T2: past the base reach the stacks a strike adds fall with its damage.
     private static void stackSlowBurn(
-            LivingEntity target, int firstAmplifier, int increment) {
+            StandEntity stand, LivingEntity target,
+            int firstAmplifier, int increment) {
+        float reach = StandMeleeReach.strikeFactor(stand, target);
         MobEffectInstance current =
                 target.getEffect(ReworkedAddon.SLOW_BURN);
         int amplifier = current == null
-                ? firstAmplifier
-                : current.getAmplifier() + increment;
+                ? reachedStacks(firstAmplifier, reach)
+                : current.getAmplifier() + reachedStacks(increment, reach);
         target.addEffect(new MobEffectInstance(
                 ReworkedAddon.SLOW_BURN,
                 200,
@@ -895,14 +983,23 @@ public final class ReworkedStandAbilities {
                 true));
     }
 
+    // A fraction of a stack is added by chance, so the stacks fall in proportion on average.
+    private static int reachedStacks(int stacks, float reach) {
+        return reach >= 1.0F
+                ? stacks
+                : MathUtil.fractionRandomInc((double) (stacks * reach));
+    }
+
+    // Owner T2: past the base reach the primed burn and the detonation fall with the kick's damage.
     private static void detonateOrPrimeSlowBurn(
-            LivingEntity target) {
+            StandEntity stand, LivingEntity target) {
+        float reach = StandMeleeReach.strikeFactor(stand, target);
         MobEffectInstance current =
                 target.getEffect(ReworkedAddon.SLOW_BURN);
         if (current == null) {
             target.addEffect(new MobEffectInstance(
                     ReworkedAddon.SLOW_BURN,
-                    300,
+                    Math.max(1, Math.round(300 * reach)),
                     6,
                     false,
                     false,
@@ -920,7 +1017,8 @@ public final class ReworkedStandAbilities {
                 target.damageSources().onFire(),
                 current.getDuration()
                         / 20.0F
-                        * burnTickDamage);
+                        * burnTickDamage
+                        * reach);
         target.clearFire();
         target.removeEffect(ReworkedAddon.SLOW_BURN);
     }

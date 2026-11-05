@@ -81,45 +81,61 @@ public final class KhnumDisguiseLayer extends RenderLayer<
             float headPitch) {
         KhnumVisuals.RenderState state =
                 KhnumVisuals.resolve(player, partialTick);
+        // Mob disguises are drawn by renderEntityReplacement instead: a
+        // layer's pose is already in the player's flipped model space, so a
+        // whole mob renderer called here draws the mob upside down.
         if (state == null
-                || !state.controller().isDisguised()) {
+                || state.controller().getDisguiseMode()
+                        != DisguiseMode.PLAYER) {
             return;
         }
-        MultiBufferSource alphaBuffer =
+        renderPlayer(
+                state.controller(),
+                player,
+                poseStack,
                 AlphaMultiBufferSource.wrap(
                         buffer,
-                        state.context().effectiveAlpha());
-        if (state.controller().getDisguiseMode()
-                == DisguiseMode.PLAYER) {
-            renderPlayer(
-                    state.controller(),
-                    player,
-                    poseStack,
-                    alphaBuffer,
-                    packedLight,
-                    limbSwing,
-                    limbSwingAmount,
-                    ageInTicks,
-                    netHeadYaw,
-                    headPitch);
-            return;
+                        state.context().effectiveAlpha()),
+                packedLight,
+                limbSwing,
+                limbSwingAmount,
+                ageInTicks,
+                netHeadYaw,
+                headPitch);
+    }
+
+    /**
+     * Draws a mob disguise in place of the whole player render, with the
+     * pose stack at the player's entity origin.
+     */
+    public static boolean renderEntityReplacement(
+            AbstractClientPlayer player,
+            PoseStack poseStack,
+            MultiBufferSource buffer,
+            int packedLight,
+            float partialTick) {
+        KhnumVisuals.RenderState state =
+                KhnumVisuals.resolve(player, partialTick);
+        if (state == null
+                || state.controller().getDisguiseMode()
+                        != DisguiseMode.ENTITY) {
+            return false;
         }
         EntityVisual visual = entityVisual(
                 state.controller().getDisguiseId().orElse(null));
-        if (visual != null) {
-            renderEntity(
-                    visual,
-                    player,
-                    poseStack,
-                    alphaBuffer,
-                    packedLight,
-                    limbSwing,
-                    limbSwingAmount,
-                    partialTick,
-                    ageInTicks,
-                    netHeadYaw,
-                    headPitch);
+        if (visual == null) {
+            return false;
         }
+        renderEntity(
+                visual,
+                player,
+                poseStack,
+                AlphaMultiBufferSource.wrap(
+                        buffer,
+                        state.context().effectiveAlpha()),
+                packedLight,
+                partialTick);
+        return true;
     }
 
     @Override
@@ -293,12 +309,7 @@ public final class KhnumDisguiseLayer extends RenderLayer<
             PoseStack poseStack,
             MultiBufferSource buffer,
             int packedLight,
-            float limbSwing,
-            float limbSwingAmount,
-            float partialTick,
-            float ageInTicks,
-            float netHeadYaw,
-            float headPitch) {
+            float partialTick) {
         LivingEntity dummy = visual.dummy();
         syncDummy(dummy, wearer);
         renderNative(

@@ -7,12 +7,14 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.tags.DamageTypeTags;
@@ -28,6 +30,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeverBlock;
+import net.minecraft.world.level.block.state.properties.AttachFace;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -53,7 +58,8 @@ import rotp.core.util.functions.DamageUtil;
 public final class RevolverProtectionGameTests {
     private RevolverProtectionGameTests() {}
 
-    @GameTest(template = "empty", templateNamespace = "rotp_revolver_protection", timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
+    @GameTest(template = "empty", templateNamespace = "rotp_revolver_protection", batch = "revolverProtectionShots",
+            timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
     public static void realShotsRespectArmorAndProtectionWithoutLosingStandDamage(GameTestHelper helper) {
         GameTestChunkTickets.aroundOrigin(helper)
                 .whenTicking(() -> {}, h -> realShotsRespectArmorAndProtectionWithoutLosingStandDamageBody(h));
@@ -70,6 +76,46 @@ public final class RevolverProtectionGameTests {
                     mode + " Protection IV did not reduce equal-armor damage by 16%: " + armor + " -> " + protection);
         }
         shootStand(helper);
+        helper.succeed();
+    }
+
+    // A lever on a wall lies in the flight's last stretch, which the hit on the wall ends before tick's scan of the
+    // flight. The shot starts so that the stretch begins in front of the lever.
+    @GameTest(template = "empty", templateNamespace = "rotp_revolver_protection", batch = "revolverProtectionDevices",
+            timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
+    public static void aShotFlipsALeverOnTheWallItHits(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> aShotFlipsALeverOnTheWallItHitsBody(h));
+    }
+
+    private static void aShotFlipsALeverOnTheWallItHitsBody(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ServerPlayer owner = player(helper, "prot-lever", 2);
+        BlockPos leverPos = BlockPos.containing(inOriginChunk(helper, 2, 12, 10));
+        BlockPos wallPos = leverPos.south();
+        try {
+            prepareOwner(helper, owner, ShotMode.STAND_USER);
+            level.setBlock(wallPos, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(leverPos, Blocks.LEVER.defaultBlockState()
+                    .setValue(LeverBlock.FACE, AttachFace.WALL)
+                    .setValue(LeverBlock.FACING, Direction.NORTH), 3);
+            RevolverBulletEntity bullet = fire(helper, owner);
+            double speed = bullet.getDeltaMovement().length();
+            bullet.setDeltaMovement(0.0D, 0.0D, speed);
+            bullet.setPos(leverPos.getX() + 0.5D, leverPos.getY() + 0.5D, wallPos.getZ() - speed * 1.5D);
+            helper.assertTrue(speed * 0.5D > 0.375D, "Setup: the first tick's flight ends inside the lever at speed " + speed);
+            for (int tick = 0; tick < 4 && bullet.isAlive(); tick++) {
+                bullet.tick();
+            }
+            helper.assertTrue(level.getBlockState(leverPos).is(Blocks.LEVER)
+                            && level.getBlockState(leverPos).getValue(LeverBlock.POWERED),
+                    "The shot at the wall did not flip the lever on it: " + level.getBlockState(leverPos));
+        }
+        finally {
+            level.setBlock(leverPos, Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(wallPos, Blocks.AIR.defaultBlockState(), 3);
+            disconnect(owner);
+        }
         helper.succeed();
     }
 
@@ -201,6 +247,8 @@ public final class RevolverProtectionGameTests {
                 RevolverBulletEntity.class, new AABB(owner.blockPosition()).inflate(8.0D),
                 bullet -> bullet.getOwner() == owner);
         helper.assertTrue(bullets.size() == 1, "Actual release created " + bullets.size() + " bullets");
+        // The 0.1.13 gun crit (Lucky Gunner, 20%) is random; the armor ordering needs equal shots.
+        bullets.getFirst().setFireCritical(false);
         return bullets.getFirst();
     }
 
@@ -263,6 +311,7 @@ public final class RevolverProtectionGameTests {
         new EmbeddedChannel(connection);
         NetworkRegistry.configureMockConnection(connection);
         helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        GameTestBullets.discardAtEnd(helper, player);
         player.setGameMode(GameType.SURVIVAL);
         player.setNoGravity(true);
         player.setPos(inOriginChunk(helper, x, 12, 1));

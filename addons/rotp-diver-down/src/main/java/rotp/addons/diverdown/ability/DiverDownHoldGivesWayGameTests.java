@@ -211,7 +211,8 @@ public final class DiverDownHoldGivesWayGameTests {
 
     // 1.16 DiverDownRetract (InitStands :75) was a StandEntityAction too: pressed while Diver Down was inside and its task
     // could not be cancelled (a heavy punch's windup), checkTaskCancelling queued it and the Stand clicked it again when
-    // the task was over. The port's plain ability retracted at once.
+    // the task was over; clearTask had not called back a Diver Down inside its target, so the Retract went off then.
+    // The port's plain ability retracted at once.
     @GameTest(template = "empty", templateNamespace = TEMPLATES, batch = "dd_retract_queued",
             timeoutTicks = GameTestPlacement.WAIT_TEST_TICKS + OWN_TICKS)
     public static void retractPressedInAnUncancellableWindupWaitsBehindItAsIn116(GameTestHelper helper) {
@@ -249,20 +250,27 @@ public final class DiverDownHoldGivesWayGameTests {
 
                 // the Stand clicked the queued action again once its task was over
                 standAction.setAction(null, scene.owner, SyncType.NO_SYNC);
-                // ending the task retracted the Stand (StandEntity.onActionSet): the queued click finds it outside
-                helper.assertTrue(!scene.stand.isEmbedded(),
-                        "Fixture: ending the heavy punch did not retract Diver Down");
-                resolve(scene, phasing);
+                // 1.16 StandEntity.clearTask :1589 asked DiverDownEntity.isFollowingUser (:164-166, targetInside == null):
+                // ending the task did not call back a Diver Down inside its target, so the queued click found it inside
+                helper.assertTrue(scene.stand.getEmbeddedTarget() == cow && !scene.stand.isBeingRetracted(),
+                        "1.16 did not call Diver Down back out of the cow when the heavy punch ended (a Stand inside its "
+                                + "target does not follow its user): inside " + scene.stand.getEmbeddedTarget()
+                                + ", called back " + scene.stand.isBeingRetracted());
+                AbilityConditionCheck replayed = resolve(scene, phasing);
+                helper.assertTrue(replayed != null && replayed.ability instanceof RetractAbility,
+                        "Fixture: the Entity Phasing key does not hold Retract with Diver Down still inside: "
+                                + (replayed == null ? null : replayed.ability));
                 ActionInputBuffer.get(scene.owner).tickInputBuffer(
                         scene.owner.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get()));
                 helper.assertTrue(!scene.stand.isEmbedded() && scene.stand.getEmbeddedTarget() == null,
-                        "1.16 clicked the queued Retract again, not Entity Phasing, and refused it (not inside); "
-                                + "Diver Down dived back into " + scene.stand.getEmbeddedTarget());
-                // the refused replay used the queue up: a press of the key later is a plain Entity Phasing dive
+                        "1.16 clicked the queued Retract again with Diver Down still inside and it went off "
+                                + "(DiverDownRetract.standPerform, setTargetInside(null)); Diver Down is inside "
+                                + scene.stand.getEmbeddedTarget());
+                // the replay that went off used the queue up: a press of the key later is a plain Entity Phasing dive
                 BufferingState later = press(scene, phasing, InputMethod.CLICK, OTHER_KEY);
                 AbilityInput.keyRelease(OTHER_KEY, scene.owner);
                 helper.assertTrue(later.isActionSuccess && scene.stand.getEmbeddedTarget() == cow,
-                        "A press of the Entity Phasing key after the refused queued Retract did not dive: went off "
+                        "A press of the Entity Phasing key after the queued Retract went off did not dive: went off "
                                 + later.isActionSuccess + ", Diver Down inside " + scene.stand.getEmbeddedTarget());
                 scene.stand.clearEmbeddedTarget();
                 scene.close();

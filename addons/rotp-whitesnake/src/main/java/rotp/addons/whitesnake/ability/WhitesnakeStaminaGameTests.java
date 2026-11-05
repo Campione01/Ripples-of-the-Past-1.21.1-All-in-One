@@ -7,10 +7,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -105,6 +107,9 @@ public final class WhitesnakeStaminaGameTests {
     private static final short HOLD_KEY = 121;
     private static final short OTHER_KEY = 122;
 
+    // A test that aims, shoots or searches past its own cell runs alone in its batch (ws_far_*): the next row of a
+    // shared batch stands 7 blocks south, inside the rays, flights and searches these tests send along z.
+
     private WhitesnakeStaminaGameTests() {}
 
     @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
@@ -150,7 +155,7 @@ public final class WhitesnakeStaminaGameTests {
         }
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_meltYourHeartPaysTenOnceAtItsFloor", timeoutTicks = 40)
     public static void meltYourHeartPaysTenOnceAtItsFloor(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-st-melt");
         try {
@@ -170,7 +175,7 @@ public final class WhitesnakeStaminaGameTests {
         }
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_throwDiscFiresOnAShortBar", timeoutTicks = 40)
     public static void throwDiscFiresOnAShortBar(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-st-throw");
         Recorder target = player(helper, "ws-st-throw-t");
@@ -207,7 +212,7 @@ public final class WhitesnakeStaminaGameTests {
      * 1.16 standEntity.shootProjectile(disc, 2.0F, 0.25F) spread the disc by getProjectileInaccuracy(0.25) of the Stand's
      * precision: none at 12, where the port's own curve still spread it, 1.5 at 4.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_throwDiscSpreadsByTheStandsPrecisionAsIn116", timeoutTicks = 40)
     public static void throwDiscSpreadsByTheStandsPrecisionAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-spread");
         try {
@@ -255,7 +260,7 @@ public final class WhitesnakeStaminaGameTests {
      * the Stand's look with getProjectileInaccuracy(0.5) (none at precision 12, 2 at 4), then addProjectile scaled its
      * damage by the Stand's strength / 8 and its speed by its speed / 8.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_meltYourHeartShootsWithTheStandsStatsAsIn116", timeoutTicks = 40)
     public static void meltYourHeartShootsWithTheStandsStatsAsIn116(GameTestHelper helper) {
         whenEntitiesTick(helper, () -> meltYourHeartShootsWithTheStandsStatsAsIn116Rows(helper));
     }
@@ -320,7 +325,7 @@ public final class WhitesnakeStaminaGameTests {
      * (:75-76) registered none, their perform set both 30-tick timers directly (WhitesnakeRemovingMemoryDisk :94-95), in
      * Resolve and Creative alike; the other actions had none.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_whitesnakeCooldownsKeepTheDonorsTechnicalAndAdditionalPartAsIn116", timeoutTicks = 40)
     public static void whitesnakeCooldownsKeepTheDonorsTechnicalAndAdditionalPartAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-cooldown-split");
         Recorder target = player(helper, "ws-cooldown-split-t");
@@ -387,7 +392,7 @@ public final class WhitesnakeStaminaGameTests {
      * Stand-less target with no Stand disc in hand it was let through, charged its 30 ticks, moved nothing and set both
      * 30-tick timers at the perform. The port's message for the missing disc is sent then, at the perform.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 60)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_standDiscAtAStandlessTargetWithNoDiscChargesAsIn116", timeoutTicks = 60)
     public static void standDiscAtAStandlessTargetWithNoDiscChargesAsIn116(GameTestHelper helper) {
         whenEntitiesTick(helper, () -> standDiscNoDiscRows(helper));
     }
@@ -447,7 +452,7 @@ public final class WhitesnakeStaminaGameTests {
      * with no disc in hand moved nothing and still set them. A target lost before the perform (the task's target emptied)
      * set none. The port's refusal messages stay.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_discRemovalsSetBothTimersWhenNothingMovesAsIn116", timeoutTicks = 40)
     public static void discRemovalsSetBothTimersWhenNothingMovesAsIn116(GameTestHelper helper) {
         whenEntitiesTick(helper, () -> discRemovalsSetBothTimersWhenNothingMovesAsIn116Rows(helper));
     }
@@ -533,7 +538,7 @@ public final class WhitesnakeStaminaGameTests {
     }
 
     // 1.16 StandEntityTask paid the cost after standPerform even when the disc had gone in the windup.
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_throwDiscPaysItsCostWhenTheDiscIsGone", timeoutTicks = 40)
     public static void throwDiscPaysItsCostWhenTheDiscIsGone(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-st-throw-gone");
         Recorder target = player(helper, "ws-st-throw-gone-t");
@@ -565,7 +570,7 @@ public final class WhitesnakeStaminaGameTests {
     }
 
     // 1.16 StandEntityTask paid 200 on every perform, also when standPerform found its target out of reach.
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_memoryDiscRemovalPaysItsCostWhenTheTargetIsLost", timeoutTicks = 40)
     public static void memoryDiscRemovalPaysItsCostWhenTheTargetIsLost(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-st-memory-lost");
         Recorder target = player(helper, "ws-st-memory-lost-t");
@@ -592,7 +597,7 @@ public final class WhitesnakeStaminaGameTests {
         }
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_memoryDiscRemovalExtractsOnAShortBar", timeoutTicks = 40)
     public static void memoryDiscRemovalExtractsOnAShortBar(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-st-memory");
         Recorder target = player(helper, "ws-st-memory-t");
@@ -626,7 +631,7 @@ public final class WhitesnakeStaminaGameTests {
         }
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_standDiscRemovalExtractsOnAShortBar", timeoutTicks = 40)
     public static void standDiscRemovalExtractsOnAShortBar(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-st-stand");
         Recorder target = player(helper, "ws-st-stand-t");
@@ -686,7 +691,7 @@ public final class WhitesnakeStaminaGameTests {
     // 1.16 whitesnake_throw_disc standOffsetFront(): (left, up, forward) (0, 0.2, 0.5) from the user's feet, turned by
     // the view yaw. The disc removals kept no offset (noAdheringToUserOffset) and onTaskSet put the Stand one block
     // before its target on the user's side as the hold started.
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_discActionsPutTheStandWhereTheDonorDid", timeoutTicks = 40)
     public static void discActionsPutTheStandWhereTheDonorDid(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-place");
         Recorder target = player(helper, "ws-place-t");
@@ -733,7 +738,7 @@ public final class WhitesnakeStaminaGameTests {
 
     // 1.16 standKeepsTarget kept the removals' target (memory disc: any, Stand disc: getTargetRequirement ENTITY), and
     // a punch pressed at nothing took it over from the task it replaced (StandEntity.setTask).
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_discRemovalsKeepTheirTargetForTheNextPunchAsIn116", timeoutTicks = 40)
     public static void discRemovalsKeepTheirTargetForTheNextPunchAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-keep");
         Recorder target = player(helper, "ws-keep-t");
@@ -774,7 +779,7 @@ public final class WhitesnakeStaminaGameTests {
      * sight, was too far. The Stand disc (getTargetRequirement ENTITY) answered target_too_far; the memory disc (no
      * requirement) lost its target and checkStandConditions refused it without a message.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_discRemovalsRefuseATargetBeyondTheStandsReachAsIn116", timeoutTicks = 40)
     public static void discRemovalsRefuseATargetBeyondTheStandsReachAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-range");
         Recorder target = player(helper, "ws-range-t");
@@ -819,7 +824,7 @@ public final class WhitesnakeStaminaGameTests {
     }
 
     // 1.16 PowerBaseImpl.tickHeldAction ran checkRequirements, range and target included, on every held tick.
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_discRemovalHoldsEndWhenTheTargetLeavesTheStandsReachAsIn116", timeoutTicks = 40)
     public static void discRemovalHoldsEndWhenTheTargetLeavesTheStandsReachAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-range-held");
         Recorder target = player(helper, "ws-range-held-t");
@@ -853,7 +858,7 @@ public final class WhitesnakeStaminaGameTests {
     }
 
     // 1.16 makeServerSideTask kept no target past the reach, and onTaskSet put the Stand before the task's target only.
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_discRemovalsIgnoreATargetBeyondTheStandsReachAsIn116", timeoutTicks = 40)
     public static void discRemovalsIgnoreATargetBeyondTheStandsReachAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-range-task");
         Recorder target = player(helper, "ws-range-task-t");
@@ -912,7 +917,7 @@ public final class WhitesnakeStaminaGameTests {
     // 1.16 StandEntityAction.checkStandTarget (StandEntity.canAttack) dropped a target the Stand may not attack, a
     // player of the user's team without friendly fire: both disc removals were refused without a message on the press
     // and stopped on the held tick the crosshair met it.
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_discRemovalsRefuseWhatTheStandMayNotAttackAsIn116", timeoutTicks = 40)
     public static void discRemovalsRefuseWhatTheStandMayNotAttackAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-ally");
         Recorder target = player(helper, "ws-ally-t");
@@ -954,7 +959,7 @@ public final class WhitesnakeStaminaGameTests {
     // the user's own tamed animal, not an animal riding the user's vehicle, not a teammate without friendly fire.
     // The press summoned the Stand first, so with it away the same rules hold for its user. The tamed wolf and the
     // wild one go through both presses; the shared ride and the team through the rule itself, which both call.
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_discRemovalsRefuseOwnPetsAndSharedRidesWithOrWithoutTheStandAsIn116", timeoutTicks = 40)
     public static void discRemovalsRefuseOwnPetsAndSharedRidesWithOrWithoutTheStandAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-pets");
         Wolf wild = null;
@@ -1049,7 +1054,7 @@ public final class WhitesnakeStaminaGameTests {
     // pressed torch gave way to what the summoned Stand's collision ray met within its reach, here a cow behind the
     // torch, and nothing else; with the Stand looking away the ray met nothing and the press had no target. The cow
     // has no Stand, so the Stand disc press, once it has its target, asks for a disc to insert.
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_discRemovalsPressedAtATorchTakeWhatTheStandsRayMeetsAsIn116", timeoutTicks = 40)
     public static void discRemovalsPressedAtATorchTakeWhatTheStandsRayMeetsAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-torch");
         Cow cow = EntityType.COW.create(helper.getLevel());
@@ -1144,7 +1149,7 @@ public final class WhitesnakeStaminaGameTests {
      * tick (PowerBaseImpl.tickHeldAction) and its Stand's task ran the 1-tick perform in the Stand's next tick, the 31st;
      * the Stand disc is holdType and waited for the key.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 60)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_discActionsEndWithTheirPerformAsIn116", timeoutTicks = 60)
     public static void discActionsEndWithTheirPerformAsIn116(GameTestHelper helper) {
         whenEntitiesTick(helper, () -> discActionsEndWithTheirPerformAsIn116Rows(helper));
     }
@@ -1218,7 +1223,7 @@ public final class WhitesnakeStaminaGameTests {
     // once (StandEntityAction.checkTaskCancelling, isCancelable) and the hold ended with its cooldown (PowerBaseImpl
     // .onClickAction -> stopHeldAction(false)); an action of the power the Stand does not perform ended the hold the same
     // way, and the manual control key, no 1.16 action, left it held.
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 60)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_aPunchPressedDuringMeltYourHeartReplacesItAtOnceAsIn116", timeoutTicks = 60)
     public static void aPunchPressedDuringMeltYourHeartReplacesItAtOnceAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-melt-gives-way");
         try {
@@ -1282,7 +1287,7 @@ public final class WhitesnakeStaminaGameTests {
      * guard or barrage went on; the input buffer keeps such a press until the hold ends. The barrage is an arms-only
      * Whitesnake's, which has no recovery (StandEntityMeleeBarrage.getStandRecoveryTicks) and so gives way to a press.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 60)
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_aHeldAbilityPressedDuringTheHeldGuardOrBarrageWaitsAsIn116", timeoutTicks = 60)
     public static void aHeldAbilityPressedDuringTheHeldGuardOrBarrageWaitsAsIn116(GameTestHelper helper) {
         Recorder caster = player(helper, "ws-held-waits");
         Recorder target = player(helper, "ws-held-waits-t");
@@ -1330,163 +1335,142 @@ public final class WhitesnakeStaminaGameTests {
         }
     }
 
-    // 1.16 004 InitStands :69 whitesnake_heavy_punch sets no standPose and WhitesnakeModel.initActionPoses :53-64 puts
-    // no HEAVY_ATTACK pose, so Whitesnake drew the core's default humanoid heavy: the port's copy is the core default
-    // heavy_punch (the official hooking punch) with the core's one-tick markers; only its head is Whitesnake's own,
-    // re-hosted for its rig (D-rotp-whitesnake-01).
+    // 1.16 004 InitStands :69 whitesnake_heavy_punch sets no standPose, WhitesnakeModel.initActionPoses :53-64 puts no
+    // HEAVY_ATTACK pose and the 004 jar has no animations file, so LegacyStandAnimator drew HumanoidStandModel's heavy
+    // (:540-584) over Whitesnake's own idle. The clip replays it (migration/tools/whitesnake_legacy_clips.py): the start
+    // pose, the backswing at 0.95 of the windup, the impact when the hit lands at the PERFORM start, then the idle. The
+    // head stays [0, 0, 0] (D-rotp-whitesnake-01) and the legs keep the idle's, which the heavy pose does not name.
     @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 20)
-    public static void heavyPunchKeepsTheCoreDefaultHookingPunch(GameTestHelper helper) {
-        JsonObject coreHeavy = animationClip(helper, "jojo_ripples",
-                "assets/jojo_ripples/stand_skins/star_platinum/assets/jojo_ripples/animations/"
-                        + "star_platinum.animation.json", "heavy_punch");
-        JsonObject coreDefault = animationClip(helper, "jojo_ripples",
-                "assets/jojo_ripples/animations/stand_default.animation.json", "heavy_punch");
+    public static void heavyPunchReplaysThe116HumanoidHeavy(GameTestHelper helper) {
+        JsonObject idle = whitesnakeClip(helper, "idle");
+        JsonObject heavy = whitesnakeClip(helper, "heavy_punch");
         JsonObject markers = JsonParser.parseString("{\"0.0\":\"phase = WINDUP;\","
-                + "\"0.4333\":\"phase = PERFORM;\",\"0.4833\":\"phase = RECOVERY;\"}").getAsJsonObject();
-        helper.assertTrue(markers.equals(coreDefault.get("timeline")) && markers.equals(coreHeavy.get("timeline")),
-                "setup: the core default heavy_punch no longer has PERFORM 0.4333 / RECOVERY 0.4833: "
-                        + coreDefault.get("timeline") + ", Star Platinum " + coreHeavy.get("timeline"));
-        JsonObject heavy = animationClip(helper, WhitesnakeAddon.MOD_ID,
-                "assets/rotp_whitesnake/stand_skins/whitesnake/assets/rotp_whitesnake/animations/"
-                        + "whitesnake.animation.json", "heavy_punch");
+                + "\"0.85\":\"phase = PERFORM;\",\"0.9\":\"phase = RECOVERY;\"}").getAsJsonObject();
         helper.assertTrue(markers.equals(heavy.get("timeline")),
-                "Whitesnake's heavy_punch must keep the core default's PERFORM 0.4333 / RECOVERY 0.4833 (the thrust"
-                        + " lands at 0.4667 in the one-tick perform): " + heavy.get("timeline"));
-        helper.assertTrue(coreHeavy.get("animation_length").equals(heavy.get("animation_length"))
-                        && coreHeavy.get("loop").equals(heavy.get("loop")),
-                "Whitesnake's heavy_punch length or loop differs from the core default's");
-        JsonObject bones = heavy.getAsJsonObject("bones");
-        JsonObject coreBones = coreHeavy.getAsJsonObject("bones");
-        helper.assertTrue(bones.has("right_arm") && bones.has("right_arm_bend") && bones.has("head"),
-                "Whitesnake's heavy_punch lost its striking arm or its head: " + bones.keySet());
-        for (String bone : bones.keySet()) {
-            helper.assertTrue(bone.equals("head") || bones.get(bone).equals(coreBones.get(bone)),
-                    "Whitesnake's heavy_punch must stay the core default's hooking punch: " + bone + " "
-                            + bones.get(bone) + ", core " + coreBones.get(bone));
+                "Whitesnake's heavy_punch phase markers changed: " + heavy.get("timeline"));
+        helper.assertTrue(rotates(heavy, "right_arm", 0.0D, 22.5D, 0.0D, 60.0D)
+                        && rotates(heavy, "body", 0.0D, 0.0D, 15.0D, 0.0D),
+                "Whitesnake's heavy_punch no longer starts in the 1.16 heavyRightStart: right_arm "
+                        + Arrays.toString(rotationAt(heavy, "right_arm", 0.0D)));
+        for (double at : new double[] {0.85D, 0.875D, 0.8999D}) {
+            helper.assertTrue(rotates(heavy, "right_arm", at, -67.5D, 0.0D, 90.0D)
+                            && rotates(heavy, "left_arm", at, 22.5D, 0.0D, -60.0D)
+                            && rotates(heavy, "body", at, 0.0D, -26.25D, 0.0D)
+                            && rotates(heavy, "torso", at, 0.0D, -26.25D, 0.0D),
+                    "Whitesnake's heavy_punch is not at the 1.16 heavyRightImpact while its hit lands, at " + at
+                            + ": right_arm " + Arrays.toString(rotationAt(heavy, "right_arm", at)) + ", body "
+                            + Arrays.toString(rotationAt(heavy, "body", at)));
         }
+        helper.assertTrue(rotates(heavy, "right_arm", 1.5D, -40.65653D, -55.87912D, 39.57735D)
+                        && rotates(heavy, "body", 1.5D, -3.89307D, 12.45167D, 5.12076D),
+                "Whitesnake's heavy_punch no longer recovers into Whitesnake's idle: right_arm "
+                        + Arrays.toString(rotationAt(heavy, "right_arm", 1.5D)));
+        assertIdleHeadAndLegs(helper, idle, heavy, "heavy_punch");
         helper.succeed();
     }
 
-    // 1.16 004 InitStands :68 whitesnake_combo_punch, the heavy punch's finisher, sets no standPose either: the default
-    // humanoid finisher, the core's stand_default finisher_uppercut, not Star Platinum's own; the head is re-hosted.
+    // 1.16 HumanoidStandModel :586 gave HEAVY_ATTACK_FINISHER the heavy's animation, and 004 InitStands :68
+    // whitesnake_combo_punch sets no pose of its own: the finisher is the heavy, clip for clip.
     @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 20)
-    public static void finisherPunchKeepsTheCoreDefaultFinisher(GameTestHelper helper) {
-        JsonObject core = animationClip(helper, "jojo_ripples",
-                "assets/jojo_ripples/animations/stand_default.animation.json", "finisher_uppercut");
-        JsonObject finisher = animationClip(helper, WhitesnakeAddon.MOD_ID,
-                "assets/rotp_whitesnake/stand_skins/whitesnake/assets/rotp_whitesnake/animations/"
-                        + "whitesnake.animation.json", "finisher_punch");
-        for (String field : List.of("loop", "animation_length", "timeline")) {
-            helper.assertTrue(Objects.equals(core.get(field), finisher.get(field)),
-                    "Whitesnake's finisher_punch " + field + " differs from the core default finisher's: "
-                            + finisher.get(field) + ", core " + core.get(field));
-        }
-        JsonObject bones = finisher.getAsJsonObject("bones");
-        JsonObject coreBones = core.getAsJsonObject("bones");
-        helper.assertTrue(bones.has("right_arm") && bones.has("body") && bones.has("head"),
-                "Whitesnake's finisher_punch lost its arm, body or head: " + bones.keySet());
-        for (String bone : bones.keySet()) {
-            helper.assertTrue(bone.equals("head") || bone.equals("head_rot")
-                            || bones.get(bone).equals(coreBones.get(bone)),
-                    "Whitesnake's finisher_punch must stay the core default finisher: " + bone + " "
-                            + bones.get(bone) + ", core " + coreBones.get(bone));
-        }
+    public static void finisherPunchIsThe116Heavy(GameTestHelper helper) {
+        JsonObject heavy = whitesnakeClip(helper, "heavy_punch");
+        JsonObject finisher = whitesnakeClip(helper, "finisher_punch");
+        helper.assertTrue(finisher.equals(heavy),
+                "Whitesnake's finisher_punch is no longer its 1.16 heavy: " + finisher.get("timeline") + ", heavy "
+                        + heavy.get("timeline"));
         helper.succeed();
     }
 
     // 1.16 004 InitStands :71 whitesnake_block is a plain StandEntityBlock (StandPose.BLOCK) and WhitesnakeModel puts
-    // no BLOCK pose, so Whitesnake drew HumanoidStandModel's guard (:590-607): crossed forearms, arms following the look
-    // pitch up to 60 degrees. The core's stand_default block is that guard; Star Platinum's static one is its own clip.
-    // 1.16 LegacyStandAnimator.poseStand :73 posed Whitesnake's whole idle (WhitesnakeModel.initIdlePose :67-69) first
-    // and the BLOCK pose names no leg, so the guard kept Whitesnake's idle legs, not stand_default's leg stance.
+    // no BLOCK pose, so Whitesnake drew HumanoidStandModel's guard (:590-607) over its own idle (LegacyStandAnimator
+    // .poseStand :73): body and waist straight, crossed forearms, the arms following the look pitch up to 60 degrees,
+    // the joints at half their forearms (rotateJoint :880-886) and the idle's legs, which the guard does not name.
     @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 20)
-    public static void guardKeepsTheDefaultPitchFollowingGuard(GameTestHelper helper) {
-        JsonObject core = animationClip(helper, "jojo_ripples",
-                "assets/jojo_ripples/animations/stand_default.animation.json", "block");
-        JsonObject star = animationClip(helper, "jojo_ripples",
-                "assets/jojo_ripples/stand_skins/star_platinum/assets/jojo_ripples/animations/"
-                        + "star_platinum.animation.json", "block");
-        JsonObject coreBones = core.getAsJsonObject("bones");
-        helper.assertTrue(coreBones.has("right_arm")
-                        && coreBones.get("right_arm").toString().contains("math.min(60, query.head_x_rotation)")
-                        && !coreBones.equals(star.getAsJsonObject("bones")),
-                "setup: the core default block is no longer the pitch-following humanoid guard: " + coreBones);
-        String file = "assets/rotp_whitesnake/stand_skins/whitesnake/assets/rotp_whitesnake/animations/"
-                + "whitesnake.animation.json";
-        JsonObject idle = animationClip(helper, WhitesnakeAddon.MOD_ID, file, "idle").getAsJsonObject("bones");
-        List<String> idleLegs = List.of("left_leg", "right_leg", "left_leg_bend", "right_leg_bend");
-        for (String clip : List.of("block", "guard")) {
-            JsonObject guard = animationClip(helper, WhitesnakeAddon.MOD_ID, file, clip);
-            helper.assertTrue(Objects.equals(core.get("loop"), guard.get("loop"))
-                            && Objects.equals(core.get("animation_length"), guard.get("animation_length")),
-                    "Whitesnake's " + clip + " loop or length differs from the core default guard's");
-            JsonObject bones = guard.getAsJsonObject("bones");
-            helper.assertTrue(bones.keySet().equals(coreBones.keySet()),
-                    "Whitesnake's " + clip + " bones differ from the core default guard's: " + bones.keySet());
-            for (String bone : bones.keySet()) {
-                if (idleLegs.contains(bone)) {
-                    JsonObject idleRotation = idle.getAsJsonObject(bone).getAsJsonObject("rotation");
-                    JsonElement idleFirst = idleRotation.has("vector") ? idleRotation.get("vector")
-                            : idleRotation.getAsJsonObject("0.0").get("vector");
-                    JsonElement held = bones.getAsJsonObject(bone).getAsJsonObject("rotation").get("vector");
-                    helper.assertTrue(idleFirst.equals(held) && !bones.get(bone).equals(coreBones.get(bone)),
-                            "Whitesnake's " + clip + " must keep Whitesnake's own idle " + bone + " as 1.16's guard"
-                                    + " did: " + bones.get(bone) + ", idle " + idleFirst + ", core default "
-                                    + coreBones.get(bone));
-                    continue;
-                }
-                helper.assertTrue(bones.get(bone).equals(coreBones.get(bone)),
-                        "Whitesnake's " + clip + " must stay the core default pitch-following guard: " + bone + " "
-                                + bones.get(bone) + ", core " + coreBones.get(bone));
-            }
+    public static void guardIsThe116PitchFollowingGuardOverTheIdle(GameTestHelper helper) {
+        JsonObject idle = whitesnakeClip(helper, "idle");
+        JsonObject block = whitesnakeClip(helper, "block");
+        helper.assertTrue(block.equals(whitesnakeClip(helper, "guard")),
+                "Whitesnake's guard and block clips differ");
+        JsonObject bones = block.getAsJsonObject("bones");
+        for (String arm : List.of("left_arm", "right_arm")) {
+            String vector = bones.getAsJsonObject(arm).getAsJsonObject("rotation").get("vector").toString();
+            helper.assertTrue(vector.contains("math.max(-60, math.min(60, query.head_x_rotation))"),
+                    "Whitesnake's guard " + arm + " no longer follows the look pitch up to 60 degrees: " + vector);
         }
+        helper.assertTrue(rotates(block, "right_arm_bend", 0.0D, -90.0D, 30.0D, -90.0D)
+                        && rotates(block, "left_arm_bend", 0.0D, -90.0D, -30.0D, 90.0D)
+                        && rotates(block, "right_arm_joint", 0.0D, -45.0D, 15.0D, -45.0D)
+                        && rotates(block, "left_arm_joint", 0.0D, -45.0D, -15.0D, 45.0D)
+                        && rotates(block, "body", 0.0D, 0.0D, 0.0D, 0.0D)
+                        && rotates(block, "torso", 0.0D, 0.0D, 0.0D, 0.0D),
+                "Whitesnake's guard lost the 1.16 crossed forearms: right_arm_bend "
+                        + Arrays.toString(rotationAt(block, "right_arm_bend", 0.0D)) + ", body "
+                        + Arrays.toString(rotationAt(block, "body", 0.0D)));
+        assertIdleHeadAndLegs(helper, idle, block, "block");
         helper.succeed();
     }
 
     // The port's charged heavy (no 1.16 counterpart) strikes at the end of its PERFORM (StandEntityChargedHeavy
-    // .actionPerformEnd). Whitesnake's heavy_charged is its heavy_punch re-timed by 2.4667 s from the pull-back at
-    // 0.3333 (heavy_charged_fix.py), so its PERFORM ends where heavy_punch's does, just after the arm's full extension.
+    // .actionPerformEnd). Whitesnake's heavy_charged holds the 1.16 heavy backswing through the charge and the hold
+    // (both shown as WINDUP, whose loop is the held pose) and swings into the 1.16 heavy impact over the PERFORM, so the
+    // arm reaches full extension as the hit lands; the recovery is the 1.16 heavy's.
     @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 20)
-    public static void chargedHeavyStrikesRightAfterItsHeavyPunchThrust(GameTestHelper helper) {
-        String file = "assets/rotp_whitesnake/stand_skins/whitesnake/assets/rotp_whitesnake/animations/"
-                + "whitesnake.animation.json";
-        JsonObject heavy = animationClip(helper, WhitesnakeAddon.MOD_ID, file, "heavy_punch");
-        JsonObject charged = animationClip(helper, WhitesnakeAddon.MOD_ID, file, "heavy_charged");
-        double shift = 2.4667D;
-        double heavyRecovery = phaseStart(heavy, "RECOVERY");
-        double chargedRecovery = phaseStart(charged, "RECOVERY");
-        helper.assertTrue(Math.abs(phaseStart(charged, "PERFORM") - (0.3333D + shift)) < 1.0E-4D
-                        && Math.abs(chargedRecovery - (heavyRecovery + shift)) < 1.0E-4D,
-                "Whitesnake's heavy_charged must end its PERFORM where its heavy_punch does, re-timed by " + shift
-                        + " s: heavy_punch RECOVERY " + heavyRecovery + ", heavy_charged " + charged.get("timeline"));
-        JsonObject bones = heavy.getAsJsonObject("bones");
-        JsonObject chargedBones = charged.getAsJsonObject("bones");
-        int keys = 0;
-        for (String bone : bones.keySet()) {
-            if (bone.equals("head")) {
-                continue;
-            }
-            for (String channel : bones.getAsJsonObject(bone).keySet()) {
-                JsonObject frames = bones.getAsJsonObject(bone).getAsJsonObject(channel);
-                if (frames.has("vector")) {
-                    continue;
-                }
-                for (String time : frames.keySet()) {
-                    double at = Double.parseDouble(time);
-                    if (at <= 0.3333D + 1.0E-9D) {
-                        continue;
-                    }
-                    String shifted = String.valueOf(Math.round((at + shift) * 10000.0D) / 10000.0D);
-                    JsonObject chargedFrames = chargedBones.getAsJsonObject(bone).getAsJsonObject(channel);
-                    helper.assertTrue(frames.get(time).equals(chargedFrames.get(shifted)),
-                            "Whitesnake's heavy_charged is no longer its heavy_punch re-timed: " + bone + " "
-                                    + channel + " " + time + " -> " + shifted + " " + chargedFrames.get(shifted));
-                    keys++;
-                }
-            }
+    public static void chargedHeavyStrikesAtThe116HeavyImpact(GameTestHelper helper) {
+        JsonObject idle = whitesnakeClip(helper, "idle");
+        JsonObject charged = whitesnakeClip(helper, "heavy_charged");
+        JsonObject timeline = charged.getAsJsonObject("timeline");
+        double perform = phaseStart(charged, "PERFORM");
+        double recovery = phaseStart(charged, "RECOVERY");
+        helper.assertTrue(phaseStart(charged, "WINDUP") == 0.0D
+                        && timeline.get("0.0").toString().contains("phase.loopBack = 0;")
+                        && perform > 0.0D && recovery > perform,
+                "Whitesnake's heavy_charged phase markers changed: " + timeline);
+        for (double at : new double[] {0.0D, perform / 2.0D, perform - 1.0E-3D}) {
+            helper.assertTrue(rotates(charged, "right_arm", at, 30.0D, 0.0D, 60.0D)
+                            && rotates(charged, "body", at, 0.0D, 26.25D, 0.0D),
+                    "Whitesnake's heavy_charged no longer holds the 1.16 heavy backswing while it charges, at " + at
+                            + ": right_arm " + Arrays.toString(rotationAt(charged, "right_arm", at)));
         }
-        helper.assertTrue(keys > 0, "setup: no heavy_punch keyframe after the pull-back was compared");
+        double hit = recovery - 1.0E-4D;
+        helper.assertTrue(rotates(charged, "right_arm", hit, -67.5D, 0.0D, 90.0D)
+                        && rotates(charged, "left_arm", hit, 22.5D, 0.0D, -60.0D)
+                        && rotates(charged, "body", hit, 0.0D, -26.25D, 0.0D)
+                        && !rotates(charged, "right_arm", (perform + recovery) / 2.0D, -67.5D, 0.0D, 90.0D),
+                "Whitesnake's heavy_charged does not swing into the 1.16 heavy impact over its PERFORM: right_arm "
+                        + Arrays.toString(rotationAt(charged, "right_arm", hit)) + " as the hit lands");
+        double end = charged.get("animation_length").getAsDouble();
+        helper.assertTrue(rotates(charged, "right_arm", end, -40.65653D, -55.87912D, 39.57735D),
+                "Whitesnake's heavy_charged no longer recovers into Whitesnake's idle: right_arm "
+                        + Arrays.toString(rotationAt(charged, "right_arm", end)));
+        assertIdleHeadAndLegs(helper, idle, charged, "heavy_charged");
         helper.succeed();
+    }
+
+    private static void assertIdleHeadAndLegs(GameTestHelper helper, JsonObject idle, JsonObject clip, String name) {
+        JsonObject bones = clip.getAsJsonObject("bones");
+        JsonObject look = bones.getAsJsonObject("head_rot").getAsJsonObject("rotation");
+        List<JsonElement> lookVectors = new ArrayList<>();
+        if (look.has("vector")) {
+            lookVectors.add(look.get("vector"));
+        }
+        else {
+            look.entrySet().forEach(key -> lookVectors.add(key.getValue().getAsJsonObject().get("vector")));
+        }
+        boolean followsLook = !lookVectors.isEmpty();
+        for (JsonElement vector : lookVectors) {
+            followsLook &= vector.getAsJsonArray().get(0).getAsString().contains("query.head_x_rotation")
+                    && vector.getAsJsonArray().get(1).getAsString().contains("query.head_y_rotation");
+        }
+        helper.assertTrue(rotates(clip, "head", 0.0D, 0.0D, 0.0D, 0.0D)
+                        && bones.getAsJsonObject("head").getAsJsonObject("rotation").has("vector")
+                        && followsLook,
+                "Whitesnake's " + name + " head must stay [0, 0, 0] with the look on head_rot: head "
+                        + bones.get("head") + ", head_rot " + bones.get("head_rot"));
+        for (String leg : List.of("left_leg", "right_leg", "left_leg_bend", "right_leg_bend")) {
+            helper.assertTrue(Objects.equals(bones.get(leg), idle.getAsJsonObject("bones").get(leg)),
+                    "Whitesnake's " + name + " must keep Whitesnake's own idle " + leg + " as 1.16 did: "
+                            + bones.get(leg) + ", idle " + idle.getAsJsonObject("bones").get(leg));
+        }
     }
 
     private static double phaseStart(JsonObject clip, String phase) {
@@ -1510,6 +1494,68 @@ public final class WhitesnakeStaminaGameTests {
         }
         helper.assertTrue(animations != null && animations.has(clip), modId + " " + file + " has no " + clip);
         return animations.getAsJsonObject(clip);
+    }
+
+    private static JsonObject whitesnakeClip(GameTestHelper helper, String clip) {
+        return animationClip(helper, WhitesnakeAddon.MOD_ID,
+                "assets/rotp_whitesnake/stand_skins/whitesnake/assets/rotp_whitesnake/animations/"
+                        + "whitesnake.animation.json", clip);
+    }
+
+    // the clip generator drops keyframes that a lerp reproduces within 0.01 degrees
+    private static boolean rotates(JsonObject clip, String bone, double seconds, double x, double y, double z) {
+        double[] rotation = rotationAt(clip, bone, seconds);
+        return rotation != null && Math.abs(rotation[0] - x) < 0.02D && Math.abs(rotation[1] - y) < 0.02D
+                && Math.abs(rotation[2] - z) < 0.02D;
+    }
+
+    // a bone's rotation at a clip time, its keyframes lerped linearly as the core does; null where a Molang term is
+    private static double[] rotationAt(JsonObject clip, String bone, double seconds) {
+        JsonObject bones = clip.getAsJsonObject("bones");
+        if (!bones.has(bone) || !bones.getAsJsonObject(bone).has("rotation")) {
+            return null;
+        }
+        JsonObject rotation = bones.getAsJsonObject(bone).getAsJsonObject("rotation");
+        if (rotation.has("vector")) {
+            return numbers(rotation.get("vector"));
+        }
+        double beforeTime = Double.NEGATIVE_INFINITY;
+        double afterTime = Double.POSITIVE_INFINITY;
+        JsonElement before = null;
+        JsonElement after = null;
+        for (String key : rotation.keySet()) {
+            double time = Double.parseDouble(key);
+            JsonElement vector = rotation.getAsJsonObject(key).get("vector");
+            if (time <= seconds && time > beforeTime) {
+                beforeTime = time;
+                before = vector;
+            }
+            if (time >= seconds && time < afterTime) {
+                afterTime = time;
+                after = vector;
+            }
+        }
+        double[] from = before != null ? numbers(before) : null;
+        double[] to = after != null ? numbers(after) : null;
+        if (from == null || to == null || afterTime == beforeTime) {
+            return before == null ? to : after == null || afterTime == beforeTime ? from : null;
+        }
+        double t = (seconds - beforeTime) / (afterTime - beforeTime);
+        return new double[] {from[0] + t * (to[0] - from[0]), from[1] + t * (to[1] - from[1]),
+                from[2] + t * (to[2] - from[2])};
+    }
+
+    private static double[] numbers(JsonElement vector) {
+        JsonArray array = vector.getAsJsonArray();
+        double[] values = new double[3];
+        for (int axis = 0; axis < 3; axis++) {
+            JsonElement value = array.get(axis);
+            if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
+                return null;
+            }
+            values[axis] = value.getAsDouble();
+        }
+        return values;
     }
 
     // pressed by its key as ClAbilityInputPacket does, kept held, and ticked into its perform

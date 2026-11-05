@@ -1,7 +1,5 @@
 package rotp.addons.echoes.init;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 import rotp.addons.echoes.RotpEchoes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.sounds.SoundEvent;
@@ -28,18 +26,25 @@ public final class EchoesSounds {
             register("skill_use_sound");
     public static final DeferredHolder<SoundEvent, SoundEvent>
             SKILL_USE_SOUND_2 = register("skill_use_sound_2");
+    // R772 F11, the author's latest 1.16.5 build (RotP-EchoesACT-master)
+    public static final DeferredHolder<SoundEvent, SoundEvent> ACT1_SUMMON =
+            register("act1_summon");
+    public static final DeferredHolder<SoundEvent, SoundEvent> ACT2_SUMMON =
+            register("act2_summon");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            ECHOES_SUMMON_BGM_ACT3 = register("echoes_summon_bgm_act3");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            ECHOES_SUMMON_BGM_COMMON = register("echoes_summon_bgm_common");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            ECHOES_RECALL_BGM = register("echoes_recall_bgm");
+    public static final DeferredHolder<SoundEvent, SoundEvent> FREEZE_VOICE =
+            register("freeze_voice");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            EASTER_EGG_SUMMON = register("easter_egg_summon");
 
     private EchoesSounds() {}
 
     private static DeferredHolder<SoundEvent, SoundEvent> register(String name) {
         return SOUNDS.register(name, SoundEvent::createVariableRangeEvent);
-    }
-
-    public static SoundEvent randomBarrageHitSound() {
-        return switch (ThreadLocalRandom.current().nextInt(3)) {
-            case 1 -> BARRAGE_HIT_SOUND_2.get();
-            case 2 -> BARRAGE_HIT_SOUND_3.get();
-            default -> BARRAGE_HIT_SOUND.get();
-        };
     }
 }

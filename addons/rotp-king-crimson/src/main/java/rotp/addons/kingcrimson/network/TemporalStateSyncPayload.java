@@ -16,7 +16,8 @@ public record TemporalStateSyncPayload(
         UUID entityUuid,
         int modeOrdinal,
         long startedAt,
-        long expiresAt) implements CustomPacketPayload {
+        long expiresAt,
+        boolean erasePaused) implements CustomPacketPayload {
     public static final Type<TemporalStateSyncPayload> TYPE =
             new Type<>(KingCrimsonAddon.id("temporal_state_sync"));
 
@@ -32,7 +33,8 @@ public record TemporalStateSyncPayload(
                             buffer.readUUID(),
                             buffer.readVarInt(),
                             buffer.readVarLong(),
-                            buffer.readVarLong());
+                            buffer.readVarLong(),
+                            buffer.readBoolean());
                 }
 
                 @Override
@@ -44,6 +46,7 @@ public record TemporalStateSyncPayload(
                     buffer.writeVarInt(payload.modeOrdinal());
                     buffer.writeVarLong(payload.startedAt());
                     buffer.writeVarLong(payload.expiresAt());
+                    buffer.writeBoolean(payload.erasePaused());
                 }
             };
 
@@ -54,7 +57,8 @@ public record TemporalStateSyncPayload(
                 player.getUUID(),
                 state.mode().ordinal(),
                 state.startedAt(),
-                state.expiresAt());
+                state.expiresAt(),
+                state.isErasePaused());
     }
 
     public static void handle(
@@ -69,7 +73,8 @@ public record TemporalStateSyncPayload(
                     .applyClientSnapshot(
                             payload.modeOrdinal(),
                             payload.startedAt(),
-                            payload.expiresAt());
+                            payload.expiresAt(),
+                            payload.erasePaused());
         }
     }
 

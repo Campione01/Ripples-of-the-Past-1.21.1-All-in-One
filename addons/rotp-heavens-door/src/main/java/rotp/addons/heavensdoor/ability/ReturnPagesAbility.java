@@ -11,6 +11,7 @@ import rotp.core.powersystem.standpower.entity
         .NoPoseStandEntityAbility;
 
 import rotp.addons.heavensdoor.item.PageItem;
+import rotp.addons.heavensdoor.state.BookStateRules;
 import rotp.addons.heavensdoor.state.BookStateService;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -57,8 +58,18 @@ public final class ReturnPagesAbility
                 return;
             }
             LivingEntity user = getPowerUser();
-            if (user != null
-                    && BookStateService.returnHeldPage(user)) {
+            // 1.2 ReturnPages.standPerform: each perform with a page in hand
+            // took 35 Resolve, whether or not the page found its target
+            boolean pageInHand = user != null
+                    && PageItem.data(user.getMainHandItem()) != null;
+            boolean returned = user != null
+                    && BookStateService.returnHeldPage(user);
+            if (pageInHand) {
+                BookStateRules.spendResolve(user,
+                        BookStateRules.RETURN_PAGE_RESOLVE_COST,
+                        BookStateRules.RETURN_PAGE_NO_DECAY_TICKS);
+            }
+            if (returned) {
                 return;
             }
             message(user, "rotp_hd.message.no_page_to_return");

@@ -81,6 +81,6 @@ public final class KingCrimsonGroundSlamAbility
 
     @Override
     protected void applyHitEffects(
-            StandEntity stand, LivingEntity target) {
+            StandEntity stand, LivingEntity target, float strikeFactor) {
     }
 }

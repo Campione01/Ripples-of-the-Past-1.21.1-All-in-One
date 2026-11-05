@@ -16,10 +16,17 @@ public final class StickyFingersClientHooks {
 
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
-        event.enqueueWork(() -> HumanoidModelPostSetup.register(
-                StickyFingersAddon.id(
-                        "detached_body_carry_pose"),
-                StickyFingersBodyPresentation
-                        ::applyFinalCarryPose));
+        event.enqueueWork(() -> {
+            HumanoidModelPostSetup.register(
+                    StickyFingersAddon.id(
+                            "detached_body_carry_pose"),
+                    StickyFingersBodyPresentation
+                            ::applyFinalCarryPose);
+            HumanoidModelPostSetup.register(
+                    StickyFingersAddon.id(
+                            "detached_body_crawl_pose"),
+                    StickyFingersBodyPresentation
+                            ::applyFinalCrawlPose);
+        });
     }
 }

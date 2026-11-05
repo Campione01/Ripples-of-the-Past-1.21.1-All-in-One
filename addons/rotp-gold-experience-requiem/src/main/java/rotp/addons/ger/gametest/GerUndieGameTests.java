@@ -13,6 +13,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
@@ -74,8 +75,14 @@ public final class GerUndieGameTests {
     private static final String UNDIE = "ger_undie_punch";
     private static final int PULL_START = 15;
     private static final int LOOPS = 10;
+    private static final double SCENE_DROP_REACH = 8.0D;
 
     private GerUndieGameTests() {}
+
+    // EntityJoinLevelEvent fires for whatever joins the level: an item of another test, or one a chunk loads, too.
+    static boolean nearScene(GerMeleeGameTestScene scene, Entity joined) {
+        return joined.position().distanceToSqr(scene.origin) < SCENE_DROP_REACH * SCENE_DROP_REACH;
+    }
 
     static GerLivingState state(LivingEntity entity) {
         return GoldExperienceRequiemAddon.livingState(entity);
@@ -370,7 +377,8 @@ public final class GerUndieGameTests {
                             }
                         });
                         scene.listen(EntityJoinLevelEvent.class, event -> {
-                            if (event.getEntity() instanceof ItemEntity || event.getEntity() instanceof ExperienceOrb) {
+                            if ((event.getEntity() instanceof ItemEntity || event.getEntity() instanceof ExperienceOrb)
+                                    && nearScene(scene, event.getEntity())) {
                                 dropped++;
                             }
                         });
@@ -463,7 +471,7 @@ public final class GerUndieGameTests {
                             }
                         });
                         scene.listen(EntityJoinLevelEvent.class, event -> {
-                            if (event.getEntity() instanceof ItemEntity) {
+                            if (event.getEntity() instanceof ItemEntity && nearScene(scene, event.getEntity())) {
                                 itemsAdded++;
                             }
                         });
@@ -881,7 +889,7 @@ public final class GerUndieGameTests {
                         });
                         scene.listen(EntityJoinLevelEvent.class, event -> {
                             if ((event.getEntity() instanceof ItemEntity || event.getEntity() instanceof ExperienceOrb)
-                                    && !finalDeath()) {
+                                    && !finalDeath() && nearScene(scene, event.getEntity())) {
                                 droppedBeforeFinal++;
                             }
                         });

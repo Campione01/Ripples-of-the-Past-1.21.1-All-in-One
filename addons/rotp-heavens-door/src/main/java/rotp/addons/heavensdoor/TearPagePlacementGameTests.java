@@ -18,6 +18,7 @@ import rotp.addons.heavensdoor.ability.HeavensDoorTargeting;
 import rotp.addons.heavensdoor.entity.HeavensDoorStandEntity;
 import rotp.addons.heavensdoor.item.PageData;
 import rotp.addons.heavensdoor.item.PageItem;
+import rotp.addons.heavensdoor.state.BookStateRules;
 import rotp.addons.heavensdoor.state.BookStateService;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
@@ -200,15 +201,15 @@ public final class TearPagePlacementGameTests {
         }
     }
 
-    // 1.16 TearOutAPage.standPerform ended with userPower.getResolveCounter().addResolveValue(getMaxResolve() * 0.005F,
-    // user) on every perform, a page torn or not.
+    // The author's 1.2 TearOutAPage.standPerform ended with userPower.getResolveCounter().addResolveValue(25.0F, user)
+    // on every perform, a page torn or not (1.0 added getMaxResolve() * 0.005F).
     @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 80)
-    public static void tearPageAddsHalfAPercentOfTheResolveBarOnEveryPerform(GameTestHelper helper) {
+    public static void tearPageAddsAFlat25ResolveOnEveryPerform(GameTestHelper helper) {
         HeavensDoorGameTestArea.whenLoaded(helper,
-                () -> tearPageAddsHalfAPercentOfTheResolveBarOnEveryPerformInLoadedArea(helper));
+                () -> tearPageAddsAFlat25ResolveOnEveryPerformInLoadedArea(helper));
     }
 
-    private static void tearPageAddsHalfAPercentOfTheResolveBarOnEveryPerformInLoadedArea(GameTestHelper helper) {
+    private static void tearPageAddsAFlat25ResolveOnEveryPerformInLoadedArea(GameTestHelper helper) {
         FakePlayer owner = new FakePlayer(helper.getLevel(), new GameProfile(UUID.randomUUID(), "HdTearResolve"));
         owner.setPos(helper.absoluteVec(new Vec3(1.5D, 2.0D, 1.5D)));
         helper.getLevel().addNewPlayer(owner);
@@ -246,8 +247,8 @@ public final class TearPagePlacementGameTests {
             tear._tickAction();
             float added = power.getResolveCounter().getResolveValue() - before;
             helper.assertTrue(HeavensDoorAddon.bookState(held).pageCount() == 1
-                            && Math.abs(added - max * 0.005F) < max * 0.0005F,
-                    "1.16 added maxResolve * 0.005 = " + max * 0.005F + " to the bar as the page came off; it gained "
+                            && Math.abs(added - BookStateRules.TEAR_RESOLVE) < BookStateRules.TEAR_RESOLVE * 0.1F,
+                    "1.2 added a flat " + BookStateRules.TEAR_RESOLVE + " to the bar as the page came off; it gained "
                             + added + " (pages " + HeavensDoorAddon.bookState(held).pageCount() + ")");
 
             // the cow the hold started at is gone as the perform starts: the port says so and stops, 1.16 performed
@@ -262,8 +263,8 @@ public final class TearPagePlacementGameTests {
             missed.setPhaseStart(ActionPhase.PERFORM);
             missed._tickAction();
             added = power.getResolveCounter().getResolveValue() - before;
-            helper.assertTrue(Math.abs(added - max * 0.005F) < max * 0.0005F,
-                    "1.16 added maxResolve * 0.005 = " + max * 0.005F + " to the bar on a perform whose target was gone;"
+            helper.assertTrue(Math.abs(added - BookStateRules.TEAR_RESOLVE) < BookStateRules.TEAR_RESOLVE * 0.1F,
+                    "1.2 added a flat " + BookStateRules.TEAR_RESOLVE + " to the bar on a perform whose target was gone;"
                             + " it gained " + added);
             LogUtils.getLogger().info("R770_HD_TEAR_RESOLVE_PASS added={} max={}", added, max);
             helper.succeed();

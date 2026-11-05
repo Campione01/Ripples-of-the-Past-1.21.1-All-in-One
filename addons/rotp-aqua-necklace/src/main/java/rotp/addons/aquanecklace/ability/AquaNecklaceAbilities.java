@@ -310,17 +310,14 @@ public final class AquaNecklaceAbilities {
                 LivingEntity performer) {
             super.initActionFromConfig(
                     action, level, powerUser, performer);
-            // 1.16 getHoldDurationToFire read the client's crosshair target
-            // as it was (InputHandler.mouseTarget), before a torch or grass
-            // gave way to the Stand's ray: only a skeleton there shortened
-            // the charge
-            ActionTarget aimed = performer instanceof AquaNecklaceEntity stand
-                    ? AquaNecklaceTargeting.standAim(stand, level)
-                    : ActionTarget.EMPTY;
-            Entity entity =
-                    aimed.getType() == ActionTarget.TargetType.ENTITY
-                            ? aimed.getMainEntity()
-                            : null;
+            // Extra Stands 1.1.0d getHoldDurationToFire: only a skeleton on
+            // the user's own reach ray (the Stand's under manual control)
+            // shortens the charge, the same on the server and the client
+            Entity entity = AquaNecklaceTargeting.reachRayEntity(
+                    powerUser,
+                    performer instanceof AquaNecklaceEntity stand
+                            ? stand
+                            : null);
             action.phasesLength.put(
                     ActionPhase.BUTTON_CHARGE,
                     entity instanceof LivingEntity living
@@ -1084,6 +1081,14 @@ public final class AquaNecklaceAbilities {
             // Owner rule of 2026-10-15: a Stand's own guard halves its
             // user's walk speed.
             standUserWalkSpeed(0.5F);
+        }
+
+        // 1.16 AquaNecklaceBlock was a StandEntityBlock: its RMB key waits
+        // the guard's click/hold threshold, so a Host Crush click is not
+        // taken for the guard's hold.
+        @Override
+        public boolean isGuard() {
+            return true;
         }
 
         @Override

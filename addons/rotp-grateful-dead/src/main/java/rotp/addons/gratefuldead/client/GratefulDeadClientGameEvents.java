@@ -1,6 +1,10 @@
 package rotp.addons.gratefuldead.client;
 
 import rotp.addons.gratefuldead.GratefulDeadAddon;
+import rotp.addons.gratefuldead.GratefulDeadConfig;
+import rotp.addons.gratefuldead.state.LivingAgingState;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.phys.Vec3;
 import rotp.addons.gratefuldead.service.AgingService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.FogRenderer.FogMode;
@@ -19,6 +23,8 @@ import net.neoforged.neoforge.event.level.LevelEvent;
         modid = GratefulDeadAddon.MOD_ID,
         value = Dist.CLIENT)
 public final class GratefulDeadClientGameEvents {
+    private static boolean localPoseForced;
+
     private GratefulDeadClientGameEvents() {}
 
     @SubscribeEvent
@@ -26,6 +32,69 @@ public final class GratefulDeadClientGameEvents {
             ClientTickEvent.Post event) {
         AgingBlockClientCache.tickClient();
         AgingBlurPostEffect.syncFromLocalPlayer();
+        tickAgingMist();
+        Player player = Minecraft.getInstance().player;
+        if (player != null) {
+            localPoseForced = LivingAgingState.applyClientPose(
+                    player, localPoseForced);
+        }
+        else {
+            localPoseForced = false;
+        }
+    }
+
+    // 0.1.13 spawnMistParticles: around the camera inside an aging aura,
+    // on its edge facing the camera from outside (up to 18 blocks out),
+    // centred on the Stand and as wide as the aura has grown.
+    private static void tickAgingMist() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || minecraft.isPaused()
+                || !GratefulDeadConfig.agingAuraMistParticles()
+                || minecraft.getCameraEntity() == null) {
+            return;
+        }
+        RandomSource random = minecraft.level.getRandom();
+        Vec3 camera = minecraft.getCameraEntity().getEyePosition(1.0F);
+        for (Player owner : minecraft.level.players()) {
+            if (!AgingBlockClientCache.hasWarmActiveAura(owner)) {
+                continue;
+            }
+            double radius = AgingService.auraRadius(
+                    AgingBlockClientCache.auraTicks(owner));
+            if (radius < 0.35D) {
+                continue;
+            }
+            var source = AgingService.auraCenter(owner);
+            Vec3 center = new Vec3(source.getX(), source.getY() + source.getBbHeight() * 0.45D, source.getZ());
+            double distance = camera.distanceTo(center);
+            if (distance > radius + 18.0D) {
+                continue;
+            }
+            boolean inside = distance <= radius + 2.0D;
+            if (random.nextInt(inside ? 5 : 8) != 0) {
+                continue;
+            }
+            double x;
+            double y;
+            double z;
+            if (inside) {
+                x = camera.x + (random.nextDouble() - 0.5D) * 16.0D;
+                y = camera.y + (random.nextDouble() - 0.35D) * 3.8D;
+                z = camera.z + (random.nextDouble() - 0.5D) * 16.0D;
+                if (center.distanceToSqr(x, y, z) > radius * radius) {
+                    continue;
+                }
+            }
+            else {
+                Vec3 direction = camera.subtract(center).normalize();
+                double shell = radius * (0.82D + random.nextDouble() * 0.16D);
+                x = center.x + direction.x * shell + (random.nextDouble() - 0.5D) * 4.0D;
+                y = center.y + (random.nextDouble() - 0.2D) * 2.4D;
+                z = center.z + direction.z * shell + (random.nextDouble() - 0.5D) * 4.0D;
+            }
+            minecraft.level.addParticle(
+                    GratefulDeadAddon.AGING_MIST.get(), x, y, z, 0.0D, 0.0D, 0.0D);
+        }
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
@@ -106,8 +175,9 @@ public final class GratefulDeadClientGameEvents {
                 continue;
             }
             double distance =
-                    cameraPosition.distanceTo(owner.position());
-            double radius = AgingService.AURA_RADIUS;
+                    cameraPosition.distanceTo(
+                            AgingService.auraCenter(owner).position());
+            double radius = AgingBlockClientCache.auraRadius(owner);
             if (distance >= radius) {
                 continue;
             }

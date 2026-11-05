@@ -10,6 +10,9 @@ import rotp.addons.sexpistols.registry.SexPistolsArmorMaterials;
 import rotp.addons.sexpistols.registry.SexPistolsDataComponents;
 import rotp.addons.sexpistols.registry.SexPistolsItems;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
@@ -37,13 +40,45 @@ public final class MistaHatItem extends ArmorItem {
                 && stack.is(SexPistolsItems.MISTA_SUIT_HAT.get());
     }
 
+    // Next Album 0.1.13 MistaSuitArmorItem.isSpeedloaderReady: the hat or the
+    // rotp-next-album Mista shoes worn.
+    public static final ResourceLocation MISTA_SUIT_BOOTS_ID =
+            ResourceLocation.fromNamespaceAndPath(
+                    "rotp_nextalbum", "mista_suit_boots");
+
+    public static boolean isSpeedloaderReady(LivingEntity entity) {
+        if (entity == null) {
+            return false;
+        }
+        if (isMistaHat(entity.getItemBySlot(EquipmentSlot.HEAD))) {
+            return true;
+        }
+        ItemStack feet = entity.getItemBySlot(EquipmentSlot.FEET);
+        return !feet.isEmpty()
+                && MISTA_SUIT_BOOTS_ID.equals(
+                        BuiltInRegistries.ITEM.getKey(feet.getItem()));
+    }
+
+    public static boolean isMistaShoes(ItemStack stack) {
+        return stack != null
+                && !stack.isEmpty()
+                && MISTA_SUIT_BOOTS_ID.equals(
+                        BuiltInRegistries.ITEM.getKey(stack.getItem()));
+    }
+
+    // 0.1.13 MistaSuitArmorItem.isAmmoContainer: the hat and the shoes both
+    // store rounds; the shoes keep them in this mod's MISTA_HAT_AMMO component.
+    public static boolean isAmmoContainer(ItemStack stack) {
+        return isMistaHat(stack) || isMistaShoes(stack);
+    }
+
     public static boolean isAmmoItem(ItemStack stack) {
         return stack != null
                 && stack.is(SexPistolsItems.REVOLVER_AMMO.get());
     }
 
     public static int storedAmmo(ItemStack stack) {
-        if (!isMistaHat(stack)) {
+        if (!isAmmoContainer(stack)) {
             return 0;
         }
         return Mth.clamp(
@@ -60,7 +95,7 @@ public final class MistaHatItem extends ArmorItem {
 
     public static int insertAmmo(
             ItemStack hatStack, ItemStack ammoStack) {
-        if (!isMistaHat(hatStack) || !isAmmoItem(ammoStack)) {
+        if (!isAmmoContainer(hatStack) || !isAmmoItem(ammoStack)) {
             return 0;
         }
         int moved = Math.min(
@@ -136,7 +171,7 @@ public final class MistaHatItem extends ArmorItem {
 
     private static void setStoredAmmo(
             ItemStack hatStack, int stored) {
-        if (isMistaHat(hatStack)) {
+        if (isAmmoContainer(hatStack)) {
             hatStack.set(
                     SexPistolsDataComponents.MISTA_HAT_AMMO.get(),
                     Mth.clamp(stored, 0, MAX_STORED_AMMO));
@@ -216,6 +251,13 @@ public final class MistaHatItem extends ArmorItem {
         tooltip.add(Component.translatable(
                         "item.rotp_sex_pistols.mista_suit_hat.supply")
                 .withStyle(ChatFormatting.DARK_GRAY));
+        tooltip.add(Component.translatable(
+                "item.rotp_sex_pistols.suit.effect.line.simple",
+                Component.translatable(
+                                "item.rotp_sex_pistols.suit.effect.speedloader")
+                        .withColor(0xE75D2F),
+                Component.translatable(
+                        "item.rotp_sex_pistols.suit.effect.speedloader.desc")));
         tooltip.add(Component.translatable(
                         "item.rotp_sex_pistols.mista_suit_hat.protection")
                 .withStyle(ChatFormatting.GRAY));

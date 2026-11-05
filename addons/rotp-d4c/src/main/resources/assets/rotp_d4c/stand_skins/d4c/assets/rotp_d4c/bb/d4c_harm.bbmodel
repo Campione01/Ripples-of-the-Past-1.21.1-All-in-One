@@ -8064,10 +8064,30 @@
                                                                                                                                                        "autouv":  0,
                                                                                                                                                        "selected":  false,
                                                                                                                                                        "children":  [
-                                                                                                                                                                        "21966fa8-5cac-5ccb-f0a5-2ebdcf006567",
-                                                                                                                                                                        "6d6ed652-3c76-28f9-2e84-25dc340349f2",
-                                                                                                                                                                        "70472927-7d49-a8cd-d7d0-03759dc4c5bc",
-                                                                                                                                                                        "7a8ab23c-809a-ce4a-db96-6db5589ffaa9"
+                                                                                                                                                                        {
+                                                                                                                                                                            "name":  "head_style",
+                                                                                                                                                                            "origin":  [
+                                                                                                                                                                                           0,
+                                                                                                                                                                                           24,
+                                                                                                                                                                                           0
+                                                                                                                                                                                       ],
+                                                                                                                                                                            "bedrock_binding":  "",
+                                                                                                                                                                            "color":  0,
+                                                                                                                                                                            "uuid":  "4f03d061-baf9-564f-bad5-feec00970ec1",
+                                                                                                                                                                            "export":  true,
+                                                                                                                                                                            "mirror_uv":  false,
+                                                                                                                                                                            "isOpen":  true,
+                                                                                                                                                                            "locked":  false,
+                                                                                                                                                                            "visibility":  true,
+                                                                                                                                                                            "autouv":  0,
+                                                                                                                                                                            "selected":  false,
+                                                                                                                                                                            "children":  [
+                                                                                                                                                                                             "21966fa8-5cac-5ccb-f0a5-2ebdcf006567",
+                                                                                                                                                                                             "6d6ed652-3c76-28f9-2e84-25dc340349f2",
+                                                                                                                                                                                             "70472927-7d49-a8cd-d7d0-03759dc4c5bc",
+                                                                                                                                                                                             "7a8ab23c-809a-ce4a-db96-6db5589ffaa9"
+                                                                                                                                                                                         ]
+                                                                                                                                                                        }
                                                                                                                                                                     ]
                                                                                                                                                    }
                                                                                                                                                ]

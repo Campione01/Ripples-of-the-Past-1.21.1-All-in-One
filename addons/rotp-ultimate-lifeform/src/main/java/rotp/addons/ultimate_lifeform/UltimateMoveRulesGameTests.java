@@ -223,7 +223,7 @@ public final class UltimateMoveRulesGameTests {
             helper.assertTrue(cooldown >= 199 && cooldown <= 200,
                     "1.16 gave the Scale Shot its 200 when the hold ended;"
                             + " got " + cooldown);
-            discardScales(helper, holder.player);
+            discardSent(helper, holder.player);
             holder.close(scaleKey);
             helper.succeed();
         });
@@ -900,7 +900,7 @@ public final class UltimateMoveRulesGameTests {
                             + player.swinging + " notified " + holder.notified
                             + " heard " + sounds.heard);
         }
-        discardScales(helper, player);
+        discardSent(helper, player);
         holder.close((short) 32_216);
         helper.succeed();
     }
@@ -941,7 +941,7 @@ public final class UltimateMoveRulesGameTests {
                     "1.16 played them for the user alone; the world heard "
                             + sounds.heard);
         }
-        discardScales(helper, player);
+        discardSent(helper, player);
         holder.close((short) 32_217);
         helper.succeed();
     }
@@ -1146,6 +1146,7 @@ public final class UltimateMoveRulesGameTests {
             helper.assertTrue(tentacles.stream()
                             .allMatch(Entity::isRemoved),
                     "1.16 removed the tentacles back at their owner");
+            discardSent(helper, player);
             holder.close((short) 32_222);
             helper.succeed();
         });
@@ -1198,6 +1199,7 @@ public final class UltimateMoveRulesGameTests {
                                     && tentacle.getLifeTicks() == 62),
                     "1.16 attached a hitting tentacle for 20 more ticks");
             tentacles.forEach(Entity::discard);
+            discardSent(helper, player);
             cow.discard();
             holder.close((short) 32_223);
             helper.succeed();
@@ -1263,12 +1265,9 @@ public final class UltimateMoveRulesGameTests {
                         && tentacle.getOwner() == owner);
     }
 
-    private static void discardScales(GameTestHelper helper,
+    private static void discardSent(GameTestHelper helper,
             ServerPlayer owner) {
-        helper.getLevel().getEntitiesOfClass(
-                        UltimateScaleProjectileEntity.class,
-                        owner.getBoundingBox().inflate(64.0D))
-                .forEach(Entity::discard);
+        UltimateLifeformFixtures.discardSent(helper, owner);
     }
 
     private static boolean hasUltimateFlight(ServerPlayer player) {
@@ -1361,6 +1360,7 @@ public final class UltimateMoveRulesGameTests {
                         exception);
             }
         }
+        UltimateLifeformFixtures.claim(helper, player);
         player.setPos(Vec3.atBottomCenterOf(
                 helper.absolutePos(new BlockPos(2, 2, 2))));
         player.setGameMode(gameType);

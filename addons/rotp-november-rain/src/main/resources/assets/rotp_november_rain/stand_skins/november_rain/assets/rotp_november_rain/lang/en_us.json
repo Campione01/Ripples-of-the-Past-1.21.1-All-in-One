@@ -1,5 +1,11 @@
 {
   "stand.rotp_november_rain.november_rain": "November Rain",
   "rotp_november_rain.ability.light_rain": "Light Rain",
+  "rotp_november_rain.ability.heavy_rain": "Heavy Rain",
+  "rotp_november_rain.ability.rain_shield": "Rain Shield",
+  "rotp_november_rain.ability.rain_barrier": "Large Rain Shield",
+  "rotp_november_rain.ability.destroy_item": "Destroy Item",
+  "rotp_november_rain.ability.barrage_rain": "Barrage Rain",
+  "rotp_november_rain.ability.precision_drop": "Precision Drop",
   "entity.rotp_november_rain.november_rain": "November Rain"
 }

@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import rotp.core.client.entityanim.pose.AnimFramePose;
+import rotp.core.client.entityanim.pose.AnimatedEntity;
 import rotp.core.client.rendertype.AlphaMultiBufferSource;
 import rotp.core.client.rendertype.ModRenderTypes;
 import rotp.core.core.JojoRegistries;
@@ -35,12 +37,14 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.WalkAnimationState;
 
 public final class YellowTemperanceDisguiseLayer extends RenderLayer<
         AbstractClientPlayer,
         PlayerModel<AbstractClientPlayer>> {
     private static final Map<VisualKey, LivingEntity> DUMMIES =
             new HashMap<>();
+    private static final AnimFramePose WEARER_POSE = new AnimFramePose();
     private static ClientLevel cachedLevel;
 
     private final PlayerModel<AbstractClientPlayer> normalModel;
@@ -101,6 +105,7 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
     // Full entity renderers need the entity frame, not a player layer's model frame.
     static void renderEntityDisguise(
             AbstractClientPlayer player,
+            PlayerModel<?> userModel,
             PoseStack poseStack,
             MultiBufferSource buffer,
             int packedLight,
@@ -117,7 +122,7 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
         }
         LivingEntity dummy = dummy(state.controller());
         if (dummy != null) {
-            renderEntity(dummy, player, poseStack,
+            renderEntity(dummy, player, userModel, poseStack,
                     AlphaMultiBufferSource.wrap(buffer, state.context().effectiveAlpha()),
                     packedLight, partialTick);
         }
@@ -207,18 +212,18 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
     private static void renderEntity(
             LivingEntity dummy,
             AbstractClientPlayer wearer,
+            PlayerModel<?> userModel,
             PoseStack poseStack,
             MultiBufferSource buffer,
             int packedLight,
             float partialTick) {
-        dummy.setPose(wearer.getPose());
-        dummy.setYRot(wearer.getYRot());
-        dummy.setXRot(wearer.getXRot());
-        dummy.yBodyRot = wearer.yBodyRot;
-        dummy.yBodyRotO = wearer.yBodyRotO;
-        dummy.yHeadRot = wearer.yHeadRot;
-        dummy.yHeadRotO = wearer.yHeadRotO;
-        dummy.tickCount = wearer.tickCount;
+        copyFrame(wearer, dummy);
+        if (dummy instanceof StandEntity) {
+            // The dummy is outside the level, so no Stand clip is ever posed on it;
+            // it takes the wearer's posed head and limbs instead (1.16 CopyBipedUserPose).
+            ((AnimatedEntity) dummy).jojo_ripples$setModelPose(
+                    AnimatedEntity.PoseType.FINAL, wearerPose(userModel));
+        }
         EntityRenderDispatcher dispatcher =
                 Minecraft.getInstance()
                         .getEntityRenderDispatcher();
@@ -241,6 +246,66 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
         finally {
             poseStack.popPose();
         }
+    }
+
+    // The renderer interpolates between the previous and current values, so the
+    // previous ones must be the wearer's as well (1.16 synchronizeEntityState).
+    private static void copyFrame(
+            AbstractClientPlayer wearer, LivingEntity dummy) {
+        dummy.setPose(wearer.getPose());
+        dummy.setShiftKeyDown(wearer.isShiftKeyDown());
+        dummy.setOnGround(wearer.onGround());
+        dummy.setPos(wearer.getX(), wearer.getY(), wearer.getZ());
+        dummy.xo = wearer.xo;
+        dummy.yo = wearer.yo;
+        dummy.zo = wearer.zo;
+        dummy.xOld = wearer.xOld;
+        dummy.yOld = wearer.yOld;
+        dummy.zOld = wearer.zOld;
+        dummy.setYRot(wearer.getYRot());
+        dummy.yRotO = wearer.yRotO;
+        dummy.setXRot(wearer.getXRot());
+        dummy.xRotO = wearer.xRotO;
+        dummy.yBodyRot = wearer.yBodyRot;
+        dummy.yBodyRotO = wearer.yBodyRotO;
+        dummy.yHeadRot = wearer.yHeadRot;
+        dummy.yHeadRotO = wearer.yHeadRotO;
+        dummy.tickCount = wearer.tickCount;
+        dummy.attackAnim = wearer.attackAnim;
+        dummy.oAttackAnim = wearer.oAttackAnim;
+        dummy.swinging = wearer.swinging;
+        dummy.swingingArm = wearer.swingingArm;
+        dummy.swingTime = wearer.swingTime;
+        dummy.hurtTime = wearer.hurtTime;
+        dummy.hurtDuration = wearer.hurtDuration;
+        copyWalkAnimation(wearer.walkAnimation, dummy.walkAnimation);
+    }
+
+    // WalkAnimationState only exposes setSpeed and update; two updates land
+    // its private speedOld, speed and position on the wearer's values.
+    private static void copyWalkAnimation(
+            WalkAnimationState from, WalkAnimationState to) {
+        float speedOld = from.speed(0.0F);
+        float speed = from.speed();
+        to.update(from.position() - speed - to.position(), 1.0F);
+        to.setSpeed(speedOld);
+        to.update(speed, 1.0F);
+    }
+
+    private static AnimFramePose wearerPose(PlayerModel<?> model) {
+        AnimFramePose pose = WEARER_POSE.clear();
+        copyRotation(pose, "head", model.head);
+        copyRotation(pose, "left_arm", model.leftArm);
+        copyRotation(pose, "right_arm", model.rightArm);
+        copyRotation(pose, "left_leg", model.leftLeg);
+        copyRotation(pose, "right_leg", model.rightLeg);
+        return pose;
+    }
+
+    private static void copyRotation(
+            AnimFramePose pose, String bone, ModelPart from) {
+        pose.getForModelPart(bone).rotationOffset.set(
+                from.xRot, from.yRot, from.zRot);
     }
 
     private static float transitionScale(

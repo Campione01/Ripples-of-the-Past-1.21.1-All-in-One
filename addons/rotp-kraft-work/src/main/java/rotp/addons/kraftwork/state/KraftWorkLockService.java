@@ -3,6 +3,7 @@ package rotp.addons.kraftwork.state;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
@@ -26,6 +27,7 @@ import rotp.addons.kraftwork.KraftWorkSpec;
 import rotp.addons.kraftwork.entity.KraftWorkItemProjectile;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
@@ -1060,10 +1062,21 @@ public final class KraftWorkLockService {
                 || item instanceof SatiporojaScarfItem;
     }
 
-    private static boolean isStandItem(ItemStack stack) {
-        String path = BuiltInRegistries.ITEM.getKey(stack.getItem())
-                .getPath();
-        return path.contains("stand_disc")
+    // 1.16 AddonInteractionUtil.isStandItem: the Emperor gun, the Cream
+    // Starter, the Catch the Rainbow mask and (1.1.0d) the Extra Hamon
+    // Stands gloves; the port also counts discs and arrows
+    private static final Set<String> STAND_ITEMS = Set.of(
+            "rotp_zemperor:emperor",
+            "rotp_zcs:cream_starter",
+            "rotp_ctr:catch_the_rainbow_mask_item",
+            "rotp_zthm:stand_gloves");
+
+    public static boolean isStandItem(ItemStack stack) {
+        ResourceLocation key =
+                BuiltInRegistries.ITEM.getKey(stack.getItem());
+        String path = key.getPath();
+        return STAND_ITEMS.contains(key.toString())
+                || path.contains("stand_disc")
                 || path.contains("stand_arrow");
     }
 }

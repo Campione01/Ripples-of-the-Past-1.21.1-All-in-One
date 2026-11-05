@@ -38,7 +38,9 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -48,7 +50,7 @@ import net.neoforged.neoforge.registries.NeoForgeRegistries;
 @Mod(RhcpAddon.MOD_ID)
 public final class RhcpAddon {
     public static final String MOD_ID = "rotp_rhcp";
-    public static final String NETWORK_PROTOCOL_VERSION = "2";
+    public static final String NETWORK_PROTOCOL_VERSION = "3";
 
     public static final double EFFECTIVE_RANGE = 150.0D;
     public static final double MAX_RANGE = 300.0D;
@@ -154,8 +156,8 @@ public final class RhcpAddon {
                     ability("rhcp_electric_dash", Mode.ELECTRIC_DASH);
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<RhcpAbility>>
-            RHCP_DRAG_INTO_LINE =
-                    ability("rhcp_drag_into_line", Mode.DRAG_INTO_LINE);
+            RHCP_SELF_DESTRUCT =
+                    ability("rhcp_self_destruct", Mode.SELF_DESTRUCT);
 
     public static final DeferredHolder<
             EntityType<?>, EntityType<RhcpStandEntity>>
@@ -209,7 +211,7 @@ public final class RhcpAddon {
             AbilityType<?>, ? extends AbilityType<?>>> ABILITIES =
             abilities();
 
-    public RhcpAddon(IEventBus modEventBus) {
+    public RhcpAddon(IEventBus modEventBus, ModContainer modContainer) {
         if (!RotpAddonApi.supportsAbi(1)
                 || !RotpAddonApi.supportsFeature(
                         RotpAddonApi.FEATURE_ABILITY_RESOURCE_NAMESPACE_V1)
@@ -231,6 +233,8 @@ public final class RhcpAddon {
         ATTACHMENTS.register(modEventBus);
         modEventBus.addListener(RhcpEvents::registerAttributes);
         modEventBus.addListener(RhcpAddon::registerPayloads);
+        modContainer.registerConfig(ModConfig.Type.COMMON, RhcpConfig.SPEC);
+        modEventBus.addListener(RhcpConfig::onReloading);
     }
 
     public static ResourceLocation id(String path) {
@@ -298,6 +302,10 @@ public final class RhcpAddon {
                 RhcpStatePayload.TYPE,
                 RhcpStatePayload.STREAM_CODEC,
                 RhcpStatePayload::handle);
+        event.registrar(NETWORK_PROTOCOL_VERSION).playToClient(
+                RhcpConfig.SyncPayload.TYPE,
+                RhcpConfig.SyncPayload.STREAM_CODEC,
+                RhcpConfig.SyncPayload::handle);
     }
 
     private static RhcpStandType createStand(ResourceLocation id) {
@@ -327,13 +335,11 @@ public final class RhcpAddon {
                         "rhcp_boost",
                         InputKey.Modifier.SHIFT,
                         InputMethod.CLICK)
+                // Beta2 InitStands: Self Destruct after Boost.
+                .addToHotbar("rhcp_self_destruct", 0, InputMethod.HOLD)
                 .addToHotbar("rhcp_dodge", 0, InputMethod.HOLD)
                 .addToHotbar(
                         "rhcp_electric_dash",
-                        0,
-                        InputMethod.CLICK)
-                .addToHotbar(
-                        "rhcp_drag_into_line",
                         0,
                         InputMethod.CLICK)
                 .finalizeControlScheme();
@@ -375,7 +381,7 @@ public final class RhcpAddon {
         moveset.addSkill(StandUnlockableSkill
                 .startingAbility("rhcp_electric_dash"));
         moveset.addSkill(StandUnlockableSkill
-                .startingAbility("rhcp_drag_into_line"));
+                .startingAbility("rhcp_self_destruct"));
 
         RhcpStandType stand = new RhcpStandType(
                 new StandStats.Builder()
@@ -418,7 +424,7 @@ public final class RhcpAddon {
         map.put("rhcp_counterattack", RHCP_COUNTERATTACK);
         map.put("rhcp_blitz_attack", RHCP_BLITZ_ATTACK);
         map.put("rhcp_electric_dash", RHCP_ELECTRIC_DASH);
-        map.put("rhcp_drag_into_line", RHCP_DRAG_INTO_LINE);
+        map.put("rhcp_self_destruct", RHCP_SELF_DESTRUCT);
         return Map.copyOf(map);
     }
 }

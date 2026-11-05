@@ -79,7 +79,7 @@ public final class SexPistolsHud implements LayeredDraw.Layer {
             Minecraft minecraft,
             Player player) {
         ItemStack stack = player.getMainHandItem();
-        if (!stack.is(SexPistolsItems.REVOLVER.get())
+        if (!(stack.getItem() instanceof RevolverItem)
                 || !RevolverItem.state(stack).reloadMode()) {
             return;
         }

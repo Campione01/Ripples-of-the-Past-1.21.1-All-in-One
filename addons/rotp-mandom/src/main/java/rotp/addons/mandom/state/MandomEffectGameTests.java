@@ -4,9 +4,11 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 import com.mojang.authlib.GameProfile;
+import net.minecraft.core.Holder;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.Tag;
+import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -209,8 +211,8 @@ public final class MandomEffectGameTests {
                 }
                 if (event.getEffectInstance().is(MobEffects.HEALTH_BOOST)) {
                     Tag state = event.getEffectInstance().save();
-                    int phase = state.equals(historical.healthBoost()) ? 0
-                            : state.equals(inverse.healthBoost()) ? 1 : 2;
+                    int phase = MandomRewindService.sameEffectState(state, historical.healthBoost()) ? 0
+                            : MandomRewindService.sameEffectState(state, inverse.healthBoost()) ? 1 : 2;
                     healthBoostAdded[phase]++;
                 }
             }
@@ -248,7 +250,7 @@ public final class MandomEffectGameTests {
                         "A protected passive rejected rewind: " + result);
                 historical.assertOrdinary(helper, target);
                 Tag expectedPassive = differing ? inverse.nightVision() : historical.nightVision();
-                helper.assertTrue(expectedPassive.equals(target.getEffect(MobEffects.NIGHT_VISION).save()),
+                assertEffect(helper, target, MobEffects.NIGHT_VISION, expectedPassive,
                         "Kept passive did not follow donor no-change merge semantics");
                 helper.assertTrue(!target.hasEffect(MobEffects.CONFUSION),
                         "A removable non-historical ordinary effect survived rewind");
@@ -261,10 +263,9 @@ public final class MandomEffectGameTests {
                 helper.assertTrue(result == MandomRewindService.Result.COMMIT_FAILED && rejected[0] > 0,
                         "A genuine API rejection was not reported as a failed transaction");
                 inverse.assertOrdinary(helper, target);
-                helper.assertTrue(inverse.nightVision().equals(target.getEffect(MobEffects.NIGHT_VISION).save()),
+                assertEffect(helper, target, MobEffects.NIGHT_VISION, inverse.nightVision(),
                         "Rollback changed the original protected passive");
-                helper.assertTrue(target.hasEffect(MobEffects.CONFUSION)
-                                && inverseExtra.equals(target.getEffect(MobEffects.CONFUSION).save()),
+                assertEffect(helper, target, MobEffects.CONFUSION, inverseExtra,
                         "Rollback lost the original ordinary effect that blocked removal");
                 if (failure == Failure.REPLACE) {
                     helper.assertTrue(speedAdded[0] == 0,
@@ -285,6 +286,15 @@ public final class MandomEffectGameTests {
             NeoForge.EVENT_BUS.unregister(observeAdded);
             fixtures.close();
         }
+    }
+
+    // An absent expected state means the effect must be absent.
+    private static void assertEffect(
+            GameTestHelper helper, FakePlayer target, Holder<MobEffect> effect, Tag expected, String message) {
+        MobEffectInstance actual = target.getEffect(effect);
+        Tag found = actual != null ? actual.save() : null;
+        helper.assertTrue(MandomRewindService.sameEffectState(expected, found),
+                message + ": expected " + expected + ", found " + found);
     }
 
     private static boolean kept(FakePlayer target, MobEffectInstance effect) {
@@ -331,18 +341,13 @@ public final class MandomEffectGameTests {
         }
 
         private void assertOrdinary(GameTestHelper helper, FakePlayer target) {
-            helper.assertTrue(target.hasEffect(MobEffects.MOVEMENT_SPEED)
-                            && speed.equals(target.getEffect(MobEffects.MOVEMENT_SPEED).save()),
+            assertEffect(helper, target, MobEffects.MOVEMENT_SPEED, speed,
                     "Ordinary Speed flags, amplifier, duration or nested state changed");
-            helper.assertTrue(target.hasEffect(MobEffects.ABSORPTION)
-                            && absorption.equals(target.getEffect(MobEffects.ABSORPTION).save()),
+            assertEffect(helper, target, MobEffects.ABSORPTION, absorption,
                     "Ordinary Absorption flags, amplifier, duration or nested state changed");
-            helper.assertTrue(target.hasEffect(MobEffects.HEALTH_BOOST)
-                            && healthBoost.equals(target.getEffect(MobEffects.HEALTH_BOOST).save()),
+            assertEffect(helper, target, MobEffects.HEALTH_BOOST, healthBoost,
                     "Ordinary Health Boost flags, amplifier, duration or nested state changed");
-            helper.assertTrue(poison == null ? !target.hasEffect(MobEffects.POISON)
-                            : target.hasEffect(MobEffects.POISON)
-                                    && poison.equals(target.getEffect(MobEffects.POISON).save()),
+            assertEffect(helper, target, MobEffects.POISON, poison,
                     "Historical harmful Poison state was not restored exactly");
             helper.assertTrue(Math.abs(target.getAttributeValue(Attributes.MOVEMENT_SPEED) - movementSpeed) < 0.000001D
                             && Math.abs(target.getAttributeValue(Attributes.MAX_ABSORPTION) - maxAbsorption) < 0.000001D

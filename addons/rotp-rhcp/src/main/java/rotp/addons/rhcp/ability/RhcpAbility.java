@@ -69,7 +69,9 @@ public final class RhcpAbility extends StandEntityAbility
         COUNTERATTACK(3, 1, 5, 10, false, 0),
         BLITZ_ATTACK(6, 1, 8, 20, false, 0),
         ELECTRIC_DASH(0, 1, 0, 40, false, 3),
-        DRAG_INTO_LINE(0, 1, 5, 2400, false, 3);
+        // Beta2 RHCPSelfDestruct: holdType, staminaCostTick(8),
+        // resolveLevelToUnlock(2); it replaced RHCPDragIntoLine.
+        SELF_DESTRUCT(0, 1, 0, 0, true, 2);
 
         final int windup;
         final int perform;
@@ -142,7 +144,7 @@ public final class RhcpAbility extends StandEntityAbility
     public static float staminaTick(Mode mode) {
         return switch (mode) {
             case RECHARGE -> 0.1F;
-            case BOOST -> 8.0F;
+            case BOOST, SELF_DESTRUCT -> 8.0F;
             case DODGE -> 5.0F;
             default -> 0.0F;
         };
@@ -214,9 +216,6 @@ public final class RhcpAbility extends StandEntityAbility
                 // 1.16 cooldown(5, 5) and cooldown(10, 40): Resolve drops only the second part.
                 case REDUCE_CONSUMPTION -> cooldown(5, mode.cooldown);
                 case ELECTRIC_DASH -> cooldown(10, mode.cooldown);
-                // 1.16 cooldown(2400, 2400): a miss costs 4800, or 2400 in Resolve;
-                // a pulled target resets it to 2400 (actionPerformStart).
-                case DRAG_INTO_LINE -> cooldown(mode.cooldown, mode.cooldown);
                 default -> cooldown(mode.cooldown);
             }
         }
@@ -252,10 +251,10 @@ public final class RhcpAbility extends StandEntityAbility
         }
         RhcpState state = RhcpAddon.state(user);
         if (mode == Mode.EXIT_CONDUCTOR) {
-            // 1.16 RHCPExit.checkSpecificConditions :49-50: RHCP stays where
-            // it leaves, so not from inside a full block.
+            // Beta2 RHCPExit.checkSpecificConditions: refused only inside a
+            // full block with no free block around it.
             RhcpStandEntity stand = RhcpService.activeStand(user);
-            if (stand != null && RhcpService.inFullBlock(stand)) {
+            if (stand != null && RhcpService.enclosedInFullBlocks(stand)) {
                 return ConditionCheck.createNegative("full_block_rhcp");
             }
         }
@@ -284,8 +283,9 @@ public final class RhcpAbility extends StandEntityAbility
             case ENTER_CONDUCTOR -> state.powered()
                     && !state.inConductor();
             case EXIT_CONDUCTOR -> state.inConductor();
-            case DRAG_INTO_LINE -> state.inConductor()
-                    && RhcpService.findDragTarget(user) != null;
+            case SELF_DESTRUCT -> state.inConductor()
+                    && RhcpService.inGadgetBlock(
+                            RhcpService.activeStand(user));
             case RECHARGE -> RhcpService.canRecharge(user);
             case BOOST -> state.energy() > 100.0F
                     && state.potency() < 5;
@@ -422,18 +422,8 @@ public final class RhcpAbility extends StandEntityAbility
             switch (mode) {
                 case CHASE_TARGET -> chase(player, state);
                 case ENTER_CONDUCTOR -> RhcpService.enterConductor(player);
-                case EXIT_CONDUCTOR -> RhcpService.leaveConductor(player);
-                case DRAG_INTO_LINE -> {
-                    // 1.16 RHCPDragIntoLine: setCooldownTimer(this, 2400) on a hit.
-                    StandPower power = StandPower.get(player);
-                    if (RhcpService.dragIntoLine(player)
-                            && power != null
-                            && ability instanceof RhcpAbility drag
-                            && power.isAbilityOnCooldown(drag.name())) {
-                        power.setAbilityCooldown(
-                                drag.name(), mode.cooldown);
-                    }
-                }
+                case EXIT_CONDUCTOR -> RhcpService.exitConductor(player);
+                case SELF_DESTRUCT -> RhcpService.selfDestruct(player);
                 case REDUCE_CONSUMPTION -> {
                     state.setPotency(state.potency() - 1);
                     RhcpService.sync(player);

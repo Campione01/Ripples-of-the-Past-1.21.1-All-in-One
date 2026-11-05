@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import rotp.addons.nextalbum.client.render.AjaStoneNecklaceRenderer;
+import rotp.addons.nextalbum.compat.AjaNecklaceCurios;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.network.chat.Component;
@@ -21,12 +22,9 @@ import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.animation.AnimatableManager;
 import software.bernie.geckolib.renderer.GeoArmorRenderer;
 import software.bernie.geckolib.util.GeckoLibUtil;
-import top.theillusivec4.curios.api.CuriosApi;
-import top.theillusivec4.curios.api.SlotContext;
-import top.theillusivec4.curios.api.type.capability.ICurioItem;
 
 public final class AjaStoneNecklaceItem
-        extends ArmorItem implements GeoItem, ICurioItem {
+        extends ArmorItem implements GeoItem {
     public static final String CURIO_SLOT = "necklace";
 
     private final AnimatableInstanceCache cache =
@@ -44,21 +42,8 @@ public final class AjaStoneNecklaceItem
         if (entity.getItemBySlot(EquipmentSlot.HEAD).is(item)) {
             return true;
         }
-        return CuriosApi.getCuriosInventory(entity)
-                .map(handler -> handler.isEquipped(item))
-                .orElse(false);
-    }
-
-    @Override
-    public boolean canEquip(
-            SlotContext slotContext, ItemStack stack) {
-        return CURIO_SLOT.equals(slotContext.identifier());
-    }
-
-    @Override
-    public boolean canEquipFromUse(
-            SlotContext slotContext, ItemStack stack) {
-        return canEquip(slotContext, stack);
+        return AjaNecklaceCurios.isLoaded()
+                && AjaNecklaceCurios.isEquipped(entity, item);
     }
 
     @Override

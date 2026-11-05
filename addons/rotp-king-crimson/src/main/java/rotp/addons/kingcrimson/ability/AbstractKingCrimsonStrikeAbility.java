@@ -26,6 +26,7 @@ import rotp.core.util.constants.EntityEvents;
 import rotp.core.util.functions.DamageUtil;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import rotp.addons.kingcrimson.KingCrimsonPhase2Spec;
 import net.minecraft.core.Holder;
@@ -34,6 +35,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -168,9 +170,31 @@ abstract class AbstractKingCrimsonStrikeAbility
         }
     }
 
+    /**
+     * @param strikeFactor the core's StandMeleeReach.strikeFactor for the target: 1 within the base reach, down to a
+     *        quarter at the end of the reach margin (owner T2: the effects fall with the damage)
+     */
     protected abstract void applyHitEffects(
             StandEntity stand,
-            LivingEntity target);
+            LivingEntity target,
+            float strikeFactor);
+
+    // owner T2: an effect of a strike past the base reach lasts as long as its share of the strike's strength
+    protected static void addStrikeEffect(
+            LivingEntity target,
+            float strikeFactor,
+            MobEffectInstance effect) {
+        if (strikeFactor < 1.0F && !effect.isInfiniteDuration()) {
+            effect = new MobEffectInstance(
+                    effect.getEffect(),
+                    Math.max(1, Math.round(effect.getDuration() * strikeFactor)),
+                    effect.getAmplifier(),
+                    effect.isAmbient(),
+                    effect.isVisible(),
+                    effect.showIcon());
+        }
+        target.addEffect(effect);
+    }
 
     protected boolean hitsNonLivingPrimary() {
         return false;
@@ -428,12 +452,13 @@ abstract class AbstractKingCrimsonStrikeAbility
                     && ability instanceof AbstractKingCrimsonStrikeAbility strikeAbility
                     && strikeAbility.hitsNonLivingPrimary()) {
                 float damage = strikeAbility.rawDamage(stand);
+                float strikeFactor = StandMeleeReach.strikeFactor(stand, targetEntity);
                 boolean admitted = damage > 0.0F && stand.canAttackEntity(targetEntity);
                 boolean hurt = false;
                 if (admitted) {
                     hurt = standEntityAttack(stand, targetEntity, makePunchDamageSource(), damage);
                     if (strikeAbility.usesDetachedPrimaryKnockback()) {
-                        strikeAbility.applyPrimaryKnockback(stand, targetEntity);
+                        strikeAbility.applyPrimaryKnockback(stand, targetEntity, strikeFactor);
                     }
                 }
                 impactSoundDue = true;
@@ -466,6 +491,9 @@ abstract class AbstractKingCrimsonStrikeAbility
             }
 
             float damage = strikeAbility.rawDamage(stand);
+            // owner T2: the core weakens the damage and knockback past the base reach; this strike's own
+            // guard break, shield break, detached knockback and effects fall with them
+            float strikeFactor = StandMeleeReach.strikeFactor(stand, targetLiving);
             float armorPiercing =
                     (float) stand.getAttackDamage()
                             * strikeAbility
@@ -483,6 +511,7 @@ abstract class AbstractKingCrimsonStrikeAbility
                             ? strikeAbility.fixedDisableBlockingChance
                             : disableBlockingChance(
                                     stand, targetLiving);
+            disableBlockingChance *= strikeFactor;
             // Capture raw admission before guard break or virtual hurt can change target state.
             boolean admitted = damage > 0.0F && stand.canAttackEntity(targetLiving)
                     && !StandEntity.isStandAttackInvulnerable(targetLiving);
@@ -500,10 +529,10 @@ abstract class AbstractKingCrimsonStrikeAbility
                 hurt = true;
                 impactSoundDue = true;
                 if (strikeAbility.usesDetachedPrimaryKnockback()) {
-                    strikeAbility.applyPrimaryKnockback(stand, targetLiving);
+                    strikeAbility.applyPrimaryKnockback(stand, targetLiving, strikeFactor);
                 }
                 strikeAbility.applyHitEffects(
-                        stand, targetLiving);
+                        stand, targetLiving, strikeFactor);
                 disableShield(
                         stand,
                         targetLiving,
@@ -514,7 +543,7 @@ abstract class AbstractKingCrimsonStrikeAbility
                 stand.addFinisherMeter(0.1F);
             }
             if (admitted && strikeAbility.usesDetachedPrimaryKnockback()) {
-                strikeAbility.applyPrimaryKnockback(stand, targetLiving);
+                strikeAbility.applyPrimaryKnockback(stand, targetLiving, strikeFactor);
             }
             if (hurt && strikeAbility.heavyAttack()) {
                 heavyHitHooks(stand, targetLiving);
@@ -590,13 +619,13 @@ abstract class AbstractKingCrimsonStrikeAbility
         }
     }
 
-    private void applyPrimaryKnockback(StandEntity stand, Entity target) {
+    private void applyPrimaryKnockback(StandEntity stand, Entity target, float strikeFactor) {
         if (addedKnockback <= 0.0F) {
             return;
         }
         Vec3 toTarget = target.position().subtract(stand.position());
         float yaw = (float) -Mth.atan2(toTarget.x, toTarget.z);
-        float strength = addedKnockback * 0.5F;
+        float strength = addedKnockback * 0.5F * strikeFactor;
         if (target instanceof LivingEntity living) {
             living.knockback(strength, Mth.sin(yaw), -Mth.cos(yaw));
         }
@@ -618,6 +647,10 @@ abstract class AbstractKingCrimsonStrikeAbility
         if (user == null) {
             return;
         }
+        // owner T2: the blast around a target struck past the base reach falls with the strike
+        float strikeFactor = directHit != null
+                ? StandMeleeReach.strikeFactor(stand, directHit)
+                : 1.0F;
 
         Vec3 center = directHit != null ? directHit.position() : target.getCenterPos();
         AABB bounds = new AABB(center, center).inflate(areaRange);
@@ -638,13 +671,13 @@ abstract class AbstractKingCrimsonStrikeAbility
                         living.position());
                 float damage = (float) (stand.getAttackDamage()
                         * (0.5D - distance / areaRange));
-                damage = Math.max(0.25F, damage);
+                damage = Math.max(0.25F, damage) * strikeFactor;
                 living.hurt(source, damage);
             }
 
-            double pushX = (entity.getX() - center.x) * 0.4D;
-            double pushZ = (entity.getZ() - center.z) * 0.4D;
-            entity.push(pushX, areaVerticalKnockback, pushZ);
+            double pushX = (entity.getX() - center.x) * 0.4D * strikeFactor;
+            double pushZ = (entity.getZ() - center.z) * 0.4D * strikeFactor;
+            entity.push(pushX, areaVerticalKnockback * strikeFactor, pushZ);
             entity.hurtMarked = true;
         }
     }

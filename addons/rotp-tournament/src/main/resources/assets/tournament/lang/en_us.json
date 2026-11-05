@@ -11,6 +11,6 @@
   "tournament.configuration.section.tournament.common.toml": "Tournament Common Settings",
   "tournament.configuration.section.tournament.common.toml.title": "Tournament Common Configuration",
   "tournament.configuration.Tournament compatibility": "Tournament Compatibility",
-  "tournament.configuration.enableCorrectedRecordPlayerList": "Enable Corrected Record Player List",
+  "tournament.configuration.enableCorrectedRecordPlayerList": "Corrected Record List",
   "tournament.configuration.enableCorrectedRecordPlayerList.tooltip": "Opt-in private correction for the legacy music-disc drop list. False preserves the canonical single list element exactly."
 }

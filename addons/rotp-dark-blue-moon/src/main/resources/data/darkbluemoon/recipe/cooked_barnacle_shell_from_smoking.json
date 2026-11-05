@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:smoking",
+  "ingredient": {
+    "item": "darkbluemoon:barnacle_shell"
+  },
+  "result": {
+    "id": "darkbluemoon:cooked_barnacle_shell"
+  },
+  "experience": 0.35,
+  "cookingtime": 100
+}

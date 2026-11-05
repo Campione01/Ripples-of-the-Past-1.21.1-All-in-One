@@ -6,6 +6,7 @@ import static rotp.core.init.power.ModStands.USE_SPECIAL;
 import java.util.function.Supplier;
 
 import rotp.core.api.RotpAddonApi;
+import rotp.core.api.control.LivingSwingDurationModifiers;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.init.power.ModStandAbilities;
@@ -31,7 +32,9 @@ import rotp.addons.madeinheaven.ability.TimeSystemAbility;
 import rotp.addons.madeinheaven.ability.UniverseResetAbility;
 import rotp.addons.madeinheaven.entity.MadeInHeavenStandEntity;
 import rotp.addons.madeinheaven.network.TimeAccelerationStatePayload;
+import rotp.addons.madeinheaven.state.TimeAccelerationRates;
 import rotp.addons.madeinheaven.state.TimeAccelerationState;
+import rotp.addons.madeinheaven.state.TimeLagService;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
@@ -220,10 +223,18 @@ public final class MadeInHeavenAddon {
         modContainer.registerConfig(
                 ModConfig.Type.CLIENT,
                 MadeInHeavenClientConfig.SPEC);
+        // The server owner's choice of the acceleration's mode.
+        modContainer.registerConfig(
+                ModConfig.Type.SERVER,
+                MadeInHeavenServerConfig.SPEC);
         modEventBus.addListener(
                 MadeInHeavenGameEvents::registerAttributes);
         modEventBus.addListener(
                 MadeInHeavenAddon::registerPayloads);
+        LivingSwingDurationModifiers.register(
+                id("time_lag"),
+                TimeLagService::swingDuration);
+        TimeAccelerationRates.register();
     }
 
     public static ResourceLocation id(String path) {
@@ -244,8 +255,8 @@ public final class MadeInHeavenAddon {
 
     private static void registerPayloads(
             RegisterPayloadHandlersEvent event) {
-        // "2": the snapshot no longer carries tick-rate fields.
-        event.registrar("2").playToClient(
+        // "3": the snapshot carries the acceleration's mode.
+        event.registrar("3").playToClient(
                 TimeAccelerationStatePayload.TYPE,
                 TimeAccelerationStatePayload.STREAM_CODEC,
                 TimeAccelerationStatePayload::handle);
@@ -273,13 +284,17 @@ public final class MadeInHeavenAddon {
                                 .FEATURE_TIME_STOP_LIFECYCLE_V1)
                 || !RotpAddonApi.supportsFeature(
                         RotpAddonApi
-                                .FEATURE_ABILITY_SHOUTS_V1)) {
+                                .FEATURE_ABILITY_SHOUTS_V1)
+                || !RotpAddonApi.supportsFeature(
+                        RotpAddonApi
+                                .FEATURE_LIVING_SWING_DURATION_MODIFIERS_V1)) {
             throw new IllegalStateException(
                     "RotP Made in Heaven requires ROTP addon ABI 1 "
                             + "with namespaced ability resources, "
                             + "Stand visual contexts, Stand power "
-                            + "transitions, and time-stop lifecycle "
-                            + "events.");
+                            + "transitions, time-stop lifecycle "
+                            + "events, and living swing-duration "
+                            + "modifiers.");
         }
     }
 

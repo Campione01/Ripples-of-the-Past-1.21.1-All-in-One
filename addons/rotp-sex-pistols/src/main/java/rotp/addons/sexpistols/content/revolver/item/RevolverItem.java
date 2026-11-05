@@ -17,7 +17,10 @@ import rotp.addons.sexpistols.content.revolver.state.RevolverSpecialChambers;
 import rotp.addons.sexpistols.content.revolver.state.RevolverSpecialChambers.ShotType;
 import rotp.addons.sexpistols.content.revolver.state.RevolverState;
 import rotp.addons.sexpistols.content.revolver.state.RevolverState.Chamber;
+import rotp.addons.sexpistols.content.sexpistols.SexPistolsTargetMode;
+import rotp.addons.sexpistols.content.sexpistols.SexPistolsAim;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsCoordinator;
+import rotp.addons.sexpistols.content.sexpistols.SexPistolsJoyful;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsStamina;
 import rotp.addons.sexpistols.network.RevolverVisualPayloads;
 import rotp.addons.sexpistols.registry.SexPistolsAttachments;
@@ -44,8 +47,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 public final class RevolverItem extends Item {
-    public static final int FIRE_COOLDOWN_TICKS = 5;
-    public static final int RELOAD_COOLDOWN_TICKS = 10;
+    public static final int RESOLVE_FIRE_COOLDOWN_TICKS = 3;
     public static final int USE_DURATION_TICKS = 72_000;
     public static final float ATTACHED_FIRE_STAMINA_PER_MEMBER =
             40.0F;
@@ -55,13 +57,21 @@ public final class RevolverItem extends Item {
             60.0F;
     private static final int CLOSED_BAR_COLOR = 0xC68642;
     private static final int OPEN_BAR_COLOR = 0xE75D2F;
+    private static final int LUCKY_GUNNER_COLOR = 0xE75D2F;
 
-    public RevolverItem(Properties properties) {
+    private final RevolverStats stats;
+
+    public RevolverItem(Properties properties, RevolverStats stats) {
         super(properties
                 .stacksTo(1)
                 .component(
                         SexPistolsDataComponents.REVOLVER_STATE.get(),
                         RevolverState.EMPTY));
+        this.stats = java.util.Objects.requireNonNull(stats);
+    }
+
+    public RevolverStats stats() {
+        return stats;
     }
 
     public static RevolverState state(ItemStack stack) {
@@ -284,9 +294,13 @@ public final class RevolverItem extends Item {
         // 1.16 handleServerFillChamber: a full cylinder clicks at pitch 1.6,
         // missing ammunition at 1.0.
         boolean full = state(stack).firstUnloadedChamber() < 0;
+        // 0.1.13 speedloader: with the Mista hat or shoes worn one load fills every empty chamber.
+        int limit = MistaHatItem.isSpeedloaderReady(player)
+                ? RevolverState.CHAMBER_COUNT
+                : 1;
         if (full
                 || loadAvailableAmmoIntoEmptyChambers(
-                        player, stack, 1) <= 0) {
+                        player, stack, limit) <= 0) {
             play(
                     level,
                     player,
@@ -549,7 +563,7 @@ public final class RevolverItem extends Item {
                     SexPistolsSounds.DRY_FIRE.get(),
                     0.75F, 1.0F);
             applyShotCooldown(
-                    stack, shotCooldownTicks(player));
+                    stack, shotCooldownTicks(player, stack));
             return;
         }
 
@@ -566,14 +580,19 @@ public final class RevolverItem extends Item {
         Vec3 muzzle = player.getEyePosition()
                 .add(look.scale(0.45D));
         bullet.setPos(muzzle);
-        float inaccuracy = state.aiming() ? 0.3F : 0.9F;
+        float inaccuracy = state.aiming()
+                ? stats.adsInaccuracy()
+                : stats.hipInaccuracy();
         if (hasResolve(player)) {
             inaccuracy *= 0.55F;
         }
+        bullet.setGunStats(stats);
         bullet.shootFromRotation(
                 player,
-                RevolverBulletEntity.SPEED,
+                stats.bulletSpeed(),
                 inaccuracy);
+        boolean critical = rollGunCritical(player);
+        bullet.setFireCritical(critical);
 
         int attachedMask =
                 RevolverMemberAttachments.chamberMemberMask(
@@ -604,6 +623,11 @@ public final class RevolverItem extends Item {
                                 player, attachedMask));
         if (canGuide && attachedMask != 0) {
             memberFlightStarted = true;
+        }
+        if (validStand
+                && coordinator.targetMode()
+                        == SexPistolsTargetMode.AIM) {
+            bullet.lockAimTarget(SexPistolsAim.findAimTarget(player));
         }
         float fireCost = firedType != ShotType.NONE
                 ? Math.max(1, Integer.bitCount(attachedMask))
@@ -664,14 +688,24 @@ public final class RevolverItem extends Item {
                 state.withChamber(chamber, Chamber.SPENT)
                         .withAiming(false)
                         .advanceSelected(1));
-        play(
-                serverLevel,
-                player,
-                SexPistolsSounds.FIRE.get(),
-                0.95F, 1.0F);
+        if (stats.heavyFireSound()) {
+            play(
+                    serverLevel,
+                    player,
+                    SexPistolsSounds.REVOLVER_SHOT.get(),
+                    1.15F, 0.92F);
+        }
+        else {
+            play(
+                    serverLevel,
+                    player,
+                    SexPistolsSounds.FIRE.get(),
+                    0.95F, 1.0F);
+        }
         if (firedType != ShotType.ENCIRCLEMENT) {
             RevolverRecoil.applyServer(
                     player,
+                    stats,
                     state.aiming(),
                     player.getRandom().nextFloat());
         }
@@ -679,7 +713,8 @@ public final class RevolverItem extends Item {
                 player,
                 state.aiming(),
                 player.getRandom().nextFloat(),
-                firedType);
+                firedType,
+                critical);
         if (validStand && attachedMask != 0) {
             JojoModUtil.sayVoiceLine(
                     player,
@@ -687,7 +722,7 @@ public final class RevolverItem extends Item {
                             player.getRandom()));
         }
         applyShotCooldown(
-                stack, shotCooldownTicks(player));
+                stack, shotCooldownTicks(player, stack));
     }
 
     @Override
@@ -848,11 +883,53 @@ public final class RevolverItem extends Item {
         tooltip.add(Component.translatable(
                         "item.rotp_sex_pistols.revolver.control.select")
                 .withStyle(ChatFormatting.DARK_GRAY));
+        if (stats.criticalBonus() > 0.0F) {
+            tooltip.add(Component.translatable(
+                    "item.rotp_sex_pistols.suit.effect.line.simple",
+                    Component.translatable(
+                                    "item.rotp_sex_pistols.suit.effect.lucky_gunner")
+                            .withColor(LUCKY_GUNNER_COLOR),
+                    Component.translatable(
+                            "item.rotp_sex_pistols.suit.effect.lucky_gunner.desc")));
+        }
+        if (flag.isAdvanced()) {
+            tooltip.add(Component.translatable(
+                            "item.rotp_sex_pistols.revolver.stats.damage",
+                            format1(stats.closeDamage()),
+                            format1(stats.stableDamage()),
+                            format1(stats.minDistanceDamage()))
+                    .withStyle(ChatFormatting.DARK_GRAY));
+            tooltip.add(Component.translatable(
+                            "item.rotp_sex_pistols.revolver.stats.range",
+                            String.format(java.util.Locale.ROOT,
+                                    "%.0f", stats.closeRange()),
+                            String.format(java.util.Locale.ROOT,
+                                    "%.0f", stats.stableRange()))
+                    .withStyle(ChatFormatting.DARK_GRAY));
+            tooltip.add(Component.translatable(
+                            "item.rotp_sex_pistols.revolver.stats.recoil",
+                            format1(stats.recoilPitch()),
+                            format1(stats.recoilYaw()))
+                    .withStyle(ChatFormatting.DARK_GRAY));
+        }
         tooltip.add(Component.translatable(
                         "item.rotp_sex_pistols.revolver.reference_quote")
                 .withStyle(
                         ChatFormatting.GRAY,
                         ChatFormatting.ITALIC));
+    }
+
+    private static String format1(float value) {
+        return String.format(java.util.Locale.ROOT, "%.1f", value);
+    }
+
+    // 0.1.13 rollGunCritical: Sex Pistols' crit chance plus the gun's own.
+    private boolean rollGunCritical(Player player) {
+        float chance = SexPistolsJoyful.criticalChance(player)
+                + stats.criticalBonus();
+        return chance > 0.0F
+                && player.getRandom().nextFloat()
+                        < Math.min(1.0F, chance);
     }
 
     private static boolean hasResolve(LivingEntity entity) {
@@ -874,7 +951,8 @@ public final class RevolverItem extends Item {
                 cooldowns(stack).withReloadTicks(
                         hasResolve(entity)
                                 ? 0
-                                : RELOAD_COOLDOWN_TICKS));
+                                : RevolverStats.of(stack)
+                                        .reloadCooldownTicks()));
     }
 
     private static boolean canReload(
@@ -884,8 +962,11 @@ public final class RevolverItem extends Item {
     }
 
     private static int shotCooldownTicks(
-            LivingEntity entity) {
-        return hasResolve(entity) ? 3 : FIRE_COOLDOWN_TICKS;
+            LivingEntity entity, ItemStack stack) {
+        int base = RevolverStats.of(stack).shotCooldownTicks();
+        return hasResolve(entity)
+                ? Math.min(base, RESOLVE_FIRE_COOLDOWN_TICKS)
+                : base;
     }
 
     private static void applyShotCooldown(

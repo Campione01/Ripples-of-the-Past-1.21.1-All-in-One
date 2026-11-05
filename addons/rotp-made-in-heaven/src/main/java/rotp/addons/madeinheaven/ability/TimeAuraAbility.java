@@ -17,9 +17,11 @@ import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -75,6 +77,22 @@ public final class TimeAuraAbility extends StandEntityAbility {
         return false;
     }
 
+    // A living being the aura may blink to and strike. Owner report F09: it
+    // fired with no mob around, on the user's own Stand. 1.16 never chose
+    // that Stand because its StandEntity.isAlliedTo counted a Stand as the
+    // ally of its user and of the user's allies, which the core restored
+    // (A2-ALLY). Armor stands (the core's mannequins too) are no beings, and
+    // nothing that cannot be hurt or seen as an enemy (spectators,
+    // invulnerable entities) draws it either.
+    public static boolean isEnemy(
+            LivingEntity user, LivingEntity target) {
+        return target != user
+                && target.isAlive()
+                && !target.isAlliedTo(user)
+                && !(target instanceof ArmorStand)
+                && target.canBeSeenAsEnemy();
+    }
+
     public static final class TimeAuraAction
             extends EntityActionInstance {
         public TimeAuraAction(EntityActionType ability) {
@@ -116,20 +134,68 @@ public final class TimeAuraAbility extends StandEntityAbility {
             }
         }
 
+        // Server ticks of the perform, which runs several action ticks a
+        // tick where its user's Stand actions run faster (STAND_ACTIONS; Made
+        // in Heaven's mode B owner): there the aura strikes at the world's
+        // pace, but stamina regenerates per server tick, so the upkeep and
+        // the 1000-tick hold count server ticks. -1: not counted yet.
+        private long countedGameTime = Long.MIN_VALUE;
+        private int performTicks = -1;
+
+        // A copy that joins a perform already held past its action-tick
+        // length cannot know the server's count: it waits for the server's
+        // stop.
+        private boolean countPerformTick() {
+            long gameTime = level().getGameTime();
+            if (gameTime == countedGameTime) {
+                return false;
+            }
+            countedGameTime = gameTime;
+            if (performTicks >= 0) {
+                performTicks++;
+            }
+            else {
+                performTicks = getPhaseTick() < getCurPhaseLength()
+                        ? Mth.floor(getPhaseTick()) + 1
+                        : Integer.MIN_VALUE / 2;
+            }
+            return true;
+        }
+
+        @Override
+        protected boolean shouldHoldPhaseAtEnd() {
+            return getPhase() == ActionPhase.PERFORM
+                    && performTicks < HOLD_TICKS;
+        }
+
         @Override
         public void actionTick() {
-            if (getPhase() != ActionPhase.PERFORM
-                    || level().isClientSide()
-                    || getPowerUser() == null) {
+            if (getPhase() != ActionPhase.PERFORM) {
+                return;
+            }
+            boolean serverTick = countPerformTick();
+            if (level().isClientSide() || getPowerUser() == null) {
                 return;
             }
             LivingEntity user = getPowerUser();
-            StandAbilityStamina.consume(
-                    ability,
-                    StandPower.get(user),
-                    TICK_STAMINA,
-                    true);
+            if (serverTick) {
+                StandAbilityStamina.consume(
+                        ability,
+                        StandPower.get(user),
+                        TICK_STAMINA,
+                        true);
+            }
+            strike(user);
+            // Held past its action-tick length, the perform ends by the
+            // server's count, which a client's copy may not share.
+            if (performTicks >= HOLD_TICKS
+                    && getPhaseTick() >= getCurPhaseLength()
+                    && !isOver()) {
+                stopAndSynchronize();
+            }
+        }
 
+        private void strike(LivingEntity user) {
             user.addEffect(new MobEffectInstance(
                     // 1.16 Tpaura: field_76429_m = Resistance.
                     MobEffects.DAMAGE_RESISTANCE,
@@ -150,10 +216,7 @@ public final class TimeAuraAbility extends StandEntityAbility {
                                                     0.0D,
                                                     6.0D,
                                                     0.0D),
-                                    target -> target != user
-                                            && target.isAlive()
-                                            && !target.isAlliedTo(
-                                                    user)));
+                                    target -> isEnemy(user, target)));
             if (enemies.isEmpty()) {
                 return;
             }

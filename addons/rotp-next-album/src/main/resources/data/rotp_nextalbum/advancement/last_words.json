@@ -1,0 +1,23 @@
+{
+  "parent": "jojo_ripples:jojo/summon_stand",
+  "criteria": {
+    "last_words": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "advancements.rotp_nextalbum.last_words.description"
+    },
+    "frame": "challenge",
+    "hidden": true,
+    "icon": {
+      "id": "minecraft:emerald"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "advancements.rotp_nextalbum.last_words.title"
+    }
+  }
+}

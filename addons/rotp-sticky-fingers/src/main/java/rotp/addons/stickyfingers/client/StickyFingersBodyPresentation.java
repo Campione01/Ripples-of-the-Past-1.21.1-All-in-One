@@ -1,8 +1,10 @@
 package rotp.addons.stickyfingers.client;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
@@ -17,6 +19,7 @@ import rotp.addons.stickyfingers.entity.DetachedBodyPartEntity;
 import rotp.addons.stickyfingers.network.DetachedBodyControlPayload;
 import rotp.addons.stickyfingers.state.DetachedBodyPartMasks;
 import rotp.addons.stickyfingers.state.DetachedPartType;
+import rotp.addons.stickyfingers.state.ZipperCombatData;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.ChatScreen;
@@ -24,6 +27,7 @@ import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.IllagerModel;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
@@ -31,7 +35,10 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.monster.AbstractIllager;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -61,6 +68,11 @@ public final class StickyFingersBodyPresentation {
 
     private static final Map<UUID, Integer> PART_MASKS =
             new HashMap<>();
+    private static final Set<UUID> CRAWLING = new HashSet<>();
+    private static final float CRAWL_PIVOT_Y = 22.0F;
+    // A baby's head is drawn at 0.75 (16 + y) and its body at 0.5 (24 + y), so
+    // this keeps the head on the body instead of under the floor.
+    private static final float CRAWL_BABY_HEAD_Y = 44.0F / 3.0F;
     private static final IdentityHashMap<
             HumanoidModel<?>, boolean[]> MOB_VISIBILITY =
                     new IdentityHashMap<>();
@@ -106,6 +118,31 @@ public final class StickyFingersBodyPresentation {
         DetachedHeadCameraController.update(
                 minecraft,
                 hasPart(mask, DetachedPartType.HEAD));
+        if (minecraft.level != null) {
+            tickCrawl(minecraft.level, player);
+        }
+    }
+
+    // Players work out their own pose on every client (remote ones too) and
+    // the local player moves itself, so the server's crawl is repeated here.
+    private static void tickCrawl(
+            ClientLevel level, @Nullable LocalPlayer localPlayer) {
+        for (AbstractClientPlayer other : level.players()) {
+            UUID id = other.getUUID();
+            if (DetachedBodyPartMasks.isClientLegless(id)) {
+                CRAWLING.add(id);
+                other.setForcedPose(Pose.SWIMMING);
+                if (other == localPlayer) {
+                    Vec3 motion = other.getDeltaMovement();
+                    if (motion.y > 0.0D) {
+                        other.setDeltaMovement(
+                                motion.x, motion.y / 2.0D, motion.z);
+                    }
+                }
+            } else if (CRAWLING.remove(id)) {
+                ZipperCombatData.standUp(other);
+            }
+        }
     }
 
     @SubscribeEvent(priority = EventPriority.LOW)
@@ -249,6 +286,7 @@ public final class StickyFingersBodyPresentation {
             ClientPlayerNetworkEvent.LoggingOut event) {
         restorePresentationModels();
         PART_MASKS.clear();
+        CRAWLING.clear();
         DetachedBodyPartMasks.clearClientMasks();
         DetachedHeadCameraController.release();
     }
@@ -499,6 +537,34 @@ public final class StickyFingersBodyPresentation {
                     entity,
                     entity.getMainArm().getOpposite());
         }
+    }
+
+    // Sticky Fingers 1.0.2 BipedModelMixin: only the player renderer lays a
+    // swimming body flat, so a legless mob's model is put down part by part.
+    public static void applyFinalCrawlPose(
+            LivingEntity entity, HumanoidModel<?> model) {
+        if (!entity.hasPose(Pose.SWIMMING)
+                || entity instanceof Player
+                || !DetachedBodyPartMasks.isClientLegless(
+                        entity.getUUID())) {
+            return;
+        }
+        float headPitch = Mth.lerp(
+                Minecraft.getInstance().getTimer()
+                        .getGameTimeDeltaPartialTick(false),
+                entity.xRotO,
+                entity.getXRot());
+        model.head.y = model.young
+                ? CRAWL_BABY_HEAD_Y
+                : CRAWL_PIVOT_Y;
+        model.head.xRot = (headPitch + 45.0F) * Mth.DEG_TO_RAD;
+        model.hat.copyFrom(model.head);
+        model.body.y = CRAWL_PIVOT_Y;
+        model.body.xRot = Mth.HALF_PI;
+        model.leftArm.y = CRAWL_PIVOT_Y;
+        model.rightArm.y = CRAWL_PIVOT_Y;
+        model.leftLeg.y = CRAWL_PIVOT_Y;
+        model.rightLeg.y = CRAWL_PIVOT_Y;
     }
 
     private static boolean hasCarriedPart(

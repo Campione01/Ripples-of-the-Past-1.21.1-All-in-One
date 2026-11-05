@@ -90,6 +90,8 @@ import rotp.core.JojoModConfig;
 import rotp.core.core.JojoMod;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility.StandEntityBarrage;
+import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.EntityActionAbility;
@@ -2632,6 +2634,144 @@ public final class KillerQueenDonorParityGameTests {
             cleanup(helper, owner, cow, cart);
         }
         helper.succeed();
+    }
+
+    // Owner T2: Killer Queen's base reach is its max range of 8 (1.16 range(3, 8)), so its punch strikes at full strength
+    // out to 8 and weaker to 10. The entity bomb, a 1.16 light attack, reaches out as the punch does: pressed at nothing
+    // past its user's reach with a cow on the look within 10, it takes the cow, flies out to it and plants the bomb,
+    // weaker past 8; past 10 it is refused as before. The barrage flies out from its press: the offset its action
+    // carries to clients is the flown-out one.
+    @GameTest(template = "empty", batch = "kqParityReachOut", timeoutTicks = 20)
+    public static void entityBombAndBarrageReachOutPastTheUsersReach(GameTestHelper helper) {
+        Fixture kq = killerQueen(helper, "kq-reach-out", GameType.SURVIVAL);
+        ServerPlayer owner = kq.owner();
+        StandPower power = kq.power();
+        power.skipProgression();
+        ServerLevel level = helper.getLevel();
+        StandEntity stand = staminaFixture(helper, kq);
+        Ability bomb = power.getAbility(KillerQueenLionAddon.PRIMARY_BOMB_NAME);
+        Cow near = helper.spawnWithNoFreeWill(EntityType.COW, 1, 2, 1);
+        Cow margin = helper.spawnWithNoFreeWill(EntityType.COW, 1, 2, 1);
+        Cow past = helper.spawnWithNoFreeWill(EntityType.COW, 1, 2, 1);
+        List<String> wrong = new ArrayList<>();
+        short barrageKey = 97;
+        try {
+            helper.assertTrue(bomb != null && power.getAbility(KillerQueenLionAddon.BARRAGE_NAME) != null,
+                    "fixture: no entity bomb or barrage");
+            helper.assertTrue(Math.abs(StandMeleeReach.baseReach(stand, owner) - 8.0D) < 1.0E-6D
+                            && Math.abs(StandMeleeReach.maxReach(stand, owner, false) - 10.0D) < 1.0E-6D,
+                    "fixture: Killer Queen's base reach " + StandMeleeReach.baseReach(stand, owner) + " and max reach "
+                            + StandMeleeReach.maxReach(stand, owner, false) + " are not 8 and 10");
+            // the user looks east along the pad; the cows stand off the look until their row
+            turnOwner(owner, -90.0F, -90.0F);
+            for (Cow cow : List.of(near, margin, past)) {
+                cow.setNoGravity(true);
+                cow.setPos(owner.getX(), owner.getY(), owner.getZ() + 3.0D);
+            }
+            // a client's aims stop at its user's reach
+            aimUser(owner, ActionTarget.EMPTY);
+            aimStand(stand, ActionTarget.EMPTY);
+
+            float[] loss = new float[2];
+            Object[][] rows = { { near, 6.5D, "6.5 blocks ahead" }, { margin, 9.3D, "9.3 blocks ahead, past 8" } };
+            for (int i = 0; i < rows.length; i++) {
+                Cow cow = (Cow) rows[i][0];
+                double ahead = (Double) rows[i][1];
+                String what = "a cow " + rows[i][2];
+                cow.setPos(owner.getX() + ahead, owner.getY(), owner.getZ());
+                cow.invulnerableTime = 0;
+                helper.assertTrue(StandMeleeReach.userDistance(owner, cow)
+                                > StandEntityPunchAbility.userAimReach(owner, stand),
+                        "fixture: " + what + " is within its user's reach");
+                KillerQueenStateService.clearPrimaryBomb(owner);
+                power.setAbilityCooldown(KillerQueenLionAddon.PRIMARY_BOMB_NAME, 0, 0);
+                power.setStamina(power.getMaxStamina());
+                LivingComponentAction.getComponent(stand).setAction(null, owner, SyncType.NO_SYNC);
+                expectBombCheck(wrong, bomb, power, "pressed at nothing, " + what, true, null);
+                EntityActionInstance plant = pressAction(owner, power, KillerQueenLionAddon.PRIMARY_BOMB_NAME,
+                        (short) (95 + i), InputMethod.CLICK);
+                if (plant == null) {
+                    wrong.add("the entity bomb pressed at nothing, " + what + ", did not start");
+                    cow.setPos(owner.getX(), owner.getY(), owner.getZ() + 3.0D);
+                    continue;
+                }
+                if (plant.getTaskTarget(level).getEntity() != cow) {
+                    wrong.add("the entity bomb pressed at nothing, " + what + ", did not take it: "
+                            + plant.getTaskTarget(level));
+                }
+                double flownOut = flownOutFront(owner, cow);
+                Vec3 sent = plant.getSyncedStandOffset();
+                if (Math.abs(stand.offsetFromUser.getRelativeOffset().z - flownOut) > 1.0E-3D || sent == null
+                        || Math.abs(sent.z - flownOut) > 1.0E-3D) {
+                    wrong.add("the entity bomb at " + what + " does not fly Killer Queen out to " + flownOut
+                            + " in front of its user: offset " + stand.offsetFromUser.getRelativeOffset()
+                            + ", sent with the action " + sent);
+                }
+                float health = cow.getHealth();
+                performNow(plant);
+                loss[i] = health - cow.getHealth();
+                if (KillerQueenStateService.primaryBombTarget(owner) != cow || loss[i] <= 0.0F) {
+                    wrong.add("the entity bomb at " + what + " did not strike it there: the bomb is on "
+                            + KillerQueenStateService.primaryBombTarget(owner) + ", health " + health + " -> "
+                            + cow.getHealth());
+                }
+                LivingComponentAction.getComponent(stand).setAction(null, owner, SyncType.NO_SYNC);
+                cow.setPos(owner.getX(), owner.getY(), owner.getZ() + 3.0D);
+            }
+            if (!(loss[1] > 0.0F && loss[1] < loss[0])) {
+                wrong.add("the entity bomb past the base reach of 8 is not weaker: " + loss[1] + " against "
+                        + loss[0] + " at 6.5");
+            }
+
+            KillerQueenStateService.clearPrimaryBomb(owner);
+            power.setAbilityCooldown(KillerQueenLionAddon.PRIMARY_BOMB_NAME, 0, 0);
+            past.setPos(owner.getX() + 11.5D, owner.getY(), owner.getZ());
+            expectBombCheck(wrong, bomb, power, "pressed at nothing, a cow 11.5 blocks ahead, past the max reach",
+                    false, null);
+            past.setPos(owner.getX(), owner.getY(), owner.getZ() + 3.0D);
+
+            near.setPos(owner.getX() + 6.5D, owner.getY(), owner.getZ());
+            power.setStamina(power.getMaxStamina());
+            EntityActionInstance held = pressAction(owner, power, KillerQueenLionAddon.BARRAGE_NAME, barrageKey,
+                    InputMethod.HOLD);
+            if (!(held instanceof StandEntityBarrage)) {
+                wrong.add("the barrage did not start: " + held);
+            } else {
+                double flownOut = flownOutFront(owner, near);
+                Vec3 sent = held.getSyncedStandOffset();
+                if (sent == null || Math.abs(sent.z - flownOut) > 1.0E-3D) {
+                    wrong.add("the barrage at a cow 6.5 blocks ahead does not fly out from its press: the offset sent "
+                            + "with the action is " + sent + ", the cow's front " + flownOut);
+                }
+            }
+        } finally {
+            AbilityInput.keyRelease(barrageKey, owner);
+            cleanup(helper, owner, near, margin, past);
+        }
+        helper.assertTrue(wrong.isEmpty(), "Killer Queen's reach-out past its user's reach (owner T2): " + wrong);
+        helper.succeed();
+    }
+
+    // 1.16 offsetToTarget, which the core's fly-out keeps when it reaches out: the horizontal distance from the user's
+    // feet to the entity, less a block and half its width
+    private static double flownOutFront(ServerPlayer owner, Entity target) {
+        return target.getBoundingBox().getCenter().subtract(owner.position()).horizontalDistance()
+                - (1.0D + target.getBbWidth() / 2.0D);
+    }
+
+    // the server's press handler, then the Stand's action
+    @Nullable
+    private static EntityActionInstance pressAction(ServerPlayer owner, StandPower power, String name, short key,
+            InputMethod method) {
+        if (!press(owner, power, new Input(name, method), key)) {
+            return null;
+        }
+        if (method == InputMethod.CLICK) {
+            AbilityInput.keyRelease(key, owner);
+        }
+        StandEntity stand = power.getSummonedStandEntity();
+        EntityActionInstance action = stand != null ? stand.getCurStandAction() : null;
+        return action != null && action.ability == power.getAbility(name) ? action : null;
     }
 
     private static void aimUser(ServerPlayer owner, ActionTarget target) {

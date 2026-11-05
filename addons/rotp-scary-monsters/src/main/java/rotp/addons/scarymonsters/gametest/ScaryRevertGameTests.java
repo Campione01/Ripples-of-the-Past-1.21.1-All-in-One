@@ -62,7 +62,8 @@ public final class ScaryRevertGameTests {
 
     private ScaryRevertGameTests() {}
 
-    // 1.16 dinosaur form put no dinosaur in the world, so the user's own mount was never a revert candidate.
+    // 1.16 dinosaur form put no dinosaur in the world (the player is only drawn as one), so it mounts the user on
+    // nothing and leaves nothing on the look ray but the target.
     @GameTest(template = "empty", batch = "scary_s22_revert_in_form", timeoutTicks = 40 + GameTestChunkTickets.WAIT_TICKS)
     public static void revertWhileInDinosaurFormTakesTheTargetBelowTheHorizon(GameTestHelper helper) {
         GameTestChunkTickets.aroundOrigin(helper)
@@ -75,34 +76,29 @@ public final class ScaryRevertGameTests {
             ScaryDinosaurEntity target = f.dinosaurifiedCow(targetSpot);
 
             ScaryMonstersService.enableDinosaurForm(f.owner);
-            helper.assertTrue(ScaryMonstersAddon.state(f.owner).dinosaurForm()
-                            && f.owner.getVehicle() instanceof ScaryDinosaurEntity,
-                    "Dinosaur form did not mount the user on its dinosaur");
-            ScaryDinosaurEntity mount = (ScaryDinosaurEntity) f.owner.getVehicle();
-            f.hold(mount);
-            mount.positionRider(f.owner);
+            List<ScaryDinosaurEntity> others = f.dinosaursBut(target);
+            helper.assertTrue(ScaryMonstersAddon.state(f.owner).dinosaurForm() && f.owner.getVehicle() == null
+                            && ScaryMonstersAddon.state(f.owner).controlledDinosaur() == null && others.isEmpty(),
+                    "Dinosaur form put a dinosaur in the world or mounted the user: vehicle=" + f.owner.getVehicle()
+                            + ", dinosaurs=" + others);
             f.owner.lookAt(EntityAnchorArgument.Anchor.EYES, target.position());
 
-            double mountAlong = f.along(mount);
-            String geometry = "pitch=" + f.owner.getXRot() + ", mountAlong=" + mountAlong
-                    + ", mountOffsetSqr=" + f.offsetSqr(mount) + ", targetAlong=" + f.along(target)
+            String geometry = "pitch=" + f.owner.getXRot() + ", targetAlong=" + f.along(target)
                     + ", targetOffsetSqr=" + f.offsetSqr(target);
-            helper.assertTrue(mount.isPlayerControlled() && f.owner.getXRot() > 0.0F
-                            && mountAlong > 0.0D && mountAlong < f.along(target)
-                            && f.offsetSqr(mount) <= MAX_OFFSET_SQR && f.offsetSqr(target) <= MAX_OFFSET_SQR,
-                    "The fixture does not put the user's own mount ahead of the target on the look ray: " + geometry);
+            helper.assertTrue(f.owner.getXRot() > 0.0F && f.along(target) > 0.0D
+                            && f.offsetSqr(target) <= MAX_OFFSET_SQR,
+                    "The fixture does not put the target below the horizon on the look ray: " + geometry);
 
             float stamina = f.power.getStamina();
-            helper.assertTrue(f.fireRevert(), "Revert did not start and fire while riding the form dinosaur");
+            helper.assertTrue(f.fireRevert(), "Revert did not start and fire in dinosaur form");
             String outcome = geometry + ", cow=" + f.level.getEntity(f.cowUuid()) + ", targetRemoved="
-                    + target.isRemoved() + ", mountRemoved=" + mount.isRemoved() + ", vehicle=" + f.owner.getVehicle()
+                    + target.isRemoved() + ", vehicle=" + f.owner.getVehicle()
                     + ", stamina=" + stamina + "->" + f.power.getStamina();
             helper.assertTrue(Math.abs(stamina - f.power.getStamina() - REVERT_STAMINA) < 0.01F,
                     "The revert did not cost 15 stamina: " + outcome);
             helper.assertTrue(f.cowIsBackAt(targetSpot) && target.isRemoved(),
                     "Looking down at a dinosaurified creature from dinosaur form did not revert it: " + outcome);
-            helper.assertTrue(!mount.isRemoved() && f.owner.getVehicle() == mount
-                            && ScaryMonstersAddon.state(f.owner).dinosaurForm(),
+            helper.assertTrue(f.owner.getVehicle() == null && ScaryMonstersAddon.state(f.owner).dinosaurForm(),
                     "The revert touched the user's own dinosaur form: " + outcome);
             LOGGER.info("R764_SCARY_REVERT_PASS in_form {}", outcome);
         }
@@ -122,28 +118,25 @@ public final class ScaryRevertGameTests {
 
             OnlinePlayer other = f.player("S22OtherB", f.feet.add(3.0D, 0.0D, 0.0D));
             ScaryMonstersService.enableDinosaurForm(other);
-            helper.assertTrue(other.getVehicle() instanceof ScaryDinosaurEntity,
-                    "Dinosaur form did not mount the other player on a dinosaur");
-            ScaryDinosaurEntity otherMount = (ScaryDinosaurEntity) other.getVehicle();
-            f.hold(otherMount);
-            otherMount.positionRider(other);
+            List<ScaryDinosaurEntity> others = f.dinosaursBut(target);
+            helper.assertTrue(ScaryMonstersAddon.state(other).dinosaurForm() && other.getVehicle() == null
+                            && others.isEmpty(),
+                    "Dinosaur form put a dinosaur in the world or mounted the other player: vehicle="
+                            + other.getVehicle() + ", dinosaurs=" + others);
             f.owner.lookAt(EntityAnchorArgument.Anchor.EYES, target.position());
 
-            String geometry = "otherAlong=" + f.along(otherMount) + ", otherOffsetSqr=" + f.offsetSqr(otherMount)
+            String geometry = "otherAlong=" + f.along(other) + ", otherOffsetSqr=" + f.offsetSqr(other)
                     + ", targetAlong=" + f.along(target) + ", targetOffsetSqr=" + f.offsetSqr(target);
-            helper.assertTrue(otherMount.isPlayerControlled() && f.along(otherMount) > 0.0D
-                            && f.along(otherMount) < f.along(target)
-                            && f.offsetSqr(otherMount) <= MAX_OFFSET_SQR && f.offsetSqr(target) <= MAX_OFFSET_SQR,
-                    "The fixture does not put the other player's mount ahead of the target on the look ray: "
-                            + geometry);
+            helper.assertTrue(f.along(other) > 0.0D && f.along(other) < f.along(target)
+                            && f.offsetSqr(other) <= MAX_OFFSET_SQR && f.offsetSqr(target) <= MAX_OFFSET_SQR,
+                    "The fixture does not put the other player ahead of the target on the look ray: " + geometry);
 
             helper.assertTrue(f.fireRevert(), "Revert did not start and fire");
             String outcome = geometry + ", cow=" + f.level.getEntity(f.cowUuid()) + ", targetRemoved="
-                    + target.isRemoved() + ", otherMountRemoved=" + otherMount.isRemoved();
+                    + target.isRemoved() + ", otherVehicle=" + other.getVehicle();
             helper.assertTrue(f.cowIsBackAt(targetSpot) && target.isRemoved(),
-                    "Another player's form dinosaur in the line of sight blocked the revert: " + outcome);
-            helper.assertTrue(!otherMount.isRemoved() && other.getVehicle() == otherMount
-                            && ScaryMonstersAddon.state(other).dinosaurForm(),
+                    "Another player in dinosaur form in the line of sight blocked the revert: " + outcome);
+            helper.assertTrue(other.getVehicle() == null && ScaryMonstersAddon.state(other).dinosaurForm(),
                     "The revert touched the other player's dinosaur form: " + outcome);
             LOGGER.info("R764_SCARY_REVERT_PASS other_form {}", outcome);
         }
@@ -359,6 +352,11 @@ public final class ScaryRevertGameTests {
         private void hold(ScaryDinosaurEntity dinosaur) {
             dinosaur.setNoAi(true);
             dinosaur.setNoGravity(true);
+        }
+
+        private List<ScaryDinosaurEntity> dinosaursBut(ScaryDinosaurEntity kept) {
+            return level.getEntitiesOfClass(ScaryDinosaurEntity.class, owner.getBoundingBox().inflate(16.0D),
+                    dinosaur -> dinosaur != kept);
         }
 
         /** A cow turned by the production Dinosaurify, then put at the given spot. */

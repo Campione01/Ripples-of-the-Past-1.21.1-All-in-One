@@ -18,6 +18,7 @@ import rotp.addons.sexpistols.registry.SexPistolsEntities;
 import rotp.addons.sexpistols.registry.SexPistolsSounds;
 import rotp.addons.sexpistols.registry.SexPistolsStands;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -43,6 +44,8 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 public final class SexPistolsEntity extends StandEntity {
+    private static final ResourceLocation ICE_CUBE_ID =
+            ResourceLocation.fromNamespaceAndPath("rotp_nextalbum", "ice_cube");
     public static final double COMMAND_RANGE = 10.0D;
     public static final double MOVE_SPEED = 0.36D;
     public static final int ORPHAN_GRACE_TICKS = 100;
@@ -119,6 +122,9 @@ public final class SexPistolsEntity extends StandEntity {
     private int beggingVoiceCooldown;
     private int eatingParticleTicks;
     private boolean deliveredCarriedItem;
+    // 0.1.13 itemRetrieveKeepRemote: a fixed member that picks an item up
+    // stays where it picked it up.
+    private boolean retrieveKeepRemote;
 
     public SexPistolsEntity(
             EntityType<? extends SexPistolsEntity> type,
@@ -471,6 +477,7 @@ public final class SexPistolsEntity extends StandEntity {
         }
         orphanTicks = 0;
         refreshJoyfulAttributes(owner);
+        tickCarriedIceCube();
 
         if (tickEating(owner) || tickFoodBegging(owner)) {
             return;
@@ -643,6 +650,11 @@ public final class SexPistolsEntity extends StandEntity {
     }
 
     public void startRetrievingItem(ItemEntity itemEntity) {
+        startRetrievingItem(itemEntity, false);
+    }
+
+    public void startRetrievingItem(
+            ItemEntity itemEntity, boolean keepRemote) {
         if (level().isClientSide()
                 || itemEntity == null
                 || !itemEntity.isAlive()
@@ -651,16 +663,45 @@ public final class SexPistolsEntity extends StandEntity {
             return;
         }
         itemPickupTargetUuid = itemEntity.getUUID();
+        retrieveKeepRemote = keepRemote;
         itemEntity.getPersistentData()
                 .putBoolean(ITEM_RETRIEVED_TAG, true);
         setMemberState(SexPistolsMemberState.SCOUTING);
     }
 
+    // 0.1.13: a fixed member away from the user drops the item where it is;
+    // near the user it hands it over and stays.
     public boolean deliverCarriedItem() {
+        boolean fixed = getMemberState()
+                == SexPistolsMemberState.SCOUTING;
+        if (fixed && !isNearOwnerForItemGive()) {
+            return dropCarriedItem();
+        }
         if (!giveCarriedItemToOwner()) {
             return false;
         }
-        setMemberState(SexPistolsMemberState.FORMATION);
+        if (!fixed) {
+            setMemberState(SexPistolsMemberState.FORMATION);
+        }
+        return true;
+    }
+
+    public boolean isNearOwnerForItemGive() {
+        LivingEntity owner = getSwarmOwner();
+        return owner != null
+                && owner.isAlive()
+                && distanceToSqr(owner) <= 9.0D;
+    }
+
+    public boolean dropCarriedItem() {
+        ItemStack carried = getCarriedItem();
+        if (carried.isEmpty() || deliveredCarriedItem) {
+            return false;
+        }
+        setCarriedItem(ItemStack.EMPTY);
+        deliveredCarriedItem = true;
+        setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        spawnAtLocation(carried);
         return true;
     }
 
@@ -677,6 +718,7 @@ public final class SexPistolsEntity extends StandEntity {
                     ITEM_RETRIEVED_TAG);
         }
         itemPickupTargetUuid = null;
+        retrieveKeepRemote = false;
         if (!hasCarriedItem()) {
             setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
         }
@@ -699,6 +741,7 @@ public final class SexPistolsEntity extends StandEntity {
                         .putBoolean(ITEM_RETRIEVED_TAG, false);
             }
             itemPickupTargetUuid = null;
+            retrieveKeepRemote = false;
             setMemberState(SexPistolsMemberState.FORMATION);
             return false;
         }
@@ -713,8 +756,14 @@ public final class SexPistolsEntity extends StandEntity {
             item.discard();
             setItemSlot(
                     EquipmentSlot.MAINHAND, getCarriedItem().copy());
-            setCommandTarget(owner.position());
-            setMemberState(SexPistolsMemberState.FORMATION);
+            if (retrieveKeepRemote) {
+                retrieveKeepRemote = false;
+                holdCommandPosition();
+            }
+            else {
+                setCommandTarget(owner.position());
+                setMemberState(SexPistolsMemberState.FORMATION);
+            }
             return false;
         }
         moveToward(pickup);
@@ -847,6 +896,26 @@ public final class SexPistolsEntity extends StandEntity {
                     getCarriedItem().isEmpty()
                             ? ItemStack.EMPTY
                             : getCarriedItem().copy());
+        }
+    }
+
+    // Next Album 0.1.13 tickCarriedIceCube: a carried Grateful Dead ice
+    // cube melts in the member's paws (its own inventory tick, by id, so
+    // Grateful Dead stays optional) and cools the aging rate nearby.
+    private void tickCarriedIceCube() {
+        ItemStack carried = getCarriedItem();
+        if (carried.isEmpty()
+                || !ICE_CUBE_ID.equals(BuiltInRegistries.ITEM.getKey(
+                        carried.getItem()))) {
+            return;
+        }
+        carried.inventoryTick(level(), this, 0, false);
+        if (carried.isEmpty()) {
+            setCarriedItem(ItemStack.EMPTY);
+            if (ICE_CUBE_ID.equals(BuiltInRegistries.ITEM.getKey(
+                    getMainHandItem().getItem()))) {
+                setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+            }
         }
     }
 
@@ -1031,6 +1100,9 @@ public final class SexPistolsEntity extends StandEntity {
             tag.putUUID(
                     "SexPistolsItemPickupTarget",
                     itemPickupTargetUuid);
+            tag.putBoolean(
+                    "SexPistolsItemKeepRemote",
+                    retrieveKeepRemote);
         }
         if (!eatingItem.isEmpty()) {
             tag.put(
@@ -1102,6 +1174,8 @@ public final class SexPistolsEntity extends StandEntity {
                         ? tag.getUUID(
                                 "SexPistolsItemPickupTarget")
                         : null;
+        retrieveKeepRemote = itemPickupTargetUuid != null
+                && tag.getBoolean("SexPistolsItemKeepRemote");
         eatingItem = tag.contains("SexPistolsEatingItem")
                 ? ItemStack.parseOptional(
                         registryAccess(),

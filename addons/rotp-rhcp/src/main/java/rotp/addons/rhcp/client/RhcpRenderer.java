@@ -3,6 +3,7 @@ package rotp.addons.rhcp.client;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+import rotp.core.client.entityanim.barrage.BarrageSwings;
 import rotp.core.client.entityrender.stand.StandEntityRenderer;
 import rotp.core.client.entityrender.stand.StandGlowLayer;
 import rotp.core.client.standskin.StandSkin;
@@ -20,6 +21,7 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.HumanoidArm;
 
 public final class RhcpRenderer extends StandEntityRenderer<
         RhcpStandEntity, RhcpRenderState, RhcpModel> {
@@ -28,6 +30,9 @@ public final class RhcpRenderer extends StandEntityRenderer<
     private static final ResourceLocation UNPOWERED =
             RhcpAddon.id("textures/entity/stand/rhcp_off.png");
     private final Map<RhcpStandEntity, Float> idleLoopStarts = new WeakHashMap<>();
+    // 1.16 LegacyStandAnimator SUMMON_ANIMATION_LENGTH and RHCPModel's three summon poses.
+    private static final float SUMMON_POSE_TICKS = 20.0F;
+    private static final int SUMMON_POSE_COUNT = 3;
 
     public RhcpRenderer(EntityRendererProvider.Context context) {
         super(context);
@@ -63,8 +68,29 @@ public final class RhcpRenderer extends StandEntityRenderer<
             renderState.potency = 0;
             renderState.inConductor = false;
         }
+        renderState.mainArmLeft = entity.getMainArm() == HumanoidArm.LEFT;
         extractRhcpAction(entity, renderState, partialTick);
         extractRhcpIdle(entity, renderState);
+        // RhcpModel plays the donor's own 1.16 poses for every RHCP move. The core's generic
+        // humanoid clips were made for a head that turns with the torso; RHCP's head does not.
+        if (renderState.actionName.startsWith("rhcp_")) {
+            renderState.action.pose = null;
+        }
+        renderState.summonPose = renderState.actionName.isEmpty()
+                && !entity.isArmsOnlyMode()
+                && renderState.ageInTicks <= SUMMON_POSE_TICKS
+                ? Math.floorMod(entity.getSummonPoseRandomByte(), SUMMON_POSE_COUNT) : -1;
+        dropLeftoverBarrageSwings(renderState);
+    }
+
+    // The core ages barrage afterimages only on frames the Stand plays a clip on, and RHCP's
+    // idle has none, so the swings left when a barrage ends would stay on the model for good.
+    private static void dropLeftoverBarrageSwings(RhcpRenderState renderState) {
+        BarrageSwings swings = renderState.action.barrageSwings;
+        if (swings != null && swings.hasSmthToRender()
+                && !"rhcp_barrage".equals(renderState.actionName)) {
+            swings.barrageSwings.clear();
+        }
     }
 
     private void extractRhcpIdle(RhcpStandEntity entity, RhcpRenderState state) {
@@ -88,7 +114,9 @@ public final class RhcpRenderer extends StandEntityRenderer<
             float factor = (float) motion.lengthSqr() / 0.2F;
             state.walkSpeedFactor = Math.max(1.0F, factor * factor * factor);
         }
-        if (LivingComponentAction.getCurEntityAction(entity) != null) {
+        // 1.16 StandEntityModel.onPose restarted the idle loop only under a pose of its own.
+        if (RhcpModel.hasDonorPose(state.actionName)
+                || state.actionName.isEmpty() && state.ageInTicks <= SUMMON_POSE_TICKS) {
             idleLoopStarts.put(entity, state.ageInTicks);
         }
         state.idleLoopTick = state.ageInTicks - idleLoopStarts.getOrDefault(entity, 0.0F);
@@ -122,8 +150,10 @@ public final class RhcpRenderer extends StandEntityRenderer<
         renderState.actionPhaseRatio = phaseLength > 0.0F
                 ? Mth.clamp(phaseTick / phaseLength, 0.0F, 1.0F)
                 : 1.0F;
+        // 1.16 ModelPoseSided took the punching arm's side, the main hand's side being the main arm.
         renderState.mirrorAction =
-                entity.getCurrentPunchingHand() == InteractionHand.OFF_HAND;
+                (entity.getCurrentPunchingHand() == InteractionHand.OFF_HAND)
+                        != renderState.mainArmLeft;
         renderState.attackAlternate = entity.isAttackAlternate();
         renderState.comboAlternate =
                 "rhcp_combo_punch".equals(actionName)

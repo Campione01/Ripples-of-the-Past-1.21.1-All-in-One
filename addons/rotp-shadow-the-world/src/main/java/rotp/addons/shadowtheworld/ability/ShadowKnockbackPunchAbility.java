@@ -3,11 +3,13 @@ package rotp.addons.shadowtheworld.ability;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
+import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
@@ -20,6 +22,8 @@ public final class ShadowKnockbackPunchAbility
             AbilityType<?> abilityType, AbilityId abilityId) {
         super(abilityType, abilityId);
         createActionObj = ShadowKnockbackPunch::new;
+        // 1.16 standPose(HEAVY_ATTACK_FINISHER): the finisherPunch clip
+        anim = ActionAnimIdentifier.getOrCreate("finisher", false);
     }
 
     public static final class ShadowKnockbackPunch
@@ -61,9 +65,13 @@ public final class ShadowKnockbackPunchAbility
                                 / range),
                         0.0F,
                         1.0F);
+                // owner T2: past the base reach the guard break weakens
+                // with the strike
                 if (stand.getRandom().nextFloat()
                         < Math.max(
-                                proximity - 0.25F, 0.0F)) {
+                                proximity - 0.25F, 0.0F)
+                                * StandMeleeReach.strikeFactor(
+                                        stand, targetStand)) {
                     targetStand.breakStandBlocking(
                             StandStatFormulas
                                     .getGuardBreakTicks(

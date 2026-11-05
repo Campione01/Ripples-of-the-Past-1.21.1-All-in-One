@@ -10,12 +10,6 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import rotp.core.api.RotpAddonApi;
-import rotp.core.api.timestop.TimeStopBehaviorPolicies;
-import rotp.core.api.timestop.TimeStopBehaviorPolicy;
-import rotp.core.api.timestop.TimeStopProgressionPolicy;
-import rotp.core.api.timestop.TimeStopStartupCostContext;
-import rotp.core.api.timestop.TimeStopStartupCostDecision;
-import rotp.core.subsystems.timestop.TimeStopLearning;
 import rotp.core.core.JojoRegistries;
 import rotp.core.mechanics.resolve.ResolveCounter;
 import rotp.core.powersystem.MovesetBuilder;
@@ -132,9 +126,9 @@ public final class CatchTheRainbowAddon {
             RAIN_STOP = ability(
                     RAIN_STOP_NAME, RainStopAbility::new);
     /*
-     * The old shift variation had its own registry ID. The current
-     * TimeStopAbility resumes through the same input, while this holder
-     * retains that legacy registry surface for data-pack compatibility.
+     * 1.16's time-resume shift variation of its unused Rain Stop time
+     * stop. Rain Stop is a toggle now; the ID stays registered for
+     * data-pack compatibility.
      */
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<RainResumeAbility>>
@@ -258,33 +252,6 @@ public final class CatchTheRainbowAddon {
                     id("catch_the_rainbow_ost"),
                     SOUND_EVENTS);
 
-    // 1.16 Rain Stop: a TheWorldTimeStop with staminaCost(250) and
-    // staminaCostTick(7.5), and otherwise the TimeStop.Builder defaults -
-    // humans 100 ticks, high-blood vampires and Pillar Men 180,
-    // high-saturation zombies 120, learning 0.1 a tick, no decay, cooldown
-    // 3 a tick. The core prices time stops on The World's 225 / 9, so the
-    // start is scaled here and the per-tick part in CatchTheRainbowEvents.
-    public static final float RAIN_STOP_STAMINA_COST = 250.0F;
-    public static final float RAIN_STOP_STAMINA_COST_TICK = 7.5F;
-    private static final TimeStopProgressionPolicy RAIN_STOP_PROGRESSION =
-            new TimeStopProgressionPolicy(100, 180, 120, 0.1F, 0.0F, 3.0F);
-    private static final TimeStopBehaviorPolicy RAIN_STOP_BEHAVIOR =
-            new TimeStopBehaviorPolicy() {
-                @Override
-                public TimeStopStartupCostDecision startupCost(
-                        TimeStopStartupCostContext context) {
-                    return TimeStopStartupCostDecision.override(
-                            context.defaultCost()
-                                    * RAIN_STOP_STAMINA_COST
-                                    / TimeStopLearning.BASE_STAMINA_COST);
-                }
-
-                @Override
-                public TimeStopProgressionPolicy progression() {
-                    return RAIN_STOP_PROGRESSION;
-                }
-            };
-
     public static final DeferredHolder<
             StandType, CatchTheRainbowStandType>
             CATCH_THE_RAINBOW = STAND_TYPES.register(
@@ -303,13 +270,7 @@ public final class CatchTheRainbowAddon {
                 || !RotpAddonApi.supportsFeature(
                         RotpAddonApi
                                 .FEATURE_STAND_VISUAL_CONTEXT_V1)
-                || !RotpAddonApi.supportsFeature(
-                        RotpAddonApi
-                                .FEATURE_TIME_STOP_LIFECYCLE_V1)
-                // Resolve 4 charge, attacker Resolve tier (R146 core)
-                || !RotpAddonApi.supportsFeature(
-                        RotpAddonApi
-                                .FEATURE_TIME_STOP_ABILITY_TUNING_V1)
+                // attacker Resolve tier (R146 core)
                 || !RotpAddonApi.supportsFeature(
                         RotpAddonApi
                                 .FEATURE_STAND_ATTACKER_RESOLVE_TIERS_V1)
@@ -332,9 +293,8 @@ public final class CatchTheRainbowAddon {
             throw new IllegalStateException(
                     "RotP Catch the Rainbow requires addon ABI 1 with "
                             + "namespaced ability resources, Stand "
-                            + "visual contexts, time-stop lifecycle "
-                            + "events, time-stop ability tuning, "
-                            + "attacker Resolve tiers, the action "
+                            + "visual contexts, attacker Resolve "
+                            + "tiers, the action "
                             + "summon lock hook, the action Stand "
                             + "stun hook, the Stand-power action slot "
                             + "and the Stand action port slot (a core "
@@ -348,10 +308,6 @@ public final class CatchTheRainbowAddon {
         MOB_EFFECTS.register(modEventBus);
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
-        TimeStopBehaviorPolicies.register(
-                id("time_stop_behavior"),
-                id("catch_the_rainbow"),
-                RAIN_STOP_BEHAVIOR);
         ResolveCounter.addAttackerResolveMultTier(
                 id("catch_the_rainbow"), ATTACKER_RESOLVE_MULT_TIER);
         modEventBus.addListener(
@@ -461,7 +417,7 @@ public final class CatchTheRainbowAddon {
                     .addToHotbar(
                             RAIN_STOP_NAME,
                             0,
-                            InputMethod.HOLD)
+                            InputMethod.CLICK)
                     .addToHotbar(
                             RAIN_BLINK_NAME,
                             0,

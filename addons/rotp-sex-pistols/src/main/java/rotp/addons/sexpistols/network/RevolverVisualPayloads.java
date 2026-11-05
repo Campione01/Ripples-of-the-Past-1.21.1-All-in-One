@@ -67,7 +67,7 @@ public final class RevolverVisualPayloads {
 
     public static void sendMuzzle(
             Entity shooter, boolean aiming, float random) {
-        sendMuzzle(shooter, aiming, random, true);
+        sendMuzzle(shooter, aiming, random, true, false);
     }
 
     public static void sendMuzzle(
@@ -75,26 +75,38 @@ public final class RevolverVisualPayloads {
             boolean aiming,
             float random,
             ShotType shotType) {
+        sendMuzzle(shooter, aiming, random, shotType, false);
+    }
+
+    public static void sendMuzzle(
+            Entity shooter,
+            boolean aiming,
+            float random,
+            ShotType shotType,
+            boolean critical) {
         sendMuzzle(
                 shooter,
                 aiming,
                 random,
                 Objects.requireNonNull(shotType)
-                        != ShotType.ENCIRCLEMENT);
+                        != ShotType.ENCIRCLEMENT,
+                critical);
     }
 
     private static void sendMuzzle(
             Entity shooter,
             boolean aiming,
             float random,
-            boolean applyRecoil) {
+            boolean applyRecoil,
+            boolean critical) {
         PacketDistributor.sendToPlayersTrackingEntityAndSelf(
                 shooter,
                 new RevolverMuzzleFlashPayload(
                         shooter.getId(),
                         aiming,
                         random,
-                        applyRecoil));
+                        applyRecoil,
+                        critical));
     }
 
     public static void sendKickFlash(

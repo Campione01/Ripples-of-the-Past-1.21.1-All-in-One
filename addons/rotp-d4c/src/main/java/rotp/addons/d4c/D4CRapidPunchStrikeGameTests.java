@@ -63,8 +63,14 @@ public final class D4CRapidPunchStrikeGameTests {
      * while the Stand reached it (aimWithThisOrUser) whatever the user looked at, otherwise aimed from the user's view
      * again; what a hit struck became the task's target (setTaskTarget), the one the next hit took.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_rapid_punch_strike")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_rapid_punch_strike")
     public static void rapidPunchStrikesItsTaskTargetAsTheDonorDid(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchStrikesItsTaskTargetAsTheDonorDidBody(h));
+    }
+
+    private static void rapidPunchStrikesItsTaskTargetAsTheDonorDidBody(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "d4c-rapid-punch-strike")) {
             @Override
@@ -165,8 +171,13 @@ public final class D4CRapidPunchStrikeGameTests {
      * 0, 0, 2, 4, 6, 8 and 10, each of ac.punchEntity's 0.05 finisher. Its stopTask after the sixth was refused in
      * PERFORM (StandEntityAction.canBeCanceled: no hold, no new action, not RECOVERY).
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_rapid_punch_count")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_rapid_punch_count")
     public static void rapidPunchStrikesSevenTimesOnTheDonorsTicks(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchStrikesSevenTimesOnTheDonorsTicksBody(h));
+    }
+
+    private static void rapidPunchStrikesSevenTimesOnTheDonorsTicksBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-rapid-punch-count");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -229,8 +240,14 @@ public final class D4CRapidPunchStrikeGameTests {
      * the 15 perform ticks; ac.java:158: each punch that hurt the cow played its impact sound STAND_PUNCH_LIGHT at the
      * middle of the cow's box (IHasStandPunch.playPunchImpactSound), 7 in all.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_rapid_punch_sounds")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_rapid_punch_sounds")
     public static void rapidPunchPlaysTheDonorsSwingAndImpactSounds(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchPlaysTheDonorsSwingAndImpactSoundsBody(h));
+    }
+
+    private static void rapidPunchPlaysTheDonorsSwingAndImpactSoundsBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-rapid-punch-sounds");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -296,8 +313,14 @@ public final class D4CRapidPunchStrikeGameTests {
      * 1.16 StandEntityPunch.doHit (punch/StandEntityPunch.java:241) added the punch's finisher (ac.punchEntity's 0.05)
      * after every entity hit, also one that did not hurt: 0.1 from standPerform and 0.05 for each of the 7 punches.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_rapid_punch_finisher_unhurt")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_rapid_punch_finisher_unhurt")
     public static void rapidPunchAddsItsFinisherOnHitsThatDoNotHurt(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchAddsItsFinisherOnHitsThatDoNotHurtBody(h));
+    }
+
+    private static void rapidPunchAddsItsFinisherOnHitsThatDoNotHurtBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-rapid-punch-unhurt");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -341,8 +364,13 @@ public final class D4CRapidPunchStrikeGameTests {
      * until removed or 20 ticks dead) a hit punched nothing at all; its stopTask was refused in PERFORM. A mob the user
      * turns to is not struck by the rest of the combo.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_rapid_punch_dead")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_rapid_punch_dead")
     public static void rapidPunchStrikesNothingWhileItsTaskHoldsADeadMob(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchStrikesNothingWhileItsTaskHoldsADeadMobBody(h));
+    }
+
+    private static void rapidPunchStrikesNothingWhileItsTaskHoldsADeadMobBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-rapid-punch-dead");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -398,8 +426,14 @@ public final class D4CRapidPunchStrikeGameTests {
      * struck did not have hardness 0 (StandBlockPunch.playImpactSound, StandBlockPunch.java:70): once for a dirt block
      * the first hit breaks, never for a slime block.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_rapid_punch_block_sound")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_rapid_punch_block_sound")
     public static void rapidPunchGivesABlockTheDonorsImpactSound(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchGivesABlockTheDonorsImpactSoundBody(h));
+    }
+
+    private static void rapidPunchGivesABlockTheDonorsImpactSoundBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-rapid-punch-block-sound");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -463,8 +497,14 @@ public final class D4CRapidPunchStrikeGameTests {
      * living), and StandEntityPunch.knockbackTarget set its motion to half the additional knockback away from the Stand,
      * 0.75 after the sixth hit's 1.5. A minecart that can be hurt is broken.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_rapid_punch_not_living")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_rapid_punch_not_living")
     public static void rapidPunchStrikesEntitiesThatAreNotLiving(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchStrikesEntitiesThatAreNotLivingBody(h));
+    }
+
+    private static void rapidPunchStrikesEntitiesThatAreNotLivingBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-rapid-punch-not-living");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -565,8 +605,14 @@ public final class D4CRapidPunchStrikeGameTests {
      * meter did not decay while the rapid punch was the Stand's task (StandEntity.tickFinisherMeter), and decayed again
      * once it was over.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_rapid_punch_no_decay")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_rapid_punch_no_decay")
     public static void rapidPunchKeepsTheFinisherMeterFromDecaying(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchKeepsTheFinisherMeterFromDecayingBody(h));
+    }
+
+    private static void rapidPunchKeepsTheFinisherMeterFromDecayingBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-rapid-punch-no-decay");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -610,8 +656,13 @@ public final class D4CRapidPunchStrikeGameTests {
      * StandEntity.punch(task, this, task.getTarget())), the entity it was pressed at, while the Stand reached it, not
      * what the user looked at by then; the strike's target became the task's.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_hand_chop_strike")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_hand_chop_strike")
     public static void handChopStrikesItsTaskTargetAsTheDonorDid(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopStrikesItsTaskTargetAsTheDonorDidBody(h));
+    }
+
+    private static void handChopStrikesItsTaskTargetAsTheDonorDidBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-hand-chop-strike");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -696,8 +747,13 @@ public final class D4CRapidPunchStrikeGameTests {
      * plain block punch by D4C's strength (obsidian breaks), then the blast along the Stand's look, which broke the glass
      * on both sides into shards.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_hand_chop_block")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_hand_chop_block")
     public static void handChopHitsABlockAsTheDonorsHeavyAttackDid(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopHitsABlockAsTheDonorsHeavyAttackDidBody(h));
+    }
+
+    private static void handChopHitsABlockAsTheDonorsHeavyAttackDidBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-hand-chop-block");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -766,8 +822,13 @@ public final class D4CRapidPunchStrikeGameTests {
      * sound d4c_handchop at the middle of the entity's box, once the hit landed or always on an entity that is not
      * living. StandEntityHeavyAttack.noFinisherBarDecay kept the meter from decaying through the hand chop.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_hand_chop_entity")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_hand_chop_entity")
     public static void handChopStrikesEntitiesAsTheDonorsPlainPunchDid(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopStrikesEntitiesAsTheDonorsPlainPunchDidBody(h));
+    }
+
+    private static void handChopStrikesEntitiesAsTheDonorsPlainPunchDidBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-hand-chop-entity");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -857,8 +918,14 @@ public final class D4CRapidPunchStrikeGameTests {
      * 1.16 StandEntityHeavyAttack.onTaskSet (StandEntityHeavyAttack.java:141): the hand chop, a heavy attack, took 0.51
      * off the finisher meter as its task was set on the server.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_hand_chop_finisher_cost")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_hand_chop_finisher_cost")
     public static void handChopTakesTheHeavyAttacksFinisherCost(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopTakesTheHeavyAttacksFinisherCostBody(h));
+    }
+
+    private static void handChopTakesTheHeavyAttacksFinisherCostBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-hand-chop-finisher");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -895,8 +962,14 @@ public final class D4CRapidPunchStrikeGameTests {
      * Builder's 50 stamina (:272, :279); and its recovery was free (isFreeRecovery: isFinisher, :228), so another action
      * could replace it at once (StandEntityAction.canBeCanceled, :503-511).
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_hand_chop_heavy_attack")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_hand_chop_heavy_attack")
     public static void handChopRunsAsTheDonorsHeavyAttack(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopRunsAsTheDonorsHeavyAttackBody(h));
+    }
+
+    private static void handChopRunsAsTheDonorsHeavyAttackBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-hand-chop-heavy");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -1003,8 +1076,13 @@ public final class D4CRapidPunchStrikeGameTests {
      * count of 1), each at its own random spot within 1.25 sideways and 0 to 2 up of the mob's feet, with a spread of its
      * own (0.15 sideways, 0 to 0.2 up) and a speed of 0.15.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_hand_chop_blood")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_hand_chop_blood")
     public static void handChopSpillsTheDonorsBlood(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopSpillsTheDonorsBloodBody(h));
+    }
+
+    private static void handChopSpillsTheDonorsBloodBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-hand-chop-blood");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -1068,8 +1146,14 @@ public final class D4CRapidPunchStrikeGameTests {
      * code could make on any Stand: StandEntity.setTaskTarget(new ActionTarget(null)) dropped what a rapid punch or a hand
      * chop had struck, and the next hit aimed again.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_struck_task_target")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_struck_task_target")
     public static void theStruckTargetIsTheTasksOwnAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> theStruckTargetIsTheTasksOwnAsIn116Body(h));
+    }
+
+    private static void theStruckTargetIsTheTasksOwnAsIn116Body(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-struck-task-target");
         StandType type = D4CAddon.D4C.get();
         StandPower power = null;
@@ -1137,8 +1221,13 @@ public final class D4CRapidPunchStrikeGameTests {
      * allowed it: the rapid punch (StandEntityLightAttack, ac.java:177) a mob D4C may attack or a block, the hand chop
      * (StandEntityHeavyAttack) only the mob.
      */
-    @GameTest(template = "empty", timeoutTicks = 40, batch = "d4c_pressed_target")
+    @GameTest(template = "empty", timeoutTicks = 40 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_pressed_target")
     public static void pressedTargetsFollowTheDonorsTargetChecks(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> pressedTargetsFollowTheDonorsTargetChecksBody(h));
+    }
+
+    private static void pressedTargetsFollowTheDonorsTargetChecksBody(GameTestHelper helper) {
         Player user = testUser(helper, "d4c-pressed-target");
         StandPower power = null;
         Cow cow = sturdyCow(helper);
@@ -1180,8 +1269,13 @@ public final class D4CRapidPunchStrikeGameTests {
      * that same tick, before the hit (MCUtil.rotateTowards, at most attackSpeed / 16 x 18 degrees). The rapid punch's
      * perform tick 0 punched twice (StandEntityLightAttack.standPerform, then standTickPerform), so it turned twice.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_strike_turn")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_strike_turn")
     public static void rapidPunchAndHandChopTurnTheStandInTheirHitTickAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchAndHandChopTurnTheStandInTheirHitTickAsIn116Body(h));
+    }
+
+    private static void rapidPunchAndHandChopTurnTheStandInTheirHitTickAsIn116Body(GameTestHelper helper) {
         List<String> wrong = new ArrayList<>();
         for (String name : new String[] {"d4c_rapid_punch", "d4c_hand_chop"}) {
             Player user = testUser(helper, "d4c-strike-turn-" + name.length());

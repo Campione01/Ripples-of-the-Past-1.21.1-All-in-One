@@ -15,8 +15,11 @@ import rotp.core.impl.stands._entitybase.StandEntityManualControlToggle;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.init.ModDamageTypes;
 import rotp.core.init.ModEntityAttributes;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.RedstoneSide;
 import rotp.core.init.power.ModStands;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.condition.AvailableAbilities;
@@ -37,6 +40,7 @@ import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
+import rotp.core.subsystems.entity_puppetcontrol.EntityComponentController;
 import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.util.functions.DamageUtil;
 import com.mojang.authlib.GameProfile;
@@ -51,6 +55,7 @@ import rotp.addons.rhcp.state.RhcpState;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
@@ -1278,7 +1283,8 @@ public final class RhcpGameTests {
     // conductor's bottom centre, 0.01 up; RHCPExit.standPerform :62-68 left
     // it where it was (only its pose and recent block changed), and its
     // checkSpecificConditions :49-50 refused to leave a full cube with
-    // 'full_block_rhcp'.
+    // 'full_block_rhcp'. Beta2 refuses only a full cube walled in on all six
+    // sides and otherwise steps out into the first free neighbour.
     @GameTest(template = "empty", batch = "rhcp_conductor_spots", timeoutTicks = 80)
     public static void rhcpEntersAConductorAtItsFootAndLeavesInPlaceAsIn116(GameTestHelper helper) {
         ServerPlayer user = mockPlayer(helper, "rhcp-conductor-spots", new BlockPos(1, 2, 1));
@@ -1346,6 +1352,13 @@ public final class RhcpGameTests {
                         BlockPos lamp = repeater[0].east().above();
                         level.setBlockAndUpdate(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
                         placed.add(0, lamp);
+                        for (Direction side : Direction.values()) {
+                            BlockPos wall = lamp.relative(side);
+                            if (level.getBlockState(wall).isAir()) {
+                                level.setBlockAndUpdate(wall, Blocks.STONE.defaultBlockState());
+                                placed.add(0, wall);
+                            }
+                        }
                         state.enterConductor(lamp);
                         RhcpService.teleportStand(stand, new Vec3(
                                 lamp.getX() + 0.5D, lamp.getY() + 0.01D, lamp.getZ() + 0.5D));
@@ -1354,15 +1367,670 @@ public final class RhcpGameTests {
                                         && full.getWarning().getContents() instanceof TranslatableContents warning
                                         && warning.getKey().equals(
                                                 "jojo.message.action_condition.full_block_rhcp"),
-                                "1.16 RHCPExit refused to leave a full block with 'full_block_rhcp'"
-                                        + " (checkSpecificConditions :49-50): the exit from a lamp is "
+                                "Beta2 RHCPExit refused to leave a full block walled in on all six sides with"
+                                        + " 'full_block_rhcp': the exit from a walled-in lamp is "
                                         + (full.isPositive() ? "allowed" : "refused with " + full.getWarning()) + ".");
+                        level.setBlockAndUpdate(lamp.above(), Blocks.AIR.defaultBlockState());
+                        helper.assertTrue(exit.checkConditions(power).isPositive(),
+                                "Beta2 RHCPExit let RHCP leave a full block with a free block above it.");
+                        Vec3 inLamp = stand.position();
+                        RhcpService.exitConductor(user);
+                        helper.assertTrue(!state.inConductor()
+                                        && stand.position().distanceTo(inLamp.add(0.0D, 1.0D, 0.0D)) < 1.0E-6D
+                                        && stand.recentBlock().equals(lamp),
+                                "Beta2 RHCPExit.lookForAWayOut stepped RHCP into the free block above the lamp"
+                                        + " (no free side, the user not sneaking): it moved "
+                                        + stand.position().subtract(inLamp) + ", recent block "
+                                        + stand.recentBlock() + ", the lamp " + lamp + ".");
                     }
                     finally {
                         leave.run();
                     }
                 })
                 .thenSucceed();
+    }
+
+    // Beta2 RHCPEntity.moveStandManually while canTravel: with forward held
+    // RHCP hops a conductor a tick along its travel direction, round a corner
+    // (the direction turning with it), up onto a wire on a stone step and down
+    // past it, into a lamp at the end of the line but not the stone behind it;
+    // back takes it the same way still facing on; jump or sneak alone climbs a
+    // column block by block and stops on its top block.
+    @GameTest(template = "empty", batch = "rhcp_conductor_hops", timeoutTicks = 40)
+    public static void rhcpHopsConductorByConductorAndStopsAtTheEndAsIn116(GameTestHelper helper) {
+        Level level = helper.getLevel();
+        List<Map.Entry<BlockPos, BlockState>> placed = new ArrayList<>();
+        try {
+            BlockPos o = helper.absolutePos(new BlockPos(0, 2, 0));
+            BlockPos step = o.offset(4, 0, 3);
+            BlockPos lamp = o.offset(6, 0, 3);
+            BlockPos behind = o.offset(7, 0, 3);
+            BlockPos column = o.offset(6, 0, 6);
+            placeFor(level, placed, step, Blocks.STONE.defaultBlockState());
+            placeFor(level, placed, lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+            placeFor(level, placed, behind, Blocks.STONE.defaultBlockState());
+            for (int up = 0; up < 3; up++) {
+                placeFor(level, placed, column.above(up), Blocks.REDSTONE_BLOCK.defaultBlockState());
+            }
+            List<BlockPos> w = List.of(o.offset(1, 0, 1), o.offset(1, 0, 2), o.offset(1, 0, 3),
+                    o.offset(2, 0, 3), o.offset(3, 0, 3), step.above(), o.offset(5, 0, 3));
+            placeWires(level, placed, w);
+            int south = RhcpConductorTravel.SOUTH;
+            int east = RhcpConductorTravel.EAST;
+            List<Hop> held = hold(level, w.get(0), south, 0.0F, 1.0F, false, false, 9);
+            List<Hop> path = List.of(new Hop(w.get(1), south), new Hop(w.get(2), south),
+                    new Hop(w.get(3), east), new Hop(w.get(4), east), new Hop(w.get(5), east),
+                    new Hop(w.get(6), east), new Hop(lamp, east), new Hop(lamp, east), new Hop(lamp, east));
+            helper.assertTrue(held.equals(path),
+                    "Beta2 RHCP held on W hopped a conductor a tick, followed the wire round its corner (turning"
+                            + " east), climbed onto the wire on the step and down past it, and stopped in the"
+                            + " lamp, not the stone behind it: expected " + path + ", got " + held + ".");
+            List<Hop> back = hold(level, lamp, east, 0.0F, -1.0F, false, false, 3);
+            List<Hop> backPath = List.of(new Hop(w.get(6), east), new Hop(w.get(5), east), new Hop(w.get(4), east));
+            helper.assertTrue(back.equals(backPath),
+                    "Beta2 RHCP held on S went back the same way still facing east: expected " + backPath
+                            + ", got " + back + ".");
+            List<Hop> up = hold(level, column, east, 0.0F, 0.0F, true, false, 3);
+            List<Hop> down = hold(level, column.above(2), east, 0.0F, 0.0F, false, true, 1);
+            helper.assertTrue(up.equals(List.of(new Hop(column.above(), east), new Hop(column.above(2), east),
+                            new Hop(column.above(2), east)))
+                            && down.equals(List.of(new Hop(column.above(), east))),
+                    "Beta2 RHCP climbed a column block by block on Space, stopped on its top block "
+                            + column.above(2) + " and came down on Shift: up " + up + ", down " + down + ".");
+            var still = RhcpConductorTravel.travel(level, w.get(1), south, -1, 0.0F, 0.0F, false, false);
+            helper.assertTrue(still.next() == null && still.direction() == south, "No key, no hop.");
+        }
+        finally {
+            restore(level, placed);
+        }
+        helper.succeed();
+    }
+
+    // Beta2 RHCPEntity.moveStandManually: a strafe key turns the travel
+    // direction a quarter (right clockwise) and the next turn waits until
+    // standCount has run down from 5 to -1; a strafe key alone moves nothing.
+    // Forward passes a junction straight on, waits where the way on splits to
+    // both sides, takes the side a strafe key turned to, and stops at a dead
+    // end.
+    @GameTest(template = "empty", batch = "rhcp_conductor_turns", timeoutTicks = 40)
+    public static void rhcpTurnsWithTheStrafeKeysAndWaitsAtAJunctionAsBeta2(GameTestHelper helper) {
+        Level level = helper.getLevel();
+        List<Map.Entry<BlockPos, BlockState>> placed = new ArrayList<>();
+        try {
+            BlockPos o = helper.absolutePos(new BlockPos(0, 2, 0));
+            BlockPos junction = o.offset(3, 0, 3);
+            List<BlockPos> bar = List.of(o.offset(1, 0, 3), o.offset(2, 0, 3), junction,
+                    o.offset(4, 0, 3), o.offset(5, 0, 3));
+            List<BlockPos> stem = List.of(o.offset(3, 0, 4), o.offset(3, 0, 5));
+            List<BlockPos> wires = new ArrayList<>(bar);
+            wires.addAll(stem);
+            placeWires(level, placed, wires);
+            int south = RhcpConductorTravel.SOUTH;
+            int west = RhcpConductorTravel.WEST;
+            int north = RhcpConductorTravel.NORTH;
+            int east = RhcpConductorTravel.EAST;
+            List<Hop> along = hold(level, bar.get(0), east, 0.0F, 1.0F, false, false, 5);
+            List<Hop> alongPath = List.of(new Hop(bar.get(1), east), new Hop(junction, east),
+                    new Hop(bar.get(3), east), new Hop(bar.get(4), east), new Hop(bar.get(4), east));
+            helper.assertTrue(along.equals(alongPath),
+                    "Along the line Beta2 RHCP passed the junction straight on and stopped at the line's end:"
+                            + " expected " + alongPath + ", got " + along + ".");
+            List<Hop> up = hold(level, stem.get(1), north, 0.0F, 1.0F, false, false, 4);
+            List<Hop> upPath = List.of(new Hop(stem.get(0), north), new Hop(junction, north),
+                    new Hop(junction, north), new Hop(junction, north));
+            helper.assertTrue(up.equals(upPath),
+                    "Up the stem Beta2 RHCP waited at the junction, the way on splitting both ways: expected "
+                            + upPath + ", got " + up + ".");
+            var right = RhcpConductorTravel.travel(level, junction, north, -1, -1.0F, 1.0F, false, false);
+            var left = RhcpConductorTravel.travel(level, junction, north, -1, 1.0F, 1.0F, false, false);
+            helper.assertTrue(bar.get(3).equals(right.next()) && right.direction() == east
+                            && right.turnWait() == RhcpConductorTravel.TURN_TICKS
+                            && bar.get(1).equals(left.next()) && left.direction() == west,
+                    "At the junction D with W turned Beta2 RHCP right (east) into the bar and A with W left (west):"
+                            + " D " + right + ", A " + left + ".");
+            List<Hop> turning = hold(level, junction, north, -1.0F, 1.0F, false, false, 3);
+            helper.assertTrue(turning.equals(List.of(new Hop(bar.get(3), east), new Hop(bar.get(4), east),
+                            new Hop(bar.get(4), east))),
+                    "D and W held turned Beta2 RHCP once and then followed the bar: " + turning + ".");
+            List<Hop> spinning = hold(level, junction, north, 1.0F, 0.0F, false, false, 13);
+            List<Hop> spinPath = new ArrayList<>();
+            for (int tick = 0; tick < 13; tick++) {
+                spinPath.add(new Hop(junction, tick < 6 ? west : tick < 12 ? south : east));
+            }
+            helper.assertTrue(spinning.equals(spinPath),
+                    "A held alone turned Beta2 RHCP left every 6 ticks (standCount 5 down to -1) and moved it"
+                            + " nowhere: expected " + spinPath + ", got " + spinning + ".");
+            List<Hop> deadEnd = hold(level, stem.get(1), south, 0.0F, 1.0F, false, false, 3);
+            helper.assertTrue(deadEnd.equals(List.of(new Hop(stem.get(1), south), new Hop(stem.get(1), south),
+                            new Hop(stem.get(1), south))),
+                    "At a dead end Beta2 RHCP stayed: " + deadEnd + ".");
+        }
+        finally {
+            restore(level, placed);
+        }
+        helper.succeed();
+    }
+
+    // Beta2 RHCPGettingIntoTheMechanism.standPerform: entering, RHCP takes its
+    // travel direction from its user's look (its own under manual control):
+    // the first side of a wire the look points to, turned round, so RHCP faces
+    // back against the look; for other blocks the yaw alone. The entry turns
+    // manual control on, and under it the controller's yaw, its travel
+    // direction, is left alone.
+    @GameTest(template = "empty", batch = "rhcp_conductor_entry_direction", timeoutTicks = 80)
+    public static void rhcpEntersFacingBackAgainstTheLookAsBeta2(GameTestHelper helper) {
+        ServerPlayer user = mockPlayer(helper, "rhcp-entry-direction", new BlockPos(1, 2, 1));
+        StandPower power = summonRhcp(helper, user);
+        Level level = helper.getLevel();
+        List<Map.Entry<BlockPos, BlockState>> placed = new ArrayList<>();
+        BlockPos near = user.blockPosition().offset(0, 0, 2);
+        BlockPos far = near.south();
+        int south = RhcpConductorTravel.SOUTH;
+        int west = RhcpConductorTravel.WEST;
+        int north = RhcpConductorTravel.NORTH;
+        int east = RhcpConductorTravel.EAST;
+        Runnable leave = () -> {
+            if (RhcpAddon.state(user).inConductor()) {
+                RhcpService.leaveConductor(user);
+            }
+            restore(level, placed);
+            cleanup(user, power, "RHCP entry direction GameTest complete");
+        };
+        helper.startSequence()
+                .thenWaitUntil(() -> standTicking(helper, user))
+                .thenIdle(3)
+                .thenExecute(() -> {
+                    try {
+                        BlockState eastWest = Blocks.REDSTONE_WIRE.defaultBlockState()
+                                .setValue(RedStoneWireBlock.WEST, RedstoneSide.SIDE)
+                                .setValue(RedStoneWireBlock.EAST, RedstoneSide.SIDE);
+                        BlockState lampState = Blocks.REDSTONE_LAMP.defaultBlockState();
+                        BlockState dot = Blocks.REDSTONE_WIRE.defaultBlockState();
+                        helper.assertTrue(RhcpConductorTravel.entryDirection(eastWest, 90.0F, 0) == east
+                                        && RhcpConductorTravel.entryDirection(eastWest, 270.0F, 0) == west
+                                        && RhcpConductorTravel.entryDirection(eastWest, -90.0F, 0) == west
+                                        && RhcpConductorTravel.entryDirection(lampState, 0.0F, 0) == north
+                                        && RhcpConductorTravel.entryDirection(lampState, 180.0F, 0) == south
+                                        && RhcpConductorTravel.entryDirection(lampState, 90.0F, 0) == south
+                                        && RhcpConductorTravel.entryDirection(dot, 0.0F, east) == east,
+                                "Beta2's entry rule: an east-west wire looked at westward gives east, eastward"
+                                        + " west; a lamp gives north for yaw 0 and south for yaw 90 and 180; a"
+                                        + " wire dot keeps the last direction.");
+                        placeWires(level, placed, List.of(near, far));
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        user.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(
+                                near.getX() + 0.5D, near.getY() + 0.03D, near.getZ() + 0.5D));
+                        helper.assertTrue(!stand.isManuallyControlled() && RhcpService.enterConductor(user)
+                                        && near.equals(state.conductorPos()),
+                                "Setup: RHCP did not enter the wire under the crosshair: in a conductor "
+                                        + state.inConductor() + " at " + state.conductorPos() + ".");
+                        helper.assertTrue(stand.entryDirection() == north && facesYaw(stand, 180.0F),
+                                "Looking south (yaw " + user.getYHeadRot() + ") along a north-south wire, Beta2"
+                                        + " RHCP took the direction north, facing back toward its user: direction "
+                                        + stand.entryDirection() + ", yaw " + stand.getYRot() + ".");
+                    }
+                    catch (RuntimeException | Error failure) {
+                        leave.run();
+                        throw failure;
+                    }
+                })
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    try {
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        helper.assertTrue(state.inConductor() && facesYaw(stand, 180.0F),
+                                "Resting in the wire Beta2 RHCP kept facing its direction: in a conductor "
+                                        + state.inConductor() + ", yaw " + stand.getYRot() + ".");
+                        RhcpService.leaveConductor(user);
+                        // The entry turned manual control on; O turns it off, so the user's look counts again.
+                        StandEntityManualControlToggle.off(helper.getLevel(), stand, false);
+                        Vec3 beyond = Vec3.atBottomCenterOf(far.south(2));
+                        user.setPos(beyond.x, beyond.y, beyond.z);
+                        user.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(
+                                far.getX() + 0.5D, far.getY() + 0.03D, far.getZ() + 0.5D));
+                        helper.assertTrue(RhcpService.enterConductor(user) && far.equals(state.conductorPos())
+                                        && stand.entryDirection() == south && facesYaw(stand, 0.0F),
+                                "Looking north (yaw " + user.getYHeadRot() + ") along the wire, Beta2 RHCP took"
+                                        + " the direction south: in " + state.conductorPos() + ", direction "
+                                        + stand.entryDirection() + ", yaw " + stand.getYRot() + ".");
+                        stand.setYRot(90.0F);
+                        stand.setYHeadRot(90.0F);
+                    }
+                    catch (RuntimeException | Error failure) {
+                        leave.run();
+                        throw failure;
+                    }
+                })
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    try {
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        helper.assertTrue(RhcpAddon.state(user).inConductor() && stand.isManuallyControlled()
+                                        && facesYaw(stand, 90.0F),
+                                "Under manual control the server must leave the controller's yaw (its travel"
+                                        + " direction) alone: manual " + stand.isManuallyControlled() + ", yaw "
+                                        + stand.getYRot() + ".");
+                    }
+                    finally {
+                        leave.run();
+                    }
+                })
+                .thenSucceed();
+    }
+
+    // Beta2 RHCPGettingIntoTheMechanism.standPerform :226-228: entering, a
+    // RHCP not under manual control was taken over (ClToggleStandManualControlPacket),
+    // its direction already taken from its user's look. Nothing else changed
+    // it: RHCPExit kept it, and O toggled it as anywhere. Off, RHCP is called
+    // back and leaves the wire (RHCPEntity.updatePosition); off with Shift
+    // (keepPosition) it rests in the wire facing its entry direction until O
+    // takes it over again.
+    @GameTest(template = "empty", batch = "rhcp_conductor_manual_entry", timeoutTicks = 100)
+    public static void rhcpTakesManualControlAsItEntersAsBeta2(GameTestHelper helper) {
+        ServerPlayer user = mockPlayer(helper, "rhcp-manual-entry", new BlockPos(1, 2, 1));
+        StandPower power = summonRhcp(helper, user);
+        Level level = helper.getLevel();
+        List<Map.Entry<BlockPos, BlockState>> placed = new ArrayList<>();
+        BlockPos near = user.blockPosition().offset(0, 0, 2);
+        BlockPos far = near.south();
+        Runnable leave = () -> {
+            if (RhcpAddon.state(user).inConductor()) {
+                RhcpService.leaveConductor(user);
+            }
+            restore(level, placed);
+            cleanup(user, power, "RHCP manual entry GameTest complete");
+        };
+        Runnable lookAtNear = () -> user.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(
+                near.getX() + 0.5D, near.getY() + 0.03D, near.getZ() + 0.5D));
+        helper.startSequence()
+                .thenWaitUntil(() -> standTicking(helper, user))
+                .thenIdle(3)
+                .thenExecute(() -> {
+                    try {
+                        placeWires(level, placed, List.of(near, far));
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        lookAtNear.run();
+                        helper.assertTrue(!stand.isManuallyControlled()
+                                        && EntityComponentController.getControlTarget(user) != stand,
+                                "Setup: RHCP is manually controlled before it enters.");
+                        helper.assertTrue(RhcpService.enterConductor(user) && near.equals(state.conductorPos()),
+                                "Setup: RHCP did not enter the wire under the crosshair: in a conductor "
+                                        + state.inConductor() + " at " + state.conductorPos() + ".");
+                        helper.assertTrue(stand.isManuallyControlled()
+                                        && EntityComponentController.getControlTarget(user) == stand
+                                        && !stand.isBeingRetracted()
+                                        && stand.entryDirection() == RhcpConductorTravel.NORTH,
+                                "Beta2 turned manual control on as RHCP entered, after its direction took the"
+                                        + " user's look (north, back toward the user): manual "
+                                        + stand.isManuallyControlled() + ", controlled "
+                                        + (EntityComponentController.getControlTarget(user) == stand)
+                                        + ", retracted " + stand.isBeingRetracted() + ", direction "
+                                        + stand.entryDirection() + ".");
+                    }
+                    catch (RuntimeException | Error failure) {
+                        leave.run();
+                        throw failure;
+                    }
+                })
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    try {
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        helper.assertTrue(state.inConductor() && stand.isManuallyControlled(),
+                                "Beta2 RHCP stayed in the wire under manual control: in a conductor "
+                                        + state.inConductor() + ", manual " + stand.isManuallyControlled() + ".");
+                        // O
+                        StandEntityManualControlToggle.off(level, stand, false);
+                    }
+                    catch (RuntimeException | Error failure) {
+                        leave.run();
+                        throw failure;
+                    }
+                })
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    try {
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        helper.assertTrue(!state.inConductor() && !stand.isManuallyControlled(),
+                                "O turned manual control off and Beta2 RHCP, called back, left the wire: in a"
+                                        + " conductor " + state.inConductor() + ", manual "
+                                        + stand.isManuallyControlled() + ".");
+                        lookAtNear.run();
+                        helper.assertTrue(RhcpService.enterConductor(user) && stand.isManuallyControlled()
+                                        && !stand.isBeingRetracted(),
+                                "Entering again, Beta2 RHCP was taken over again: manual "
+                                        + stand.isManuallyControlled() + ", retracted "
+                                        + stand.isBeingRetracted() + ".");
+                        // Shift+O
+                        StandEntityManualControlToggle.off(level, stand, true);
+                        stand.setYRot(90.0F);
+                        stand.setYHeadRot(90.0F);
+                    }
+                    catch (RuntimeException | Error failure) {
+                        leave.run();
+                        throw failure;
+                    }
+                })
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    try {
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        helper.assertTrue(state.inConductor() && near.equals(state.conductorPos())
+                                        && !stand.isManuallyControlled() && !stand.isBeingRetracted()
+                                        && facesYaw(stand, 180.0F),
+                                "After Shift+O Beta2 RHCP rested in the wire facing its entry direction (north):"
+                                        + " in a conductor " + state.inConductor() + " at " + state.conductorPos()
+                                        + ", manual " + stand.isManuallyControlled() + ", retracted "
+                                        + stand.isBeingRetracted() + ", yaw " + stand.getYRot() + ".");
+                        // O
+                        StandEntityManualControlToggle.on(level, stand);
+                        helper.assertTrue(state.inConductor() && stand.isManuallyControlled(),
+                                "O took the resting RHCP over again in the wire.");
+                        RhcpService.exitConductor(user);
+                        helper.assertTrue(!state.inConductor() && stand.isManuallyControlled()
+                                        && !stand.isBeingRetracted(),
+                                "Beta2 RHCPExit left manual control on: in a conductor " + state.inConductor()
+                                        + ", manual " + stand.isManuallyControlled() + ", retracted "
+                                        + stand.isBeingRetracted() + ".");
+                    }
+                    finally {
+                        leave.run();
+                    }
+                })
+                .thenSucceed();
+    }
+
+    private record Hop(BlockPos pos, int direction) {
+        @Override
+        public String toString() {
+            return pos.toShortString() + "/" + direction;
+        }
+    }
+
+    // The spot and direction after each tick with the same keys held, the
+    // turn wait running down after each tick as on the controlling client.
+    private static List<Hop> hold(Level level, BlockPos from, int direction, float strafe, float forward,
+            boolean jumping, boolean sneaking, int ticks) {
+        List<Hop> hops = new ArrayList<>();
+        BlockPos at = from;
+        int wait = -1;
+        for (int tick = 0; tick < ticks; tick++) {
+            RhcpConductorTravel.Travel travel = RhcpConductorTravel.travel(level, at, direction, wait,
+                    strafe, forward, jumping, sneaking);
+            direction = travel.direction();
+            wait = RhcpConductorTravel.waited(travel.turnWait());
+            if (travel.next() != null) {
+                at = travel.next();
+            }
+            hops.add(new Hop(at.immutable(), direction));
+        }
+        return hops;
+    }
+
+    // Redstone wire with the sides a player's placement gives it (from the
+    // cross shape, as RedStoneWireBlock.getStateForPlacement), on stone where
+    // nothing is under it.
+    private static void placeWires(Level level, List<Map.Entry<BlockPos, BlockState>> placed,
+            List<BlockPos> wires) {
+        BlockState cross = Blocks.REDSTONE_WIRE.defaultBlockState()
+                .setValue(RedStoneWireBlock.NORTH, RedstoneSide.SIDE)
+                .setValue(RedStoneWireBlock.EAST, RedstoneSide.SIDE)
+                .setValue(RedStoneWireBlock.SOUTH, RedstoneSide.SIDE)
+                .setValue(RedStoneWireBlock.WEST, RedstoneSide.SIDE);
+        for (BlockPos pos : wires) {
+            if (level.getBlockState(pos.below()).isAir()) {
+                placeFor(level, placed, pos.below(), Blocks.STONE.defaultBlockState());
+            }
+        }
+        for (BlockPos pos : wires) {
+            placeFor(level, placed, pos, cross);
+        }
+        for (BlockPos pos : wires) {
+            BlockState wire = cross.setValue(RedStoneWireBlock.POWER,
+                    level.getBlockState(pos).getValue(RedStoneWireBlock.POWER));
+            level.setBlock(pos, Block.updateFromNeighbourShapes(wire, level, pos), Block.UPDATE_CLIENTS);
+        }
+    }
+
+    private static boolean facesYaw(StandEntity stand, float yaw) {
+        return Math.abs(Mth.wrapDegrees(stand.getYRot() - yaw)) < 0.01F;
+    }
+
+    // Beta2 RHCPEntity.tick: a travelling RHCP is in the conductor block it
+    // stands in, on its bottom centre (0.01 up); a conductor next to it does
+    // not hold it in another block. R772 SB1 n7 found it resting off the grid
+    // over the grass beside the end of a wire.
+    @GameTest(template = "empty", batch = "rhcp_conductor_rest", timeoutTicks = 80)
+    public static void aTravellingRhcpRestsOnlyInTheConductorItStandsInAsBeta2(GameTestHelper helper) {
+        ServerPlayer user = mockPlayer(helper, "rhcp-conductor-rest", new BlockPos(1, 2, 1));
+        StandPower power = summonRhcp(helper, user);
+        Level level = helper.getLevel();
+        List<Map.Entry<BlockPos, BlockState>> placed = new ArrayList<>();
+        BlockPos first = user.blockPosition().offset(0, 0, 2);
+        BlockPos second = first.south();
+        Runnable leave = () -> {
+            RhcpAddon.state(user).leaveConductor();
+            restore(level, placed);
+            cleanup(user, power, "RHCP conductor rest GameTest complete");
+        };
+        helper.startSequence()
+                .thenWaitUntil(() -> standTicking(helper, user))
+                .thenIdle(3)
+                .thenExecute(() -> {
+                    try {
+                        for (BlockPos pos : List.of(first, second)) {
+                            placeFor(level, placed, pos.below(), Blocks.STONE.defaultBlockState());
+                            placeFor(level, placed, pos, Blocks.REDSTONE_WIRE.defaultBlockState());
+                        }
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpAddon.state(user).enterConductor(first);
+                        RhcpService.teleportStand(stand, RhcpService.conductorSpot(first));
+                        Vec3 off = RhcpService.conductorSpot(second).add(-0.25D, 0.16D, 1.09D);
+                        stand.setPos(off.x, off.y, off.z);
+                    }
+                    catch (RuntimeException | Error failure) {
+                        leave.run();
+                        throw failure;
+                    }
+                })
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    try {
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        helper.assertTrue(state.inConductor() && first.equals(state.conductorPos()),
+                                "Setup: RHCP left the wire: in a conductor " + state.inConductor()
+                                        + " at " + state.conductorPos() + ".");
+                        assertConductorSpot(helper, stand, first,
+                                "back from the grass past the line's end, next to the wire " + second);
+                        Vec3 inside = RhcpService.conductorSpot(second).add(0.3D, 0.05D, -0.3D);
+                        stand.setPos(inside.x, inside.y, inside.z);
+                    }
+                    catch (RuntimeException | Error failure) {
+                        leave.run();
+                        throw failure;
+                    }
+                })
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    try {
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        helper.assertTrue(state.inConductor() && second.equals(state.conductorPos())
+                                        && first.equals(stand.previousConductor()),
+                                "Beta2 RHCP took the conductor it stood in, the one it came from as its"
+                                        + " previous block: in " + state.conductorPos() + ", previous "
+                                        + stand.previousConductor() + ".");
+                        assertConductorSpot(helper, stand, second, "off the centre of the next wire");
+                        // As the core does when manual control is turned off away from the user.
+                        stand.retract();
+                    }
+                    catch (RuntimeException | Error failure) {
+                        leave.run();
+                        throw failure;
+                    }
+                })
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    try {
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        helper.assertTrue(!state.inConductor() && stand.previousConductor() == null,
+                                "Beta2 RHCPEntity.updatePosition: a RHCP being called back left the wire"
+                                        + " (and its previous block): in a conductor " + state.inConductor()
+                                        + ", previous " + stand.previousConductor() + ".");
+                    }
+                    finally {
+                        leave.run();
+                    }
+                })
+                .thenSucceed();
+    }
+
+    // Beta2 RHCPExit.lookForAWayOut: out of a full block into the first
+    // neighbour that is not one (ahead by the travel direction, the sides,
+    // behind, then up or down). RHCP (1.15 high) does not fit into a 1-high
+    // gap, and under manual control the core pushes a Stand with its eyes in a
+    // block through the ground toward its user (R772 SB1 n9), so a way out it
+    // fits into comes first; with none, Beta2's own.
+    @GameTest(template = "empty", batch = "rhcp_exit_room", timeoutTicks = 80)
+    public static void theExitStepsOutWhereRhcpFitsBeforeACrampedWayOutAsBeta2(GameTestHelper helper) {
+        ServerPlayer user = mockPlayer(helper, "rhcp-exit-room", new BlockPos(1, 2, 1));
+        StandPower power = summonRhcp(helper, user);
+        Level level = helper.getLevel();
+        List<Map.Entry<BlockPos, BlockState>> placed = new ArrayList<>();
+        BlockPos lamp = user.blockPosition().offset(0, 0, 3);
+        Runnable leave = () -> {
+            RhcpAddon.state(user).leaveConductor();
+            restore(level, placed);
+            cleanup(user, power, "RHCP exit room GameTest complete");
+        };
+        helper.startSequence()
+                .thenWaitUntil(() -> standTicking(helper, user))
+                .thenIdle(3)
+                .thenExecute(() -> {
+                    try {
+                        BlockState stone = Blocks.STONE.defaultBlockState();
+                        BlockState air = Blocks.AIR.defaultBlockState();
+                        for (BlockPos floor : List.of(lamp.below(), lamp.east().below(), lamp.west().below())) {
+                            placeFor(level, placed, floor, stone);
+                        }
+                        placeFor(level, placed, lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+                        placeFor(level, placed, lamp.north(), stone);
+                        placeFor(level, placed, lamp.south(), stone);
+                        placeFor(level, placed, lamp.above(), stone);
+                        placeFor(level, placed, lamp.east(), air);
+                        placeFor(level, placed, lamp.east().above(), stone);
+                        placeFor(level, placed, lamp.west(), air);
+                        placeFor(level, placed, lamp.west().above(), air);
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        Vec3 spot = RhcpService.conductorSpot(lamp);
+                        state.enterConductor(lamp);
+                        RhcpService.teleportStand(stand, spot);
+                        stand.setYRot(-90.0F);
+                        RhcpService.exitConductor(user);
+                        helper.assertTrue(!state.inConductor()
+                                        && stand.position().distanceTo(spot.add(-1.0D, 0.0D, 0.0D)) < 1.0E-6D
+                                        && level.noBlockCollision(stand, stand.getBoundingBox())
+                                        && !stand.isInsideViewBlockingBlock(stand.position()),
+                                "Facing east with a 1-high gap east and room west, RHCP must step out west,"
+                                        + " clear of blocks: it moved " + stand.position().subtract(spot) + ".");
+
+                        placeFor(level, placed, lamp.west().above(), stone);
+                        state.enterConductor(lamp);
+                        RhcpService.teleportStand(stand, spot);
+                        stand.setYRot(-90.0F);
+                        RhcpService.exitConductor(user);
+                        helper.assertTrue(!state.inConductor()
+                                        && stand.position().distanceTo(spot.add(1.0D, 0.0D, 0.0D)) < 1.0E-6D,
+                                "With no way out RHCP fits into, Beta2's first (ahead, east): it moved "
+                                        + stand.position().subtract(spot) + ".");
+
+                        // Beta2: a sneaking user's RHCP tries down before up.
+                        placeFor(level, placed, lamp.below(), air);
+                        placeFor(level, placed, lamp.below(2), air);
+                        state.enterConductor(lamp);
+                        RhcpService.teleportStand(stand, spot);
+                        stand.setYRot(-90.0F);
+                        user.setShiftKeyDown(true);
+                        RhcpService.exitConductor(user);
+                        user.setShiftKeyDown(false);
+                        Vec3 below = new Vec3(spot.x, lamp.getY() - stand.getBbHeight() - 0.01D, spot.z);
+                        helper.assertTrue(!state.inConductor()
+                                        && stand.position().distanceTo(below) < 1.0E-6D
+                                        && level.noBlockCollision(stand, stand.getBoundingBox())
+                                        && !stand.isInsideViewBlockingBlock(stand.position()),
+                                "Sneaking over a 2-deep hole RHCP must drop into it with its head under the"
+                                        + " lamp: it is at " + stand.position() + ", expected " + below + ".");
+                    }
+                    finally {
+                        leave.run();
+                    }
+                })
+                .thenSucceed();
+    }
+
+    // Beta2 GameplayEventHandler took a plain fire hit into a powered RHCP
+    // with room in its battery (40 + 5 a potency level, + 50 a level). 1.16's
+    // campfire hurt with IN_FIRE like a fire block; 1.21's has its own
+    // campfire type. Other hits are not taken in.
+    @GameTest(template = "empty", batch = "rhcp_campfire_intake", timeoutTicks = 60)
+    public static void aCampfireFeedsRhcpLikeAFireBlockAsIn116(GameTestHelper helper) {
+        ServerPlayer user = mockPlayer(helper, "rhcp-campfire", new BlockPos(1, 2, 1));
+        StandPower power = summonRhcp(helper, user);
+        helper.startSequence()
+                .thenWaitUntil(() -> standTicking(helper, user))
+                .thenIdle(3)
+                .thenExecute(() -> {
+                    try {
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        RhcpState state = RhcpAddon.state(user);
+                        var sources = helper.getLevel().damageSources();
+                        float before = state.energy();
+                        int potency = state.potency();
+                        boolean campfireHurt = stand.hurt(sources.campfire(), 1.0F);
+                        float campfire = state.energy() - before;
+                        helper.assertTrue(!campfireHurt
+                                        && Math.abs(campfire - (40.0F + 55.0F * potency)) < 1.0E-3F,
+                                "A campfire hit at potency " + potency + " must add "
+                                        + (40.0F + 55.0F * potency) + " energy as a fire block's did: it added "
+                                        + campfire + ", hurt " + campfireHurt + ".");
+                        potency = state.potency();
+                        before = state.energy();
+                        stand.hurt(sources.inFire(), 1.0F);
+                        float fire = state.energy() - before;
+                        helper.assertTrue(Math.abs(fire - (40.0F + 55.0F * potency)) < 1.0E-3F,
+                                "A fire block hit at potency " + potency + " added " + fire + ".");
+                        before = state.energy();
+                        stand.hurt(sources.cactus(), 1.0F);
+                        helper.assertTrue(state.energy() == before,
+                                "A cactus is no fire: it changed the battery by " + (state.energy() - before) + ".");
+                    }
+                    finally {
+                        cleanup(user, power, "RHCP campfire GameTest complete");
+                    }
+                })
+                .thenSucceed();
+    }
+
+    private static void placeFor(Level level, List<Map.Entry<BlockPos, BlockState>> placed,
+            BlockPos pos, BlockState state) {
+        placed.add(0, Map.entry(pos.immutable(), level.getBlockState(pos)));
+        level.setBlockAndUpdate(pos, state);
+    }
+
+    private static void restore(Level level, List<Map.Entry<BlockPos, BlockState>> placed) {
+        for (Map.Entry<BlockPos, BlockState> entry : placed) {
+            level.setBlockAndUpdate(entry.getKey(), entry.getValue());
+        }
+        placed.clear();
     }
 
     // 1.16 RHCPGettingIntoTheMechanism (TargetRequirement.BLOCK, :157-158) took
@@ -1485,6 +2153,7 @@ public final class RhcpGameTests {
                             }
                             if (entered) {
                                 RhcpService.leaveConductor(user);
+                                endEntryManualControl(level, stand);
                             }
                             RhcpService.teleportStand(stand, standAt);
                             if (cow != null) {
@@ -1538,6 +2207,7 @@ public final class RhcpGameTests {
                 }
                 if (entered) {
                     RhcpService.leaveConductor(user);
+                    endEntryManualControl(level, stand);
                 }
                 RhcpService.teleportStand(stand, standAt);
             }
@@ -1595,9 +2265,10 @@ public final class RhcpGameTests {
 
     // 1.16 RHCPGettingIntoTheMechanism was a TargetRequirement.BLOCK
     // StandEntityAction: its task kept the pressed block
-    // (StandEntityTask.makeServerSideTask / keepTarget) and
-    // StandEntityTask.rotateStand turned RHCP, not manually controlled, to
-    // the block's centre (rotateStandTowardsTarget) through the perform.
+    // (StandEntityTask.makeServerSideTask / keepTarget) through the perform.
+    // Beta2's standPerform took RHCP over as it entered, so
+    // StandEntityTask.rotateStand (a Stand not manually controlled only) left
+    // it facing its entry direction.
     @GameTest(template = "empty", batch = "rhcp_conductor_task_target", timeoutTicks = 80)
     public static void theConductorPressKeepsThePressedBlockAsItsTaskTargetAsIn116(GameTestHelper helper) {
         ServerPlayer user = mockPlayer(helper, "rhcp-conductor-task", new BlockPos(1, 2, 1));
@@ -1660,12 +2331,14 @@ public final class RhcpGameTests {
                                         + (action != null ? action.ability + " " + action.getPhase() : null)
                                         + ", task target " + task.getType() + " " + task.getBlockPos() + ".");
                         boolean turned = stand.lookAtTaskTarget();
-                        Vec3 toCentre = Vec3.atCenterOf(lamp[0]).subtract(stand.getEyePosition());
-                        double facing = toCentre.lengthSqr() < 1.0E-6D ? 1.0D
-                                : stand.getViewVector(1.0F).dot(toCentre.normalize());
-                        helper.assertTrue(turned && facing > 0.999D,
-                                "1.16 StandEntityTask.rotateStand turned RHCP, not manually controlled, to the"
-                                        + " pressed block's centre: turned " + turned + ", facing " + facing + ".");
+                        helper.assertTrue(RhcpAddon.state(user).inConductor() && stand.isManuallyControlled()
+                                        && !turned && facesYaw(stand, 180.0F),
+                                "Beta2 took RHCP over as it entered the lamp (standPerform), so"
+                                        + " StandEntityTask.rotateStand, which turns only a Stand not manually"
+                                        + " controlled, left it facing its entry direction (north): in a conductor "
+                                        + RhcpAddon.state(user).inConductor() + ", manual "
+                                        + stand.isManuallyControlled() + ", turned " + turned + ", yaw "
+                                        + stand.getYRot() + ".");
                     }
                     catch (RuntimeException | Error failure) {
                         leave.run();
@@ -1682,12 +2355,26 @@ public final class RhcpGameTests {
                                 "Setup: the press did not take RHCP into the lamp: in a conductor "
                                         + state.inConductor() + " at " + state.conductorPos() + ".");
                         assertConductorSpot(helper, stand, lamp[0], "after the press");
+                        // 1.16 StandEntity.clearTask retracted only a Stand following its user, which a
+                        // travelling RHCP is not; a recall left set would hold the next unsummon for good.
+                        helper.assertTrue(!stand.isBeingRetracted() && stand.isManuallyControlled(),
+                                "The enter press's end must not call RHCP back out of the lamp it entered, and"
+                                        + " the press leaves it under manual control (Beta2): retracted "
+                                        + stand.isBeingRetracted() + ", manual " + stand.isManuallyControlled()
+                                        + ".");
                     }
                     finally {
                         leave.run();
                     }
                 })
                 .thenSucceed();
+    }
+
+    // An entry turns manual control on (Beta2); Shift+O, then following again as before the entry, so the next press
+    // is the user's own.
+    private static void endEntryManualControl(Level level, RhcpStandEntity stand) {
+        StandEntityManualControlToggle.off(level, stand, true);
+        stand.setCanFollowUser(true);
     }
 
     private static void assertConductorSpot(GameTestHelper helper, RhcpStandEntity stand,
@@ -2522,7 +3209,9 @@ public final class RhcpGameTests {
                                         + row[3] + "; the port runs " + windup + ", " + perform + ", " + recovery);
                     }
                     for (String name : List.of("rhcp_getting_into_the_mechanism", "rhcp_exit",
-                            "rhcp_chase_target", "rhcp_electrocute_target")) {
+                            "rhcp_chase_target", "rhcp_electrocute_target",
+                            // Beta2 RHCPSelfDestruct has no cooldown.
+                            "rhcp_self_destruct")) {
                         int cooldown = power.getAbility(name).getCooldown(power, -1);
                         helper.assertTrue(cooldown == 0,
                                 "1.16 " + name + " had no cooldown, the port sets " + cooldown);
@@ -2531,8 +3220,7 @@ public final class RhcpGameTests {
                     // the technical one, which Resolve (StandAction's multiplier 0) leaves.
                     for (Object[] row : List.<Object[]>of(
                             new Object[] {"rhcp_reduce_consumption", 5, 5},
-                            new Object[] {"rhcp_electric_dash", 10, 40},
-                            new Object[] {"rhcp_drag_into_line", 2400, 2400})) {
+                            new Object[] {"rhcp_electric_dash", 10, 40})) {
                         Ability ability = power.getAbility((String) row[0]);
                         int technical = (int) row[1];
                         int additional = (int) row[2];

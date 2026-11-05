@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-whitesnake`, mod id `rotp_whitesnake`, version `1.1.1-alpha.23-mc1.21.1`.
+- Module: `rotp-whitesnake`, mod id `rotp_whitesnake`, version `1.1.1-alpha.24-mc1.21.1`.
 - Original 1.16.5 add-on: `RotP-Whitesnake-BETA-1.1.1.jar` (RotP Whitesnake, mod id `rotp_whitesnake`), by StandoByte, silentevermore, TheDoGGyS; declared license: GNU GPL v3.0; SHA-256 `B37D7EC539B06315859EC78D762A01E8198B6DA97EA20225EFB7968645CEE41D`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -20,6 +20,30 @@ Source JAR SHA-256:
 The canonical Java audit used the corresponding
 `004_[RotP: Whitesnake Addon] RotP-Whitesnake-BETA-1.1.1` decompile under
 the local 1.16.5 addon evidence workspace.
+
+The Buff disc parts come from the newer
+`RotP-Whitesnake-BETA-1.1.0-PATCH1.jar` (SHA-256
+`7D040281035300F4827370BC6A904C2CD7B1E5BB9A76936A40006E4D08827548`), built
+from RotP-Whitesnake-Rework-main on 2026-09-06 and shipped in the tested
+1.16.5 pack with the same metadata and license. Its version string reads
+lower than BETA-1.1.1 although it is newer; this module keeps its BETA-1.1.1
+version family. From it come the `disc` Buff disc item with its model and
+texture, its effects as the persistent and network-synchronized
+`disc_effect` component (PATCH1 used raw item NBT), the `insert_disc`,
+`extract_own_buff` and `inject_effect` actions with their icons, the inject
+screen with its atlas (PATCH1 shipped it as `Buff.png` while the screen asked
+for `buff.png`), the effect disc branch of `whitesnake_throw_disc` and the
+shared projectile, the anvil fusion of two Buff discs, the `blank_disc`,
+`effect_disc_speed` and `instant_kill_disc` recipes, the EffectRegistry,
+EffectUnlockManager and EnlightenmentManager rules, and the new translations
+with the Literary Chinese `lzh` file. The delayed explosion, the recorded
+effects and the enlightenment count PATCH1 kept in raw persistent entity data
+live in the serializable `buff_disc_state` living attachment. Unlike the
+Stand and memory disc slices, the Buff disc uses one client-to-server
+`inject_effect` payload carrying only the picked effect ID; the server takes
+level and duration from EffectRegistry and serves only the player whose
+Inject Effect action opened the screen. A player's inventory tick rolls the
+random effect of a disc crafted with a potion.
 
 The original mod metadata declares GNU GPL v3.0. The selected model,
 textures, sound files, translations, and gameplay behavior remain under that
@@ -139,11 +163,17 @@ PostChain, Iris/SR framebuffer, or global render-state hook.
 All three primary Stand textures were rebuilt as 512x512 atlases. The
 model coordinates and skin scale remain unchanged for first-person and
 third-person parity; every cuboid instead uses explicit per-face UVs at four
-times the source texel density. Each skin adds four inflated joint-shell
-cuboids, and the atlas preserves donor texels with nearest-neighbor scaling
-and no post-scale color filtering or procedural noise. The deterministic
-tool, canonical 128x128 inputs, generated material reference, UV occupancy,
-and fixed front/left/back/isometric evidence live under `migration/`.
+times the source texel density, and the atlas preserves donor texels with
+nearest-neighbor scaling and no post-scale color filtering or procedural
+noise. Since R772 every face keeps the donor box-UV orientation (the side
+faces had been swapped and the bottoms and mirrored cubes flipped), the
+cuboids are the donor's own (the four joint shells the upgrade added are
+gone), and Skin B carries the knuckle dusters 1.16 drew from the Java model.
+The deterministic tool, `migration/tools/whitesnake_face_uv_fix.py`,
+canonical 128x128 inputs, generated material reference, UV occupancy, and
+fixed front/left/back/isometric evidence live under `migration/`. The Stand
+clips replay the 1.16 legacy poses through
+`migration/tools/whitesnake_legacy_clips.py`.
 Static art evidence is complete, while the in-game first-person and
 third-person action matrix remains a release-evidence task.
 

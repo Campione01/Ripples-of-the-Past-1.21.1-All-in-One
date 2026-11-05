@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-aqua-necklace`, mod id `rotp_aqua_necklace`, version `1.1.0c-port.28`.
+- Module: `rotp-aqua-necklace`, mod id `rotp_aqua_necklace`, version `1.1.0d-port.29`.
 - Original 1.16.5 add-on: `RotP-Extra-Stands-1.1.0c.jar` (RotP Extra Stands, mod id `rotp_extra_dg`), by DanielGamer321, StandoByte; declared license: GNU GPL v3.0; SHA-256 `0D0202912D14B2AB50CD5353275ACD6571FFFF0916807F8DDB1EF2928C1E3672`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -35,7 +35,9 @@ fixes are present. `migration/manifests/historical-recovery.json` records the
 history audit and restoration evidence.
 
 Aqua Necklace keeps the H4 remote material-state and possession template with
-nine wheel actions and no direct H1 binding. The `host_pressure` slot is a
+six wheel actions; its punch, heavy punch and guard take the mouse buttons
+(left click, right click, held right click) as the donor's first click-hotbar
+actions did, with no shared H1 binding. The `host_pressure` action is a
 core light punch with the donor icon/name outside possession and Internal
 Pressure inside possession. General host heavy, brain finisher, Fluid Guard,
 and the current grab/charged-heavy exclusions are unchanged.

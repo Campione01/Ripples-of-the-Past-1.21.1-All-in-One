@@ -1,0 +1,48 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="GPL-3.0-only"
+issueTrackerURL="https://github.com/Babelmoth/Rotp-NextAlubm-1.16.5/issues/"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+logoFile="rotp_beach_boy.png"
+authors="Babelmoth"
+credits="Babelmoth, StandoByte"
+description='''${mod_description}
+
+Beach Boy - from RotP:NextAlbum by Babelmoth, a Ripples of the Past add-on.
+The original GPL-3.0 models, animation, textures, sounds and language files are retained from the Next Album 0.1.13 jar.
+The source and the migration boundary are packaged in SOURCE_AND_LICENSE.md.'''
+
+[[mixins]]
+config="rotp_beach_boy.mixins.json"
+
+[[dependencies.${mod_id}]]
+modId="neoforge"
+type="required"
+versionRange="[${neo_version},)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="minecraft"
+type="required"
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="${core_mod_id}"
+type="required"
+versionRange="[${core_mod_version}]"
+ordering="AFTER"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="rotp_nextalbum"
+type="optional"
+versionRange="[0,)"
+ordering="NONE"
+side="BOTH"

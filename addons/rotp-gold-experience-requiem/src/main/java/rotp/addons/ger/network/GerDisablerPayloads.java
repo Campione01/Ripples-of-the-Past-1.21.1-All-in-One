@@ -14,13 +14,14 @@ public final class GerDisablerPayloads {
 
     public static void register(
             RegisterPayloadHandlersEvent event) {
-        event.registrar("1").playToClient(
+        event.registrar("2").playToClient(
                 StatePayload.TYPE,
                 StatePayload.STREAM_CODEC,
                 StatePayload::handle);
     }
 
-    public record StatePayload(int entityId, boolean disabled)
+    public record StatePayload(
+            int entityId, boolean disabled, boolean byDisabler)
             implements CustomPacketPayload {
         public static final Type<StatePayload> TYPE =
                 new Type<>(GoldExperienceRequiemAddon.id(
@@ -34,6 +35,7 @@ public final class GerDisablerPayloads {
                             RegistryFriendlyByteBuf buffer) {
                         return new StatePayload(
                                 buffer.readVarInt(),
+                                buffer.readBoolean(),
                                 buffer.readBoolean());
                     }
 
@@ -43,6 +45,7 @@ public final class GerDisablerPayloads {
                             StatePayload payload) {
                         buffer.writeVarInt(payload.entityId());
                         buffer.writeBoolean(payload.disabled());
+                        buffer.writeBoolean(payload.byDisabler());
                     }
                 };
 
@@ -50,7 +53,9 @@ public final class GerDisablerPayloads {
                 StatePayload payload,
                 IPayloadContext context) {
             GerDisablerClientState.setDisabled(
-                    payload.entityId(), payload.disabled());
+                    payload.entityId(),
+                    payload.disabled(),
+                    payload.byDisabler());
         }
 
         @Override

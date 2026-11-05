@@ -97,6 +97,26 @@ public final class GravityDomainEntity extends Entity {
         return MAX_RADIUS * eased;
     }
 
+    // 1.16 DomainInstance.currentAlphaFactor: fades in with the expansion
+    // and out with the close.
+    public float currentAlphaFactor(float partialTick) {
+        float now = level().getGameTime() + partialTick;
+        if (isClosing()) {
+            float elapsed = now - entityData.get(CLOSE_START_TICK);
+            float progress = Mth.clamp(
+                    elapsed / CLOSE_TICKS, 0.0F, 1.0F);
+            return 1.0F - progress * progress * progress
+                    * (progress * (progress * 6.0F - 15.0F) + 10.0F);
+        }
+        float elapsed = Math.max(
+                0.0F, now - entityData.get(START_TICK));
+        if (elapsed >= EXPAND_TICKS) {
+            return 1.0F;
+        }
+        return 1.0F - (float) Math.pow(
+                1.0F - elapsed / EXPAND_TICKS, 3.0D);
+    }
+
     public void pullAndClose() {
         if (level().isClientSide() || isClosing()) {
             return;

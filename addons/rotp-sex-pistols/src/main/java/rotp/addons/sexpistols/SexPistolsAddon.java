@@ -5,6 +5,7 @@ import rotp.core.api.timestop.TimeStopEntityMovementAuthorizers;
 import rotp.core.init.ModItems;
 
 import rotp.addons.sexpistols.client.SexPistolsClientEvents;
+import rotp.addons.sexpistols.config.SexPistolsClientConfig;
 import rotp.addons.sexpistols.config.SexPistolsConfig;
 import rotp.addons.sexpistols.content.revolver.entity.RevolverBulletEntity;
 import rotp.addons.sexpistols.network.MistaHatAmmoPayload;
@@ -43,6 +44,8 @@ public final class SexPistolsAddon {
                 SexPistolsConfigSync::onConfigUnloading);
         modContainer.registerConfig(
                 ModConfig.Type.COMMON, SexPistolsConfig.SPEC);
+        modContainer.registerConfig(
+                ModConfig.Type.CLIENT, SexPistolsClientConfig.SPEC);
         if (FMLEnvironment.dist.isClient()) {
             SexPistolsClientEvents.registerConfigScreen(modContainer);
         }
@@ -75,6 +78,7 @@ public final class SexPistolsAddon {
             return;
         }
         event.accept(SexPistolsItems.REVOLVER.get());
+        event.accept(SexPistolsItems.HEAVY_REVOLVER.get());
         event.accept(SexPistolsItems.REVOLVER_AMMO.get());
         event.accept(SexPistolsItems.REVOLVER_CASING.get());
         event.accept(SexPistolsItems.MISTA_SUIT_HAT.get());

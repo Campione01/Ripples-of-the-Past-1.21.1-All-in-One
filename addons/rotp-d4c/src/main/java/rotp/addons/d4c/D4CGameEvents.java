@@ -226,11 +226,11 @@ public final class D4CGameEvents {
     public static void onServerTick(ServerTickEvent.Post event) {
         D4CParallelItemService.tick(event.getServer());
         D4CCorpseFinderService.tickServer(event.getServer());
-        D4CParallelTerrainMirror.tick(event.getServer());
         D4CPhase2BService.tickMarks(event.getServer());
     }
 
-    // 1.16 am.onPlayerChangedDimension: overworld -> parallel copies terrain
+    // 1.16 am.onPlayerChangedDimension: overworld -> parallel copies
+    // terrain; D4C's own portals copy before the crossing instead
     @SubscribeEvent
     public static void onPlayerChangedDimension(
             PlayerEvent.PlayerChangedDimensionEvent event) {

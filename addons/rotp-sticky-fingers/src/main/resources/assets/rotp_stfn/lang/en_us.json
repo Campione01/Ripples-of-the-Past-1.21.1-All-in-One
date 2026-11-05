@@ -28,7 +28,7 @@
   "rotp_stfn.ability.sticky_fingers_zip_target_wounds": "Zip Target Wounds",
   "rotp_stfn.ability.sticky_fingers_open_storage": "Open Storage",
   "rotp_stfn.ability.sticky_fingers_open_inner_storage": "Open Inner Storage",
-  "rotp_stfn.message.zipper_rejected": "Sticky Fingers cannot safely place or operate a zipper there.",
+  "rotp_stfn.message.zipper_rejected": "Sticky Fingers can't put a zipper on this block.",
   "rotp_stfn.message.storage_rejected": "Sticky Fingers cannot open storage in that target.",
   "rotp_stfn.message.storage_not_owner": "That block storage belongs to another Sticky Fingers user.",
   "rotp_stfn.message.cant_pickup.no_arm": "You can't pick this up without an arm to hold it!",

@@ -1,6 +1,7 @@
 package rotp.addons.kiss.service;
 
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -30,8 +31,13 @@ public final class KissTokenService {
 
     private KissTokenService() {}
 
+    // 1.0.2a StickerEntity.grantEntity/grantBlock and KissFinisherAttack: no second item for a target the user
+    // already carries one for
     public static void grantEntityToken(
             ServerPlayer owner, LivingEntity target) {
+        if (carriesToken(owner, token -> target.getUUID().equals(token.entityUuid()))) {
+            return;
+        }
         ItemStack token = headFor(target);
         CustomData.update(
                 DataComponents.CUSTOM_DATA,
@@ -42,6 +48,9 @@ public final class KissTokenService {
 
     public static void grantBlockToken(
             ServerPlayer owner, BlockPos position, Direction face) {
+        if (carriesToken(owner, token -> position.equals(token.blockPos()))) {
+            return;
+        }
         ItemStack token = new ItemStack(
                 owner.level().getBlockState(position).getBlock().asItem());
         if (token.isEmpty()) {
@@ -62,14 +71,14 @@ public final class KissTokenService {
         return token != null ? token : parse(owner.getMainHandItem());
     }
 
-    public static void removeEntityTokens(ServerPlayer owner, UUID targetUuid) {
+    public static boolean carriesToken(Player owner, Predicate<Token> matches) {
         for (int slot = 0; slot < owner.getInventory().getContainerSize(); slot++) {
-            ItemStack stack = owner.getInventory().getItem(slot);
-            Token token = parse(stack);
-            if (token != null && targetUuid.equals(token.entityUuid())) {
-                stack.shrink(1);
+            Token token = parse(owner.getInventory().getItem(slot));
+            if (token != null && matches.test(token)) {
+                return true;
             }
         }
+        return false;
     }
 
     public static void removeBlockTokens(ServerPlayer owner, BlockPos position) {
@@ -154,8 +163,9 @@ public final class KissTokenService {
             return entityUuid != null;
         }
 
+        // 1.0.2a StickerEntity.consumeStickerItem empties the sticker item's whole slot
         public void consume() {
-            stack.shrink(1);
+            stack.setCount(0);
         }
     }
 }

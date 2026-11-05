@@ -50,6 +50,8 @@ public final class SexPistolsStands {
                 SexPistolsIds.SEX_PISTOLS_TARGET_MODE_PATH;
         String transferOrder =
                 SexPistolsIds.SEX_PISTOLS_TRANSFER_ORDER_PATH;
+        String forcedTarget =
+                SexPistolsIds.SEX_PISTOLS_FORCED_TARGET_PATH;
         String standReload =
                 SexPistolsIds.SEX_PISTOLS_STAND_RELOAD_PATH;
         String quickReload =
@@ -78,6 +80,10 @@ public final class SexPistolsStands {
                         transferOrder,
                         SexPistolsAbilities
                                 .SEX_PISTOLS_TRANSFER_ORDER)
+                .addAbility(
+                        forcedTarget,
+                        SexPistolsAbilities
+                                .SEX_PISTOLS_FORCED_TARGET)
                 .addAbility(
                         move,
                         SexPistolsAbilities
@@ -123,6 +129,9 @@ public final class SexPistolsStands {
                         targetMode, 0, InputMethod.CLICK)
                 .addToHotbar(
                         transferOrder, 0, InputMethod.CLICK)
+                // 0.1.13 sex_pistols_forced_target
+                .addToHotbar(
+                        forcedTarget, 0, InputMethod.CLICK)
                 .addToHotbar(
                         standReload, 0, InputMethod.CLICK)
                 .addToHotbar(
@@ -151,6 +160,9 @@ public final class SexPistolsStands {
         moveset.addSkill(
                 StandUnlockableSkill.unlockableAbility(
                         transferOrder, 0));
+        moveset.addSkill(
+                StandUnlockableSkill.unlockableAbility(
+                        forcedTarget, 0));
         moveset.addSkill(
                 StandUnlockableSkill.unlockableAbility(
                         standReload, 0));

@@ -193,6 +193,7 @@ public final class UltimateHeldAndPlayerActionGameTests {
                 }
             }
         };
+        UltimateLifeformFixtures.claim(helper, player);
         player.setPos(Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(2, 2, 2))));
         player.setGameMode(GameType.SURVIVAL);
         if (!helper.getLevel().addFreshEntity(player)) {

@@ -24,6 +24,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.LeapAtTargetGoal;
+import net.minecraft.world.entity.ai.goal.ZombieAttackGoal;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.animal.horse.Horse;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -65,8 +66,21 @@ import rotp.core.powersystem.standpower.StandPower;
 public final class HeavensDoorOwnerRulesGameTests {
     private HeavensDoorOwnerRulesGameTests() {}
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void resolveWeakensTheActualBookOnceIncludingReload(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> resolveWeakensTheActualBookOnceIncludingReloadInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void resolveWeakensTheActualBookOnceIncludingReloadAcrossAChunkBorder(GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 0);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> resolveWeakensTheActualBookOnceIncludingReloadInLoadedArea(away));
+    }
+
+    private static void resolveWeakensTheActualBookOnceIncludingReloadInLoadedArea(GameTestHelper helper) {
         ServerPlayer owner = owner(helper, "HdResolve");
         Cow target = helper.spawnWithNoFreeWill(EntityType.COW, 3, 2, 2);
         try {
@@ -105,8 +119,23 @@ public final class HeavensDoorOwnerRulesGameTests {
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void casterSpecificReleaseSurvivesTargetUnloadAndPreservesForeignStun(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> casterSpecificReleaseSurvivesTargetUnloadAndPreservesForeignStunInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void casterSpecificReleaseSurvivesTargetUnloadAndPreservesForeignStunAcrossAChunkBorder(
+            GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 1);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> casterSpecificReleaseSurvivesTargetUnloadAndPreservesForeignStunInLoadedArea(away));
+    }
+
+    private static void casterSpecificReleaseSurvivesTargetUnloadAndPreservesForeignStunInLoadedArea(
+            GameTestHelper helper) {
         ServerPlayer first = owner(helper, "HdSource1");
         ServerPlayer second = owner(helper, "HdSource2");
         Cow target = helper.spawnWithNoFreeWill(EntityType.COW, 3, 2, 2);
@@ -166,8 +195,23 @@ public final class HeavensDoorOwnerRulesGameTests {
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void lowHealthHidesOnlyFourCommandsAndLeavesBooksPagesAndBehavior(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> lowHealthHidesOnlyFourCommandsAndLeavesBooksPagesAndBehaviorInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void lowHealthHidesOnlyFourCommandsAndLeavesBooksPagesAndBehaviorAcrossAChunkBorder(
+            GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 2);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> lowHealthHidesOnlyFourCommandsAndLeavesBooksPagesAndBehaviorInLoadedArea(away));
+    }
+
+    private static void lowHealthHidesOnlyFourCommandsAndLeavesBooksPagesAndBehaviorInLoadedArea(
+            GameTestHelper helper) {
         ServerPlayer owner = owner(helper, "HdHealth");
         Cow target = helper.spawnWithNoFreeWill(EntityType.COW, 3, 2, 2);
         try {
@@ -340,8 +384,22 @@ public final class HeavensDoorOwnerRulesGameTests {
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void legacySelfHarmSnapshotAndToggleShareExactCasterOwnership(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> legacySelfHarmSnapshotAndToggleShareExactCasterOwnershipInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void legacySelfHarmSnapshotAndToggleShareExactCasterOwnershipAcrossAChunkBorder(
+            GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 3);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> legacySelfHarmSnapshotAndToggleShareExactCasterOwnershipInLoadedArea(away));
+    }
+
+    private static void legacySelfHarmSnapshotAndToggleShareExactCasterOwnershipInLoadedArea(GameTestHelper helper) {
         ServerPlayer issuer = owner(helper, "HdLegacyUi");
         Cow own = helper.spawnWithNoFreeWill(EntityType.COW, 2, 2, 2);
         Cow foreign = helper.spawnWithNoFreeWill(EntityType.COW, 3, 2, 2);
@@ -552,23 +610,62 @@ public final class HeavensDoorOwnerRulesGameTests {
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void writerKeepsBookPagesAndBehaviorThroughATotemOfUndying(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> writerKeepsBookPagesAndBehaviorThroughATotemOfUndyingInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void writerKeepsBookPagesAndBehaviorThroughATotemOfUndyingAcrossAChunkBorder(GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 4);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> writerKeepsBookPagesAndBehaviorThroughATotemOfUndyingInLoadedArea(away));
+    }
+
+    private static void writerKeepsBookPagesAndBehaviorThroughATotemOfUndyingInLoadedArea(GameTestHelper helper) {
         writerSurvivesALethalHit(helper, "HdTotem", "a Totem of Undying",
                 writer -> writer.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.TOTEM_OF_UNDYING)),
                 writer -> writer.getOffhandItem().isEmpty());
     }
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void writerKeepsBookPagesAndBehaviorThroughCheatDeath(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> writerKeepsBookPagesAndBehaviorThroughCheatDeathInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void writerKeepsBookPagesAndBehaviorThroughCheatDeathAcrossAChunkBorder(GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 5);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> writerKeepsBookPagesAndBehaviorThroughCheatDeathInLoadedArea(away));
+    }
+
+    private static void writerKeepsBookPagesAndBehaviorThroughCheatDeathInLoadedArea(GameTestHelper helper) {
         writerSurvivesALethalHit(helper, "HdCheatDeath", "Cheat Death",
                 writer -> writer.addEffect(new MobEffectInstance(ModStatusEffects.CHEAT_DEATH, 200)),
                 writer -> !writer.hasEffect(ModStatusEffects.CHEAT_DEATH));
     }
 
     // The core's Angelo Rock punch saves its target this way, with next to no health left.
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void writerKeepsBookPagesAndBehaviorThroughACancelledDeath(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> writerKeepsBookPagesAndBehaviorThroughACancelledDeathInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void writerKeepsBookPagesAndBehaviorThroughACancelledDeathAcrossAChunkBorder(GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 6);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> writerKeepsBookPagesAndBehaviorThroughACancelledDeathInLoadedArea(away));
+    }
+
+    private static void writerKeepsBookPagesAndBehaviorThroughACancelledDeathInLoadedArea(GameTestHelper helper) {
         UUID[] saved = new UUID[1];
         Consumer<LivingDeathEvent> cancelOnce = event -> {
             if (event.getEntity().getUUID().equals(saved[0])) {
@@ -588,8 +685,20 @@ public final class HeavensDoorOwnerRulesGameTests {
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void mobWriterKeepsTornPagesThroughATotemOfUndying(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> mobWriterKeepsTornPagesThroughATotemOfUndyingInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void mobWriterKeepsTornPagesThroughATotemOfUndyingAcrossAChunkBorder(GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 7);
+        HeavensDoorGameTestArea.whenLoaded(away, () -> mobWriterKeepsTornPagesThroughATotemOfUndyingInLoadedArea(away));
+    }
+
+    private static void mobWriterKeepsTornPagesThroughATotemOfUndyingInLoadedArea(GameTestHelper helper) {
         Zombie writer = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 1, 2, 2);
         Cow target = helper.spawnWithNoFreeWill(EntityType.COW, 3, 2, 2);
         StandPower power = PowerClass.STAND.attachGet(writer);
@@ -735,6 +844,8 @@ public final class HeavensDoorOwnerRulesGameTests {
         // A husk: a zombie that daylight does not set on fire.
         Husk held = helper.spawn(EntityType.HUSK, helper.relativeVec(spot(helper, 0, 6.5D)));
         held.targetSelector.removeAllGoals(goal -> true);
+        // A random stroll begun before the command coasts on after it: only the attack is left.
+        held.goalSelector.removeAllGoals(goal -> !(goal instanceof ZombieAttackGoal));
         Cow prey = helper.spawnWithNoFreeWill(EntityType.COW, helper.relativeVec(spot(helper, 0, 7.7D)));
         Runnable cleanup = () -> List.of(writer, held, prey).forEach(Entity::discard);
         later(helper, 5, cleanup, () -> {

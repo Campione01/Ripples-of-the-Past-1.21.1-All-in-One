@@ -46,6 +46,12 @@ public final class DetachedBodyPartMasks {
                 & DetachedPartType.HEAD.mask()) != 0;
     }
 
+    public static boolean isClientLegless(UUID entityId) {
+        int legs = DetachedPartType.LEFT_LEG.mask()
+                | DetachedPartType.RIGHT_LEG.mask();
+        return (CLIENT_MASKS.getOrDefault(entityId, 0) & legs) == legs;
+    }
+
     public static void clearClientMasks() {
         CLIENT_MASKS.clear();
     }

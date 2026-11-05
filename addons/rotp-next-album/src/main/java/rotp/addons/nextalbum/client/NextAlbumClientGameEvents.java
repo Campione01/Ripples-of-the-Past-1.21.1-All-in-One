@@ -1,5 +1,7 @@
 package rotp.addons.nextalbum.client;
 
+import java.util.List;
+
 import rotp.core.api.client.render.ScopedPlayerModelVisibility;
 import rotp.core.api.client.render.ScopedPlayerModelVisibility.Part;
 import rotp.addons.nextalbum.NextAlbumAddon;
@@ -9,7 +11,12 @@ import rotp.addons.nextalbum.item.MistaSuitArmorItem;
 import rotp.addons.nextalbum.network.NecklaceBeamUsePayload;
 import rotp.addons.nextalbum.network.NecklaceChargeStatePayload;
 import rotp.addons.nextalbum.state.NecklaceBeamService;
+import rotp.core.client.ClientGlobals;
+import rotp.addons.nextalbum.config.NextAlbumClientConfig;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.util.RandomSource;
+import net.neoforged.neoforge.client.event.sound.PlaySoundEvent;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.InteractionHand;
@@ -20,6 +27,7 @@ import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RenderPlayerEvent;
@@ -136,6 +144,43 @@ public final class NextAlbumClientGameEvents {
         if (pendingTicks > 0) {
             pendingTicks--;
         }
+    }
+
+    // Next Album 0.1.13 SoundEventHandler: a footstep sound heard by a
+    // Stand user shows one of the GO / DO / BA words where it plays.
+    @SubscribeEvent
+    public static void onPlaySound(PlaySoundEvent event) {
+        SoundInstance sound = event.getSound();
+        Minecraft minecraft = Minecraft.getInstance();
+        if (sound == null
+                || minecraft.level == null
+                || !sound.getLocation().getPath().endsWith(".step")
+                || !NextAlbumClientConfig.onomatopoeiaParticles()
+                || !ClientGlobals.canSeeStands) {
+            return;
+        }
+        RandomSource random = minecraft.level.random;
+        var words = List.of(
+                NextAlbumAddon.SOUND_GO_ORANGE.get(),
+                NextAlbumAddon.SOUND_DO_ORANGE.get(),
+                NextAlbumAddon.SOUND_BA_ORANGE.get());
+        minecraft.level.addParticle(
+                words.get(random.nextInt(words.size())), true,
+                sound.getX() + (random.nextDouble() - 0.5D) * 0.3D,
+                sound.getY() + (random.nextDouble() - 0.5D) * 0.3D,
+                sound.getZ() + (random.nextDouble() - 0.5D) * 0.3D,
+                0.0D, 0.0D, 0.0D);
+    }
+
+    @SubscribeEvent
+    public static void onCigaretteTick(ClientTickEvent.Post event) {
+        ClientCigaretteState.tick();
+    }
+
+    @SubscribeEvent
+    public static void onLoggingOut(
+            ClientPlayerNetworkEvent.LoggingOut event) {
+        ClientCigaretteState.clear();
     }
 
     @SubscribeEvent

@@ -1,13 +1,11 @@
 package rotp.addons.sexpistols.content.revolver;
 
+import rotp.addons.sexpistols.config.SexPistolsConfig;
+import rotp.addons.sexpistols.content.revolver.item.RevolverStats;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 
 public final class RevolverRecoil {
-    public static final float PITCH_DEGREES = 5.35F;
-    public static final float YAW_DEGREES = 1.75F;
-    public static final float AIM_PITCH_SCALE = 0.74F;
-    public static final float AIM_YAW_SCALE = 0.55F;
 
     private static long serverApplications;
     private static float lastServerPitch;
@@ -16,19 +14,31 @@ public final class RevolverRecoil {
 
     private RevolverRecoil() {}
 
+    // Next Album 0.1.13 RevolverItem.getPitchRecoil/getYawRecoil: the gun's
+    // own recoil, its ADS scale and the recoilMultiplier config.
     public static Recoil values(
-            boolean aiming, float randomValue) {
-        float pitch = PITCH_DEGREES
-                * (aiming ? AIM_PITCH_SCALE : 1.0F);
-        float yaw = (Mth.clamp(randomValue, 0.0F, 1.0F) - 0.5F)
-                * YAW_DEGREES
-                * (aiming ? AIM_YAW_SCALE : 1.0F);
-        return new Recoil(pitch, yaw);
+            RevolverStats stats,
+            boolean aiming,
+            float randomValue,
+            double multiplier) {
+        return new Recoil(
+                stats.pitchRecoil(aiming, multiplier),
+                stats.yawRecoil(
+                        aiming,
+                        Mth.clamp(randomValue, 0.0F, 1.0F),
+                        multiplier));
     }
 
     public static void applyServer(
-            Player player, boolean aiming, float randomValue) {
-        Recoil recoil = values(aiming, randomValue);
+            Player player,
+            RevolverStats stats,
+            boolean aiming,
+            float randomValue) {
+        Recoil recoil = values(
+                stats,
+                aiming,
+                randomValue,
+                SexPistolsConfig.recoilMultiplier());
         player.setXRot(Mth.clamp(
                 player.getXRot() - recoil.pitch(),
                 -90.0F,

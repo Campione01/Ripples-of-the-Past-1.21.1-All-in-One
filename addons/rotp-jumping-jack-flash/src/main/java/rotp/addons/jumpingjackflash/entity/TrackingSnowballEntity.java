@@ -29,6 +29,7 @@ public final class TrackingSnowballEntity
     public static final float SPEED = 1.5F;
     public static final float DAMAGE = 4.0F;
     public static final int LIFETIME_TICKS = 100;
+    private static final int HIT_SPARKLES = 50;
 
     private static final EntityDataAccessor<Optional<UUID>> TARGET_UUID =
             SynchedEntityData.defineId(
@@ -90,20 +91,31 @@ public final class TrackingSnowballEntity
         target.hurt(
                 serverLevel.damageSources().thrown(this, owner),
                 DAMAGE);
-        serverLevel.sendParticles(
-                ParticleTypes.EXPLOSION,
-                target.getX(),
-                target.getY() + target.getBbHeight() * 0.5D,
-                target.getZ(),
-                50,
-                1.5D,
-                1.5D,
-                1.5D,
-                0.02D);
+        // 1.16 SnowballHitHandler: 50 still INSTANT_EFFECT sparkles
+        // (field_197590_A) in a 3-block cube and ENDERMAN_TELEPORT
+        // (field_187534_aX), not explosions.
+        for (int index = 0; index < HIT_SPARKLES; index++) {
+            serverLevel.sendParticles(
+                    ParticleTypes.INSTANT_EFFECT,
+                    target.getX()
+                            + (serverLevel.random.nextDouble() - 0.5D)
+                                    * 3.0D,
+                    target.getY()
+                            + (serverLevel.random.nextDouble() - 0.5D)
+                                    * 3.0D,
+                    target.getZ()
+                            + (serverLevel.random.nextDouble() - 0.5D)
+                                    * 3.0D,
+                    0,
+                    0.0D,
+                    0.0D,
+                    0.0D,
+                    1.0D);
+        }
         serverLevel.playSound(
                 null,
                 target.blockPosition(),
-                SoundEvents.GENERIC_EXPLODE.value(),
+                SoundEvents.ENDERMAN_TELEPORT,
                 SoundSource.PLAYERS,
                 1.0F,
                 1.2F);

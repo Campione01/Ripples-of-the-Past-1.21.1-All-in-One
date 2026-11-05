@@ -1,0 +1,37 @@
+{
+  "type": "jojo_ripples:crafting_shaped_stand",
+  "category": "combat",
+  "pattern": [
+    "ebe",
+    "ada",
+    "aca"
+  ],
+  "key": {
+    "a": {
+      "item": "minecraft:leather"
+    },
+    "b": {
+      "tag": "c:dyes/orange"
+    },
+    "c": {
+      "tag": "c:dyes/black"
+    },
+    "d": {
+      "item": "minecraft:fishing_rod"
+    },
+    "e": {
+      "item": "minecraft:brown_wool"
+    }
+  },
+  "stand": [
+    {
+      "name": "rotp_beach_boy:beach_boy"
+    },
+    {
+      "name": "rotp_nextalbum:beach_boy"
+    }
+  ],
+  "result": {
+    "id": "rotp_nextalbum:pesci_suit_cloth"
+  }
+}

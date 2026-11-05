@@ -201,7 +201,8 @@ public final class SexPistolsTrajectoryPreviewRenderer {
         }
         return new TrajectorySpec(
                 start,
-                direction.scale(RevolverBulletEntity.SPEED),
+                direction.scale(((RevolverItem) stack.getItem())
+                        .stats().bulletSpeed()),
                 RevolverBulletEntity.EFFECTIVE_GRAVITY,
                 RevolverBulletEntity.DRAG,
                 maxRicochetCount,

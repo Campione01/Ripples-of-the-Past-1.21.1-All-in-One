@@ -5,5 +5,53 @@
       "rotp_nextalbum:stand_user/the_grateful_dead",
       "rotp_nextalbum:stand_user/grateful_dead"
     ]
+  },
+  "the_grateful_dead_summon": {
+    "subtitle": "rotp_nextalbum.subtitle.the_grateful_dead_summon",
+    "sounds": [
+      "rotp_nextalbum:stand/the_greateful_dead_summon"
+    ]
+  },
+  "the_grateful_dead_summon_2": {
+    "subtitle": "rotp_nextalbum.subtitle.the_grateful_dead_summon",
+    "sounds": [
+      "rotp_nextalbum:stand/the_greateful_dead_summon_2"
+    ]
+  },
+  "the_grateful_dead_unsummon": {
+    "subtitle": "rotp_nextalbum.subtitle.the_grateful_dead_unsummon",
+    "sounds": [
+      "rotp_nextalbum:stand/the_greateful_dead_unsummon"
+    ]
+  },
+  "prosciutto_kill": {
+    "subtitle": "rotp_nextalbum.subtitle.prosciutto_kill",
+    "sounds": [
+      "rotp_nextalbum:stand_user/prosciutto_kill"
+    ]
+  },
+  "prosciutto_muda": {
+    "subtitle": "rotp_nextalbum.subtitle.prosciutto_muda",
+    "sounds": [
+      "rotp_nextalbum:stand_user/prosciutto_muda"
+    ]
+  },
+  "prosciutto_take_this": {
+    "subtitle": "rotp_nextalbum.subtitle.prosciutto_take_this",
+    "sounds": [
+      "rotp_nextalbum:stand_user/prosciutto_take_this"
+    ]
+  },
+  "prosciutto_ora": {
+    "subtitle": "rotp_nextalbum.subtitle.prosciutto_ora",
+    "sounds": [
+      "rotp_nextalbum:stand_user/prosciutto_ora"
+    ]
+  },
+  "prosciutto_noisy": {
+    "subtitle": "rotp_nextalbum.subtitle.prosciutto_noisy",
+    "sounds": [
+      "rotp_nextalbum:stand_user/prosciutto_noisy"
+    ]
   }
 }

@@ -1,5 +1,11 @@
 {
   "stand.rotp_november_rain.november_rain": "十一月的雨",
   "rotp_november_rain.ability.light_rain": "降雨",
+  "rotp_november_rain.ability.heavy_rain": "暴雨",
+  "rotp_november_rain.ability.rain_shield": "雨盾",
+  "rotp_november_rain.ability.rain_barrier": "大雨盾",
+  "rotp_november_rain.ability.destroy_item": "破坏物品",
+  "rotp_november_rain.ability.barrage_rain": "雨滴连射",
+  "rotp_november_rain.ability.precision_drop": "精准落雨",
   "entity.rotp_november_rain.november_rain": "十一月的雨"
 }

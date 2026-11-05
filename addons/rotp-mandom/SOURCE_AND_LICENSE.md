@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-mandom`, mod id `rotp_mandom`, version `1.1.2-port.13`.
+- Module: `rotp-mandom`, mod id `rotp_mandom`, version `1.1.2-port.14`.
 - Original 1.16.5 add-on: `RotP-Mandom-1.1.2.jar` (RotP-Mandom, mod id `rotp_mandom`), by Weever; declared license: GNU GPL v3.0; SHA-256 `79B77F092C703BC4907F671DC6F18B2764A9B512E52D9687E07CFB850DC92BD4`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-24); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

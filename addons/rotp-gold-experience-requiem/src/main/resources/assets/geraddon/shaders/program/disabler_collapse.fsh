@@ -67,5 +67,5 @@ void main() {
     vec2 warpedUv = uv + radialDirUv * ((implosionOffset + residualOffset) * effectMask);
     warpedUv = clamp(warpedUv, vec2(0.0), vec2(1.0));
 
-    fragColor = texture(DiffuseSampler, warpedUv);
+    fragColor = vec4(texture(DiffuseSampler, warpedUv).rgb, 1.0);
 }

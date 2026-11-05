@@ -21,5 +21,13 @@
   "rotp_mih.configuration.Client config":  "Налаштування клієнта",
   "rotp_mih.configuration.Client config.tooltip":  "Налаштування, що змінюють лише те, що показує цей клієнт.",
   "rotp_mih.config.client.enableNewTSIcons":  "Нові значки системи часу",
-  "rotp_mih.config.client.enableNewTSIcons.tooltip":  "Використовувати нові значки годинника для «Прискорити» та «Очистити» системи часу."
+  "rotp_mih.config.client.enableNewTSIcons.tooltip":  "Використовувати нові значки годинника для «Прискорити» та «Очистити» системи часу.",
+  "rotp_mih.configuration.section.rotp.mih.server.toml":  "Налаштування сервера",
+  "rotp_mih.configuration.section.rotp.mih.server.toml.title":  "Налаштування сервера Made in Heaven",
+  "rotp_mih.config.server.timeAcceleration":  "Прискорення часу",
+  "rotp_mih.config.server.timeAcceleration.tooltip":  "Як працює прискорення часу Made in Heaven на цьому сервері.",
+  "rotp_mih.config.server.accelerationMode":  "Режим прискорення",
+  "rotp_mih.config.server.accelerationMode.tooltip":  "Світ прискорюється: живі істоти живуть у своєму часі; снаряди, предмети, блоки, що падають, посіви, рідини, печі й погода йдуть у m разів швидше, а власник у тому ж темпі атакує, копає, використовує предмети та стенда. Інші відстають: власник зберігає звичайну швидкість, а всі інші живі істоти йдуть у m разів повільніше. Прискорення зберігає режим, з яким почалося.",
+  "rotp_mih.config.server.accelerationMode.others_fall_behind":  "Інші відстають",
+  "rotp_mih.config.server.accelerationMode.world_accelerates":  "Світ прискорюється"
 }

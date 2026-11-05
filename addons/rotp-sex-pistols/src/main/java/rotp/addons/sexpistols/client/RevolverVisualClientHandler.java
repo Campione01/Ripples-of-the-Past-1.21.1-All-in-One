@@ -83,8 +83,11 @@ public final class RevolverVisualClientHandler {
         double spread = aiming ? 0.014D : 0.028D;
         Vec3 flashVelocity = look.scale(
                 0.035D + payload.random() * 0.025D);
+        // 0.1.13: a critical shot's main flash is the red critical kick flash.
         level.addParticle(
-                SexPistolsParticles.REVOLVER_MUZZLE_FLASH.get(),
+                payload.critical()
+                        ? SexPistolsParticles.KICK_MUZZLE_FLASH_CRITICAL.get()
+                        : SexPistolsParticles.REVOLVER_MUZZLE_FLASH.get(),
                 muzzle.x,
                 muzzle.y,
                 muzzle.z,

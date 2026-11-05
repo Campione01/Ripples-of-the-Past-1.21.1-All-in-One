@@ -2,9 +2,9 @@
   "type": "jojo_ripples:crafting_shaped_stand",
   "category": "combat",
   "pattern": [
-    "ebb",
-    "cdc",
-    "aac"
+    "cbb",
+    "cde",
+    "aae"
   ],
   "key": {
     "a": {
@@ -17,7 +17,7 @@
       "tag": "c:ingots/iron"
     },
     "d": {
-      "tag": "c:storage_blocks/iron"
+      "item": "rotp_sex_pistols:heavy_revolver"
     },
     "e": {
       "tag": "c:dyes/purple"

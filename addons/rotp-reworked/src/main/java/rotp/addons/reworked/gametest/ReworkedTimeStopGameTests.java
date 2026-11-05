@@ -68,6 +68,7 @@ import rotp.core.api.power.PowerSkillUnlocks;
 import rotp.core.api.timestop.TimeStopLifecycleEvent;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.impl.stands.magiciansred.MRFlameEntity;
 import rotp.core.impl.stands.magiciansred.MagiciansRedFlameBurstAbility;
 import rotp.core.impl.stands.magiciansred.MagiciansRedKickAbility;
@@ -943,6 +944,100 @@ public final class ReworkedTimeStopGameTests {
     @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 120, batch = "rejojoMrKick")
     public static void magiciansRedKickPerformsOneTickWithDetachedPulses(GameTestHelper helper) {
         new HeavyScene(helper, true, false, true, false).start();
+    }
+
+    /**
+     * Owner T2: Reworked's kick pressed at a mob 12.3 blocks ahead (base reach 10, reach out to 12.5) flies Magician's
+     * Red out in front of it and follows its user through the strike, instead of moving by itself as the 1.16 kick does
+     * within its reach, so the strike, and the Slow Burn it primes or sets off, takes about 0.44 of its strength.
+     */
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 60, batch = "rejojoMrKickReach")
+    public static void magiciansRedKickFliesOutAndStrikesWeakerPastItsBaseReach(GameTestHelper helper) {
+        Fixture fixture = user(helper, "rejojo-mr-kick-reach", ModStands.MAGICIANS_RED.get());
+        ServerPlayer player = fixture.player();
+        StandPower power = fixture.power();
+        ServerLevel level = helper.getLevel();
+        Cow cow = EntityType.COW.create(level);
+        StandEntity[] summoned = {null};
+        Runnable close = () -> {
+            if (summoned[0] != null) {
+                LivingComponentAction.getComponent(summoned[0]).setAction(null, SyncType.NO_SYNC);
+            }
+            if (cow != null) {
+                cow.discard();
+            }
+            cleanup(fixture);
+        };
+        guarded(close, () -> {
+            BlockPos base = helper.absolutePos(BlockPos.ZERO);
+            ChunkPos chunk = new ChunkPos(base);
+            // the user at the chunk's north edge, so that the cow 12.3 blocks south stays in the same chunk
+            Vec3 at = new Vec3(chunk.getMiddleBlockX() + 0.5D, base.getY() + 5.0D, chunk.getMinBlockZ() + 1.5D);
+            player.moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
+            player.setYHeadRot(0.0F);
+            helper.assertTrue(ModStands.MAGICIANS_RED.get().summon(player, power), "Could not summon Magician's Red.");
+            StandEntity stand = power.getSummonedStandEntity();
+            helper.assertTrue(stand != null && stand.getUser() == player && !stand.isArmsOnlyMode()
+                            && stand.isFollowingUser(),
+                    "Setup: no full Magician's Red following its user");
+            summoned[0] = stand;
+            stand.summonLockTicks = 0;
+            stand.gradualSummonWeaknessTicks = 0;
+            stand.setNoGravity(true);
+            stand.updatePosition(player);
+            helper.assertTrue(cow != null, "Setup: no cow");
+            cow.setNoAi(true);
+            cow.setNoGravity(true);
+            cow.moveTo(at.x, at.y, at.z + 12.3D, 0.0F, 0.0F);
+            helper.assertTrue(level.addFreshEntity(cow), "Setup: the cow was not added");
+        });
+        boolean[] done = {false};
+        int[] ticks = {0};
+        helper.onEachTick(() -> {
+            if (done[0] || ++ticks[0] < 3 || !level.isPositionEntityTicking(player.blockPosition())
+                    || !level.isPositionEntityTicking(cow.blockPosition())) {
+                return;
+            }
+            done[0] = true;
+            guarded(close, () -> {
+                StandEntity stand = summoned[0];
+                // what the Stand's aim met, as its user's client sent it
+                LivingComponentAction.getComponent(stand).entityAim.setTarget(new ActionTarget(cow));
+                helper.assertTrue(power.getAbility("kick") instanceof EntityActionType,
+                        "Setup: Magician's Red has no kick action");
+                EntityActionType kickType = (EntityActionType) power.getAbility("kick");
+                EntityActionInstance kick = kickType.createActionObj();
+                kickType.initActionFromConfig(kick, level, player, stand);
+                kick.phasesLength.put(ActionPhase.BUTTON_CHARGE, 0.0F);
+                kick.phasesLength.put(ActionPhase.WINDUP, 10.0F);
+                kick.phasesLength.put(ActionPhase.PERFORM, 1.0F);
+                kick.phasesLength.put(ActionPhase.RECOVERY, 10.0F);
+                kick.setStartingPhase();
+                LivingComponentAction.getComponent(stand).setAction(kick, player, SyncType.NO_SYNC);
+                helper.assertTrue(stand.getCurStandAction() == kick
+                                && kick instanceof ReworkedStandAbilities.ReworkedMagiciansRedKick reworked
+                                && reworked.fliesOut(),
+                        "The Reworked kick pressed at a cow 12.3 blocks away did not fly out: action "
+                                + stand.getCurStandAction() + ", target " + kick.getTaskTarget(level));
+                double forward = stand.offsetFromUser.getRelativeOffset().z;
+                helper.assertTrue(forward > 10.0D && forward < 11.5D,
+                        "The kick did not put Magician's Red in front of the cow 12.3 blocks away (10.85 forward):"
+                                + " offset " + stand.offsetFromUser.getRelativeOffset());
+                kick.setPhase(ActionPhase.WINDUP, 8);
+                helper.assertTrue(stand.isFollowingUser(),
+                        "A kick that flew out moved by itself in its last windup ticks");
+                kick.setPhase(ActionPhase.PERFORM, 0);
+                float factor = StandMeleeReach.strikeFactor(stand, cow);
+                helper.assertTrue(stand.isFollowingUser() && StandMeleeReach.reachable(stand, cow)
+                                && factor > 0.4F && factor < 0.5F,
+                        "A kick that flew out to a cow 11.85 blocks from its user's eyes did not strike it at about"
+                                + " 0.44 of its strength (base reach 10, margin 2.5): following "
+                                + stand.isFollowingUser() + ", reachable " + StandMeleeReach.reachable(stand, cow)
+                                + ", factor " + factor);
+            });
+            close.run();
+            helper.succeed();
+        });
     }
 
     // 1.16 ReMagiciansRedLightAttack (:48-55), ReMagiciansRedHeavyPunch (:47-54) and ReMagiciansRedKick (:51-67)

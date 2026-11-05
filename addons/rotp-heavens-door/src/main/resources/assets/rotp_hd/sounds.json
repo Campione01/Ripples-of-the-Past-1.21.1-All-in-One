@@ -7,14 +7,14 @@
     ]
   },
   "rohan_light_attack": {
-    "subtitle": "subtitles.rotp_hd.rohan_light_attack",
+    "subtitle": "jojo_ripples.subtitle.stand_attack_light",
     "sounds": [
       "rotp_hd:user/rohan_light_attack",
       "rotp_hd:user/rohan_light_attack_2"
     ]
   },
   "rohan_barrage": {
-    "subtitle": "subtitles.rotp_hd.rohan_barrage",
+    "subtitle": "jojo_ripples.subtitle.stand_attack_light",
     "sounds": [
       "rotp_hd:user/rohan_barrage"
     ]

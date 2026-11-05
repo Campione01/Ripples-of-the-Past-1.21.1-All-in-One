@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-metallica`, mod id `rotp_metallica`, version `1.0.6-port.17`.
+- Module: `rotp-metallica`, mod id `rotp_metallica`, version `1.0.6-port.18`.
 - Original 1.16.5 add-on: `RotP-金属制品-1.0.6.jar` (RotP Metallica, mod id `rotp_metallica`), by UncleStalin, StandoByte; declared license: GNU GPL v3.0; SHA-256 `D58ACFA05CDB0B068331641A39EB6F22BBECB8CEEFE2E4909F071965B789BC17`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

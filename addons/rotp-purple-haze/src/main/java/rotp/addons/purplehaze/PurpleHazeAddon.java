@@ -421,7 +421,8 @@ public final class PurpleHazeAddon {
                             ability.userShoutSound(
                                     PH_FUGO_CAPSULE_SHOT);
                             ability.cooldown(20);
-                            ability.resolveLevelToUnlock(1);
+                            // the author's main-branch build 2024-07-08 moved Capsule Shot from 1 to 3
+                            ability.resolveLevelToUnlock(3);
                         })
                 .addAbility(
                         VIRUS_AURA_NAME,
@@ -437,7 +438,8 @@ public final class PurpleHazeAddon {
                         PURPLE_HAZE_MADNESS,
                         ability -> {
                             ability.cooldown(400);
-                            ability.resolveLevelToUnlock(3);
+                            // and Madness from 3 to 1
+                            ability.resolveLevelToUnlock(1);
                         })
                 .makeControlScheme("hotbar")
                     .bind(

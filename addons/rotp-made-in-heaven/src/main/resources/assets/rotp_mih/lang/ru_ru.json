@@ -20,6 +20,14 @@
   "rotp_mih.configuration.section.rotp.mih.client.toml.title": "Настройки клиента Made in Heaven",
   "rotp_mih.configuration.Client config": "Настройки клиента",
   "rotp_mih.configuration.Client config.tooltip": "Настройки, которые меняют только то, что показывает этот клиент.",
-  "rotp_mih.config.client.enableNewTSIcons": "Новые значки системы времени",
-  "rotp_mih.config.client.enableNewTSIcons.tooltip": "Использовать новые значки часов для «Ускорить» и «Очистить» системы времени."
+  "rotp_mih.config.client.enableNewTSIcons": "Новые значки часов",
+  "rotp_mih.config.client.enableNewTSIcons.tooltip": "Использовать новые значки часов для «Ускорить» и «Очистить» системы времени.",
+  "rotp_mih.configuration.section.rotp.mih.server.toml": "Настройки сервера",
+  "rotp_mih.configuration.section.rotp.mih.server.toml.title": "Настройки сервера Made in Heaven",
+  "rotp_mih.config.server.timeAcceleration": "Ускорение времени",
+  "rotp_mih.config.server.timeAcceleration.tooltip": "Как работает ускорение времени Made in Heaven на этом сервере.",
+  "rotp_mih.config.server.accelerationMode": "Режим ускорения",
+  "rotp_mih.config.server.accelerationMode.tooltip": "Мир ускоряется: живые существа живут в своём времени; снаряды, предметы, падающие блоки, посевы, жидкости, печи и погода идут в m раз быстрее, а владелец в том же темпе атакует, копает, использует предметы и стенда. Остальные отстают: владелец сохраняет обычную скорость, а все другие живые существа идут в m раз медленнее. Ускорение сохраняет режим, с которым началось.",
+  "rotp_mih.config.server.accelerationMode.others_fall_behind": "Остальные отстают",
+  "rotp_mih.config.server.accelerationMode.world_accelerates": "Мир ускоряется"
 }

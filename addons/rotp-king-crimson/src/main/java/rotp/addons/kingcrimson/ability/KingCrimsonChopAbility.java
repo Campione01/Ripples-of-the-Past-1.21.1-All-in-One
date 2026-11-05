@@ -70,15 +70,16 @@ public final class KingCrimsonChopAbility
     @Override
     protected void applyHitEffects(
             StandEntity stand,
-            LivingEntity target) {
-        target.addEffect(new MobEffectInstance(
+            LivingEntity target,
+            float strikeFactor) {
+        addStrikeEffect(target, strikeFactor, new MobEffectInstance(
                 ModStatusEffects.BLEEDING,
                 KingCrimsonPhase2Spec.CHOP_EFFECT_TICKS,
                 1,
                 false,
                 false,
                 false));
-        target.addEffect(new MobEffectInstance(
+        addStrikeEffect(target, strikeFactor, new MobEffectInstance(
                 MobEffects.MOVEMENT_SLOWDOWN,
                 KingCrimsonPhase2Spec.CHOP_EFFECT_TICKS,
                 3,
@@ -86,7 +87,7 @@ public final class KingCrimsonChopAbility
                 false,
                 false));
         if (target instanceof Player) {
-            target.addEffect(new MobEffectInstance(
+            addStrikeEffect(target, strikeFactor, new MobEffectInstance(
                     KingCrimsonAddon.MANGLED_BODY,
                     KingCrimsonPhase2Spec.CHOP_EFFECT_TICKS,
                     0,

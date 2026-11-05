@@ -86,7 +86,7 @@
   "rotp_zhp.configuration.hamon": "波紋",
   "rotp_zhp.configuration.hamonToHermit": "修練波紋可覺醒『隱者之紫』",
   "rotp_zhp.configuration.hamonToHermit.tooltip": "波紋使用者的各項波紋能力都達到所設等級時，嘗試賦予其『隱者之紫』。",
-  "rotp_zhp.configuration.hermitHamon": "『隱者之紫』能否讓波紋攻擊命中替身",
+  "rotp_zhp.configuration.hermitHamon": "波紋攻擊可命中替身",
   "rotp_zhp.configuration.hermitHamon.tooltip": "允許覺悟等級高且掌握波紋的『隱者之紫』使用者對替身目標施加波紋。",
   "rotp_zhp.configuration.controlThreshold": "所需波紋控制等級",
   "rotp_zhp.configuration.controlThreshold.tooltip": "波紋使用者覺醒『隱者之紫』所需的波紋控制等級。",

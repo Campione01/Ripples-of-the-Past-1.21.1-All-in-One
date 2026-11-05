@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-c-moon`, mod id `rotp_cm`, version `1.4.3-port.17`.
+- Module: `rotp-c-moon`, mod id `rotp_cm`, version `1.4.3-port.18`.
 - Original 1.16.5 add-on: `RotP-新月-1.4.3.jar` (RotP 新月, mod id `rotp_cm`), by Weever; declared license: GNU GPL v3.0; SHA-256 `2FE56D6E10234C855DE5D9A4ADA939EC656EF6A8C3B26F79010DFFE24ADD9E99`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

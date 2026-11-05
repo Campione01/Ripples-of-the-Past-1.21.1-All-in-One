@@ -13,10 +13,7 @@
   },
   "d4c_barrage": {
     "subtitle": "rotp_d4c.subtitle.d4c_barrage",
-    "sounds": [
-      "rotp_d4c:stand/d4c_barrage",
-      "rotp_d4c:stand/d4c_barrage_2"
-    ]
+    "sounds": ["rotp_d4c:stand/d4c_punch_combo"]
   },
   "d4c_punch_heavy": {
     "subtitle": "rotp_d4c.subtitle.d4c_punch_heavy",
@@ -138,7 +135,10 @@
   },
   "d4c_ushya": {
     "subtitle": "rotp_d4c.subtitle.d4c_ushya",
-    "sounds": ["rotp_d4c:stand/d4c_punch_combo"]
+    "sounds": [
+      "rotp_d4c:stand/d4c_barrage",
+      "rotp_d4c:stand/d4c_barrage_2"
+    ]
   },
   "d4c_traversefang": {
     "subtitle": "rotp_d4c.subtitle.d4c_traversefang",

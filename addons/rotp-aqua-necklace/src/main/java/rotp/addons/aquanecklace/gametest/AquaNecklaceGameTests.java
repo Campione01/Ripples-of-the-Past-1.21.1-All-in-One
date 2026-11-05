@@ -1239,10 +1239,11 @@ public final class AquaNecklaceGameTests {
                 AquaNecklaceAddon.HOST_CRUSH_NAME);
         AbilityConditionCheck own = power._curAvailableMoves.getContextVariationContainer(
                 AquaNecklaceAddon.BRAIN_ATTACK_NAME);
-        helper.assertTrue(key != null && key.ability == expected,
+        // by name: the power may rebuild its ability objects between the fixture's lookup and these rows
+        helper.assertTrue(key != null && expected.name().equals(key.ability.name()),
                 "1.16 gave the heavy punch's key to " + expected.name() + " " + where + "; the port's Host Crush key"
                         + " gives " + (key != null ? key.ability.name() : "nothing"));
-        helper.assertTrue(own != null && own.ability == brain,
+        helper.assertTrue(own != null && brain.name().equals(own.ability.name()),
                 "The Brain Attack's own wheel slot gives " + (own != null ? own.ability.name() : "nothing") + " "
                         + where);
     }
@@ -1630,14 +1631,14 @@ public final class AquaNecklaceGameTests {
     }
 
     /**
-     * 1.16 AquaNecklaceGettingIntoTheEntity.getHoldDurationToFire (:95-100) read the client's crosshair target as it
-     * was (InputHandler.mouseTarget), not what overrideVanillaMouseTarget made of it: a skeleton under the crosshair
-     * charged 10 ticks; a torch with a skeleton behind it on the Stand's ray charged the builder's 20, though the press
-     * took the skeleton.
+     * Extra Stands 1.1.0d AquaNecklaceGettingIntoTheEntity.getHoldDurationToFire: a ray of the user's reach from the
+     * user's eyes (JojoModUtil.rayTrace, entities through blocks), not the client's crosshair target (1.1.0c
+     * InputHandler.mouseTarget): a skeleton on it charges 10 ticks, also with a torch before it; with the user looking
+     * away it charges the builder's 20, though the press took the skeleton the Stand aimed at.
      */
     @GameTest(template = "empty", templateNamespace = AquaNecklaceAddon.MOD_ID, batch = BATCH,
             timeoutTicks = FIXTURE_TIMEOUT_TICKS)
-    public static void gettingIntoASkeletonChargesTenTicksOnlyWithItUnderTheCrosshairAsIn116(GameTestHelper helper) {
+    public static void gettingIntoASkeletonChargesTenTicksOnlyWithItOnTheUsersReachRayAsIn110d(GameTestHelper helper) {
         runWhereEntitiesTick(helper, chunks -> assertSkeletonChargeByTheRawAim(helper, chunks));
     }
 
@@ -1678,13 +1679,16 @@ public final class AquaNecklaceGameTests {
         Ability enter = power.getAbility(AquaNecklaceAddon.ENTER_ENTITY_NAME);
         helper.assertTrue(enter instanceof StandEntityAbility, "Setup: no getting_into_entity Stand ability");
         power.setStamina(500.0F);
-        // the Stand beside its user, looking south (pitch 0); a wall torch on its look line a block ahead and a
-        // wither skeleton (no daylight burning) 2 blocks behind it
+        // the user looking south (pitch 0), a wall torch a block ahead of its eyes and a wither skeleton (no
+        // daylight burning) on its eye line behind the torch, within its reach; the Stand beside it
         Vec3 standPos = helper.absoluteVec(new Vec3(3.5D, 3.0D, 0.5D));
         stand.setNoGravity(true);
         stand.moveTo(standPos.x, standPos.y, standPos.z, 0.0F, 0.0F);
         stand.setYHeadRot(0.0F);
-        BlockPos torch = BlockPos.containing(stand.getEyePosition()).south();
+        player.setYRot(0.0F);
+        player.setXRot(0.0F);
+        player.setYHeadRot(0.0F);
+        BlockPos torch = BlockPos.containing(player.getEyePosition()).south();
         placed[0] = torch;
         helper.getLevel().setBlock(torch, Blocks.WALL_TORCH.defaultBlockState()
                         .setValue(WallTorchBlock.FACING, Direction.NORTH),
@@ -1693,22 +1697,25 @@ public final class AquaNecklaceGameTests {
         helper.assertTrue(skeleton instanceof Mob, "Setup: could not make a wither skeleton");
         ((Mob) skeleton).setNoAi(true);
         skeleton.setNoGravity(true);
-        skeleton.moveTo(standPos.x, stand.getEyeY() - skeleton.getBbHeight() / 2.0D,
-                stand.getEyePosition().z + 2.0D, 0.0F, 0.0F);
+        skeleton.moveTo(player.getX(), player.getEyeY() - skeleton.getBbHeight() / 2.0D,
+                player.getEyePosition().z + 2.5D, 0.0F, 0.0F);
         helper.assertTrue(helper.getLevel().addFreshEntity(skeleton), "Setup: could not add the wither skeleton");
         spawned.add(skeleton);
 
-        float atTorch = enterChargeLength(helper, player, stand, power, enter,
-                new ActionTarget(torch, Direction.NORTH), skeleton);
-        helper.assertTrue(atTorch == 20.0F,
-                "1.16 charged getting_into_entity 20 ticks when the crosshair was at a torch, though the Stand's ray"
-                        + " behind it met a skeleton (getHoldDurationToFire read InputHandler.mouseTarget, the torch);"
-                        + " the port charges " + atTorch);
-        float atSkeleton = enterChargeLength(helper, player, stand, power, enter, new ActionTarget(skeleton),
+        float onTheRay = enterChargeLength(helper, player, stand, power, enter, new ActionTarget(skeleton),
                 skeleton);
-        helper.assertTrue(atSkeleton == 10.0F,
-                "1.16 charged getting_into_entity 10 ticks with a skeleton under the crosshair; the port charges "
-                        + atSkeleton);
+        helper.assertTrue(onTheRay == 10.0F,
+                "1.1.0d charged getting_into_entity 10 ticks with a skeleton on its user's reach ray, a torch before it"
+                        + " (the ray finds entities through blocks); the port charges " + onTheRay);
+        player.setYRot(90.0F);
+        player.setYHeadRot(90.0F);
+        float lookingAway = enterChargeLength(helper, player, stand, power, enter, new ActionTarget(skeleton),
+                skeleton);
+        player.setYRot(0.0F);
+        player.setYHeadRot(0.0F);
+        helper.assertTrue(lookingAway == 20.0F,
+                "1.1.0d charged getting_into_entity 20 ticks when its user's reach ray met no skeleton, whatever the"
+                        + " Stand aimed at; the port charges " + lookingAway);
         LOGGER.info("R770_AQUA_ENTER_SKELETON_CHARGE_PASS");
     }
 

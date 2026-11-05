@@ -8,8 +8,12 @@ import java.util.UUID;
 
 import rotp.core.api.client.time.ClientRegionalTimeDilationQuery;
 import rotp.core.api.client.time.ClientRegionalTimeDilationSurface;
+import rotp.core.api.perception.PerceptionBlockers;
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.client.ClientTimeStopHandler;
+import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.timestop.TimeStopState;
+import rotp.addons.neo_stand.ability.BulletTimeService;
 import rotp.addons.neo_stand.network.BulletTimeSyncPayload;
 
 import net.minecraft.client.DeltaTracker;
@@ -20,6 +24,8 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
 
@@ -95,7 +101,63 @@ public final class BulletTimeHud implements LayeredDraw.Layer {
                         <= 36.0D) {
             return 1.0F;
         }
+        // The timer is how a player inside another's field is slowed: it
+        // follows the being rule of BulletTimeService (an exempt player, or
+        // one another source holds back more slowly, keeps his own time)
+        if (query.surface() == ClientRegionalTimeDilationSurface.TIMER
+                && query.localPlayer() != null
+                && !FIELDS.isEmpty()
+                && !isOwnerActive(query.localPlayer().getUUID())
+                && !EntityTimeRates.governs(
+                        EntityTimeRates.Channel.BEING,
+                        query.localPlayer(),
+                        BulletTimeService.TIME_RATE_OWNER)) {
+            return 1.0F;
+        }
         return dilationAt(query.position());
+    }
+
+    /**
+     * The client's answer for BulletTimeService.dilationFor: the slowest
+     * synced field around the entity, leaving out the field owners and
+     * their Stands and whatever a field's owner cannot perceive.
+     */
+    public static double fieldDilationFor(Entity entity) {
+        Minecraft minecraft = Minecraft.getInstance();
+        resetForLevel(minecraft.level);
+        ClientLevel level = minecraft.level;
+        if (level == null
+                || FIELDS.isEmpty()
+                || entity.level() != level) {
+            return 1.0D;
+        }
+        advanceFields(level.getGameTime());
+        LivingEntity standUser = entity instanceof StandEntity stand
+                ? stand.getUser()
+                : null;
+        if (FIELDS.containsKey(entity.getUUID())
+                || standUser != null
+                        && FIELDS.containsKey(standUser.getUUID())) {
+            return 1.0D;
+        }
+        Vec3 position = entity.position();
+        double factor = 1.0D;
+        for (Map.Entry<UUID, ClientField> entry : FIELDS.entrySet()) {
+            ClientField field = entry.getValue();
+            if (isCentreTimeStopped(field)
+                    || !field.dimension().equals(
+                            level.dimension().location())
+                    || horizontalDistanceSqr(field.center(), position)
+                            > (double) field.radiusBlocks()
+                                    * field.radiusBlocks()
+                    || PerceptionBlockers.isBlocked(
+                            level.getPlayerByUUID(entry.getKey()),
+                            entity)) {
+                continue;
+            }
+            factor = Math.min(factor, field.dilationFactor());
+        }
+        return factor;
     }
 
     public static boolean isOwnerActive(UUID owner) {

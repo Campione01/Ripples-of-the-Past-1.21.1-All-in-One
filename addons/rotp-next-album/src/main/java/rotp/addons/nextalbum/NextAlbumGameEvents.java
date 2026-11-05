@@ -1,9 +1,15 @@
 package rotp.addons.nextalbum;
 
+import rotp.core.mechanics.resolve.ResolveCounter;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.addons.nextalbum.effect.CollapsePoseState;
+import rotp.addons.nextalbum.item.CigaretteMouth;
 import rotp.addons.nextalbum.item.MistaSuitArmorItem;
+import rotp.addons.nextalbum.network.CigaretteMouthPayload;
+import rotp.addons.nextalbum.state.CigaretteFocus;
 import rotp.addons.nextalbum.state.NecklaceBeamService;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.DamageTypeTags;
@@ -11,6 +17,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -68,16 +75,89 @@ public final class NextAlbumGameEvents {
             }
             float reduced = amount * multiplier;
             container.setNewDamage(reduced);
+            narrowEscape(entity, source, pieces, reduced);
             return reduced;
         }
         return amount;
+    }
+
+    // Next Album 0.1.13 Narrow Escape: with the full set (hat included) a
+    // projectile hit on a Stand user raises Resolve by the damage taken.
+    private static void narrowEscape(
+            LivingEntity entity,
+            DamageSource source,
+            int pieces,
+            float damage) {
+        if (pieces < 4 || !(entity instanceof Player)) {
+            return;
+        }
+        StandPower power = StandPower.get(entity);
+        if (power != null && power.hasPower()) {
+            LivingEntity attacker =
+                    source.getEntity() instanceof LivingEntity living
+                            ? living
+                            : entity;
+            ResolveCounter.addResolve(
+                    power, attacker, Math.max(1.0F, damage));
+        }
+    }
+
+    public static int mistaSuitPieces(LivingEntity entity) {
+        if (entity == null) {
+            return 0;
+        }
+        int pieces = 0;
+        for (ItemStack stack : entity.getArmorSlots()) {
+            if (stack.getItem() instanceof MistaSuitArmorItem
+                    || MISTA_HAT_ID.equals(BuiltInRegistries.ITEM
+                            .getKey(stack.getItem()))) {
+                pieces++;
+            }
+        }
+        return pieces;
     }
 
     @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             NecklaceBeamService.tick(player);
+            CigaretteMouth.tick(player);
+            CigaretteFocus.tick(player);
         }
+    }
+
+    @SubscribeEvent
+    public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        CigaretteMouth.sync(event.getEntity());
+    }
+
+    @SubscribeEvent
+    public static void onStartTracking(PlayerEvent.StartTracking event) {
+        if (event.getTarget() instanceof ServerPlayer target
+                && event.getEntity() instanceof ServerPlayer viewer) {
+            CigaretteMouthPayload.sendTo(
+                    viewer, target, CigaretteMouth.getCount(target));
+        }
+    }
+
+    // Cigarettes in the mouth are lost on death, kept through the End.
+    @SubscribeEvent
+    public static void onClone(PlayerEvent.Clone event) {
+        CigaretteMouth.setList(event.getEntity(),
+                event.isWasDeath()
+                        ? new ListTag()
+                        : CigaretteMouth.copyList(event.getOriginal()));
+    }
+
+    @SubscribeEvent
+    public static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        CigaretteMouth.sync(event.getEntity());
+    }
+
+    @SubscribeEvent
+    public static void onChangedDimension(
+            PlayerEvent.PlayerChangedDimensionEvent event) {
+        CigaretteMouth.sync(event.getEntity());
     }
 
     // 1.16 AjaStoneNecklaceItem.handleRightClick on the server's use

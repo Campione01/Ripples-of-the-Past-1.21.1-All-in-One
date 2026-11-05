@@ -15,9 +15,12 @@ import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.heavensdoor.HeavensDoorAddon;
+import rotp.addons.heavensdoor.HeavensDoorAwayHelper;
+import rotp.addons.heavensdoor.HeavensDoorGameTestArea;
 import rotp.addons.heavensdoor.entity.HeavensDoorStandEntity;
 import rotp.addons.heavensdoor.mixin.EntityPersistentDataAccessor;
 import rotp.addons.heavensdoor.network.BookCommand;
+import rotp.core.init.ModStatusEffects;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.standpower.StandPower;
 
@@ -112,8 +115,21 @@ public final class SelfHarmOwnerGameTests {
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 20)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 20)
     public static void registeredBookCommandManuallyTogglesSelfHarmOff(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> registeredBookCommandManuallyTogglesSelfHarmOffInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 20,
+            batch = "hd_chunk_border")
+    public static void registeredBookCommandManuallyTogglesSelfHarmOffAcrossAChunkBorder(GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 12);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> registeredBookCommandManuallyTogglesSelfHarmOffInLoadedArea(away));
+    }
+
+    private static void registeredBookCommandManuallyTogglesSelfHarmOffInLoadedArea(GameTestHelper helper) {
         FakePlayer owner = player(helper);
         Cow cow = cow(helper);
         StandPower power = PowerClass.STAND.attachGet(owner);
@@ -124,6 +140,18 @@ public final class SelfHarmOwnerGameTests {
             helper.assertTrue(HeavensDoorAddon.HEAVENS_DOOR.get().summon(owner, power), "Heaven's Door summon failed");
             HeavensDoorStandEntity stand = (HeavensDoorStandEntity) power.getSummonedStandEntity();
             cow.getPersistentData().putString(OTHER, "preserve");
+            // the author's 1.2 BookGui: only a user in Resolve writes Kill Yourself
+            helper.assertTrue(BookStateService.markFromHit(stand, cow), "Book marking failed");
+            var withoutResolve = BookCommandSessionService.issue(owner, cow);
+            helper.assertTrue(withoutResolve != null
+                            && !BookCommand.SELF_HARM_TOGGLE.permittedBy(withoutResolve.commandMask())
+                            && !BookCommandSessionService.consume(owner, withoutResolve.nonce(),
+                                    BookCommand.SELF_HARM_TOGGLE, BookCommandSessionService.NO_PLAYER_OPTION)
+                            && !cow.hasEffect(HeavensDoorAddon.KYS_EFFECT),
+                    "Self Harm was offered or written without Resolve");
+            BookStateService.clear(cow);
+            // amplifier 3 keeps resolve level 4 (ResolveCounter.onResolveEffectStart sets amplifier + 1)
+            owner.addEffect(new MobEffectInstance(ModStatusEffects.RESOLVE, 600, 3));
             toggle(helper, owner, stand, cow);
             helper.assertTrue(cow.hasEffect(HeavensDoorAddon.KYS_EFFECT)
                             && cow.getData(HeavensDoorAddon.WRITTEN_COMMAND_STATE).has(BookCommand.SELF_HARM_TOGGLE, owner.getUUID()),

@@ -98,7 +98,9 @@ public final class LittleFeetFinisherAbility
                 LittleFeetCombatSemantics.tryDisableShield(
                         stand, target);
             }
-            if (hurt && getPowerUser() != null) {
+            if (hurt && getPowerUser() != null
+                    && LittleFeetCombatSemantics.landsPastBaseReach(
+                            stand, target)) {
                 LittleFeetScaleService.shrinkAfterHit(
                         getPowerUser(), target);
             }

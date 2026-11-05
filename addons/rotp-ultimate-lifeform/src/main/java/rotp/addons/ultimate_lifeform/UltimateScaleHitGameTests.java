@@ -39,7 +39,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.Event;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
+import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.event.PlayLevelSoundEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDestroyBlockEvent;
 import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
@@ -104,7 +104,7 @@ public final class UltimateScaleHitGameTests {
             helper.assertTrue(target.getHealth() == 40.0F - 2.0F * DONOR_DAMAGE,
                     "Two scales landing in the same tick deal 5 each through invulnerability ticks, but health went 40.0 -> "
                             + target.getHealth());
-            helper.succeed();
+            scene.succeed();
         });
     }
 
@@ -137,7 +137,7 @@ public final class UltimateScaleHitGameTests {
                     "A roll above 0.66 gives the living target Poison II for 60 ticks, but the target received " + poison);
             helper.assertTrue(!added.containsKey(cleanTarget) && !cleanTarget.hasEffect(MobEffects.POISON),
                     "A roll of at most 0.66 gives no poison, but the target received " + added.get(cleanTarget));
-            helper.succeed();
+            scene.succeed();
         });
     }
 
@@ -189,7 +189,7 @@ public final class UltimateScaleHitGameTests {
                             && sounds.size() == 2,
                     "Each unbroken block plays its hit sound once at volume 1.0 and half pitch, but the block sounds were "
                             + describe(sounds));
-            helper.succeed();
+            scene.succeed();
         });
     }
 
@@ -214,7 +214,7 @@ public final class UltimateScaleHitGameTests {
             helper.assertTrue(ofLeaving.isRemoved(),
                     "A scale is removed when its owner has left the level, but it still flies at age "
                             + ofLeaving.getElapsedLifeTicks());
-            helper.succeed();
+            scene.succeed();
         });
     }
 
@@ -262,7 +262,7 @@ public final class UltimateScaleHitGameTests {
             helper.assertTrue(deflected.isRemoved() && deflectedOwner.getHealth() == 10.0F - DONOR_DAMAGE,
                     "A deflected scale can hit its owner: removed=" + deflected.isRemoved()
                             + " ownerHealth=" + deflectedOwner.getHealth());
-            helper.succeed();
+            scene.succeed();
         });
     }
 
@@ -306,7 +306,7 @@ public final class UltimateScaleHitGameTests {
                 "A scale reversed by the Hamon projectile shield hits its owner for 5: removed=" + scale.isRemoved()
                         + " ownerHealth=" + owner.getHealth() + " scale=" + scene.relative(scale));
         helper.assertTrue(shieldUser.getHealth() == userHealth, "The shield user must be unhurt: " + shieldUser.getHealth());
-        helper.succeed();
+        scene.succeed();
     }
 
     // 1.16 SilverChariotEntity.deflectProjectile used the same JojoModUtil.deflectProjectile mark.
@@ -315,7 +315,7 @@ public final class UltimateScaleHitGameTests {
         Scene scene = new Scene(helper);
         StandType standType = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("silver_chariot"));
         helper.assertTrue(standType != null, "Missing Silver Chariot Stand type");
-        Player standUser = FakePlayerFactory.get(scene.level, new GameProfile(UUID.randomUUID(), "ScaleChariotUser"));
+        Player standUser = new FakePlayer(scene.level, new GameProfile(UUID.randomUUID(), "ScaleChariotUser"));
         standUser.moveTo(scene.origin.getX() + 7.0D, scene.origin.getY() + OWNER_Y, scene.origin.getZ() + 6.5D, 180.0F, 0.0F);
         scene.add(standUser);
         StandPower power = PowerClass.STAND.attachGet(standUser);
@@ -354,7 +354,7 @@ public final class UltimateScaleHitGameTests {
         helper.assertTrue(scale.isRemoved() && owner.getHealth() == 10.0F - DONOR_DAMAGE,
                 "A scale deflected by Silver Chariot hits its owner for 5: removed=" + scale.isRemoved()
                         + " ownerHealth=" + owner.getHealth() + " scale=" + scene.relative(scale));
-        helper.succeed();
+        scene.succeed();
     }
 
     // 1.16 set the deflected mark only in JojoModUtil.deflectProjectile; a blast that throws a scale back is no deflection.
@@ -387,7 +387,7 @@ public final class UltimateScaleHitGameTests {
         helper.assertTrue(scale.isRemoved() && behindOwner.getHealth() == 10.0F - DONOR_DAMAGE,
                 "The same scale still hits the entity behind its owner: removed=" + scale.isRemoved()
                         + " health=" + behindOwner.getHealth() + " scale=" + scene.relative(scale));
-        helper.succeed();
+        scene.succeed();
     }
 
     private static long seedWithRoll(double aboveExclusive, double atMost) {
@@ -533,6 +533,14 @@ public final class UltimateScaleHitGameTests {
             NeoForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, type, listener);
         }
 
+        /** Ends the test: what the scene's entities sent is removed, and none of it may be left. */
+        void succeed() {
+            for (Entity entity : new ArrayList<>(owned)) {
+                UltimateLifeformFixtures.discardSent(helper, entity);
+            }
+            helper.succeed();
+        }
+
         private void close() {
             if (closed) {
                 return;
@@ -542,6 +550,9 @@ public final class UltimateScaleHitGameTests {
             listeners.clear();
             closers.forEach(Runnable::run);
             closers.clear();
+            for (Entity entity : new ArrayList<>(owned)) {
+                UltimateLifeformFixtures.sentBy(level, entity).forEach(Entity::discard);
+            }
             for (Entity entity : owned) {
                 if (!entity.isRemoved()) {
                     entity.discard();

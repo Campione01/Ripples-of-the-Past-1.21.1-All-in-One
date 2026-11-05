@@ -32,6 +32,19 @@ public final class D4CFlagRenderer
             PoseStack poseStack,
             MultiBufferSource buffer,
             int packedLight) {
+        // 1.16 flag and pull-in travel placed the portal from a timer and
+        // drew no flag entity: D4C's own flangte/flangatck flag is the one
+        if (entity.mode() == D4CMarkerEntity.Mode.FLAG
+                || entity.mode() == D4CMarkerEntity.Mode.PULL) {
+            super.render(
+                    entity,
+                    entityYaw,
+                    partialTick,
+                    poseStack,
+                    buffer,
+                    packedLight);
+            return;
+        }
         poseStack.pushPose();
         model.setupAnim(
                 entity,

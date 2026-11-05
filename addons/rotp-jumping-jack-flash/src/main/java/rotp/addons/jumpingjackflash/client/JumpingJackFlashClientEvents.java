@@ -1,5 +1,6 @@
 package rotp.addons.jumpingjackflash.client;
 
+import rotp.core.client.entityrender.entities.TommyGunBulletRenderer;
 import rotp.core.client.entityrender.stand.StandEntityRenderer;
 
 import rotp.addons.jumpingjackflash.JumpingJackFlashAddon;
@@ -24,8 +25,7 @@ public final class JumpingJackFlashClientEvents {
                 StandEntityRenderer::new);
         event.registerEntityRenderer(
                 JumpingJackFlashAddon.TRACKING_BULLET.get(),
-                context -> new ThrownItemRenderer<>(
-                        context, 0.35F, true));
+                TommyGunBulletRenderer::new);
         event.registerEntityRenderer(
                 JumpingJackFlashAddon.TRACKING_SNOWBALL.get(),
                 context -> new ThrownItemRenderer<>(

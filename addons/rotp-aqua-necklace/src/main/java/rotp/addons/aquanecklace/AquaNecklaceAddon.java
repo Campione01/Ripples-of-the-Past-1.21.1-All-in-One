@@ -7,6 +7,7 @@ import rotp.core.api.RotpAddonApi;
 import rotp.core.core.JojoRegistries;
 import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.ability.AbilityType;
+import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandStats;
@@ -246,7 +247,22 @@ public final class AquaNecklaceAddon {
                 .addAbility(HOST_CRUSH_NAME, HOST_CRUSH)
                 .addAbility(BRAIN_ATTACK_NAME, BRAIN_ATTACK)
                 .addAbility(FLUID_GUARD_NAME, FLUID_GUARD)
+                // 1.16 put the punch (Shift: heavy punch) first on the
+                // left-click hotbar and the block first on the right one;
+                // they sit on the mouse buttons as the other Stands' do
                 .makeControlScheme("hotbar")
+                    .bind(
+                            HOST_PRESSURE_NAME,
+                            InputMethod.CLICK,
+                            InputKey.LMB)
+                    .bind(
+                            HOST_CRUSH_NAME,
+                            InputMethod.CLICK,
+                            InputKey.RMB)
+                    .bind(
+                            FLUID_GUARD_NAME,
+                            InputMethod.HOLD,
+                            InputKey.RMB)
                     .makeHotbar(
                             0, USE_SPECIAL, SWITCH_SPECIAL)
                     .addToHotbar(
@@ -270,27 +286,23 @@ public final class AquaNecklaceAddon {
                             0,
                             InputMethod.HOLD)
                     .addToHotbar(
-                            HOST_PRESSURE_NAME,
-                            0,
-                            InputMethod.CLICK)
-                    .addToHotbar(
-                            HOST_CRUSH_NAME,
-                            0,
-                            InputMethod.CLICK)
-                    .addToHotbar(
                             BRAIN_ATTACK_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
-                            FLUID_GUARD_NAME,
-                            0,
-                            InputMethod.HOLD)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")
                     .bind(
                             HOST_PRESSURE_NAME,
                             InputMethod.CLICK,
-                            USE_SPECIAL)
+                            InputKey.LMB)
+                    .bind(
+                            HOST_CRUSH_NAME,
+                            InputMethod.CLICK,
+                            InputKey.RMB)
+                    .bind(
+                            FLUID_GUARD_NAME,
+                            InputMethod.HOLD,
+                            InputKey.RMB)
                 .finalizeControlScheme()
                 .addSkill(
                         StandUnlockableSkill.startingAbility(

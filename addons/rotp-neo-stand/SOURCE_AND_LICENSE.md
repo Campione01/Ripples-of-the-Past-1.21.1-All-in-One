@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-neo-stand`, mod id `neojojostand`, version `0.2-A-port.17`.
+- Module: `rotp-neo-stand`, mod id `neojojostand`, version `0.2-A-port.18`.
 - Original 1.16.5 add-on: `RotP-neostand-0.2-A.jar` (NEOJOJOSTAND, mod id `neojojostand`), by 浪浪; declared license: GNU GPL v3.0; SHA-256 `6068721A09009AF8AE490DCD8F68F440A80BA94430F02ECB320F553ECDE7C965`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-24); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

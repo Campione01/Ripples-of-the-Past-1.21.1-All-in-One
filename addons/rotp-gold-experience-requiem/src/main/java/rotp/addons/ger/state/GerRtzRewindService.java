@@ -14,16 +14,22 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 
+import rotp.core.api.time.LevelTimeRates;
+import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.type.StandType;
+import rotp.core.powersystem.standpower.type.SummonedStand;
 import rotp.core.subsystems.timestop.TimeStopState;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.logging.LogUtils;
 
 import rotp.addons.ger.GoldExperienceRequiemAddon;
 import rotp.addons.ger.ability.GerReturnToZeroAbility;
+import rotp.addons.ger.ability.GerReturnToZeroMarkAbility;
+import rotp.addons.ger.entity.GerStandEntity;
 import rotp.addons.ger.network.GerRtzPayloads;
 import rotp.addons.ger.network.GerRtzPayloads.GhostTrail;
 import rotp.addons.ger.network.GerRtzPayloads.MarkStatePayload;
@@ -32,7 +38,6 @@ import rotp.addons.ger.network.GerRtzPayloads.StopPayload;
 import rotp.addons.ger.state.GerRtzTimeStopPolicy.GenerationTracker;
 import rotp.addons.ger.state.GerRtzTimeStopPolicy.InstanceKey;
 import rotp.addons.ger.state.GerRtzTimeStopPolicy.InstanceRegion;
-import rotp.addons.kingcrimson.KingCrimsonAddon;
 import rotp.addons.kingcrimson.state.KingCrimsonTemporalStateService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -66,6 +71,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.entity.EntityTypeTest;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -74,7 +81,8 @@ import org.slf4j.Logger;
 
 /**
  * Transient, module-owned Return to Zero history with a staged atomic commit
- * and an inverse journal. No core hooks, reflection, or shared state are used.
+ * and an inverse journal. Other time abilities answer it through the core's
+ * time events and the time stop's re-pin, not through shared state.
  */
 public final class GerRtzRewindService {
     public static final int MAX_BLOCK_OPS = 200_000;
@@ -90,6 +98,8 @@ public final class GerRtzRewindService {
     public static final int VFX_MODE_NORMAL = 0;
     public static final int VFX_MODE_TIME_ERASE = 1;
     public static final int AUTOMATIC_RTZ_DELAY_TICKS = 1;
+    public static final ResourceLocation RETURN_TO_ZERO_SOURCE =
+            GoldExperienceRequiemAddon.id("return_to_zero");
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final String KING_CRIMSON_MOD_ID =
@@ -190,6 +200,65 @@ public final class GerRtzRewindService {
         return history(owner.server)
                 .presentations
                 .containsKey(owner.getUUID());
+    }
+
+    /**
+     * Owner Q4 (row T3-15): a summoned Requiem returns to zero, mark or no
+     * mark, an erase that starts on its user or inside the region its Return
+     * to Zero takes (the chunks within MARK_CHUNK_RADIUS of the user's chunk).
+     */
+    public static boolean returnsTimeEraseToZero(
+            ServerLevel level,
+            LivingEntity eraser,
+            Vec3 position) {
+        ChunkPos erased = new ChunkPos(BlockPos.containing(position));
+        for (GerStandEntity stand : level.getEntities(
+                EntityTypeTest.forClass(GerStandEntity.class),
+                stand -> true)) {
+            LivingEntity user = stand.getUser();
+            if (user == null
+                    || user == eraser
+                    || !user.isAlive()
+                    || user.level() != level
+                    || GoldExperienceRequiemAddon.activeStand(user)
+                            != stand) {
+                continue;
+            }
+            ChunkPos home = user.chunkPosition();
+            if (Math.abs(erased.x - home.x)
+                            <= GerReturnToZeroMarkAbility
+                                    .MARK_CHUNK_RADIUS
+                    && Math.abs(erased.z - home.z)
+                            <= GerReturnToZeroMarkAbility
+                                    .MARK_CHUNK_RADIUS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Owner Q3 (row T3-29): a summoned Requiem keeps Bites the Dust from
+     * detonating on its user, mark or no mark.
+     */
+    public static boolean returnsDetonationToZero(Entity target) {
+        return target instanceof LivingEntity user
+                && user.isAlive()
+                && GoldExperienceRequiemAddon.activeStand(user) != null;
+    }
+
+    private static AABB regionAround(
+            Level level,
+            int centerChunkX,
+            int centerChunkZ,
+            int chunkRadius) {
+        return new AABB(
+                (centerChunkX - chunkRadius) * 16.0D,
+                level.getMinBuildHeight(),
+                (centerChunkZ - chunkRadius) * 16.0D,
+                (centerChunkX + chunkRadius + 1) * 16.0D,
+                level.getMaxBuildHeight(),
+                (centerChunkZ + chunkRadius + 1) * 16.0D);
     }
 
     public static void timeStopAdded(
@@ -303,8 +372,21 @@ public final class GerRtzRewindService {
             return Result.COMMIT_FAILED;
         }
 
-        forceEndTimeErase(level, activeTimeEraseUsers);
         terminatePostMarkTimeStops(history, level, mark);
+        terminateTimeStopsHolding(level, owner);
+        // Rule G1 (A2-EVENTS): the core ends the stops and the erase add-on
+        // the erases that began after the mark inside its region (D6).
+        RewindAppliedEvent.post(
+                owner,
+                level,
+                mark.tick(),
+                mark.region(level),
+                RETURN_TO_ZERO_SOURCE);
+        boolean timeEraseReturned =
+                anyTimeEraseEnded(level, activeTimeEraseUsers);
+        // Rule G1 (T3-15): an erase the event left running began before the
+        // mark and goes on, but the lockdown would end its held action.
+        Set<UUID> erasingAfterRewind = captureActiveTimeEraseUsers(level);
         history.marks.remove(owner.getUUID());
         history.pendingAutomaticRtz.remove(owner.getUUID());
         syncMark(owner, false);
@@ -325,9 +407,10 @@ public final class GerRtzRewindService {
                 mark,
                 plan,
                 keepTicks,
-                activeTimeEraseUsers.isEmpty()
-                        ? VFX_MODE_NORMAL
-                        : VFX_MODE_TIME_ERASE);
+                timeEraseReturned
+                        ? VFX_MODE_TIME_ERASE
+                        : VFX_MODE_NORMAL,
+                erasingAfterRewind);
         if (elapsed > END_SOUND_MIN_DURATION_TICKS) {
             history.pendingEndSounds.put(
                     owner.getUUID(),
@@ -796,6 +879,9 @@ public final class GerRtzRewindService {
         }
         return StageResult.success(new RewindPlan(
                 mark.dayTime(),
+                // Rule G3: Made in Heaven's acceleration keeps the day time.
+                LevelTimeRates.rate(
+                        LevelTimeRates.Channel.TIME, level) <= 1.0F,
                 List.copyOf(blocks),
                 List.copyOf(entities),
                 List.copyOf(players),
@@ -885,7 +971,9 @@ public final class GerRtzRewindService {
                         mutation.target());
             }
             restoreRelationships(level, plan.entities());
-            level.setDayTime(plan.dayTime());
+            if (plan.restoreDayTime()) {
+                level.setDayTime(plan.dayTime());
+            }
             syncMutations(level, plan);
             return true;
         }
@@ -896,6 +984,7 @@ public final class GerRtzRewindService {
                     exception);
             if (!rollback(
                     level,
+                    plan.restoreDayTime(),
                     inverseDayTime,
                     blockInverses,
                     entityInverses,
@@ -915,6 +1004,7 @@ public final class GerRtzRewindService {
 
     private static boolean rollback(
             ServerLevel level,
+            boolean restoreDayTime,
             long dayTime,
             List<BlockInverse> blocks,
             List<EntityInverse> entities,
@@ -1018,7 +1108,9 @@ public final class GerRtzRewindService {
             }
         }
         try {
-            level.setDayTime(dayTime);
+            if (restoreDayTime) {
+                level.setDayTime(dayTime);
+            }
         }
         catch (RuntimeException exception) {
             complete = false;
@@ -1037,16 +1129,20 @@ public final class GerRtzRewindService {
             Mark mark,
             RewindPlan plan,
             int keepTicks,
-            int mode) {
+            int mode,
+            Set<UUID> erasingAfterRewind) {
+        Set<UUID> disabled = new HashSet<>();
         for (UUID uuid : plan.disabledLiving()) {
             Entity entity = level.getEntity(uuid);
-            if (entity instanceof LivingEntity living) {
+            if (entity instanceof LivingEntity living
+                    && !erasesOn(living, erasingAfterRewind)) {
                 GoldExperienceRequiemAddon
                         .livingState(living)
                         .startReturnToZeroDisable(
                                 owner.getUUID(),
                                 living,
                                 keepTicks);
+                disabled.add(uuid);
             }
         }
         int sourceEntityId = performer != null
@@ -1072,11 +1168,23 @@ public final class GerRtzRewindService {
                         level.getGameTime(),
                         level.getGameTime()
                                 + presentationTicks(payload),
-                        plan.disabledLiving(),
+                        Set.copyOf(disabled),
                         payload));
         GoldExperienceRequiemAddon.playerState(owner)
                 .setReturnToZeroPresentationActive(true);
         broadcast(level, payload);
+    }
+
+    // The Time Erase action may run in the eraser's Stand slot, so his
+    // summoned Stand stays free as well.
+    private static boolean erasesOn(
+            LivingEntity living, Set<UUID> erasers) {
+        if (erasers.isEmpty()) {
+            return false;
+        }
+        LivingEntity body = living instanceof StandEntity stand
+                ? stand.getUser() : living;
+        return body != null && erasers.contains(body.getUUID());
     }
 
     private static List<GhostTrail> buildTrails(
@@ -1270,6 +1378,25 @@ public final class GerRtzRewindService {
                 state::removeInstance);
     }
 
+    // Owner Q9: a Return to Zero that goes off frees its frozen owner, past rule
+    // G1, whatever the age of the stop that holds him and its place to the mark.
+    private static void terminateTimeStopsHolding(
+            ServerLevel level,
+            ServerPlayer owner) {
+        if (!TimeStopState.shouldFreezeOnServer(owner)) {
+            return;
+        }
+        TimeStopState state = level.getData(
+                ModDataAttachmentTypes.TIME_STOP.get());
+        ChunkPos ownerChunk = new ChunkPos(owner.blockPosition());
+        for (TimeStopState.Instance instance :
+                List.copyOf(state.getInstances())) {
+            if (instance.isActive() && instance.covers(ownerChunk)) {
+                state.removeInstance(instance.id());
+            }
+        }
+    }
+
     private static boolean hasPostMarkIntersectingTimeStop(
             ServerHistory history,
             ServerLevel level,
@@ -1344,53 +1471,54 @@ public final class GerRtzRewindService {
         }
     }
 
-    private static void forceEndTimeErase(
+    /** Whether the rewind's event ended one of the erases running before it. */
+    private static boolean anyTimeEraseEnded(
             ServerLevel level, Set<UUID> activeUsers) {
         if (activeUsers.isEmpty()
                 || !ModList.get().isLoaded(KING_CRIMSON_MOD_ID)) {
-            return;
+            return false;
         }
         try {
-            KingCrimsonBridge.terminate(level, activeUsers);
+            return KingCrimsonBridge.anyEnded(level, activeUsers);
         }
         catch (RuntimeException | LinkageError exception) {
             LOGGER.warn(
-                    "Could not terminate the public King Crimson "
+                    "Could not inspect the public King Crimson "
                             + "Time Erase state after GER rewind",
                     exception);
+            return false;
         }
     }
 
+    // Read-only: the presentation's time-erase mode needs to know whether an
+    // erase runs (1.16 CheckTools.isKingCrimsonTimeEraseActive), which no
+    // core event tells; ending the erases is RewindAppliedEvent's.
     private static final class KingCrimsonBridge {
         private KingCrimsonBridge() {}
 
         private static Set<UUID> capture(ServerLevel level) {
             Set<UUID> active = new HashSet<>();
-            long gameTime = level.getGameTime();
             for (ServerPlayer player : level.players()) {
-                if (player.hasData(
-                                KingCrimsonAddon.TEMPORAL_STATE)
-                        && KingCrimsonAddon.temporalState(player)
-                                .isErasing(gameTime)) {
+                if (KingCrimsonTemporalStateService.isErasing(player)) {
                     active.add(player.getUUID());
                 }
             }
             return Set.copyOf(active);
         }
 
-        private static void terminate(
+        private static boolean anyEnded(
                 ServerLevel level, Set<UUID> activeUsers) {
             for (UUID uuid : activeUsers) {
                 ServerPlayer player = level.getServer()
                         .getPlayerList()
                         .getPlayer(uuid);
                 if (player != null
-                        && player.hasData(
-                                KingCrimsonAddon.TEMPORAL_STATE)) {
-                    KingCrimsonTemporalStateService
-                            .terminate(player);
+                        && !KingCrimsonTemporalStateService
+                                .isErasing(player)) {
+                    return true;
                 }
             }
+            return false;
         }
     }
 
@@ -1462,14 +1590,57 @@ public final class GerRtzRewindService {
             EntitySnapshot snapshot) {
         Set<Holder<MobEffect>> oldEffects =
                 effectTypes(entity);
+        // Defect D1: a time stop sets a frozen mob's NoAI and keeps its own
+        // AI state until it lets go, so a snapshot taken frozen carries the
+        // freeze's NoAI, and a live mob frozen now must keep the freeze's.
+        Boolean keptNoAi = entity instanceof Mob mob
+                        && (snapshot.frozen()
+                                || TimeStopState.shouldFreezeOnServer(mob))
+                ? mob.isNoAi()
+                : null;
         CompoundTag tag = snapshot.tag().copy();
         tag.remove("id");
         tag.remove("Passengers");
         tag.putUUID("UUID", entity.getUUID());
-        entity.load(tag);
+        loadKeepingSummonedStand(entity, tag);
         entity.noPhysics = snapshot.noPhysics();
+        if (keptNoAi != null && entity instanceof Mob mob) {
+            mob.setNoAi(keptNoAi);
+        }
+        // Rule G2 (A2-REPIN): a frozen entity stays where it was put.
+        TimeStopState.repinOrReleaseOnServer(entity);
         syncRemovedEffects(level, entity, oldEffects);
         syncEntity(level, entity);
+    }
+
+    private static void loadKeepingSummonedStand(
+            Entity entity, CompoundTag tag) {
+        LivingEntity user =
+                entity instanceof LivingEntity living ? living : null;
+        StandPower previous = StandPower.get(user);
+        SummonedStand summoned = previous != null
+                ? previous.getSummonedStand()
+                : null;
+        StandType type = previous != null
+                ? previous.getPowerType()
+                : null;
+        try {
+            entity.load(tag);
+        }
+        finally {
+            // The load puts a new power attachment, and the summoned Stand
+            // is not in the saved data: the new one would not know it.
+            StandPower restored = StandPower.get(user);
+            if (summoned != null && restored != previous) {
+                if (restored != null
+                        && restored.getPowerType() == type) {
+                    restored.setSummonedStand(summoned);
+                }
+                else if (type != null) {
+                    type.forceUnsummon(user, previous);
+                }
+            }
+        }
     }
 
     private static void applyPlayerSnapshot(
@@ -1491,6 +1662,7 @@ public final class GerRtzRewindService {
                     snapshot.xRot());
             restoreVehicle(
                     level, player, snapshot.vehicle());
+            TimeStopState.repinOrReleaseOnServer(player);
         }
         player.inventoryMenu.broadcastFullState();
         player.containerMenu.broadcastFullState();
@@ -1513,6 +1685,7 @@ public final class GerRtzRewindService {
         stand.setDeltaMovement(Vec3.ZERO);
         stand.hasImpulse = true;
         restoreVehicle(level, stand, snapshot.vehicle());
+        TimeStopState.repinOrReleaseOnServer(stand);
     }
 
     private static void restoreVehicle(
@@ -1541,6 +1714,7 @@ public final class GerRtzRewindService {
                             + snapshot.uuid());
         }
         entity.noPhysics = snapshot.noPhysics();
+        TimeStopState.repinOrReleaseOnServer(entity);
         return entity;
     }
 
@@ -1810,6 +1984,7 @@ public final class GerRtzRewindService {
             Vec3 position,
             boolean noPhysics,
             boolean living,
+            boolean frozen,
             UUID mobTarget,
             UUID vehicle,
             UUID projectileOwner) {
@@ -1847,6 +2022,7 @@ public final class GerRtzRewindService {
                     entity.position(),
                     entity.noPhysics,
                     entity instanceof LivingEntity,
+                    TimeStopState.shouldFreezeOnServer(entity),
                     mobTarget,
                     vehicle,
                     projectileOwner);
@@ -2014,6 +2190,12 @@ public final class GerRtzRewindService {
                             <= chunkRadius
                     && Math.abs(chunk.z - centerChunkZ)
                             <= chunkRadius;
+        }
+
+        /** The chunks contains() takes, the level's full height. */
+        private AABB region(Level level) {
+            return regionAround(
+                    level, centerChunkX, centerChunkZ, chunkRadius);
         }
 
         private boolean recordBlock(
@@ -2188,6 +2370,7 @@ public final class GerRtzRewindService {
 
     private record RewindPlan(
             long dayTime,
+            boolean restoreDayTime,
             List<BlockPreimage> blocks,
             List<EntityMutation> entities,
             List<PlayerMutation> players,

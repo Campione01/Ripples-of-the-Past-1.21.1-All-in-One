@@ -206,13 +206,9 @@ public final class TearOutAPageAbility
                 stopAction();
                 return;
             }
-            // 1.16 standPerform ended with this on every perform, whether
+            // 1.2 standPerform ended with a flat 25 on every perform, whether
             // or not a page came off
-            if (power != null && power.usesResolve()) {
-                var resolve = power.getResolveCounter();
-                resolve.addResolveValue(power,
-                        resolve.getMaxResolveValue(power) * 0.005F);
-            }
+            BookStateRules.addResolve(user, BookStateRules.TEAR_RESOLVE);
             boolean torn = BookStateService.tearPage(user, target);
             // 1.16 StandEntityTask paid staminaCost(100) and the cooldown after standPerform whatever it did
             StandAbilityStamina.consume(

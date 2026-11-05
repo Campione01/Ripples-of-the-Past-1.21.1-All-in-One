@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-stand-bearing-creatures`, mod id `rotp_mwp`, version `1.1.2-port.13`.
+- Module: `rotp-stand-bearing-creatures`, mod id `rotp_mwp`, version `1.1.2-port.14`.
 - Original 1.16.5 add-on: `RotP-拥有替身的生物-1.1.2.jar` (RotP 拥有替身的生物, mod id `rotp_mwp`), by Weever; declared license: GNU GPL v3.0; SHA-256 `9C93C2CA8BA823BF153E751568E0B3332EC04EE4B0F8D2B549DC3908A08BFD74`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

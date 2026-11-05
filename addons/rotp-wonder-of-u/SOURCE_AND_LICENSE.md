@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-wonder-of-u`, mod id `rotp_wou`, version `1.0.2c-full-closure.7-mc1.21.1`.
+- Module: `rotp-wonder-of-u`, mod id `rotp_wou`, version `1.0.2c-full-closure.8-mc1.21.1`.
 - Original 1.16.5 add-on: `RotP-奇迹于你-1.0.2c.jar` (RotP 奇迹于你, mod id `rotp_wou`), by FilipeGamer12BR, Co-creator: Hoo, Model: Blonde; declared license: GNU GPL v3.0; SHA-256 `A05CED8AB554CA6A8DCB4CC9AF211755AC3EEE0F7AF0932F2D84A9AB1486E7C0`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

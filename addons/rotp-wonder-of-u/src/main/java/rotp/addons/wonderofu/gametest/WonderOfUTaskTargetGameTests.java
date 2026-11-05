@@ -61,8 +61,13 @@ public final class WonderOfUTaskTargetGameTests {
 
     private WonderOfUTaskTargetGameTests() {}
 
-    @GameTest(template = "empty", batch = "wou_task_target", timeoutTicks = 100)
+    @GameTest(template = "empty", batch = "wou_task_target", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void lightningStrikeTurnsTheStandToTheMobItWasPressedAt(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> lightningStrikeTurnsTheStandToTheMobItWasPressedAtBody(h));
+    }
+
+    private static void lightningStrikeTurnsTheStandToTheMobItWasPressedAtBody(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Player user = new Player(level, BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "wou-task-target")) {
             @Override
@@ -157,8 +162,13 @@ public final class WonderOfUTaskTargetGameTests {
      * kept, no ray from the user; the Stand, turned to that entity (StandEntityTask.rotateStand), cast its own, so the
      * bolt struck the kept mob after the user looked away, through a wall as the calamity does.
      */
-    @GameTest(template = "empty", batch = "wou_task_target_aim", timeoutTicks = 100)
+    @GameTest(template = "empty", batch = "wou_task_target_aim", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void lightningStrikesTheMobItKeptAfterTheUserLooksAway(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> lightningStrikesTheMobItKeptAfterTheUserLooksAwayBody(h));
+    }
+
+    private static void lightningStrikesTheMobItKeptAfterTheUserLooksAwayBody(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Player user = new Player(level, BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "wou-task-aim")) {
             @Override
@@ -260,8 +270,13 @@ public final class WonderOfUTaskTargetGameTests {
      * degrees on each axis (MCUtil.rotateTowards), then ray-traced from the Stand's eyes along that look. A Stand turned
      * far away therefore struck off the cow the user looked at; one the turn reached struck the cow.
      */
-    @GameTest(template = "empty", batch = "wou_task_target_turn", timeoutTicks = 100)
+    @GameTest(template = "empty", batch = "wou_task_target_turn", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void lightningStrikeTurnsTheStandTowardTheUsersAimByAtMostItsSpeed(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> lightningStrikeTurnsTheStandTowardTheUsersAimByAtMostItsSpeedBody(h));
+    }
+
+    private static void lightningStrikeTurnsTheStandTowardTheUsersAimByAtMostItsSpeedBody(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Player user = new Player(level, BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "wou-task-turn")) {
             @Override
@@ -375,8 +390,13 @@ public final class WonderOfUTaskTargetGameTests {
      * kept the cow there (standKeepsTarget: an entity) and the bolt struck the cow; with nothing behind, the press kept
      * nothing. The Stand's eyes are level with its user's, 0.35 ahead, looking the same way.
      */
-    @GameTest(template = "empty", batch = "wou_task_target_torch", timeoutTicks = 100)
+    @GameTest(template = "empty", batch = "wou_task_target_torch", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void lightningStrikePressedAtATorchStrikesTheCowBehindAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> lightningStrikePressedAtATorchStrikesTheCowBehindAsIn116Body(h));
+    }
+
+    private static void lightningStrikePressedAtATorchStrikesTheCowBehindAsIn116Body(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Player user = new Player(level, BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "wou-task-torch")) {
             @Override

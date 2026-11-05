@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "values": {
+    "darkbluemoon:barnacle_shell": {
+      "chance": 0.3
+    },
+    "darkbluemoon:cooked_barnacle_shell": {
+      "chance": 0.3
+    },
+    "darkbluemoon:barnacle_meat": {
+      "chance": 0.3
+    },
+    "darkbluemoon:cooked_barnacle_meat": {
+      "chance": 0.5
+    }
+  }
+}

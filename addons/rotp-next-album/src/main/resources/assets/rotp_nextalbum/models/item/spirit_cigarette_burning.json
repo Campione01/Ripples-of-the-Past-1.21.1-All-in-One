@@ -1,0 +1,18 @@
+{
+  "loader": "neoforge:separate_transforms",
+  "gui_light": "front",
+  "base": {
+    "parent": "rotp_nextalbum:item/spirit_cigarette_burning_3d"
+  },
+  "perspectives": {
+    "gui": {
+      "parent": "rotp_nextalbum:item/spirit_cigarette_burning_2d"
+    },
+    "ground": {
+      "parent": "rotp_nextalbum:item/spirit_cigarette_burning_2d"
+    },
+    "fixed": {
+      "parent": "rotp_nextalbum:item/spirit_cigarette_burning_2d"
+    }
+  }
+}

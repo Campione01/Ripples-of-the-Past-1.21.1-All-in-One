@@ -1,0 +1,15 @@
+{
+  "advancements.rotp_nextalbum.full_mista_suit.description": "Obtenha o conjunto completo do Mista.",
+  "advancements.rotp_nextalbum.get_aja_stone.description": "Obtenha uma Super Pedra Vermelha de Aja de qualquer forma.",
+  "effect.rotp_nextalbum.collapse": "Colapso",
+  "item.rotp_nextalbum.luck_pluck": "Luck & Pluck",
+  "item.rotp_nextalbum.luck_pluck.reference_quote": "\"Jonathan... eu lhe entrego as palavras gravadas na minha espada! Luck! E leve consigo para o seu futuro! Pluck!\"",
+  "item.nextalbum.luck_pluck.tooltips": "Possui os mesmos encantamentos de uma espada de ouro e maior alcance. Além disso, permite usar ações de Hamon que normalmente exigem mãos livres.",
+  "item.rotp_nextalbum.aja_stone_necklace": "Colar da Pedra de Aja",
+  "item.rotp_nextalbum.aja_stone_necklace.reference_quote": "\"É esta... o cristal milagroso perfeito da natureza! Sem uma única imperfeição! A Super Pedra de Aja!\"",
+  "item.nextalbum.aja_stone_necklace.tooltips": "Quando equipado, permite pressionar %s+%s para disparar um feixe com os mesmos efeitos da Super Pedra de Aja.",
+  "item.rotp_nextalbum.mista_suit_cloth": "Roupa do Mista",
+  "item.rotp_nextalbum.mista_suit_pants": "Calças do Mista",
+  "item.rotp_nextalbum.mista_suit_boots": "Botas do Mista",
+  "item.nextalbum.mista_suit.tooltips": "Cada peça concede +15%% de proteção contra projéteis e balas."
+}

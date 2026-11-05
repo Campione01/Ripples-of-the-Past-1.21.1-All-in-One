@@ -198,7 +198,9 @@ public final class KingCrimsonTimeEraseAbility
         public void onButtonStopHold() {
             if (!level().isClientSide()
                     && getPowerUser()
-                            instanceof ServerPlayer player) {
+                            instanceof ServerPlayer player
+                    && !KingCrimsonTemporalStateService
+                            .deferEndWhileFrozen(player)) {
                 KingCrimsonTemporalStateService.terminate(player);
             }
             forceStop();
@@ -214,7 +216,9 @@ public final class KingCrimsonTimeEraseAbility
             }
             if (!level().isClientSide()
                     && getPowerUser()
-                            instanceof ServerPlayer player) {
+                            instanceof ServerPlayer player
+                    && !KingCrimsonTemporalStateService
+                            .deferEndWhileFrozen(player)) {
                 KingCrimsonTemporalStateService.terminate(player);
             }
         }

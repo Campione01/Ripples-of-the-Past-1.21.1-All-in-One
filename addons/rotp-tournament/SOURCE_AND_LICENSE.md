@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-tournament`, mod id `tournament`, version `1.0.0-mc1.21.1-port.5`.
+- Module: `rotp-tournament`, mod id `tournament`, version `1.0.0-mc1.21.1-port.6`.
 - Original 1.16.5 add-on: `rotp-tournament-1.0_ARG_EDITION.jar` (Tournament RotP Addon, mod id `tournament`), by dikiytechies; declared license: GNU GPL v3.0; SHA-256 `498C145D7427868E56DA14820C31B4693B827F90AEAB198A4E17D16B9A6DA538`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

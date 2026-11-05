@@ -71,32 +71,33 @@ public final class KingCrimsonImpaleAbility
     @Override
     protected void applyHitEffects(
             StandEntity stand,
-            LivingEntity target) {
+            LivingEntity target,
+            float strikeFactor) {
         if (target instanceof StandEntity) {
             return;
         }
-        target.addEffect(new MobEffectInstance(
+        addStrikeEffect(target, strikeFactor, new MobEffectInstance(
                 KingCrimsonAddon.GAPING_WOUND,
                 KingCrimsonPhase2Spec.IMPALE_EFFECT_TICKS,
                 KingCrimsonConfig.impaleGapingWoundAmplifier(),
                 false,
                 false,
                 false));
-        target.addEffect(new MobEffectInstance(
+        addStrikeEffect(target, strikeFactor, new MobEffectInstance(
                 KingCrimsonAddon.BLEEDING,
                 KingCrimsonPhase2Spec.IMPALE_EFFECT_TICKS,
                 0,
                 false,
                 false,
                 false));
-        target.addEffect(new MobEffectInstance(
+        addStrikeEffect(target, strikeFactor, new MobEffectInstance(
                 MobEffects.MOVEMENT_SLOWDOWN,
                 KingCrimsonPhase2Spec.IMPALE_EFFECT_TICKS,
                 3,
                 false,
                 false,
                 false));
-        target.addEffect(new MobEffectInstance(
+        addStrikeEffect(target, strikeFactor, new MobEffectInstance(
                 MobEffects.WEAKNESS,
                 KingCrimsonPhase2Spec.IMPALE_EFFECT_TICKS,
                 2,

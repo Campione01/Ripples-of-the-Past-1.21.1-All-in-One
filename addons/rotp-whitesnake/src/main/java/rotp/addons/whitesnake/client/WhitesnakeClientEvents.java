@@ -3,6 +3,7 @@ package rotp.addons.whitesnake.client;
 import rotp.core.api.client.render.FirstPersonPostArmLayers;
 
 import rotp.addons.whitesnake.WhitesnakeAddon;
+import rotp.addons.whitesnake.buffdisc.InjectEffectClientBridge;
 import rotp.addons.whitesnake.disguise.DisguiseClientBridge;
 import rotp.addons.whitesnake.disc.StandDiscAuthorityData;
 import net.minecraft.ChatFormatting;
@@ -20,6 +21,7 @@ import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 public final class WhitesnakeClientEvents {
     static {
         DisguiseClientBridge.install(DisguiseSelectionScreen::open);
+        InjectEffectClientBridge.install(InjectEffectScreen::open);
     }
 
     private WhitesnakeClientEvents() {}

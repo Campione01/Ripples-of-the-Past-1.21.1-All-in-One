@@ -1,5 +1,6 @@
 package rotp.addons.littlefeet.ability;
 
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.util.functions.MathUtil;
 
@@ -38,10 +39,20 @@ public final class LittleFeetCombatSemantics {
                         stand.getBoundingBox(),
                         target.getBoundingBox()) / attackRange
                 : 0.0D;
+        // Owner T2: past the base reach the chance falls with the damage.
         return Mth.clamp(
                 (float) proximity - BLOCKING_CHANCE_OFFSET,
                 0.0F,
-                1.0F);
+                1.0F)
+                * StandMeleeReach.strikeFactor(stand, target);
+    }
+
+    // Owner T2: a yes-or-no effect of a strike past the base reach lands
+    // with the core's factor as its chance.
+    public static boolean landsPastBaseReach(
+            StandEntity stand, LivingEntity target) {
+        float factor = StandMeleeReach.strikeFactor(stand, target);
+        return factor >= 1.0F || stand.getRandom().nextFloat() < factor;
     }
 
     public static int blockingBreakTicks(double durability) {

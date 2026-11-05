@@ -16,6 +16,7 @@ import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.util.functions.DamageUtil;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import rotp.addons.thehand.TheHandAddon;
 import rotp.addons.thehand.TheHandConfig;
@@ -126,6 +127,8 @@ public final class TheHandCombat {
             return false;
         }
         DamageSource source = makeErasureDamageSource(stand);
+        // Owner T2: past the base reach the erasure falls with the damage the core weakens; read while the action runs.
+        float reach = StandMeleeReach.strikeFactor(stand, target);
         float absorptionBefore = target instanceof LivingEntity living
                 ? ErasedHealthService.absorptionBeforeHit(living)
                 : 0.0F;
@@ -136,14 +139,15 @@ public final class TheHandCombat {
         }
         if (target instanceof LivingEntity living) {
             ErasedHealthService.applyAfterSuccessfulHit(
-                    stand, living, damage, absorptionBefore);
+                    stand, living, damage * reach, absorptionBefore);
             erodeArmor(
                     living,
                     barrage ? 1.0F : Math.max(preparation, 0.0F),
-                    barrage);
+                    barrage,
+                    reach);
         } else if (target instanceof RoadRollerEntity roadRoller) {
             ErasedHealthService.applyRoadRollerAfterSuccessfulHit(
-                    stand, roadRoller, damage);
+                    stand, roadRoller, damage * reach);
         }
         return true;
     }
@@ -310,23 +314,24 @@ public final class TheHandCombat {
     }
 
     private static void erodeArmor(
-            LivingEntity target, float preparation, boolean barrage) {
+            LivingEntity target, float preparation, boolean barrage,
+            float reach) {
         damageArmor(
                 target,
                 EquipmentSlot.HEAD,
-                barrage ? 0.02F : 0.10F * preparation);
+                (barrage ? 0.02F : 0.10F * preparation) * reach);
         damageArmor(
                 target,
                 EquipmentSlot.CHEST,
-                barrage ? 0.02F : 0.15F * preparation);
+                (barrage ? 0.02F : 0.15F * preparation) * reach);
         damageArmor(
                 target,
                 EquipmentSlot.LEGS,
-                barrage ? 0.02F : 0.10F * preparation);
+                (barrage ? 0.02F : 0.10F * preparation) * reach);
         damageArmor(
                 target,
                 EquipmentSlot.FEET,
-                barrage ? 0.02F : 0.05F * preparation);
+                (barrage ? 0.02F : 0.05F * preparation) * reach);
     }
 
     private static void damageArmor(

@@ -1,5 +1,6 @@
 package rotp.addons.thehand;
 
+import rotp.addons.thehand.ability.TheHandEraseAbility;
 import rotp.addons.thehand.network.ErasedHealthSyncPayload;
 import rotp.addons.thehand.state.ErasedHealthService;
 import rotp.addons.thehand.state.ErasedHealthState;
@@ -50,8 +51,11 @@ public final class TheHandEvents {
     @SubscribeEvent
     public static void onLivingDamage(LivingDamageEvent.Post event) {
         LivingEntity target = event.getEntity();
-        if (target.level().isClientSide()
-                || event.getNewDamage() <= 0.0F) {
+        if (target.level().isClientSide()) {
+            return;
+        }
+        TheHandEraseAbility.onUserDamaged(target);
+        if (event.getNewDamage() <= 0.0F) {
             return;
         }
         if (target.hasEffect(TheHandAddon.SURPRISE)) {

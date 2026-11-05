@@ -5,10 +5,15 @@ import rotp.core.powersystem.standpower.StandPower;
 
 import rotp.addons.echoes.init.EchoesAbilities;
 import rotp.addons.echoes.init.EchoesAttachments;
+import rotp.addons.echoes.init.EchoesBlocks;
 import rotp.addons.echoes.init.EchoesDataComponents;
 import rotp.addons.echoes.init.EchoesEntities;
+import rotp.addons.echoes.init.EchoesMobEffects;
 import rotp.addons.echoes.init.EchoesSounds;
 import rotp.addons.echoes.init.EchoesStands;
+import rotp.addons.echoes.network.EchoesOnomatopoeiaPayloads;
+import rotp.addons.echoes.network.EchoesSelectActPayload;
+import rotp.addons.echoes.network.EchoesSoundPayloads;
 import rotp.addons.echoes.state.EchoesFreezeState;
 import rotp.addons.echoes.state.EchoesUserState;
 import net.minecraft.resources.ResourceLocation;
@@ -40,11 +45,17 @@ public final class RotpEchoes {
 
         EchoesAbilities.ABILITY_TYPES.register(modEventBus);
         EchoesAttachments.ATTACHMENT_TYPES.register(modEventBus);
+        EchoesBlocks.BLOCKS.register(modEventBus);
+        EchoesBlocks.BLOCK_ENTITY_TYPES.register(modEventBus);
         EchoesDataComponents.DATA_COMPONENT_TYPES.register(modEventBus);
         EchoesEntities.ENTITY_TYPES.register(modEventBus);
+        EchoesMobEffects.MOB_EFFECTS.register(modEventBus);
         EchoesSounds.SOUNDS.register(modEventBus);
         EchoesStands.STANDS.register(modEventBus);
         modEventBus.addListener(RotpEchoes::registerAttributes);
+        modEventBus.addListener(EchoesSelectActPayload::register);
+        modEventBus.addListener(EchoesOnomatopoeiaPayloads::register);
+        modEventBus.addListener(EchoesSoundPayloads::register);
     }
 
     public static ResourceLocation id(String path) {
@@ -72,6 +83,9 @@ public final class RotpEchoes {
 
     private static void registerAttributes(
             EntityAttributeCreationEvent event) {
+        event.put(
+                EchoesEntities.ACT0.get(),
+                StandEntity.createAttributes().build());
         event.put(
                 EchoesEntities.ACT1.get(),
                 StandEntity.createAttributes().build());

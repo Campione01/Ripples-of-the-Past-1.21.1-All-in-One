@@ -94,16 +94,29 @@ public final class AgingBlockClientCache {
     }
 
     static boolean hasActiveAura(Player player) {
+        return auraTicks(player) >= 0;
+    }
+
+    /** The ticks the player's aging aura has been on, -1 without one. */
+    static int auraTicks(Player player) {
         if (player == null || !player.isAlive()) {
-            return false;
+            return -1;
         }
         StandPower power = StandPower.get(player);
-        return power != null
-                && power.userStandEffects
+        return power == null
+                ? -1
+                : power.userStandEffects
                         .getEffectOfType(
                                 GratefulDeadAddon
                                         .AGING_AURA_EFFECT.get())
-                        .isPresent();
+                        .map(effect -> effect.tickCount)
+                        .orElse(-1);
+    }
+
+    /** 0.1.13: the radius the aura has grown to, at least 1 for its visuals. */
+    static double auraRadius(Player player) {
+        return Math.max(
+                1.0D, AgingService.auraRadius(auraTicks(player)));
     }
 
     static boolean hasWarmActiveAura(Player player) {
@@ -198,11 +211,11 @@ public final class AgingBlockClientCache {
         double oldRange = field.range;
         boolean hadPosition = field.initialized;
         float oldDisplay = field.display;
-        field.x = player.getX();
-        field.y = player.getY();
-        field.z = player.getZ();
-        field.range = Math.max(
-                1.0D, AgingService.AURA_RADIUS);
+        var center = AgingService.auraCenter(player);
+        field.x = center.getX();
+        field.y = center.getY();
+        field.z = center.getZ();
+        field.range = auraRadius(player);
         field.initialized = true;
         if (hadPosition
                 && (chunkCoord(oldX) != chunkCoord(field.x)

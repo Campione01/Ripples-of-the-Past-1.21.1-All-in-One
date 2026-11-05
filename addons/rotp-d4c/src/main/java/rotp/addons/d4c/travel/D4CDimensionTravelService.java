@@ -8,6 +8,7 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.subsystems.timestop.TimeStopState;
 
 import rotp.addons.d4c.D4CAddon;
 import rotp.addons.d4c.D4CPhase2ASpec;
@@ -470,6 +471,10 @@ public final class D4CDimensionTravelService {
                 > gameTime) {
             return false;
         }
+        // R772 T3-09: stopped time holds a frozen entity in its own world
+        if (TimeStopState.shouldFreezeOnServer(entity)) {
+            return false;
+        }
         ResourceLocation targetId = portalDestination(
                 sourceLevel.dimension().location(),
                 portalTargetId,
@@ -482,6 +487,23 @@ public final class D4CDimensionTravelService {
         if (targetLevel == null) {
             return false;
         }
+        // R772 F25: the parallel copy exists before the destination is
+        // chosen, so the arrival stands where the player left
+        D4CParallelTerrainMirror.prepareCrossing(
+                entity, sourceLevel, targetLevel);
+        try {
+            return crossPortal(
+                    sourceLevel, portalPosition, entity, targetLevel);
+        } finally {
+            D4CParallelTerrainMirror.finishCrossing(entity);
+        }
+    }
+
+    private static boolean crossPortal(
+            ServerLevel sourceLevel,
+            BlockPos portalPosition,
+            Entity entity,
+            ServerLevel targetLevel) {
         BlockPos destination =
                 findSafeDestination(targetLevel, entity);
         if (destination == null) {

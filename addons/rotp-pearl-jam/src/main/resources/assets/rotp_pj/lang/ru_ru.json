@@ -1,0 +1,19 @@
+{
+  "stand.rotp_pj.pearl_jam": "Pearl Jam",
+  "entity.rotp_pj.pearl_jam": "Pearl Jam",
+  "rotp_pj.ability.pj_inject": "Ввести в пищу",
+  "rotp_pj.ability.pj_inject.param": "Ввести в %s",
+  "rotp_pj.ability.pj_unject": "Вывести из пищи",
+  "rotp_pj.ability.pj_unject.param": "Вывести из %s",
+  "rotp_pj.ability.pj_poison_inject": "Ввести яд в пищу",
+  "rotp_pj.ability.pj_poison_inject.param": "Ввести яд в %s",
+  "rotp_pj.ability.pj_craft_passive": "Пассивное ремесло",
+  "rotp_pj.ability.pj_craft_passive.on": "Пассивное ремесло: ВКЛ",
+  "rotp_pj.ability.pj_craft_passive.off": "Пассивное ремесло: ВЫКЛ",
+  "rotp_pj.ability.pj_hand_toggle": "Выбрать руку",
+  "rotp_pj.ability.pj_hand_toggle.main": "Выбрать руку: ОСНОВНАЯ",
+  "rotp_pj.ability.pj_hand_toggle.off": "Выбрать руку: ДРУГАЯ",
+  "rotp_pj.ability.pj_secret_by_chef": "Секрет от шефа",
+  "rotp_pj.ability.pj_secret_by_chef.hidden": "Секрет от шефа: ВКЛ",
+  "rotp_pj.ability.pj_secret_by_chef.shown": "Секрет от шефа: ВЫКЛ"
+}

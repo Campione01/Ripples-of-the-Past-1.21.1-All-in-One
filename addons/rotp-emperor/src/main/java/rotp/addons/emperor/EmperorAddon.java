@@ -20,6 +20,7 @@ import rotp.core.util.sound.OstSoundList;
 
 import rotp.addons.emperor.ability.EmperorClearTargetAbility;
 import rotp.addons.emperor.ability.EmperorGiveCompatibilityAbility;
+import rotp.addons.emperor.ability.EmperorMobShotAbility;
 import rotp.addons.emperor.ability.EmperorSetTargetAbility;
 import rotp.addons.emperor.ability.EmperorTargetModeAbility;
 import rotp.addons.emperor.action.EmperorSummonAction;
@@ -53,6 +54,9 @@ public final class EmperorAddon {
     public static final String SET_TARGET_NAME = "stand_target";
     public static final String CLEAR_TARGET_NAME = "no_stand_target";
     public static final String GIVE_EMPEROR_NAME = "give_emp";
+    // 1.3 mob-only shots, named as the 1.3 stand_combos call them
+    public static final String MOB_SHOT_NAME = "shoot_entity";
+    public static final String MOB_BARRAGE_NAME = "barrage_shoot_entity";
 
     public static final double POWER = 12.0D;
     public static final double SPEED = 12.0D;
@@ -123,6 +127,18 @@ public final class EmperorAddon {
                     key -> new AbilityType<>(
                             key,
                             EmperorGiveCompatibilityAbility::new));
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<EmperorMobShotAbility>>
+            MOB_SHOT = ABILITY_TYPES.register(
+                    MOB_SHOT_NAME,
+                    key -> new AbilityType<>(
+                            key, EmperorMobShotAbility::single));
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<EmperorMobShotAbility>>
+            MOB_BARRAGE = ABILITY_TYPES.register(
+                    MOB_BARRAGE_NAME,
+                    key -> new AbilityType<>(
+                            key, EmperorMobShotAbility::burst));
 
     public static final DeferredHolder<
             EntityType<?>, EntityType<EmperorStandEntity>>
@@ -258,7 +274,9 @@ public final class EmperorAddon {
                 .addAbility(TARGET_MODE_NAME, TARGET_MODE)
                 .addAbility(SET_TARGET_NAME, SET_TARGET)
                 .addAbility(CLEAR_TARGET_NAME, CLEAR_TARGET)
-                .addAbility(GIVE_EMPEROR_NAME, GIVE_EMPEROR);
+                .addAbility(GIVE_EMPEROR_NAME, GIVE_EMPEROR)
+                .addAbility(MOB_SHOT_NAME, MOB_SHOT)
+                .addAbility(MOB_BARRAGE_NAME, MOB_BARRAGE);
 
         moveset.makeControlScheme("hotbar")
                 .makeHotbar(0, USE_SPECIAL, SWITCH_SPECIAL)
@@ -278,7 +296,11 @@ public final class EmperorAddon {
                 .addSkill(StandUnlockableSkill.startingAbility(
                         CLEAR_TARGET_NAME))
                 .addSkill(StandUnlockableSkill.startingAbility(
-                        GIVE_EMPEROR_NAME));
+                        GIVE_EMPEROR_NAME))
+                .addSkill(StandUnlockableSkill.startingAbility(
+                        MOB_SHOT_NAME))
+                .addSkill(StandUnlockableSkill.startingAbility(
+                        MOB_BARRAGE_NAME));
 
         return new EmperorStandType(
                 new StandStats.Builder()

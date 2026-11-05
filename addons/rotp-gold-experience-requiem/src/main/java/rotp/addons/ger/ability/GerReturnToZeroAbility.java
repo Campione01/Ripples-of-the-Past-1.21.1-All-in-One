@@ -17,13 +17,16 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
+import rotp.core.subsystems.timestop.TimeStopState;
 
 import rotp.addons.ger.GoldExperienceRequiemAddon;
 import rotp.addons.ger.state.GerRtzRewindService;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
 
 public final class GerReturnToZeroAbility
         extends StandEntityAbility {
@@ -77,9 +80,72 @@ public final class GerReturnToZeroAbility
     }
 
     /**
+     * Owner Q9: its holder may press it while frozen in someone else's stopped
+     * time. He still does not see in it: canUserSeeInStoppedTime stays false.
+     */
+    @Override
+    public boolean canBeUsedInStoppedTime(Power<?> context) {
+        return true;
+    }
+
+    @Override
+    public HeldInput onKeyPress(
+            Level level,
+            LivingEntity user,
+            FriendlyByteBuf extraClientInput,
+            InputMethod inputMethod,
+            float clickHoldResolveTime,
+            BufferingState bufferingState) {
+        HeldInput initiated = super.onKeyPress(
+                level,
+                user,
+                extraClientInput,
+                inputMethod,
+                clickHoldResolveTime,
+                bufferingState);
+        if (initiated instanceof ReturnToZeroAction action
+                && action.getPerformer() != null
+                && cannotWaitForItsTick(user, action.getPerformer())) {
+            performAtOnce(action);
+            return null;
+        }
+        return initiated;
+    }
+
+    // The tick of a frozen performer does not advance a Stand's summon, and
+    // another's lockdown sends every action into recovery on its next tick.
+    private static boolean cannotWaitForItsTick(
+            LivingEntity user, LivingEntity performer) {
+        return TimeStopState.shouldFreezeOnServer(user)
+                || GoldExperienceRequiemAddon.livingState(user)
+                        .returnToZeroDisabled()
+                || GoldExperienceRequiemAddon.livingState(performer)
+                        .returnToZeroDisabled();
+    }
+
+    private static boolean performAtOnce(ReturnToZeroAction action) {
+        LivingComponentAction actionComponent =
+                LivingComponentAction.getComponent(
+                        action.getPerformer());
+        try {
+            action.setPhase(ActionPhase.PERFORM, 0);
+            action.syncPhaseChanges();
+            action.actionPerformStart();
+            return action.result
+                    == GerRtzRewindService.Result.SUCCESS;
+        }
+        finally {
+            if (actionComponent.getAction() == action) {
+                actionComponent.setAction(
+                        null, SyncType.TRACKING_AND_SELF);
+            }
+        }
+    }
+
+    /**
      * Runs the normal RTZ action once for the narrow server-side response to
-     * a newly covering time stop. This deliberately bypasses only the core
-     * frozen-user input gate; every other normal availability check remains.
+     * a newly covering time stop, past the core's checks of a press; every
+     * other normal availability check remains.
      */
     public boolean tryAutomaticTimeStopResponse(
             ServerLevel level,
@@ -113,7 +179,7 @@ public final class GerReturnToZeroAbility
             return false;
         }
 
-        HeldInput initiated = onKeyPress(
+        HeldInput initiated = super.onKeyPress(
                 level,
                 player,
                 null,
@@ -124,23 +190,7 @@ public final class GerReturnToZeroAbility
                 || action.getPerformer() == null) {
             return false;
         }
-
-        LivingComponentAction actionComponent =
-                LivingComponentAction.getComponent(
-                        action.getPerformer());
-        try {
-            action.setPhase(ActionPhase.PERFORM, 0);
-            action.syncPhaseChanges();
-            action.actionPerformStart();
-            return action.result
-                    == GerRtzRewindService.Result.SUCCESS;
-        }
-        finally {
-            if (actionComponent.getAction() == action) {
-                actionComponent.setAction(
-                        null, SyncType.TRACKING_AND_SELF);
-            }
-        }
+        return performAtOnce(action);
     }
 
     public static final class ReturnToZeroAction

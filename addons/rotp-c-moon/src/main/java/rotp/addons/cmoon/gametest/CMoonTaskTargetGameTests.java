@@ -72,6 +72,8 @@ public final class CMoonTaskTargetGameTests {
         try {
             user.getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get()).standSide = HumanoidArm.RIGHT;
             Vec3 pos = helper.absoluteVec(new Vec3(2.5D, 12.0D, 2.5D));
+            // the user and the cow stand 3 blocks apart, past the one-block template's chunk when it lies at a border
+            new CMoonChunkTickets(helper).hold(pos, pos.add(3.0D, 1.0D, 0.0D));
             user.setNoGravity(true);
             user.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
             helper.assertTrue(level.addFreshEntity(user), "Could not add the C-Moon user");
@@ -173,6 +175,8 @@ public final class CMoonTaskTargetGameTests {
         BlockState behindReplaced = null;
         try {
             Vec3 pos = helper.absoluteVec(new Vec3(2.5D, 12.0D, 2.5D));
+            // the torch is 1 block and the cow 2 blocks south of the user
+            new CMoonChunkTickets(helper).hold(pos, pos.add(0.0D, 1.0D, 2.0D));
             user.setNoGravity(true);
             user.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
             user.setYHeadRot(0.0F);

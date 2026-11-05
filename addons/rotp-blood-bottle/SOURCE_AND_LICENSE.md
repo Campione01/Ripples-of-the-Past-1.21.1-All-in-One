@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-blood-bottle`, mod id `rotp_bb`, version `1.0.3.1-port.9`.
+- Module: `rotp-blood-bottle`, mod id `rotp_bb`, version `1.0.3.1-port.10`.
 - Original 1.16.5 add-on: `RotP-血瓶-1.0.3.1.jar` (Blood Bottle RotP Addon, mod id `rotp_bb`), by dikiytechies; declared license: GNU GPL v3.0; SHA-256 `C548D72546C239CC248243F127BE32776EF67FF1713AC81B4D3F9D69ED5A1881`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

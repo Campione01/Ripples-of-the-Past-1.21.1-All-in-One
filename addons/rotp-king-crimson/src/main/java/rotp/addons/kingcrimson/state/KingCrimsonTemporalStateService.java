@@ -2,15 +2,22 @@ package rotp.addons.kingcrimson.state;
 
 import java.util.UUID;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import org.slf4j.Logger;
+
+import com.mojang.logging.LogUtils;
+import rotp.core.api.time.EntityTimeRates;
+import rotp.core.api.time.event.TimeEraseStartEvent;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.movement_input_sync.PlayerMovementInputData;
+import rotp.core.subsystems.timestop.TimeStopState;
 
 import rotp.addons.kingcrimson.KingCrimsonAddon;
 import rotp.addons.kingcrimson.KingCrimsonConfig;
@@ -35,10 +42,14 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class KingCrimsonTemporalStateService {
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     private KingCrimsonTemporalStateService() {}
 
     public static boolean canStartTimeErase(
@@ -56,6 +67,14 @@ public final class KingCrimsonTemporalStateService {
     public static boolean beginTimeErase(
             ServerPlayer player) {
         if (!canStartTimeErase(player)) {
+            return false;
+        }
+        // A2-EVENTS, owner Q4: an answering ability (Gold Experience Requiem) returns the erase to zero.
+        if (!TimeEraseStartEvent.post(
+                player,
+                (int) Math.ceil(KingCrimsonConfig.timeEraseDurationTicks()
+                        / ownTimeRate(player)))) {
+            returnEraseToZero(player);
             return false;
         }
 
@@ -90,8 +109,29 @@ public final class KingCrimsonTemporalStateService {
 
         player.removeEffect(MobEffects.INVISIBILITY);
         player.removeEffect(ModStatusEffects.FULL_INVISIBILITY);
-        int effectTicks =
-                KingCrimsonConfig.timeEraseDurationTicks() + 2;
+        if (hiddenStand != null) {
+            hiddenStand.removeEffect(MobEffects.INVISIBILITY);
+        }
+        addEraseEffects(
+                player,
+                hiddenStand,
+                KingCrimsonConfig.timeEraseDurationTicks() + 2);
+        player.playNotifySound(
+                KingCrimsonAddon.TIME_ERASE_START.get(),
+                SoundSource.PLAYERS,
+                1.0F,
+                1.0F);
+        KingCrimsonAddon.syncTemporalState(player);
+        PacketDistributor.sendToPlayer(
+                player, TimeEraseTransitionPayload.INSTANCE);
+        KingCrimsonTimeEraseProjectionService.begin(player);
+        return true;
+    }
+
+    private static void addEraseEffects(
+            ServerPlayer player,
+            @Nullable StandEntity hiddenStand,
+            int effectTicks) {
         player.addEffect(new MobEffectInstance(
                 MobEffects.INVISIBILITY,
                 effectTicks,
@@ -114,7 +154,6 @@ public final class KingCrimsonTemporalStateService {
                 false,
                 true));
         if (hiddenStand != null) {
-            hiddenStand.removeEffect(MobEffects.INVISIBILITY);
             hiddenStand.addEffect(new MobEffectInstance(
                     MobEffects.INVISIBILITY,
                     effectTicks,
@@ -123,16 +162,42 @@ public final class KingCrimsonTemporalStateService {
                     false,
                     false));
         }
-        player.playNotifySound(
-                KingCrimsonAddon.TIME_ERASE_START.get(),
-                SoundSource.PLAYERS,
-                1.0F,
-                1.0F);
-        KingCrimsonAddon.syncTemporalState(player);
-        PacketDistributor.sendToPlayer(
-                player, TimeEraseTransitionPayload.INSTANCE);
-        KingCrimsonTimeEraseProjectionService.begin(player);
-        return true;
+    }
+
+    // KC-MIH: an erase that lasts longer in world ticks than it began with keeps its effects until its end.
+    private static void keepEraseEffects(
+            ServerPlayer player,
+            KingCrimsonTemporalState state,
+            long gameTime) {
+        MobEffectInstance marker =
+                player.getEffect(KingCrimsonAddon.TIME_ERASE);
+        long needed = state.expiresAt() - gameTime + 2L;
+        if (marker == null
+                || marker.isInfiniteDuration()
+                || marker.getDuration() >= needed) {
+            return;
+        }
+        StandEntity stand = summonedStand(player);
+        addEraseEffects(
+                player,
+                stand != null
+                                && stand.getUUID().equals(
+                                        state.hiddenStandUuid())
+                        ? stand
+                        : null,
+                (int) Math.min(Integer.MAX_VALUE, needed));
+    }
+
+    /**
+     * KC-MIH (A2-COMBINE): how fast a being's own time runs, the slowest rate any ability holds it to (Made in
+     * Heaven's mode A: 1/m), never faster than the world's here; 1 with no provider.
+     */
+    static float ownTimeRate(Entity entity) {
+        float rate = EntityTimeRates.rate(
+                EntityTimeRates.Channel.BEING, entity);
+        return rate > 0.0F && rate < 1.0F
+                ? Math.max(rate, 1.0F / EntityTimeRates.MAX_RATE)
+                : 1.0F;
     }
 
     public static boolean beginTimeSkip(
@@ -197,6 +262,8 @@ public final class KingCrimsonTemporalStateService {
                 destination.x,
                 destination.y,
                 destination.z);
+        // a skip into stopped time freezes the user where he lands (A2-REPIN)
+        TimeStopState.repinOrReleaseOnServer(player);
         advanceImpliedTickCounters(player, impliedTicks);
         advanceImpliedMobTicks(nearbyMobs, impliedTicks);
         player.level().playSound(
@@ -218,8 +285,23 @@ public final class KingCrimsonTemporalStateService {
         if (state.isIdle()) {
             return;
         }
+        // T1: no erase time or upkeep passes while frozen; core ServerPlayerTimeStopTickMixin already skips
+        // a frozen player's tick, a fake player is ticked by its owner
+        if (state.mode() == Mode.TIME_ERASE
+                && TimeStopState.shouldFreezeOnServer(player)) {
+            return;
+        }
 
         long gameTime = player.level().getGameTime();
+        // KC-MIH (T3-13): the erase runs in its user's own time; held back (Made in Heaven's mode A), its duration
+        // and upkeep run that many times slower in world ticks.
+        float ownRate = state.mode() == Mode.TIME_ERASE
+                ? ownTimeRate(player)
+                : 1.0F;
+        if (state.lagEraseTick(ownRate)) {
+            keepEraseEffects(player, state, gameTime);
+            KingCrimsonAddon.syncTemporalState(player);
+        }
         if (!player.isAlive()
                 || !KingCrimsonAddon.isKingCrimsonUser(player)
                 || gameTime >= state.expiresAt()) {
@@ -236,7 +318,7 @@ public final class KingCrimsonTemporalStateService {
                 Ability erase = power != null ? power.getAbility("kingcrimson_timeerase") : null;
                 // 1.16 KingCrimsonTimeErase.standTickPerform: a failed upkeep ends the erase without a message.
                 if (erase == null || !StandAbilityStamina.consume(
-                        erase, power, KingCrimsonConfig.timeEraseStaminaPerTick(), true)) {
+                        erase, power, KingCrimsonConfig.timeEraseStaminaPerTick() * ownRate, true)) {
                     terminate(player);
                     return;
                 }
@@ -265,9 +347,66 @@ public final class KingCrimsonTemporalStateService {
         }
         KingCrimsonTemporalState state =
                 KingCrimsonAddon.temporalState(player);
-        if (state.mode() == Mode.TIME_ERASE) {
+        if (state.mode() == Mode.TIME_ERASE
+                && !deferEndWhileFrozen(player)) {
             terminate(player);
         }
+    }
+
+    /**
+     * Owner rule T1 (2026-10-30): an erase frozen in someone's time stop cannot be ended by its user, so a
+     * release or an interaction during the stop ends it only when time resumes. True when the end was deferred.
+     */
+    public static boolean deferEndWhileFrozen(ServerPlayer player) {
+        if (!player.hasData(KingCrimsonAddon.TEMPORAL_STATE)) {
+            return false;
+        }
+        KingCrimsonTemporalState state =
+                KingCrimsonAddon.temporalState(player);
+        if (!state.isErasePaused()) {
+            return false;
+        }
+        state.requestEndOnResume();
+        return true;
+    }
+
+    /**
+     * Runs once per server tick for every erasing user, also while the user is frozen and so does not tick:
+     * time spent frozen in someone's time stop is added to the erase, which goes on with what was left.
+     */
+    public static void tickTimeStopPause(ServerPlayer player) {
+        KingCrimsonTemporalState state =
+                KingCrimsonAddon.temporalState(player);
+        if (state.mode() != Mode.TIME_ERASE) {
+            return;
+        }
+        if (player.isAlive()
+                && TimeStopState.shouldFreezeOnServer(player)) {
+            if (state.pauseEraseTick()) {
+                KingCrimsonAddon.syncTemporalState(player);
+            }
+            return;
+        }
+        if (state.isErasePaused()) {
+            boolean endRequested = state.resumeErase();
+            KingCrimsonAddon.syncTemporalState(player);
+            if (endRequested) {
+                terminate(player);
+            }
+        }
+    }
+
+    /** Whether the player erases time now, on either side (the clients have his synced state). */
+    public static boolean isErasing(Player player) {
+        return player.hasData(KingCrimsonAddon.TEMPORAL_STATE)
+                && KingCrimsonAddon.temporalState(player)
+                        .isErasing(player.level().getGameTime());
+    }
+
+    public static boolean isErasePaused(Player player) {
+        return player.hasData(KingCrimsonAddon.TEMPORAL_STATE)
+                && KingCrimsonAddon.temporalState(player)
+                        .isErasePaused();
     }
 
     public static void terminate(ServerPlayer player) {
@@ -303,6 +442,12 @@ public final class KingCrimsonTemporalStateService {
                 ? findStand(player, hiddenStandUuid)
                 : null;
         if (previousMode == Mode.TIME_ERASE) {
+            if (gameTime < state.expiresAt()) {
+                // An erase cut short names what cut it: the server cannot tell a key let go on the client from a press.
+                LOGGER.info("Time Erase of {} ended {} world ticks before its end (began at {}), by {}",
+                        player.getGameProfile().getName(), state.expiresAt() - gameTime, state.startedAt(),
+                        terminateCaller());
+            }
             KingCrimsonTimeEraseProjectionService.finish(player);
         }
         state.clear();
@@ -331,11 +476,48 @@ public final class KingCrimsonTemporalStateService {
         KingCrimsonAddon.syncTemporalState(player);
     }
 
+    /**
+     * Owner Q4: an erase returned to zero never begins: its user stays where he began (the event's position is where
+     * he stands), its activation stamina is paid by the action as for any refused erase, its cooldown is set, and the
+     * end of an erase is heard and seen.
+     */
+    private static String terminateCaller() {
+        return StackWalker.getInstance().walk(frames -> frames
+                .filter(frame -> !frame.getClassName().equals(KingCrimsonTemporalStateService.class.getName()))
+                .limit(5)
+                .map(frame -> frame.getClassName().substring(frame.getClassName().lastIndexOf('.') + 1)
+                        + "." + frame.getMethodName())
+                .collect(Collectors.joining(" <- ")));
+    }
+
+    private static void returnEraseToZero(ServerPlayer player) {
+        setTimeEraseCooldown(player, 0);
+        sendTimeEraseEndPresentation(player);
+    }
+
+    /** Rule G1 (A2-EVENTS RewindAppliedEvent): a rewind ends the erases that began after its point inside its region. */
+    public static void endErasesBegunAfter(
+            ServerLevel level, long rewindPoint, AABB region) {
+        for (ServerPlayer player : List.copyOf(level.players())) {
+            if (player.hasData(KingCrimsonAddon.TEMPORAL_STATE)) {
+                KingCrimsonTemporalState state =
+                        KingCrimsonAddon.temporalState(player);
+                if (state.mode() == Mode.TIME_ERASE
+                        && state.startedAt() > rewindPoint
+                        && region.intersects(player.getBoundingBox())) {
+                    terminate(player);
+                }
+            }
+        }
+    }
+
     private static boolean canStartTemporalAction(
             ServerPlayer player) {
+        // T1: a user frozen in someone's time stop starts neither an erase nor a skip (Epitaph's included).
         return player.isAlive()
                 && KingCrimsonAddon.isKingCrimsonUser(player)
-                && KingCrimsonAddon.temporalState(player).isIdle();
+                && KingCrimsonAddon.temporalState(player).isIdle()
+                && !TimeStopState.shouldFreezeOnServer(player);
     }
 
     private static boolean hasActiveTimeErase(
@@ -495,7 +677,8 @@ public final class KingCrimsonTemporalStateService {
         player.level().getEntitiesOfClass(
                         Mob.class,
                         player.getBoundingBox().inflate(8.0D),
-                        mob -> mob.getTarget() == player)
+                        mob -> mob.getTarget() == player
+                                && !TimeStopState.shouldFreezeOnServer(mob))
                 .forEach(mob -> {
                     if (mob.distanceToSqr(destination)
                             > mob.distanceToSqr(player)) {
@@ -522,21 +705,28 @@ public final class KingCrimsonTemporalStateService {
 
     private static List<Mob> collectTimeSkipMobs(
             ServerPlayer player) {
+        // RS-T3 D3 / rule G2: mob.tick() here bypasses the core's ServerLevelTimeStopTickMixin, so a mob frozen
+        // in a time stop must be left out or it would live through the skipped ticks.
         return player.level().getEntitiesOfClass(
                 Mob.class,
                 player.getBoundingBox().inflate(32.0D),
-                mob -> mob.isAlive() && !mob.isRemoved());
+                mob -> mob.isAlive() && !mob.isRemoved()
+                        && !TimeStopState.shouldFreezeOnServer(mob));
     }
 
     private static void advanceImpliedMobTicks(
             List<Mob> mobs, int impliedTicks) {
-        int ticks = Math.max(impliedTicks, 0);
-        if (ticks == 0) {
+        if (impliedTicks <= 0) {
             return;
         }
         for (Mob mob : mobs) {
+            // KC-MIH (T3-14): a mob whose own time is held back lives through that much less of the skip.
+            int ticks = (int) Math.floor(
+                    impliedTicks * ownTimeRate(mob) + 1.0E-4D);
             for (int i = 0; i < ticks; i++) {
-                if (!mob.isAlive() || mob.isRemoved()) {
+                // a mob that walks into stopped time during the skip stops there
+                if (!mob.isAlive() || mob.isRemoved()
+                        || TimeStopState.shouldFreezeOnServer(mob)) {
                     break;
                 }
                 // The 1.16.5 ability advanced nearby entities through their
@@ -627,6 +817,18 @@ public final class KingCrimsonTemporalStateService {
                 "kingcrimson_timeerase");
         if (ability != null) {
             ability.setCooldownOnUse(power, elapsedTicks);
+            // KC-MIH (T3-13): the cooldown runs in the user's own time. The core counts Stand cooldowns down at
+            // the STAND_ACTIONS rate already, so only a slower own time is added here.
+            float own = ownTimeRate(player);
+            float counted = Math.min(1.0F, EntityTimeRates.rate(
+                    EntityTimeRates.Channel.STAND_ACTIONS, player));
+            int cooldown = power.getAbilityCooldown(
+                    "kingcrimson_timeerase");
+            if (cooldown > 0 && own < counted) {
+                power.setAbilityCooldown(
+                        "kingcrimson_timeerase",
+                        (int) Math.ceil(cooldown * counted / own));
+            }
         }
     }
 }

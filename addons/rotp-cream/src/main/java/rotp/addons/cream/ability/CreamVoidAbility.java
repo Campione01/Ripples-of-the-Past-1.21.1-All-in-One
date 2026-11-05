@@ -289,23 +289,15 @@ public final class CreamVoidAbility extends StandEntityAbility {
             }
 
             switch (voidAbility.kind) {
+                // 1.16 played neither cream_void_form clip: the ball's entry
+                // sound is CreamEntity's cream_void_start, Cream's none
                 case BALL -> {
                     stand.beginVoidMode(VoidMode.BALL);
                     lockCancel(power, CreamAddon.CREAM_VOID_BALL_CANCEL_NAME);
-                    StandUtil.playStandEntitySound(
-                            stand,
-                            CreamAddon.CREAM_VOID_FORM,
-                            1.0F,
-                            1.0F);
                 }
                 case SEMI -> {
                     stand.beginVoidMode(VoidMode.SEMI);
                     lockCancel(power, CreamAddon.CREAM_SEMI_VOID_CANCEL_NAME);
-                    StandUtil.playStandEntitySound(
-                            stand,
-                            CreamAddon.CREAM_VOID_FORM_SHORT,
-                            1.0F,
-                            1.0F);
                 }
                 case DASH -> stand.beginVoidMode(VoidMode.DASH);
                 case CANCEL_BALL, CANCEL_SEMI ->

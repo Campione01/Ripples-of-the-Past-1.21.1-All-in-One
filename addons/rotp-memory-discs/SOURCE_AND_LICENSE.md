@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-memory-discs`, mod id `rotp_mds`, version `1.0.0-port.5`.
+- Module: `rotp-memory-discs`, mod id `rotp_mds`, version `1.0.0-port.6`.
 - Original 1.16.5 add-on: `RotP-能力光碟-1.0.jar` (RotP Memory Discs, mod id `rotp_mds`), by Hello There; declared license: GNU GPL v3.0; SHA-256 `536B19FAEE6A450284531280811659E64DBE915E47C6434769B2D01E72DBD554`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-09-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

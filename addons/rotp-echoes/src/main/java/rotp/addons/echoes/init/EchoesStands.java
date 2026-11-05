@@ -5,6 +5,7 @@ import rotp.core.powersystem.standpower.entity.EntityStandType;
 import rotp.core.powersystem.standpower.type.StandType;
 
 import rotp.addons.echoes.RotpEchoes;
+import rotp.addons.echoes.stand.EchoesAct0Stand;
 import rotp.addons.echoes.stand.EchoesAct1Stand;
 import rotp.addons.echoes.stand.EchoesAct2Stand;
 import rotp.addons.echoes.stand.EchoesAct3Stand;
@@ -16,6 +17,8 @@ public final class EchoesStands {
             DeferredRegister.create(
                     JojoRegistries.DEFAULT_STANDS_REG, RotpEchoes.MOD_ID);
 
+    public static final DeferredHolder<StandType, EntityStandType> ECHOES_ACT0 =
+            STANDS.register("echoes_act0", EchoesAct0Stand::create);
     public static final DeferredHolder<StandType, EntityStandType> ECHOES_ACT1 =
             STANDS.register("echoes_act1", EchoesAct1Stand::create);
     public static final DeferredHolder<StandType, EntityStandType> ECHOES_ACT2 =

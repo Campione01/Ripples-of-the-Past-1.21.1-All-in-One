@@ -7,6 +7,7 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
@@ -46,7 +47,9 @@ public final class WeatherReportFinisherAbility
                 boolean hurt) {
             super.afterHeavyPunchHit(
                     stand, target, damageSource, damageAmount, hurt);
-            target.igniteForSeconds(FIRE_SECONDS);
+            // Owner T2: past the base reach the fire and the guard break fall with the damage.
+            float reach = StandMeleeReach.strikeFactor(stand, target);
+            target.igniteForSeconds(FIRE_SECONDS * reach);
 
             if (target instanceof StandEntity targetStand
                     && targetStand.isStandBlocking()) {
@@ -55,7 +58,8 @@ public final class WeatherReportFinisherAbility
                 float proximity = 1.0F
                         - Mth.clamp(stand.distanceTo(targetStand) / range,
                                 0.0F, 1.0F);
-                float breakChance = Math.max(proximity - 0.25F, 0.0F);
+                float breakChance = Math.max(proximity - 0.25F, 0.0F)
+                        * reach;
                 if (stand.getRandom().nextFloat() < breakChance) {
                     targetStand.breakStandBlocking(
                             StandStatFormulas.getGuardBreakTicks(

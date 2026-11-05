@@ -240,6 +240,11 @@ public final class BookStateService {
         updatePageModifiers(target, state.pageCount());
         updateForgottenEffects(target, owner, state.pageCount());
         HeavensDoorAddon.syncBookState(target);
+        // 1.2 LivingUtilCap.removeEffects: once no page is left out, the book
+        // effect goes too
+        if (state.pageCount() == 0) {
+            clear(target);
+        }
         return true;
     }
 

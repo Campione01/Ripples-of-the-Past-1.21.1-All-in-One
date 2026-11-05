@@ -97,6 +97,7 @@ public final class SexPistolsClientConfigSnapshot {
                     payload.hungerEnabled(),
                     payload.hungerMinTicks(),
                     payload.hungerExtraTicks(),
+                    payload.recoilMultiplier(),
                     true));
             CALLBACKS_APPLIED.incrementAndGet();
             return true;
@@ -159,6 +160,7 @@ public final class SexPistolsClientConfigSnapshot {
                 SexPistolsConfig.hungerEnabled(),
                 SexPistolsConfig.hungerMinTicks(),
                 SexPistolsConfig.hungerExtraTicks(),
+                SexPistolsConfig.recoilMultiplier(),
                 false);
     }
 
@@ -177,6 +179,7 @@ public final class SexPistolsClientConfigSnapshot {
                 SexPistolsConfig.DEFAULT_SEX_PISTOLS_HUNGER_ENABLED,
                 SexPistolsConfig.DEFAULT_SEX_PISTOLS_HUNGER_MIN_TICKS,
                 SexPistolsConfig.DEFAULT_SEX_PISTOLS_HUNGER_EXTRA_TICKS,
+                SexPistolsConfig.DEFAULT_RECOIL_MULTIPLIER,
                 false);
     }
 
@@ -194,6 +197,7 @@ public final class SexPistolsClientConfigSnapshot {
             boolean hungerEnabled,
             int hungerMinTicks,
             int hungerExtraTicks,
+            double recoilMultiplier,
             boolean serverAuthoritative) {}
 
     public record Diagnostics(

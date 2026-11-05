@@ -22,6 +22,7 @@ import net.neoforged.fml.config.ModConfigs;
 import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import rotp.addons.sexpistols.config.SexPistolsClientConfig;
 import rotp.addons.sexpistols.config.SexPistolsConfig;
 
 /**
@@ -38,9 +39,22 @@ public final class SexPistolsConfigScreenGameTests {
     @GameTest(templateNamespace = "rotp_addon_api_smoke", template = "empty", timeoutTicks = 20)
     public static void everyConfigScreenEntryIsNamedInEveryShippedLanguage(GameTestHelper helper) {
         List<ModConfig> configs = ModConfigs.getModConfigs(SexPistolsIds.MOD_ID);
-        helper.assertTrue(configs.size() == 1 && configs.get(0).getSpec() == SexPistolsConfig.SPEC,
-                "Sex Pistols registers one config file, its common spec: got " + configs.size());
-        Set<String> keys = screenKeys(SexPistolsIds.MOD_ID, configs.get(0));
+        // The common spec and, since Next Album 0.1.13's Revolver Display, a client spec.
+        // A dedicated (game test) server may not track the client file, so its values are walked from the spec.
+        helper.assertTrue(configs.stream().anyMatch(config -> config.getSpec() == SexPistolsConfig.SPEC)
+                        && configs.stream().allMatch(config -> config.getSpec() == SexPistolsConfig.SPEC
+                                || config.getSpec() == SexPistolsClientConfig.SPEC),
+                "Sex Pistols registers its common and client config files only: got " + configs.size());
+        Set<String> keys = new LinkedHashSet<>();
+        for (ModConfig config : configs) {
+            keys.addAll(screenKeys(SexPistolsIds.MOD_ID, config));
+        }
+        keys.add(SexPistolsIds.MOD_ID + ".configuration.section.rotp.sex.pistols.client.toml");
+        keys.add(SexPistolsIds.MOD_ID + ".configuration.section.rotp.sex.pistols.client.toml.title");
+        collect(SexPistolsIds.MOD_ID, SexPistolsClientConfig.SPEC, SexPistolsClientConfig.SPEC.getSpec(),
+                List.of(), keys);
+        helper.assertTrue(keys.contains("rotp_sex_pistols.options.gunSwaySensitivity"),
+                "The config spec walk missed a client value: " + keys);
         helper.assertTrue(keys.contains("rotp_sex_pistols.config.sexPistolsHungerExtraTicks"),
                 "The config spec walk missed a value: " + keys);
         for (String locale : LOCALES) {

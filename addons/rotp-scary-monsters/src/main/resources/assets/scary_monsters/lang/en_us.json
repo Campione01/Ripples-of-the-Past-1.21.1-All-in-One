@@ -50,6 +50,6 @@
   "scary_monsters.configuration.section.scary.monsters.common.toml": "Common Settings",
   "scary_monsters.configuration.section.scary.monsters.common.toml.title": "RotP Scary Monsters Common Settings",
   "scary_monsters.configuration.dragon_form": "Dragon Form",
-  "scary_monsters.configuration.dragonFormDamageReduction": "Dragon Form Damage Reduction",
+  "scary_monsters.configuration.dragonFormDamageReduction": "Dragon Damage Reduction",
   "scary_monsters.configuration.dragonFormDamageReduction.tooltip": "Damage reduction ratio in Dragon Form. 0.0 gives no reduction and 1.0 gives immunity."
 }

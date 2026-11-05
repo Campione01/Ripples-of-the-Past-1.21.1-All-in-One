@@ -15,11 +15,15 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
@@ -36,6 +40,19 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 @EventBusSubscriber(modid = StickyFingersAddon.MOD_ID)
 public final class StickyFingersGameEvents {
     private StickyFingersGameEvents() {}
+
+    // Sticky Fingers 1.0.2 GameplayEvents.onSwimSizeSet: a lying humanoid mob
+    // is as tall as it is wide, with its eyes at 0.85 of that.
+    @SubscribeEvent
+    public static void onEntitySize(EntityEvent.Size event) {
+        if (event.getPose() == Pose.SWIMMING
+                && event.getEntity() instanceof LivingEntity target
+                && !(target instanceof Player)
+                && ZipperCombatData.isSupportedTarget(target)) {
+            float width = event.getNewSize().width();
+            event.setNewSize(EntityDimensions.fixed(width, width));
+        }
+    }
 
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
@@ -214,13 +231,22 @@ public final class StickyFingersGameEvents {
         }
     }
 
+    // 1.16 ZipperEffect.onEntityHurt: x1.5. A kill's Float.MAX_VALUE times
+    // 1.5 is infinite, and the damage container's armour step (infinite
+    // minus infinite) then left the mob with NaN health that never dies;
+    // such a hit is lethal anyway and is left as it is.
     @SubscribeEvent
     public static void onLivingIncomingDamage(
             LivingIncomingDamageEvent event) {
+        float amount = event.getAmount();
         if (event.getEntity().hasEffect(
-                StickyFingersAddon.ZIPPER_EFFECT)) {
+                        StickyFingersAddon.ZIPPER_EFFECT)
+                && amount > 0.0F
+                && amount <= Float.MAX_VALUE
+                        / StickyFingersPhase1Spec
+                                .ZIPPER_EFFECT_DAMAGE_MULTIPLIER) {
             event.setAmount(
-                    event.getAmount()
+                    amount
                             * StickyFingersPhase1Spec
                                     .ZIPPER_EFFECT_DAMAGE_MULTIPLIER);
         }

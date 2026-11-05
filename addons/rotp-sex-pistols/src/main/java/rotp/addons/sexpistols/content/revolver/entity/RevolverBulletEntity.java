@@ -29,6 +29,8 @@ import rotp.core.util.functions.JojoModUtil;
 
 import rotp.addons.sexpistols.config.SexPistolsConfig;
 import rotp.addons.sexpistols.content.revolver.state.RevolverSpecialChambers.ShotType;
+import rotp.addons.sexpistols.content.revolver.item.RevolverStats;
+import rotp.addons.sexpistols.content.sexpistols.SexPistolsGuidance;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsCoordinator;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsEntity;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsJoyful;
@@ -54,6 +56,7 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageType;
@@ -174,6 +177,8 @@ public final class RevolverBulletEntity
     public final List<Vec3> tracePos = new LinkedList<>();
 
     private double travelDistance;
+    private RevolverStats gunStats = RevolverStats.MISTA;
+    private boolean fireCritical;
     @Nullable
     private UUID sexPistolsOwnerUuid;
     private BigInteger ownerLifecycleEpoch = INVALID_OWNER_EPOCH;
@@ -192,6 +197,7 @@ public final class RevolverBulletEntity
     private int piercingTicks;
     private int piercingBlocksPierced;
     private final Set<UUID> piercingHitTargets = new HashSet<>();
+    private final Set<BlockPos> passThroughRedstoneHits = new HashSet<>();
     private boolean splittingFragment;
     @Nullable
     private UUID splittingTargetUuid;
@@ -344,6 +350,16 @@ public final class RevolverBulletEntity
             appendTrace(position());
         }
         else if (level() instanceof ServerLevel serverLevel) {
+            ServerPlayer redstonePlayer =
+                    RevolverRedstone.resolvePlayer(getOwner());
+            if (redstonePlayer != null) {
+                RevolverRedstone.activateAlongPath(
+                        serverLevel,
+                        before,
+                        position(),
+                        redstonePlayer,
+                        passThroughRedstoneHits);
+            }
             if (removeIfUnsafeSexPistolsDistance(serverLevel)) {
                 return;
             }
@@ -638,6 +654,7 @@ public final class RevolverBulletEntity
             }
             return;
         }
+        activateDevicesUpTo(hit.getLocation());
         if (specialShotType() == ShotType.ENCIRCLEMENT) {
             handleEncirclementEntityHit(hit);
             return;
@@ -685,8 +702,26 @@ public final class RevolverBulletEntity
         discard();
     }
 
+    // The hit comes before tick's scan of the flight and usually ends the bullet, so the stretch up to it, where a lever
+    // or button on the wall it hits lies, is scanned here.
+    private void activateDevicesUpTo(Vec3 impact) {
+        if (level() instanceof ServerLevel serverLevel) {
+            ServerPlayer redstonePlayer =
+                    RevolverRedstone.resolvePlayer(getOwner());
+            if (redstonePlayer != null) {
+                RevolverRedstone.activateAlongPath(
+                        serverLevel,
+                        position(),
+                        impact,
+                        redstonePlayer,
+                        passThroughRedstoneHits);
+            }
+        }
+    }
+
     @Override
     protected void onHitBlock(BlockHitResult hit) {
+        activateDevicesUpTo(hit.getLocation());
         if (specialShotType() == ShotType.ENCIRCLEMENT) {
             if (level() instanceof ServerLevel serverLevel) {
                 if (!encirclementActive) {
@@ -707,6 +742,24 @@ public final class RevolverBulletEntity
         if (state.isAir()) {
             setPos(hit.getLocation());
             return;
+        }
+        if (RevolverRedstone.isHitDevice(state)) {
+            ServerPlayer redstonePlayer =
+                    RevolverRedstone.resolvePlayer(getOwner());
+            Vec3 shot = getDeltaMovement();
+            if (redstonePlayer != null
+                    && RevolverRedstone.tryActivate(
+                            serverLevel,
+                            pos,
+                            state,
+                            redstonePlayer,
+                            hit.getDirection(),
+                            shot.lengthSqr() > 1.0E-6D
+                                    ? hit.getLocation().add(shot.normalize())
+                                    : hit.getLocation())) {
+                discard();
+                return;
+            }
         }
 
         float hardness = state.getDestroySpeed(serverLevel, pos);
@@ -1197,12 +1250,29 @@ public final class RevolverBulletEntity
         redirectedMemberMask |= 1 << slot;
         resolveRicochetCount++;
 
-        LivingEntity target = findTarget(
+        // 0.1.13: forced targets first, then the AIM lock.
+        SexPistolsGuidance.Plan plan = SexPistolsGuidance.plan(
                 level,
                 owner,
+                coordinator,
+                this,
+                member,
                 hitPosition,
-                coordinator.targetMode(),
-                specialShotType() == ShotType.SPLITTING);
+                getDeltaMovement(),
+                redirectedMemberMask,
+                lockedTargetUuid != null
+                        && level.getEntity(lockedTargetUuid)
+                                instanceof LivingEntity locked
+                        ? locked
+                        : null);
+        LivingEntity target = plan != null
+                ? plan.target()
+                : findTarget(
+                        level,
+                        owner,
+                        hitPosition,
+                        coordinator.targetMode(),
+                        specialShotType() == ShotType.SPLITTING);
         if (specialShotType() == ShotType.SPLITTING
                 && !splittingFragment
                 && target != null
@@ -1217,17 +1287,25 @@ public final class RevolverBulletEntity
                         returnAfterKick)) {
             return true;
         }
-        SexPistolsEntity relay = findRelay(
-                level,
-                owner,
-                member,
-                target,
-                coordinator,
-                hitPosition);
+        SexPistolsEntity relay = plan != null && plan.relay() != null
+                ? plan.relay()
+                : findRelay(
+                        level,
+                        owner,
+                        member,
+                        target,
+                        coordinator,
+                        hitPosition);
 
         Vec3 aimPoint;
         if (relay != null) {
             aimPoint = relay.getBoundingBox().getCenter();
+            lockedTargetUuid =
+                    target != null ? target.getUUID() : null;
+            lastTransferMemberUuid = member.getUUID();
+        }
+        else if (plan != null) {
+            aimPoint = plan.aimPoint();
             lockedTargetUuid =
                     target != null ? target.getUUID() : null;
             lastTransferMemberUuid = member.getUUID();
@@ -1567,7 +1645,7 @@ public final class RevolverBulletEntity
         }
 
         float configuredPiercingDamage = configuredDamage(
-                PIERCING_DAMAGE);
+                gunStats.piercingDamage());
         float damage = entityData.get(SPECIAL_CRITICAL)
                 ? configuredPiercingDamage
                         * PIERCING_CRITICAL_MULTIPLIER
@@ -2633,6 +2711,7 @@ public final class RevolverBulletEntity
                         level);
         fragment.setPos(spawnPosition);
         fragment.setDeltaMovement(initialMotion);
+        fragment.gunStats = gunStats;
         fragment.resolveRicochetCount =
                 resolveRicochetCount + 1;
         fragment.setSplittingFragment(
@@ -2851,26 +2930,45 @@ public final class RevolverBulletEntity
                 targetSearchRange * 2.0D,
                 targetSearchRange * 2.0D,
                 targetSearchRange * 2.0D);
-        return level.getEntitiesOfClass(
-                        LivingEntity.class,
-                        search,
-                        candidate ->
-                                isValidTarget(
-                                         owner,
-                                         candidate,
-                                         mode,
-                                         allowEnemyStands)
-                                && hasLineOfSight(
-                                        level,
-                                        this,
-                                        origin,
-                                        candidate.getBoundingBox()
-                                                .getCenter()))
-                .stream()
+        List<LivingEntity> candidates = level.getEntitiesOfClass(
+                LivingEntity.class,
+                search,
+                candidate -> isValidTarget(
+                                owner,
+                                candidate,
+                                mode,
+                                allowEnemyStands)
+                        && candidate.distanceToSqr(origin)
+                                <= targetSearchRange
+                                        * targetSearchRange);
+        LivingEntity seen = candidates.stream()
+                .filter(candidate -> hasLineOfSight(
+                        level,
+                        this,
+                        origin,
+                        candidate.getBoundingBox().getCenter()))
                 .min(Comparator.comparingDouble(
                         candidate ->
                                 candidate.distanceToSqr(origin)))
                 .orElse(null);
+        if (seen != null) {
+            return seen;
+        }
+        // 0.1.13 findBestEffortAttack: with no clear line, the nearest
+        // target is still shot at instead of sending the bullet on.
+        return candidates.stream()
+                .min(Comparator.comparingDouble(
+                        candidate ->
+                                candidate.distanceToSqr(origin)))
+                .orElse(null);
+    }
+
+    // 0.1.13 captureSexPistolsFireTarget: an AIM-mode shot starts locked on
+    // the aimed target.
+    public void lockAimTarget(@Nullable LivingEntity target) {
+        lockedTargetUuid = target != null && target.isAlive()
+                ? target.getUUID()
+                : null;
     }
 
     @Nullable
@@ -2987,7 +3085,7 @@ public final class RevolverBulletEntity
             case HOSTILE -> target instanceof Monster;
             case FRIENDLY -> !(target instanceof Player)
                     && !(target instanceof Monster);
-            case ALL -> !(target instanceof Player player)
+            case ALL, AIM -> !(target instanceof Player player)
                     || !(owner instanceof Player ownerPlayer)
                     || ownerPlayer.canHarmPlayer(player);
         };
@@ -3101,15 +3199,28 @@ public final class RevolverBulletEntity
                     SPLITTING_FRAGMENT_DAMAGE);
         }
         else {
+            // 0.1.13 applyGunStats: the gun's ranges scale with the configured
+            // ones (defaults 5 and 50); its minimum never drops below the config's.
+            double multiplier =
+                    SexPistolsConfig.bulletDamageMultiplier();
             damage = RevolverBallistics.distanceScaledDamage(
                     travelDistance,
-                    SexPistolsConfig.closeDamageDropDistance(),
-                    SexPistolsConfig.stableDamageEndDistance(),
-                    SexPistolsConfig.minDistanceDamage(),
-                    SexPistolsConfig.bulletDamageMultiplier(),
-                    CLOSE_DAMAGE,
-                    STABLE_DAMAGE,
-                    FAR_DAMAGE_DROP_RATE);
+                    gunStats.closeRange()
+                            * SexPistolsConfig.closeDamageDropDistance()
+                            / RevolverStats.DEFAULT_CLOSE_RANGE,
+                    gunStats.stableRange()
+                            * SexPistolsConfig.stableDamageEndDistance()
+                            / RevolverStats.DEFAULT_STABLE_RANGE,
+                    Math.max(
+                            gunStats.minDistanceDamage() * multiplier,
+                            SexPistolsConfig.minDistanceDamage()),
+                    multiplier,
+                    gunStats.closeDamage(),
+                    gunStats.stableDamage(),
+                    gunStats.farDropRate());
+            if (fireCritical) {
+                damage *= RevolverStats.CRITICAL_DAMAGE_MULTIPLIER;
+            }
         }
         LivingEntity owner = getOwner();
         return owner != null
@@ -3157,10 +3268,28 @@ public final class RevolverBulletEntity
         return false;
     }
 
+    public void setGunStats(RevolverStats stats) {
+        gunStats = stats != null ? stats : RevolverStats.MISTA;
+    }
+
+    public RevolverStats gunStats() {
+        return gunStats;
+    }
+
+    public void setFireCritical(boolean critical) {
+        fireCritical = critical;
+    }
+
+    public boolean isFireCritical() {
+        return fireCritical;
+    }
+
     @Override
     protected void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putDouble("BulletTravelDistance", travelDistance);
+        tag.putString("GunStats", gunStats.id());
+        tag.putBoolean("FireCritical", fireCritical);
         getStandSkin().ifPresent(value ->
                 tag.putString(
                         "SexPistolsSkin",
@@ -3322,6 +3451,8 @@ public final class RevolverBulletEntity
         travelDistance = Math.max(
                 0.0D,
                 tag.getDouble("BulletTravelDistance"));
+        gunStats = RevolverStats.byId(tag.getString("GunStats"));
+        fireCritical = tag.getBoolean("FireCritical");
         ResourceLocation standSkin = tag.contains(
                 "SexPistolsSkin")
                 ? ResourceLocation.tryParse(

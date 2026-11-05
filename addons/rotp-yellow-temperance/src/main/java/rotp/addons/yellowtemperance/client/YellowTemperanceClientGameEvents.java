@@ -56,6 +56,7 @@ public final class YellowTemperanceClientGameEvents {
         if (event.getEntity() instanceof AbstractClientPlayer player) {
             YellowTemperanceDisguiseLayer.renderEntityDisguise(
                     player,
+                    event.getRenderer().getModel(),
                     event.getPoseStack(),
                     event.getMultiBufferSource(),
                     event.getPackedLight(),

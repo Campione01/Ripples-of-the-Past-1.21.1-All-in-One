@@ -1,0 +1,28 @@
+{
+  "variants": {
+    "facing=north,variant=0": { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=south,variant=0": { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=east,variant=0":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=west,variant=0":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=up,variant=0":    { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=down,variant=0":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=north,variant=1": { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=south,variant=1": { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=east,variant=1":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=west,variant=1":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=up,variant=1":    { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=down,variant=1":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=north,variant=2": { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=south,variant=2": { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=east,variant=2":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=west,variant=2":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=up,variant=2":    { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=down,variant=2":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=north,variant=3": { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=south,variant=3": { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=east,variant=3":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=west,variant=3":  { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=up,variant=3":    { "model": "rotp_echoes:block/onomatopoeia_mark" },
+    "facing=down,variant=3":  { "model": "rotp_echoes:block/onomatopoeia_mark" }
+  }
+}

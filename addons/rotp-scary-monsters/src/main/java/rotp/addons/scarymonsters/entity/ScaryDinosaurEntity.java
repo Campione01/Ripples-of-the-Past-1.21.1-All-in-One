@@ -11,19 +11,19 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.ai.goal.FloatGoal;
-import net.minecraft.world.entity.ai.goal.LeapAtTargetGoal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
-import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
-import net.minecraft.world.entity.ai.goal.RandomStrollGoal;
+import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -48,8 +48,12 @@ public final class ScaryDinosaurEntity extends PathfinderMob {
 
     /** Persistent-data key of the dinosaur snapshot a camouflage stone carries (the 1.16 name). */
     public static final String CAMOUFLAGE_TAG = "DinoSourceNBT";
+    /** 1.16 PURSUIT_SPEED, the movement speed while it chases its owner's fight. */
+    private static final double PURSUIT_SPEED = 0.7D;
+    private static final ResourceLocation PURSUIT_SPEED_ID = ScaryMonstersAddon.id("dinosaur_pursuit");
 
     private UUID ownerUuid;
+    private boolean pursuing;
     private UUID possessedPlayerUuid;
     private boolean camouflaging;
     private CompoundTag sourceEntityNbt;
@@ -72,21 +76,65 @@ public final class ScaryDinosaurEntity extends PathfinderMob {
                 .add(Attributes.KNOCKBACK_RESISTANCE, 0.2D);
     }
 
+    /**
+     * 1.16 DinosaurEntity.registerGoals: it hunts every living thing but dinosaurs and its owner (the port hunted
+     * players only, so next to its owner a dinosaur stood still until something hit it), and while it pursues for its
+     * owner it takes no other target.
+     */
     @Override
     protected void registerGoals() {
-        goalSelector.addGoal(0, new FloatGoal(this));
-        goalSelector.addGoal(2, new LeapAtTargetGoal(this, 0.45F));
-        goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.25D, true));
-        goalSelector.addGoal(6, new RandomStrollGoal(this, 1.0D));
-        goalSelector.addGoal(7, new LookAtPlayerGoal(this, Player.class, 8.0F));
-        goalSelector.addGoal(8, new RandomLookAroundGoal(this));
+        goalSelector.addGoal(1, new MeleeAttackGoal(this, 1.2D, true));
+        goalSelector.addGoal(2, new WaterAvoidingRandomStrollGoal(this, 0.8D));
+        goalSelector.addGoal(3, new LookAtPlayerGoal(this, Player.class, 8.0F));
         targetSelector.addGoal(1, new HurtByTargetGoal(this));
         targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(
                 this,
-                Player.class,
+                LivingEntity.class,
+                10,
                 true,
-                player -> ownerUuid == null
-                        || !player.getUUID().equals(ownerUuid)));
+                false,
+                target -> !pursuing
+                        && !(target instanceof ScaryDinosaurEntity)
+                        && !isOwner(target)));
+    }
+
+    private boolean isOwner(@Nullable Entity entity) {
+        return entity != null && ownerUuid != null && ownerUuid.equals(entity.getUUID());
+    }
+
+    // 1.16 aiStep dropped the owner as a target (HurtByTargetGoal takes it when the owner hits) and ended a pursuit
+    // with its target.
+    @Override
+    public void aiStep() {
+        if (!level().isClientSide()) {
+            if (isOwner(getTarget())) setTarget(null);
+            if (pursuing && (getTarget() == null || !getTarget().isAlive())) endPursuit();
+        }
+        super.aiStep();
+    }
+
+    @Override
+    public boolean doHurtTarget(Entity target) {
+        return !isOwner(target) && super.doHurtTarget(target);
+    }
+
+    /** 1.16 setPursuitTarget: the owner's fight becomes this dinosaur's target, chased at speed 0.7. */
+    public void setPursuitTarget(LivingEntity target) {
+        if (level().isClientSide() || target == this || !target.isAlive() || isOwner(target)) return;
+        setTarget(target);
+        pursuing = true;
+        AttributeInstance speed = getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed != null) {
+            speed.removeModifier(PURSUIT_SPEED_ID);
+            speed.addTransientModifier(new AttributeModifier(
+                    PURSUIT_SPEED_ID, PURSUIT_SPEED - speed.getBaseValue(), AttributeModifier.Operation.ADD_VALUE));
+        }
+    }
+
+    private void endPursuit() {
+        pursuing = false;
+        AttributeInstance speed = getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed != null) speed.removeModifier(PURSUIT_SPEED_ID);
     }
 
     @Override

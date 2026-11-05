@@ -18,8 +18,16 @@
   "rotp_mih.configuration.title": "Configuración de RotP Made in Heaven",
   "rotp_mih.configuration.section.rotp.mih.client.toml": "Ajustes del cliente",
   "rotp_mih.configuration.section.rotp.mih.client.toml.title": "Configuración de cliente de Made in Heaven",
-  "rotp_mih.configuration.Client config": "Ajustes del cliente",
+  "rotp_mih.configuration.Client config": "Cliente",
   "rotp_mih.configuration.Client config.tooltip": "Ajustes que solo cambian lo que muestra este cliente.",
-  "rotp_mih.config.client.enableNewTSIcons": "Nuevos iconos del Sistema Temporal",
-  "rotp_mih.config.client.enableNewTSIcons.tooltip": "Usa los nuevos iconos de reloj para Aceleración y Cancelar del Sistema Temporal."
+  "rotp_mih.config.client.enableNewTSIcons": "Nuevos iconos de reloj",
+  "rotp_mih.config.client.enableNewTSIcons.tooltip": "Usa los nuevos iconos de reloj para Aceleración y Cancelar del Sistema Temporal.",
+  "rotp_mih.configuration.section.rotp.mih.server.toml": "Ajustes del servidor",
+  "rotp_mih.configuration.section.rotp.mih.server.toml.title": "Configuración de servidor de Made in Heaven",
+  "rotp_mih.config.server.timeAcceleration": "Aceleración temporal",
+  "rotp_mih.config.server.timeAcceleration.tooltip": "Cómo funciona la aceleración temporal de Made in Heaven en este servidor.",
+  "rotp_mih.config.server.accelerationMode": "Modo de aceleración",
+  "rotp_mih.config.server.accelerationMode.tooltip": "El mundo se acelera: los seres vivos conservan su propio tiempo; proyectiles, objetos, bloques que caen, cultivos, fluidos, hornos y el clima van m veces más rápido, y el usuario ataca, pica, usa objetos y su Stand a ese ritmo. Los demás se quedan atrás: el usuario mantiene su velocidad y todos los demás seres vivos van m veces más lento. Cada aceleración conserva el modo con el que empezó.",
+  "rotp_mih.config.server.accelerationMode.others_fall_behind": "Los demás se quedan atrás",
+  "rotp_mih.config.server.accelerationMode.world_accelerates": "El mundo se acelera"
 }

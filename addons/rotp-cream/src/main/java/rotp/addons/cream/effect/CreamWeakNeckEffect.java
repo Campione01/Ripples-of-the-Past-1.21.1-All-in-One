@@ -34,8 +34,9 @@ public final class CreamWeakNeckEffect extends StatusEffectModified {
                     amplifier + 1,
                     false,
                     false));
+            // 1.16 WeakNeckEffect :56: Effects.field_76437_t, WEAKNESS
             entity.addEffect(new MobEffectInstance(
-                    MobEffects.CONFUSION,
+                    MobEffects.WEAKNESS,
                     100,
                     amplifier + 1,
                     false,

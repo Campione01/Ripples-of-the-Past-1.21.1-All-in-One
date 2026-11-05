@@ -7,6 +7,7 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import rotp.addons.spicegirl.SpiceGirlAddon;
 import rotp.addons.spicegirl.entity.SpiceGirlStandEntity;
@@ -23,6 +24,7 @@ public final class SpiceGirlHeavyPunchAbility
     public static final float LEGACY_EXTRA_KNOCKBACK = 0.5F;
     public static final float LEGACY_UPPER_ANGLE_DEGREES = -10.0F;
     public static final int ELASTIC_DURATION_TICKS = 300;
+    public static final int LEVITATION_DURATION_TICKS = 50;
 
     public SpiceGirlHeavyPunchAbility(
             AbilityType<?> abilityType, AbilityId abilityId) {
@@ -85,10 +87,12 @@ public final class SpiceGirlHeavyPunchAbility
                     && stand instanceof SpiceGirlStandEntity spiceGirl
                     && stand.getUser()
                             instanceof ServerPlayer owner) {
+                // Owner T2: past the base reach the effects fall with the strike's damage.
+                float reach = StandMeleeReach.strikeFactor(stand, target);
                 target.addEffect(
                         new MobEffectInstance(
                                 MobEffects.LEVITATION,
-                                50,
+                                scaledTicks(LEVITATION_DURATION_TICKS, reach),
                                 0,
                                 false,
                                 false,
@@ -97,9 +101,13 @@ public final class SpiceGirlHeavyPunchAbility
                         owner,
                         spiceGirl,
                         target,
-                        elasticDurationTicks(),
+                        scaledTicks(elasticDurationTicks(), reach),
                         elasticAmplifier());
             }
+        }
+
+        static int scaledTicks(int ticks, float reachFactor) {
+            return Math.max(1, Math.round(ticks * reachFactor));
         }
 
         protected int elasticDurationTicks() {

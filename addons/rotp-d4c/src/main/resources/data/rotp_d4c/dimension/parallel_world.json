@@ -1,26 +1,11 @@
 {
   "type": "rotp_d4c:parallel_world_type",
   "generator": {
-    "type": "minecraft:flat",
-    "settings": {
-      "biome": "minecraft:plains",
-      "features": false,
-      "lakes": false,
-      "layers": [
-        {
-          "block": "minecraft:bedrock",
-          "height": 2
-        },
-        {
-          "block": "minecraft:stone",
-          "height": 60
-        },
-        {
-          "block": "minecraft:grass_block",
-          "height": 1
-        }
-      ],
-      "structure_overrides": []
+    "type": "minecraft:noise",
+    "settings": "minecraft:overworld",
+    "biome_source": {
+      "type": "minecraft:multi_noise",
+      "preset": "minecraft:overworld"
     }
   }
 }

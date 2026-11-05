@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "NDN",
+    "NBN",
+    "NNN"
+  ],
+  "key": {
+    "N": {
+      "item": "minecraft:netherite_block"
+    },
+    "D": {
+      "item": "minecraft:diamond_block"
+    },
+    "B": {
+      "item": "rotp_whitesnake:disc"
+    }
+  },
+  "result": {
+    "id": "rotp_whitesnake:disc",
+    "components": {
+      "rotp_whitesnake:disc_effect": {
+        "effect": "rotp_whitesnake:instant_kill",
+        "amplifier": 0,
+        "duration": 0
+      }
+    }
+  }
+}

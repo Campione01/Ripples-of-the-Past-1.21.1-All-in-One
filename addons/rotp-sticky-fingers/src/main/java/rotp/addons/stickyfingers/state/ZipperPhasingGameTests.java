@@ -30,6 +30,7 @@ import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.level.ChunkPos;
@@ -1033,8 +1034,34 @@ public final class ZipperPhasingGameTests {
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 20)
+    @GameTest(template = "empty", timeoutTicks = STAND_SCENE_TIMEOUT_TICKS)
     public static void mobsDoNotPathThroughAnOpenZipper(GameTestHelper helper) {
+        whenRoomsTick(helper, () -> mobsDoNotPathThroughAnOpenZipperInTickingRooms(helper));
+    }
+
+    /*
+     * The rooms reach five blocks south and three east of the corner, into chunks the framework does not force, and
+     * until such a chunk is promoted the mob's path search does not see the walls built in it. The rooms are built
+     * once their chunks tick entities.
+     */
+    private static void whenRoomsTick(GameTestHelper helper, Runnable scene) {
+        ServerLevel level = helper.getLevel();
+        holdSceneChunks(level, helper.absoluteVec(new Vec3(2.5D, 2.0D, 3.5D)));
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    for (BlockPos corner : new BlockPos[] { new BlockPos(1, 1, 1), new BlockPos(3, 1, 1),
+                            new BlockPos(1, 1, 5), new BlockPos(3, 1, 5) }) {
+                        BlockPos pos = helper.absolutePos(corner);
+                        if (!level.isPositionEntityTicking(pos)) {
+                            pauseOncePerTick(level);
+                            throw new GameTestAssertException("The chunk at " + pos + " does not tick entities");
+                        }
+                    }
+                })
+                .thenExecute(scene);
+    }
+
+    private static void mobsDoNotPathThroughAnOpenZipperInTickingRooms(GameTestHelper helper) {
         // Two closed rooms, (2, 2..3, 2) and (2, 2..3, 4), joined only by the two-high doorway at (2, 2..3, 3).
         fill(helper, new BlockPos(1, 1, 1), new BlockPos(3, 4, 5), Blocks.STONE.defaultBlockState());
         fill(helper, new BlockPos(2, 2, 2), new BlockPos(2, 3, 4), Blocks.AIR.defaultBlockState());
@@ -1065,6 +1092,39 @@ public final class ZipperPhasingGameTests {
         helper.assertTrue(!open.isPathfindable(PathComputationType.LAND),
                 "An open zipper is walkable ground for mob pathfinding");
         mob.discard();
+        helper.succeed();
+    }
+
+    // EV-A SA3: a husk under the unzip finisher's Zipper effect (1.16 ZipperEffect, damage x1.5) and then /kill-ed
+    // (Float.MAX_VALUE) kept NaN health and never died. It, and one struck by an ordinary lethal hit, must end at 0.
+    @GameTest(template = "empty", timeoutTicks = 20)
+    public static void zippedMobDiesFromAKillAndALethalHitWithoutNaNHealth(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Mob killed = EntityType.HUSK.create(level);
+        Mob struck = EntityType.HUSK.create(level);
+        try {
+            helper.assertTrue(killed != null && struck != null, "Could not create the husks");
+            BlockPos base = helper.absolutePos(new BlockPos(1, 2, 1));
+            killed.moveTo(base.getX() + 0.5D, base.getY(), base.getZ() + 0.5D, 0.0F, 0.0F);
+            struck.moveTo(base.getX() + 2.5D, base.getY(), base.getZ() + 0.5D, 0.0F, 0.0F);
+            for (Mob mob : List.of(killed, struck)) {
+                mob.setNoAi(true);
+                helper.assertTrue(level.addFreshEntity(mob), "Could not add a husk");
+                mob.addEffect(new MobEffectInstance(StickyFingersAddon.ZIPPER_EFFECT,
+                        StickyFingersPhase1Spec.ZIPPER_EFFECT_DURATION_TICKS));
+                helper.assertTrue(mob.hasEffect(StickyFingersAddon.ZIPPER_EFFECT), "A husk took no Zipper effect");
+            }
+            killed.kill();
+            struck.hurt(level.damageSources().generic(), struck.getMaxHealth() * 2.0F);
+            for (Mob mob : List.of(killed, struck)) {
+                helper.assertTrue(!Float.isNaN(mob.getHealth()) && mob.getHealth() == 0.0F && mob.isDeadOrDying(),
+                        "A zipped husk was left alive at health " + mob.getHealth());
+            }
+        }
+        finally {
+            if (killed != null) killed.discard();
+            if (struck != null) struck.discard();
+        }
         helper.succeed();
     }
 
@@ -1379,27 +1439,27 @@ public final class ZipperPhasingGameTests {
         StandPower power = StandPower.get(player);
         StandEntity stand = power.getSummonedStandEntity();
         ServerLevel level = helper.getLevel();
-        Mob chicken = EntityType.CHICKEN.create(level);
+        Mob villager = EntityType.VILLAGER.create(level);
         Runnable close = () -> {
-            if (chicken != null) {
-                var possessors = LivingComponentPossession.getEntitiesPossessing(chicken);
+            if (villager != null) {
+                var possessors = LivingComponentPossession.getEntitiesPossessing(villager);
                 if (possessors != null) {
                     for (LivingComponentPossession possession : new ArrayList<>(possessors)) {
                         possession.stopPossession();
                     }
                 }
-                chicken.discard();
+                villager.discard();
             }
             closeStaminaUser(player);
         };
         try {
-            helper.assertTrue(chicken != null, "Could not create the hide target");
+            helper.assertTrue(villager != null, "Could not create the hide target");
             Vec3 at = helper.absoluteVec(new Vec3(2.5D, 3.0D, 2.5D));
-            chicken.moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
-            chicken.setNoAi(true);
-            chicken.setNoGravity(true);
-            helper.assertTrue(level.addFreshEntity(chicken), "Could not add the hide target");
-            LivingComponentAction.getComponent(player).entityAim.setTarget(new ActionTarget(chicken));
+            villager.moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
+            villager.setNoAi(true);
+            villager.setNoGravity(true);
+            helper.assertTrue(level.addFreshEntity(villager), "Could not add the hide target");
+            LivingComponentAction.getComponent(player).entityAim.setTarget(new ActionTarget(villager));
             power.setStamina(100.0F);
             pressStickyAbility(helper, player, StickyFingersAddon.HIDE_IN_MOB_NAME);
             EntityActionInstance action = LivingComponentAction.getComponent(stand).getAction();
@@ -1423,7 +1483,7 @@ public final class ZipperPhasingGameTests {
                     ? hide.getStandUserWalkSpeed() : 0.0F;
             helper.assertTrue(entryWalkSpeed == 1.0F,
                     "the hide in a mob entry froze the user: walk speed " + entryWalkSpeed);
-            helper.assertTrue(LivingComponentPossession.getEntityPossessedBy(player) == chicken,
+            helper.assertTrue(LivingComponentPossession.getEntityPossessedBy(player) == villager,
                     "the hide in a mob did not enter the mob when the charge fired");
         }
         catch (RuntimeException | Error failure) {
@@ -1444,18 +1504,18 @@ public final class ZipperPhasingGameTests {
         StandPower power = StandPower.get(player);
         StandEntity stand = power.getSummonedStandEntity();
         ServerLevel level = helper.getLevel();
-        Mob near = EntityType.CHICKEN.create(level);
-        Mob walled = EntityType.CHICKEN.create(level);
+        Mob near = EntityType.VILLAGER.create(level);
+        Mob walled = EntityType.VILLAGER.create(level);
         Runnable close = () -> {
-            for (Mob chicken : new Mob[] { near, walled }) {
-                if (chicken != null) {
-                    var possessors = LivingComponentPossession.getEntitiesPossessing(chicken);
+            for (Mob villager : new Mob[] { near, walled }) {
+                if (villager != null) {
+                    var possessors = LivingComponentPossession.getEntitiesPossessing(villager);
                     if (possessors != null) {
                         for (LivingComponentPossession possession : new ArrayList<>(possessors)) {
                             possession.stopPossession();
                         }
                     }
-                    chicken.discard();
+                    villager.discard();
                 }
             }
             closeStaminaUser(player);
@@ -1466,10 +1526,10 @@ public final class ZipperPhasingGameTests {
             Vec3 walledAt = helper.absoluteVec(new Vec3(2.5D, 3.0D, 5.4D));
             near.moveTo(nearAt.x, nearAt.y, nearAt.z, 0.0F, 0.0F);
             walled.moveTo(walledAt.x, walledAt.y, walledAt.z, 0.0F, 0.0F);
-            for (Mob chicken : new Mob[] { near, walled }) {
-                chicken.setNoAi(true);
-                chicken.setNoGravity(true);
-                helper.assertTrue(level.addFreshEntity(chicken), "Could not add a hide target");
+            for (Mob villager : new Mob[] { near, walled }) {
+                villager.setNoAi(true);
+                villager.setNoGravity(true);
+                helper.assertTrue(level.addFreshEntity(villager), "Could not add a hide target");
             }
             Ability hide = power.getAbility(StickyFingersAddon.HIDE_IN_MOB_NAME);
             helper.assertTrue(hide instanceof StickyFingersHideInMobAbility, "Sticky Fingers has no hide in a mob");
@@ -1477,7 +1537,7 @@ public final class ZipperPhasingGameTests {
             EntityActionInstance charge = startHideCharge(helper, player, stand, hide, near);
             aimUser(player, ActionTarget.EMPTY);
             LivingComponentAction.getComponent(stand).tick();
-            assertHideDropped(helper, stand, charge, near, "the crosshair left the chicken");
+            assertHideDropped(helper, stand, charge, near, "the crosshair left the villager");
 
             charge = startHideCharge(helper, player, stand, hide, near);
             aimUser(player, new ActionTarget(walled));
@@ -1486,12 +1546,12 @@ public final class ZipperPhasingGameTests {
                             && walledCheck.getWarning() != null
                             && walledCheck.getWarning().getContents() instanceof TranslatableContents contents
                             && contents.getKey().equals("jojo.message.action_condition.target_too_far"),
-                    "1.16 Action.checkRangeAndTarget stopped the charge with target_too_far at a chicken behind a"
+                    "1.16 Action.checkRangeAndTarget stopped the charge with target_too_far at a villager behind a"
                             + " wall past 4 blocks, got " + (walledCheck.isPositive() ? "a pass"
                                     : walledCheck.getWarning() != null ? walledCheck.getWarning().getString()
                                             : "a silent refusal"));
             LivingComponentAction.getComponent(stand).tick();
-            assertHideDropped(helper, stand, charge, walled, "the crosshair went to a chicken behind a wall");
+            assertHideDropped(helper, stand, charge, walled, "the crosshair went to a villager behind a wall");
 
             charge = startHideCharge(helper, player, stand, hide, near);
             for (int tick = 0; tick < 40 && !charge.isOver(); tick++) {
@@ -1499,7 +1559,7 @@ public final class ZipperPhasingGameTests {
             }
             var possessors = LivingComponentPossession.getEntitiesPossessing(near);
             helper.assertTrue(possessors != null && !possessors.isEmpty(),
-                    "a charge kept on the chicken must hide the user in it");
+                    "a charge kept on the villager must hide the user in it");
         }
         catch (RuntimeException | Error failure) {
             AbilityInput.keyRelease(HIDE_KEY, player);
@@ -1530,7 +1590,7 @@ public final class ZipperPhasingGameTests {
             LivingComponentAction.getComponent(stand).tick();
         }
         helper.assertTrue(!action.isOver() && action.getPhase() == ActionPhase.BUTTON_CHARGE,
-                "1.16 kept charging while the crosshair stayed on the chicken: phase " + action.getPhase());
+                "1.16 kept charging while the crosshair stayed on the villager: phase " + action.getPhase());
         return action;
     }
 
@@ -1557,37 +1617,79 @@ public final class ZipperPhasingGameTests {
         FakePlayer player = staminaUser(helper, new Vec3(2.5D, 3.0D, 0.5D), 0.0F, 0.0F);
         StickyUser user = (StickyUser) player;
         StandPower power = StandPower.get(player);
-        Mob chicken = EntityType.CHICKEN.create(helper.getLevel());
+        Mob villager = EntityType.VILLAGER.create(helper.getLevel());
         try {
-            helper.assertTrue(chicken != null, "Could not create the hide target");
+            helper.assertTrue(villager != null, "Could not create the hide target");
             Vec3 at = helper.absoluteVec(new Vec3(2.5D, 3.0D, 2.5D));
-            chicken.moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
-            chicken.setNoAi(true);
-            chicken.setNoGravity(true);
-            helper.assertTrue(helper.getLevel().addFreshEntity(chicken), "Could not add the hide target");
+            villager.moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
+            villager.setNoAi(true);
+            villager.setNoGravity(true);
+            helper.assertTrue(helper.getLevel().addFreshEntity(villager), "Could not add the hide target");
             Ability hide = power.getAbility(StickyFingersAddon.HIDE_IN_MOB_NAME);
             helper.assertTrue(hide instanceof StickyFingersHideInMobAbility, "Sticky Fingers has no hide in a mob");
             power.setStamina(power.getMaxStamina());
 
-            aimUser(player, new ActionTarget(chicken));
+            aimUser(player, new ActionTarget(villager));
             ConditionCheck server = hide.checkConditions(power);
-            helper.assertTrue(server.isPositive(), "fixture: on the server the hide in a mob at the chicken is "
+            helper.assertTrue(server.isPositive(), "fixture: on the server the hide in a mob at the villager is "
                     + describeCheck(server));
             aimUser(player, ActionTarget.EMPTY);
             helper.assertTrue(!hide.checkConditions(power).isPositive(),
                     "fixture: the hide in a mob is usable with no aim, so its check needs none");
             user.local = true;
-            LivingComponentAction.CLIENT_PLAYER_AIM.setTarget(new ActionTarget(chicken));
+            LivingComponentAction.CLIENT_PLAYER_AIM.setTarget(new ActionTarget(villager));
             ConditionCheck client = hide.checkConditions(power);
             helper.assertTrue(client.isPositive(), "1.16's client checked the hide in a mob at its mouse target, the"
-                    + " chicken, and showed it usable as the server took it; the port's own client finds it "
+                    + " villager, and showed it usable as the server took it; the port's own client finds it "
                     + describeCheck(client) + ", reading no aim of its copy of the user");
         }
         finally {
             user.local = false;
             LivingComponentAction.CLIENT_PLAYER_AIM.setTarget(ActionTarget.EMPTY);
-            if (chicken != null) {
-                chicken.discard();
+            if (villager != null) {
+                villager.discard();
+            }
+            closeStaminaUser(player);
+        }
+        helper.succeed();
+    }
+
+    // 1.0.2 StickyFingersGetInsideMob.checkTarget: targetVolume >= userVolume, so a mob smaller than its user (a
+    // chicken) cannot be entered and one at least as big (a villager) can.
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void hideInMobNeedsAMobAtLeastAsBigAsTheUser(GameTestHelper helper) {
+        FakePlayer player = staminaUser(helper, new Vec3(2.5D, 3.0D, 0.5D), 0.0F, 0.0F);
+        StandPower power = StandPower.get(player);
+        Mob small = EntityType.CHICKEN.create(helper.getLevel());
+        Mob big = EntityType.VILLAGER.create(helper.getLevel());
+        try {
+            helper.assertTrue(small != null && big != null, "Could not create the hide targets");
+            Vec3 at = helper.absoluteVec(new Vec3(2.5D, 3.0D, 2.5D));
+            for (Mob mob : new Mob[] { small, big }) {
+                mob.moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
+                mob.setNoAi(true);
+                mob.setNoGravity(true);
+                helper.assertTrue(helper.getLevel().addFreshEntity(mob), "Could not add a hide target");
+            }
+            Ability hide = power.getAbility(StickyFingersAddon.HIDE_IN_MOB_NAME);
+            helper.assertTrue(hide instanceof StickyFingersHideInMobAbility, "Sticky Fingers has no hide in a mob");
+            power.setStamina(power.getMaxStamina());
+            aimUser(player, new ActionTarget(small));
+            ConditionCheck smallCheck = hide.checkConditions(power);
+            helper.assertTrue(!smallCheck.isPositive(),
+                    "1.0.2 refused a mob smaller than its user; the chicken is " + describeCheck(smallCheck));
+            aimUser(player, new ActionTarget(big));
+            ConditionCheck bigCheck = hide.checkConditions(power);
+            helper.assertTrue(bigCheck.isPositive(),
+                    "1.0.2 let the user into a mob at least as big; the villager is " + describeCheck(bigCheck));
+        }
+        finally {
+            aimUser(player, ActionTarget.EMPTY);
+            if (small != null) {
+                small.discard();
+            }
+            if (big != null) {
+                big.discard();
             }
             closeStaminaUser(player);
         }
@@ -2186,6 +2288,66 @@ public final class ZipperPhasingGameTests {
                     + " Stand that is not stunned, with no zipper held: " + String.join("; ", wrong));
             helper.succeed();
         });
+    }
+
+    // 1.16 HumanoidParser counted every entity type drawn with a biped or illager model, modded ones too: a zombie or
+    // skeleton class of a type outside rotp_stfn:zipper_humanoids still counts here, a tagged vanilla mob counts, and
+    // the villager, the witch and the pig do not.
+    @GameTest(template = "empty", timeoutTicks = 40)
+    @SuppressWarnings("unchecked")
+    public static void humanoidTargetsCoverTheTagAndTheVanillaHumanoidBasesAsIn116(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<String> wrong = new ArrayList<>();
+        EntityType<?> outsideTag = EntityType.COW;
+        Entity moddedZombie = new net.minecraft.world.entity.monster.Zombie(
+                (EntityType<? extends net.minecraft.world.entity.monster.Zombie>) outsideTag, level);
+        Entity moddedSkeleton = new net.minecraft.world.entity.monster.Skeleton(
+                (EntityType<? extends net.minecraft.world.entity.monster.Skeleton>) outsideTag, level);
+        Entity[] counted = { moddedZombie, moddedSkeleton, EntityType.PIGLIN.create(level),
+                EntityType.PILLAGER.create(level), EntityType.ENDERMAN.create(level), EntityType.GIANT.create(level),
+                EntityType.HUSK.create(level) };
+        for (Entity entity : counted) {
+            if (!(entity instanceof LivingEntity living) || !ZipperCombatData.isSupportedTarget(living)) {
+                wrong.add(entity + " is not counted");
+            }
+        }
+        helper.assertTrue(!EntityType.COW.is(net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ENTITY_TYPE,
+                StickyFingersAddon.id("zipper_humanoids"))), "fixture: the cow type is in the tag");
+        Entity[] refused = { EntityType.VILLAGER.create(level), EntityType.WITCH.create(level),
+                EntityType.VEX.create(level), EntityType.PIG.create(level), EntityType.WANDERING_TRADER.create(level) };
+        for (Entity entity : refused) {
+            if (!(entity instanceof LivingEntity living) || ZipperCombatData.isSupportedTarget(living)) {
+                wrong.add(entity + " is counted");
+            }
+        }
+        helper.assertTrue(wrong.isEmpty(), "1.16 unzipped what a biped or illager model drew, and no villager: "
+                + String.join("; ", wrong));
+        helper.succeed();
+    }
+
+    // 1.16 GameplayEvents.onSwimSizeSet: a humanoid mob in the swimming pose both legs off give it is as tall as it is
+    // wide, with its eyes at 0.85 of that, and has its height back when it stands up; a pig in that pose keeps its size.
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void crawlPoseLowersAHumanoidHitboxAsIn116(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Mob husk = EntityType.HUSK.create(level);
+        Mob pig = EntityType.PIG.create(level);
+        helper.assertTrue(husk != null && pig != null, "fixture: could not create the mobs");
+        float width = husk.getBbWidth();
+        float height = husk.getBbHeight();
+        float pigHeight = pig.getBbHeight();
+        helper.assertTrue(height > width, "fixture: the husk is not taller than wide: " + height);
+        husk.setPose(Pose.SWIMMING);
+        pig.setPose(Pose.SWIMMING);
+        helper.assertTrue(husk.getBbWidth() == width && husk.getBbHeight() == width
+                        && Math.abs(husk.getEyeHeight() - width * 0.85F) < 1.0E-4F,
+                "1.16 laid the husk down to a " + width + " cube with eyes at 0.85 of it; the port has width "
+                        + husk.getBbWidth() + ", height " + husk.getBbHeight() + ", eyes " + husk.getEyeHeight());
+        helper.assertTrue(pig.getBbHeight() == pigHeight, "the pig is no humanoid but changed to " + pig.getBbHeight());
+        ZipperCombatData.standUp(husk);
+        helper.assertTrue(husk.getPose() == Pose.STANDING && husk.getBbHeight() == height,
+                "the husk does not stand up: " + husk.getPose() + ", height " + husk.getBbHeight());
+        helper.succeed();
     }
 
     // 1.16 StickyFingersUnzipOpponent.rotateStandTowardsTarget (:93-102) turned the Stand to the centre of the part its

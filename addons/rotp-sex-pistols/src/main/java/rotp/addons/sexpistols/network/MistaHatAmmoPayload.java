@@ -76,7 +76,7 @@ public record MistaHatAmmoPayload(int containerId, int menuSlot)
         ItemStack slotStack = slot.getItem();
         ItemStack carried = menu.getCarried();
         boolean changed = false;
-        if (MistaHatItem.isMistaHat(slotStack)) {
+        if (MistaHatItem.isAmmoContainer(slotStack)) {
             if (!slot.mayPickup(player)) {
                 return;
             }
@@ -96,7 +96,7 @@ public record MistaHatAmmoPayload(int containerId, int menuSlot)
                 }
             }
         }
-        else if (MistaHatItem.isMistaHat(carried)
+        else if (MistaHatItem.isAmmoContainer(carried)
                 && MistaHatItem.isAmmoItem(slotStack)
                 && slot.mayPickup(player)) {
             changed =

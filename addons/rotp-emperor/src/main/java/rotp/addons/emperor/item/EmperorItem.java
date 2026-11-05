@@ -281,8 +281,10 @@ public final class EmperorItem extends Item {
             Player player,
             LivingEntity target,
             EmperorMode mode) {
+        // 1.3 EmperorItem also skipped spectators
         if (!target.isAlive()
                 || target == player
+                || target.isSpectator()
                 || target instanceof EmperorStandEntity
                 || !JojoModUtil.canHarm(player, target)) {
             return false;

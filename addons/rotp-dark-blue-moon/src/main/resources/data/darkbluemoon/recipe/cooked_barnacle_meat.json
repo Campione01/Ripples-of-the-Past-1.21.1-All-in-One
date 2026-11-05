@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:smelting",
+  "ingredient": {
+    "item": "darkbluemoon:barnacle_meat"
+  },
+  "result": {
+    "id": "darkbluemoon:cooked_barnacle_meat"
+  },
+  "experience": 0.35,
+  "cookingtime": 200
+}

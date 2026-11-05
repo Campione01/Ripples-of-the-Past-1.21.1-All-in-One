@@ -42,6 +42,7 @@ import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -152,7 +153,8 @@ public final class TheHandGameTests {
 
     // 1.16 stopHeldAction(true): a charge let go past its threshold fired
     // only if its requirements still passed. A Stand stunned in the same
-    // tick drops the released Erase instead of starting its windup.
+    // tick drops the released Erase instead of starting its windup; 1.1.0d
+    // then teleports its user as after a miss.
     @GameTest(
             template = "empty",
             batch = "the_hand_erase_recheck",
@@ -205,8 +207,66 @@ public final class TheHandGameTests {
                             + "was stunned.");
             helper.assertTrue(
                     context.owner().position().distanceToSqr(start)
+                            > TELEPORT_DISTANCE_SQR,
+                    "1.1.0d: a dropped Erase did not teleport its user.");
+            cleanup(context);
+        });
+        });
+    }
+
+    // 1.1.0d wasInterrupted: a hit during the charge drops the Erase
+    // (cancelHeldOnGettingAttacked) without the teleport an unswiped Erase
+    // now makes.
+    @GameTest(
+            template = "empty",
+            batch = "the_hand_erase_hit",
+            timeoutTicks = 200 + GameTestChunkTickets.WAIT_TICKS)
+    public static void eraseChargeCutByAHitDoesNotTeleport(
+            GameTestHelper helper) {
+        TestContext context = prepareTheHand(helper);
+        if (context == null) {
+            return;
+        }
+
+        Ability ability = context.power().getAbility(
+                TheHandAddon.ERASE_NAME);
+        helper.assertTrue(
+                ability instanceof TheHandEraseAbility,
+                "The production moveset did not resolve the erase ability.");
+        onceStandTicks(helper, context, () -> {
+        pressHold(
+                helper,
+                context,
+                ability,
+                ERASE_KEY,
+                TheHandEraseAbility.EraseAction.class);
+        EntityActionInstance action =
+                LivingComponentAction.getCurEntityAction(
+                        context.stand());
+        Vec3 start = context.owner().position();
+        Cow attacker = helper.spawn(EntityType.COW, 1, 2, 4);
+        attacker.setNoAi(true);
+        helper.assertTrue(
+                context.owner().hurt(
+                        context.owner().damageSources().source(
+                                DamageTypes.GENERIC_KILL, attacker),
+                        1.0F),
+                "Setup: the user took no damage.");
+        helper.assertTrue(
+                action.isOver(),
+                "A hit during the charge did not drop the Erase: phase "
+                        + action.getPhase());
+        int[] ticks = {0};
+        helper.succeedWhen(() -> {
+            helper.assertTrue(
+                    context.owner().position().distanceToSqr(start)
                             < 1.0D,
-                    "A dropped Erase still teleported its user.");
+                    "An Erase cut by a hit still teleported its user.");
+            helper.assertTrue(
+                    ++ticks[0] >= 20,
+                    "Waiting for a late teleport.");
+            AbilityInput.keyRelease(ERASE_KEY, context.owner());
+            attacker.discard();
             cleanup(context);
         });
         });
@@ -270,10 +330,13 @@ public final class TheHandGameTests {
             for (int tick = 0; tick < 30; tick++) {
                 standActions.tick();
             }
+            // 1.1.0d: the dropped Erase teleports as after a miss, but
+            // it neither swiped nor paid.
             helper.assertTrue(
-                    context.owner().position().distanceToSqr(start) < 1.0D
+                    context.owner().position().distanceToSqr(start)
+                                    > TELEPORT_DISTANCE_SQR
                             && context.power().getStamina() == stamina,
-                    "A dropped Erase still swiped, teleported or paid: "
+                    "A dropped Erase did not teleport, or swiped or paid: "
                             + "stamina " + stamina + " -> "
                             + context.power().getStamina());
             AbilityInput.keyRelease(ERASE_KEY, context.owner());

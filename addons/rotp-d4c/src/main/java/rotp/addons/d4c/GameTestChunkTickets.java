@@ -160,7 +160,7 @@ final class GameTestChunkTickets {
         helper.startSequence().thenWaitUntil(awaiting(onTimeout)).thenExecute(() -> {
             OwnWork.of(helper).starts(helper.getTick());
             try {
-                body.accept(new LaterHelper(helper.testInfo));
+                body.accept(new LaterHelper(helper));
             }
             catch (GameTestAssertException failure) {
                 throw failure;
@@ -177,7 +177,7 @@ final class GameTestChunkTickets {
             OwnWork work = OwnWork.of(helper);
             work.waited(1L);
             work.starts(helper.getTick() + 1L);
-            new LaterHelper(helper.testInfo).onEachTick(body);
+            new LaterHelper(helper).onEachTick(body);
         });
     }
 
@@ -255,12 +255,35 @@ final class GameTestChunkTickets {
         public void testAddedForRerun(GameTestInfo oldTest, GameTestInfo newTest, GameTestRunner runner) {}
     }
 
+    // Places the template where the helper the test was given does, which need not be where its test info does.
     private static final class LaterHelper extends GameTestHelper {
         private final GameTestInfo info;
+        private final GameTestHelper given;
 
-        private LaterHelper(GameTestInfo info) {
-            super(info);
-            this.info = info;
+        private LaterHelper(GameTestHelper given) {
+            super(given.testInfo);
+            this.info = given.testInfo;
+            this.given = given;
+        }
+
+        @Override
+        public BlockPos absolutePos(BlockPos pos) {
+            return given.absolutePos(pos);
+        }
+
+        @Override
+        public Vec3 absoluteVec(Vec3 pos) {
+            return given.absoluteVec(pos);
+        }
+
+        @Override
+        public BlockPos relativePos(BlockPos pos) {
+            return given.relativePos(pos);
+        }
+
+        @Override
+        public Vec3 relativeVec(Vec3 pos) {
+            return given.relativeVec(pos);
         }
 
         @Override

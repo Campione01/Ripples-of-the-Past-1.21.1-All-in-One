@@ -5797,6 +5797,24 @@
                                       "children": [
                                         "d7979e37-c00c-6bda-a33e-948123e12768"
                                       ]
+                                    },
+                                    {
+                                      "name": "left_item",
+                                      "origin": [
+                                        -9.44464,
+                                        13.75,
+                                        -1.7
+                                      ],
+                                      "color": 0,
+                                      "uuid": "be053d5e-2fba-51e4-9571-14da5c411c2f",
+                                      "export": true,
+                                      "mirror_uv": false,
+                                      "isOpen": false,
+                                      "locked": false,
+                                      "visibility": true,
+                                      "autouv": 0,
+                                      "selected": false,
+                                      "children": []
                                     }
                                   ]
                                 }

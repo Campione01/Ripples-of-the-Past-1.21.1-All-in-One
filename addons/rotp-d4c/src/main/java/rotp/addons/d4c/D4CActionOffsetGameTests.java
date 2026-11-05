@@ -4,6 +4,8 @@ import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
 import rotp.core.api.stand.StandPowerTransitions;
+import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.entityaction.ActionPhase;
@@ -46,8 +48,13 @@ public final class D4CActionOffsetGameTests {
      * up, forward) from the user's feet turned by the view yaw, in full mode
      * only; an arms-only D4C kept its arms-only default.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_action_offsets")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_action_offsets")
     public static void d4cActionsPutTheStandWhereTheDonorDid(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> d4cActionsPutTheStandWhereTheDonorDidBody(h));
+    }
+
+    private static void d4cActionsPutTheStandWhereTheDonorDidBody(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "d4c-action-offsets")) {
             @Override
@@ -124,8 +131,14 @@ public final class D4CActionOffsetGameTests {
      * half its width, within 0.5 to 2. From the last 2 of its 3 windup ticks
      * on the Stand moved by itself (standMovesByItself) and stayed there.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_rapid_punch_offset")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_rapid_punch_offset")
     public static void rapidPunchTurnsItsFrontOffsetToTheEntityAsTheDonorDid(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchTurnsItsFrontOffsetToTheEntityAsTheDonorDidBody(h));
+    }
+
+    private static void rapidPunchTurnsItsFrontOffsetToTheEntityAsTheDonorDidBody(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "d4c-rapid-punch-offset")) {
             @Override
@@ -238,8 +251,13 @@ public final class D4CActionOffsetGameTests {
      * feet to it less 1 and half its width, within 0.5 to 3. A punch pressed
      * at nothing then took the target over (StandEntity.setTask).
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_hand_chop_target")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_hand_chop_target")
     public static void handChopKeepsItsEntityButNeverTurnsToItAsTheDonorDid(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopKeepsItsEntityButNeverTurnsToItAsTheDonorDidBody(h));
+    }
+
+    private static void handChopKeepsItsEntityButNeverTurnsToItAsTheDonorDidBody(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "d4c-hand-chop-target")) {
             @Override
@@ -339,8 +357,14 @@ public final class D4CActionOffsetGameTests {
      * (StandEntity.setTask), and turned it to that entity
      * (ac.java lockOnTargetPosition).
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_rapid_punch_takeover")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_rapid_punch_takeover")
     public static void rapidPunchMeasuresItsFrontToATargetTakenOver(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> rapidPunchMeasuresItsFrontToATargetTakenOverBody(h));
+    }
+
+    private static void rapidPunchMeasuresItsFrontToATargetTakenOverBody(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "d4c-rapid-punch-takeover")) {
             @Override
@@ -444,8 +468,14 @@ public final class D4CActionOffsetGameTests {
      * along the user's view (StandEntityHeavyAttack.lockOnTargetPosition
      * false).
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_hand_chop_takeover")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_hand_chop_takeover")
     public static void handChopMeasuresItsFrontToATargetTakenOver(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopMeasuresItsFrontToATargetTakenOverBody(h));
+    }
+
+    private static void handChopMeasuresItsFrontToATargetTakenOverBody(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "d4c-hand-chop-takeover")) {
             @Override
@@ -541,8 +571,13 @@ public final class D4CActionOffsetGameTests {
      * measured to the task's target as it stood then, so the Stand kept its
      * distance from a cow that backed away during the windup.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_hand_chop_follow")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "d4c_hand_chop_follow")
     public static void handChopRemeasuresItsFrontOffsetEveryTick(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopRemeasuresItsFrontOffsetEveryTickBody(h));
+    }
+
+    private static void handChopRemeasuresItsFrontOffsetEveryTickBody(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "d4c-hand-chop-follow")) {
             @Override
@@ -642,8 +677,14 @@ public final class D4CActionOffsetGameTests {
      * that moved or a user who stepped in that same tick, also while the lock
      * held the task back.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_front_offset_position_update")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_front_offset_position_update")
     public static void frontOffsetsFollowTheirTargetInTheStandsPositionUpdateAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> frontOffsetsFollowTheirTargetInTheStandsPositionUpdateAsIn116Body(h));
+    }
+
+    private static void frontOffsetsFollowTheirTargetInTheStandsPositionUpdateAsIn116Body(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "d4c-front-offset-update")) {
             @Override
@@ -757,8 +798,14 @@ public final class D4CActionOffsetGameTests {
      * sends to clients with itself, is that one, not one measured to the raw
      * aim.
      */
-    @GameTest(template = "empty", timeoutTicks = 100, batch = "d4c_hand_chop_press_offset")
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_hand_chop_press_offset")
     public static void handChopStartsWithTheOffsetOfItsTaskTargetAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopStartsWithTheOffsetOfItsTaskTargetAsIn116Body(h));
+    }
+
+    private static void handChopStartsWithTheOffsetOfItsTaskTargetAsIn116Body(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "d4c-hand-chop-press-offset")) {
             @Override
@@ -864,6 +911,111 @@ public final class D4CActionOffsetGameTests {
             if (stone != null) {
                 helper.getLevel().setBlockAndUpdate(stone, Blocks.AIR.defaultBlockState());
             }
+            if (cow != null) {
+                cow.discard();
+            }
+            if (power != null && power.isSummoned()) {
+                type.forceUnsummon(user, power);
+            }
+            user.discard();
+        }
+    }
+
+    /**
+     * Owner T2 (W4-B D4-REACHOPT): the hand chop (1.16 the heavy punch's
+     * finisher variation) and the rapid punch (a light attack) reach out as
+     * D4C's punches do. Pressed with no aim, as a client's aim stops at its
+     * user's reach, at a cow past that reach but within the max reach, each
+     * keeps the cow the server picks, flies D4C out in front of it, strikes it
+     * there and weakens; the rapid punch keeps following its user while it
+     * flies out instead of standing where 1.16's 2-block lunge stopped.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS,
+            batch = "d4c_reach_out")
+    public static void handChopAndRapidPunchFlyOutPastTheUsersReach(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> handChopAndRapidPunchFlyOutPastTheUsersReachBody(h));
+    }
+
+    private static void handChopAndRapidPunchFlyOutPastTheUsersReachBody(GameTestHelper helper) {
+        Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
+                new GameProfile(UUID.randomUUID(), "d4c-reach-out")) {
+            @Override
+            public boolean isSpectator() {
+                return false;
+            }
+
+            @Override
+            public boolean isCreative() {
+                return false;
+            }
+        };
+        StandType type = D4CAddon.D4C.get();
+        StandPower power = null;
+        Cow cow = null;
+        try {
+            user.getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get())
+                    .standSide = HumanoidArm.RIGHT;
+            Vec3 pos = helper.absoluteVec(new Vec3(2.5D, 12.0D, 2.5D));
+            user.setNoGravity(true);
+            user.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
+            helper.assertTrue(helper.getLevel().addFreshEntity(user),
+                    "Could not add the D4C user");
+            power = PowerClass.STAND.attachGet(user);
+            helper.assertTrue(StandPowerTransitions.insert(power,
+                            new StandInstance(type)).status()
+                            == StandPowerTransitions.Status.APPLIED,
+                    "Could not grant D4C");
+            power.skipProgression();
+            helper.assertTrue(type.summon(user, power), "Could not summon D4C");
+            StandEntity stand = power.getSummonedStandEntity();
+            helper.assertTrue(stand != null && stand.isFollowingUser()
+                            && !stand.isArmsOnlyMode(),
+                    "setup: D4C is not a full Stand following its user");
+            stand.summonLockTicks = 0;
+            turn(user, 0.0F, 0.0F);
+            user.setXRot(0.0F);
+
+            cow = EntityType.COW.create(helper.getLevel());
+            helper.assertTrue(cow != null, "setup: no cow");
+            cow.moveTo(pos.x, pos.y, pos.z + 6.3D, 0.0F, 0.0F);
+            cow.setNoAi(true);
+            cow.setNoGravity(true);
+            helper.assertTrue(helper.getLevel().addFreshEntity(cow),
+                    "setup: the cow was not added");
+            double distance = StandMeleeReach.userDistance(user, cow);
+            helper.assertTrue(distance > StandEntityPunchAbility.userAimReach(user, stand)
+                            && distance < StandMeleeReach.maxReach(stand, user, false),
+                    "setup: the cow is not in the margin past the user's reach: " + distance);
+            double flyOut = cow.position().subtract(user.position()).horizontalDistance()
+                    - (1.0D + cow.getBbWidth() / 2.0D);
+
+            for (String name : new String[] {"d4c_hand_chop", "d4c_rapid_punch"}) {
+                LivingComponentAction.getComponent(user).entityAim.setTarget(ActionTarget.EMPTY);
+                LivingComponentAction.getComponent(stand).entityAim.setTarget(ActionTarget.EMPTY);
+                start(helper, user, power, stand, name);
+                EntityActionInstance action = stand.getCurStandAction();
+                helper.assertTrue(action.getTaskTarget(helper.getLevel()).getEntity() == cow,
+                        name + " pressed with no aim did not keep the cow past its user's reach: "
+                                + action.getTaskTarget(helper.getLevel()));
+                assertStartOffset(helper, stand, action, flyOut,
+                        name + " flying out to the cow " + distance + " blocks away");
+                helper.assertTrue(StandEntityPunchAbility.getFreshPunchTarget(
+                                stand, action.getTaskTarget(helper.getLevel())).getEntity() == cow,
+                        name + "'s strike does not reach the cow past its user's reach");
+                float factor = StandMeleeReach.strikeFactor(stand, cow);
+                helper.assertTrue(factor < 1.0F && factor > 0.25F,
+                        name + " does not weaken past the base reach: " + factor);
+                if (name.equals("d4c_rapid_punch")) {
+                    action.setPhase(ActionPhase.PERFORM, 0);
+                    helper.assertTrue(stand.isFollowingUser() && StandMeleeReach.reachesOut(stand),
+                            "the rapid punch flying out stood still in its perform, out of the core's reach");
+                }
+                stop(user, stand);
+            }
+            helper.succeed();
+        }
+        finally {
             if (cow != null) {
                 cow.discard();
             }

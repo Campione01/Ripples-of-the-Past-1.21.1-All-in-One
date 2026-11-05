@@ -16,6 +16,7 @@ import com.mojang.math.Axis;
 
 import rotp.addons.sexpistols.SexPistolsIds;
 import rotp.addons.sexpistols.content.revolver.item.RevolverItem;
+import rotp.addons.sexpistols.content.revolver.item.RevolverStats;
 import rotp.addons.sexpistols.content.revolver.state.RevolverState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelPart;
@@ -35,6 +36,11 @@ public final class RevolverRenderer
             SexPistolsIds.id("geo/revolver.geo.json");
     private static final ResourceLocation TEXTURE =
             SexPistolsIds.id("textures/item/revolver.png");
+    // Next Album 0.1.13 "revolver" model: bones gun/magazine, built along Z.
+    private static final ResourceLocation HEAVY_GEOMETRY =
+            SexPistolsIds.id("geo/heavy_revolver.geo.json");
+    private static final ResourceLocation HEAVY_TEXTURE =
+            SexPistolsIds.id("textures/item/heavy_revolver.png");
     private static final long RELOAD_TRANSITION_NANOS =
             83_300_000L;
     private static final Map<ItemStack, ReloadPose>
@@ -42,6 +48,8 @@ public final class RevolverRenderer
 
     private static ModelPart modelRoot;
     private static ModelPart magazine;
+    private static ModelPart heavyRoot;
+    private static ModelPart heavyMagazine;
 
     public RevolverRenderer() {
         super(
@@ -75,6 +83,29 @@ public final class RevolverRenderer
                     "Failed to load Sex Pistols revolver geometry",
                     exception);
         }
+        try {
+            var resource = resourceManager
+                    .getResource(HEAVY_GEOMETRY)
+                    .orElseThrow(() -> new IOException(
+                            "Missing revolver geometry "
+                                    + HEAVY_GEOMETRY));
+            try (var reader = resource.openAsReader()) {
+                heavyRoot = ParseModEntityModel.parse(
+                                JsonParser.parseReader(reader),
+                                ModelFormat.GECKO)
+                        .bakeRoot();
+            }
+            heavyMagazine = heavyRoot
+                    .getChild("gun")
+                    .getChild("magazine");
+        }
+        catch (IOException | RuntimeException exception) {
+            heavyRoot = null;
+            heavyMagazine = null;
+            LOGGER.error(
+                    "Failed to load Sex Pistols heavy revolver geometry",
+                    exception);
+        }
     }
 
     @Override
@@ -85,6 +116,17 @@ public final class RevolverRenderer
             MultiBufferSource buffer,
             int packedLight,
             int packedOverlay) {
+        if (stack.getItem() instanceof RevolverItem revolver
+                && revolver.stats() == RevolverStats.HEAVY) {
+            renderHeavy(
+                    stack,
+                    displayContext,
+                    poseStack,
+                    buffer,
+                    packedLight,
+                    packedOverlay);
+            return;
+        }
         if (modelRoot == null || magazine == null) {
             reload(Minecraft.getInstance()
                     .getResourceManager());
@@ -114,6 +156,8 @@ public final class RevolverRenderer
                     displayContext,
                     state.reloadMode(),
                     aiming);
+            RevolverFirstPersonMotion.apply(
+                    poseStack, handSide(displayContext));
         }
         SexPistolsPresentationDiagnostics.recordRevolverPose(
                 firstPerson,
@@ -134,6 +178,105 @@ public final class RevolverRenderer
                 packedLight,
                 packedOverlay);
         poseStack.popPose();
+    }
+
+    // 0.1.13 RevolverGeoRenderer for its own models: the magazine turns about
+    // Z (60 degrees a chamber, 29.5 open) and swings out 1 pixel sideways and
+    // 0.4 down; the gun is set in item space by applyGeoToItemSpace.
+    private void renderHeavy(
+            ItemStack stack,
+            ItemDisplayContext displayContext,
+            PoseStack poseStack,
+            MultiBufferSource buffer,
+            int packedLight,
+            int packedOverlay) {
+        if (heavyRoot == null || heavyMagazine == null) {
+            reload(Minecraft.getInstance()
+                    .getResourceManager());
+        }
+        if (heavyRoot == null || heavyMagazine == null) {
+            return;
+        }
+        heavyRoot.getAllParts().forEach(ModelPart::resetPose);
+        RevolverState state = RevolverItem.state(stack);
+        float open = reloadOpenProgress(stack, state.reloadMode());
+        heavyMagazine.zRot += (open * 29.5F
+                - state.selectedChamber() * 60.0F) * Mth.DEG_TO_RAD;
+        heavyMagazine.x -= open;
+        heavyMagazine.y += open * 0.4F;
+
+        poseStack.pushPose();
+        boolean firstPerson = isFirstPerson(displayContext);
+        boolean aiming = state.aiming() && !state.reloadMode();
+        poseStack.translate(0.5D, 0.51D, 0.5D);
+        if (firstPerson) {
+            poseStack.scale(0.75F, 0.75F, 0.75F);
+        }
+        poseStack.mulPose(Axis.ZP.rotationDegrees(6.0F));
+        poseStack.mulPose(Axis.XP.rotationDegrees(6.0F));
+        poseStack.mulPose(Axis.YP.rotationDegrees(90.0F));
+        poseStack.translate(0.0D, -2.4D / 16.0D, -1.2D / 16.0D);
+        if (firstPerson) {
+            applyHeavyFirstPersonStateTransform(
+                    poseStack,
+                    displayContext,
+                    state.reloadMode(),
+                    aiming);
+            RevolverFirstPersonMotion.apply(
+                    poseStack, handSide(displayContext));
+        }
+        SexPistolsPresentationDiagnostics.recordRevolverPose(
+                firstPerson,
+                aiming,
+                state.reloadMode(),
+                open,
+                state.selectedChamber());
+        // Gecko item space from the parsed model (see renderByItem).
+        poseStack.translate(0.0D, 1.5D, 0.0D);
+        poseStack.scale(-1.0F, -1.0F, 1.0F);
+        VertexConsumer vertices = buffer.getBuffer(
+                RenderType.entityCutoutNoCull(HEAVY_TEXTURE));
+        heavyRoot.render(
+                poseStack,
+                vertices,
+                packedLight,
+                packedOverlay);
+        poseStack.popPose();
+    }
+
+    // 0.1.13 applyFirstPersonStateTransform (one-handed hold).
+    private static void applyHeavyFirstPersonStateTransform(
+            PoseStack poseStack,
+            ItemDisplayContext displayContext,
+            boolean reloadMode,
+            boolean aiming) {
+        float handSide = displayContext
+                        == ItemDisplayContext.FIRST_PERSON_LEFT_HAND
+                ? -1.0F
+                : 1.0F;
+        if (reloadMode) {
+            poseStack.translate(
+                    0.08F * handSide, 0.16F, -0.22F);
+            poseStack.mulPose(Axis.XP.rotationDegrees(10.0F));
+            poseStack.mulPose(Axis.YP.rotationDegrees(
+                    40.0F * handSide));
+            poseStack.mulPose(Axis.ZP.rotationDegrees(
+                    5.0F * handSide));
+        }
+        else if (aiming) {
+            poseStack.translate(0.0D, 0.08D, -0.65D * handSide);
+            poseStack.mulPose(Axis.YP.rotationDegrees(
+                    -2.7F * handSide));
+            poseStack.mulPose(Axis.ZP.rotationDegrees(
+                    -5.2F * handSide));
+        }
+    }
+
+    private static float handSide(ItemDisplayContext displayContext) {
+        return displayContext
+                        == ItemDisplayContext.FIRST_PERSON_LEFT_HAND
+                ? -1.0F
+                : 1.0F;
     }
 
     private static boolean isFirstPerson(

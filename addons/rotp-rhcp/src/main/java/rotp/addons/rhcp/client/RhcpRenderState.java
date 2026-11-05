@@ -18,4 +18,7 @@ public final class RhcpRenderState extends StandEntityRenderState {
     public boolean userCrouching;
     public float walkSpeedFactor = 1.0F;
     public float idleLoopTick;
+    // 1.16 StandPose.SUMMON: which of RHCPModel's summon poses, -1 when none.
+    public int summonPose = -1;
+    public boolean mainArmLeft;
 }

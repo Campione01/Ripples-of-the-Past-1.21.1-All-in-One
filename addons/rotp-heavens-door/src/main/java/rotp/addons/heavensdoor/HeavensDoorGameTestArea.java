@@ -16,7 +16,7 @@ import net.minecraft.world.phys.Vec3;
  * are forced too, and the test body runs once all of them tick entities; the runner unforces every chunk after the
  * batch.
  */
-final class HeavensDoorGameTestArea {
+public final class HeavensDoorGameTestArea {
     // relative corners that hold every fixture position of the Heaven's Door tests
     static final Vec3 MIN = new Vec3(-2.0D, 2.0D, -1.0D);
     static final Vec3 MAX = new Vec3(8.0D, 2.0D, 8.0D);
@@ -25,11 +25,11 @@ final class HeavensDoorGameTestArea {
     private static final int WAIT_TICKS = 4000;
     private static final long WAIT_NANOS = 30_000_000_000L;
     /** The most ticks the wait can take; a test adds it to its own timeout. */
-    static final int WAIT_TEST_TICKS = 30_100;
+    public static final int WAIT_TEST_TICKS = 30_100;
 
     private HeavensDoorGameTestArea() {}
 
-    static void whenLoaded(GameTestHelper helper, Runnable body) {
+    public static void whenLoaded(GameTestHelper helper, Runnable body) {
         ServerLevel level = helper.getLevel();
         BlockPos min = BlockPos.containing(helper.absoluteVec(MIN));
         BlockPos max = BlockPos.containing(helper.absoluteVec(MAX));

@@ -1,24 +1,29 @@
 package rotp.addons.heavensdoor.state;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import rotp.core.api.control.AttackOriginScope;
 import rotp.core.api.control.ControlledEntityCombatLeases;
 import rotp.core.api.control.ControlledMobBehaviorLeases;
 import rotp.core.api.control.MobBehaviorMode;
+import rotp.core.powersystem.standpower.entity.StandEntity;
 
 import rotp.addons.heavensdoor.HeavensDoorAddon;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.ambient.AmbientCreature;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.projectile.Projectile;
 
 public final class BookCommandLeaseService {
     private static final String PLAYER_EPOCH_TAG =
@@ -170,6 +175,51 @@ public final class BookCommandLeaseService {
                         result.lease()));
         markIssuerActive(issuer);
         return true;
+    }
+
+    /**
+     * The author's 1.2 build (GameplayHandler.onLivingAttack): an attack on the
+     * forbidden player's Stand counts as one on the player. The core lease
+     * guards the player's own UUID only, so the Stand is checked here with the
+     * same origins: the subject itself, its Stand, or their projectiles.
+     */
+    public static synchronized boolean protectsForbiddenStand(
+            Entity victim, Entity directAttacker, Entity attacker) {
+        if (!(victim instanceof StandEntity stand)
+                || !(stand.getUser() instanceof ServerPlayer protectedPlayer)
+                || COMBAT.isEmpty()) {
+            return false;
+        }
+        pruneInactive();
+        Set<UUID> origins = new HashSet<>();
+        addAttackOrigin(directAttacker, origins, 0);
+        addAttackOrigin(attacker, origins, 0);
+        for (CombatRecord record : COMBAT.values()) {
+            if (record.forbiddenUuid().equals(protectedPlayer.getUUID())
+                    && origins.contains(record.subject().getUUID())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void addAttackOrigin(
+            Entity entity, Set<UUID> origins, int depth) {
+        if (entity == null || depth > 8) {
+            return;
+        }
+        if (entity instanceof Projectile projectile) {
+            addAttackOrigin(projectile.getOwner(), origins, depth + 1);
+        }
+        else if (entity instanceof StandEntity attackerStand) {
+            LivingEntity user = attackerStand.getUser();
+            if (user != null) {
+                origins.add(user.getUUID());
+            }
+        }
+        else if (entity instanceof LivingEntity living) {
+            origins.add(living.getUUID());
+        }
     }
 
     public static boolean behaviorEligible(LivingEntity target) {

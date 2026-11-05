@@ -270,6 +270,8 @@ public final class BookCommandSessionService {
                 case MOB_BEHAVIOR_TOGGLE ->
                         BookCommandLeaseService
                                 .behaviorEligible(target);
+                case SELF_HARM_TOGGLE ->
+                        selfHarmToggleAllowed(player, target);
                 case INVALID, CLOSE -> false;
                 default -> true;
             };
@@ -443,8 +445,19 @@ public final class BookCommandSessionService {
         return WrittenCommandService.apply(player, target, BookCommand.FREEZE);
     }
 
+    // The author's 1.2 BookGui: Kill Yourself is written only by a user in
+    // Resolve; a target already under it can have it taken off without
+    public static boolean selfHarmToggleAllowed(
+            LivingEntity player, LivingEntity target) {
+        return player.hasEffect(ModStatusEffects.RESOLVE)
+                || target.hasEffect(HeavensDoorAddon.KYS_EFFECT);
+    }
+
     private static boolean toggleSelfHarm(
             ServerPlayer player, LivingEntity target) {
+        if (!selfHarmToggleAllowed(player, target)) {
+            return false;
+        }
         if (ownsLegacySelfHarm(target, player.getUUID())) {
             target.removeEffect(HeavensDoorAddon.KYS_EFFECT);
             ((EntityPersistentDataAccessor) target).heavensDoor$existingPersistentData().remove(SELF_HARM_OWNER_TAG);

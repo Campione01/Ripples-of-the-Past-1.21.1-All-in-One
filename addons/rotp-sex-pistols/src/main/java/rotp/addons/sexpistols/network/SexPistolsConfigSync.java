@@ -16,7 +16,7 @@ import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 public final class SexPistolsConfigSync {
     public static final String NETWORK_PROTOCOL_VERSION =
-            "sex-pistols-config-2";
+            "sex-pistols-config-3";
 
     private static final AtomicReference<SexPistolsConfigSyncPayload>
             SERVER_SNAPSHOT = new AtomicReference<>(defaults());
@@ -102,7 +102,8 @@ public final class SexPistolsConfigSync {
                 SexPistolsConfig.reviveTicks(),
                 SexPistolsConfig.hungerEnabled(),
                 SexPistolsConfig.hungerMinTicks(),
-                SexPistolsConfig.hungerExtraTicks()));
+                SexPistolsConfig.hungerExtraTicks(),
+                SexPistolsConfig.recoilMultiplier()));
         return true;
     }
 
@@ -125,6 +126,7 @@ public final class SexPistolsConfigSync {
                 SexPistolsConfig.DEFAULT_SEX_PISTOLS_REVIVE_TICKS,
                 SexPistolsConfig.DEFAULT_SEX_PISTOLS_HUNGER_ENABLED,
                 SexPistolsConfig.DEFAULT_SEX_PISTOLS_HUNGER_MIN_TICKS,
-                SexPistolsConfig.DEFAULT_SEX_PISTOLS_HUNGER_EXTRA_TICKS);
+                SexPistolsConfig.DEFAULT_SEX_PISTOLS_HUNGER_EXTRA_TICKS,
+                SexPistolsConfig.DEFAULT_RECOIL_MULTIPLIER);
     }
 }

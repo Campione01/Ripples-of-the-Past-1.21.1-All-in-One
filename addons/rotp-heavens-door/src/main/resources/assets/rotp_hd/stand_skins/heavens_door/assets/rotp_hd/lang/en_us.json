@@ -13,8 +13,6 @@
   "rotp_hd.message.cannot_tear_page": "A page cannot be removed from that target.",
   "jojo.message.action_condition.no_page": "You need a valid page in your main hand.",
   "rotp_hd.message.book_snapshot": "%1$s | Health %2$s/%3$s | Age %4$ss | Size %5$s x %6$s | Stand %7$s | Pages %8$s | %9$s ticks remain",
-  "subtitles.rotp_hd.rohan_summon": "Rohan summons Heaven's Door",
-  "subtitles.rotp_hd.rohan_light_attack": "Rohan attacks",
-  "subtitles.rotp_hd.rohan_barrage": "Rohan cries out",
-  "subtitles.rotp_hd.heavens_door_write_command": "Heaven's Door writes"
+  "subtitles.rotp_hd.rohan_summon": "Heaven's Door",
+  "subtitles.rotp_hd.heavens_door_write_command": "Heaven's Door wrote something"
 }

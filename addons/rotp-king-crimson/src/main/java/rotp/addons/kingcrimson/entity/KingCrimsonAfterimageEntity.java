@@ -7,6 +7,7 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import rotp.addons.kingcrimson.KingCrimsonEpitaphForesightSpec;
+import rotp.addons.kingcrimson.state.KingCrimsonTemporalStateService;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -38,6 +39,9 @@ public final class KingCrimsonAfterimageEntity
     /** A Time Erase afterimage outlined in red through walls; Epitaph vision images never are. */
     private boolean timeEraseOutline;
     private int lastVisionRefreshTick;
+    /** The Time Erase user whose client holds this afterimage; it stands still while that erase is paused. */
+    @Nullable
+    private Player eraseObserver;
     private final Queue<PositionSample> originPositions =
             new ArrayDeque<>();
 
@@ -82,6 +86,10 @@ public final class KingCrimsonAfterimageEntity
         if (level().isClientSide()) {
             setSharedFlag(FLAG_GLOWING, true);
         }
+    }
+
+    public void followErasePauseOf(@Nullable Player observer) {
+        eraseObserver = observer;
     }
 
     /** Turns this client entity into an Epitaph vision image of {@code originId}. */
@@ -131,10 +139,16 @@ public final class KingCrimsonAfterimageEntity
     @Override
     public void tick() {
         super.tick();
+        if (!futureVision && eraseObserver != null
+                && KingCrimsonTemporalStateService.isErasePaused(eraseObserver)) {
+            // T1: the erase's foresight freezes with the erase in someone's time stop
+            lifespanTicks++;
+            return;
+        }
         LivingEntity origin = getOriginEntity();
         if (origin == null
                 || !origin.isAlive()
-                || tickCount > lifespanTicks) {
+                || !followsRunningErase() && tickCount > lifespanTicks) {
             discard();
             return;
         }
@@ -159,6 +173,13 @@ public final class KingCrimsonAfterimageEntity
                     sample.yRot(),
                     sample.xRot());
         }
+    }
+
+    // An erase held back by another ability (Made in Heaven's mode A) outlasts its length in client ticks; its
+    // afterimages stay until the erase's end removes them.
+    private boolean followsRunningErase() {
+        return !futureVision && eraseObserver != null
+                && KingCrimsonTemporalStateService.isErasing(eraseObserver);
     }
 
     @Override

@@ -3,8 +3,13 @@ package rotp.addons.nextalbum.item;
 import java.util.List;
 import java.util.function.Consumer;
 
+import rotp.addons.nextalbum.NextAlbumGameEvents;
 import rotp.addons.nextalbum.client.render.MistaSuitArmorRenderer;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Style;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.component.Unbreakable;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -23,6 +28,8 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 
 public final class MistaSuitArmorItem
         extends ArmorItem implements GeoItem {
+    public static final int THEME_COLOR = 0xE75D2F;
+
     private final AnimatableInstanceCache cache =
             GeckoLibUtil.createInstanceCache(this);
     private final String modelPath;
@@ -52,7 +59,11 @@ public final class MistaSuitArmorItem
                         .stacksTo(1)
                         .durability(type.getDurability(
                                 MistaSuitArmorMaterial
-                                        .DURABILITY_MULTIPLIER)));
+                                        .DURABILITY_MULTIPLIER))
+                        // Next Album 0.1.13: character suits never wear out.
+                        .component(
+                                DataComponents.UNBREAKABLE,
+                                new Unbreakable(true)));
         this.modelPath = modelPath;
         this.texturePath = texturePath;
         this.slimModelPath = slimModelPath;
@@ -99,10 +110,53 @@ public final class MistaSuitArmorItem
         tooltip.add(Component.translatable(
                         "item.nextalbum.mista_suit.tooltips")
                 .withStyle(ChatFormatting.GRAY));
+        // 0.1.13 CharacterSuitTooltips.effectLine: Narrow Escape (n/4).
+        Player viewer = net.neoforged.fml.loading.FMLEnvironment.dist.isClient()
+                ? ClientViewer.player()
+                : null;
+        Style theme = Style.EMPTY.withColor(THEME_COLOR);
+        tooltip.add(Component.translatable(
+                "item.nextalbum.suit.effect.line",
+                Component.translatable(
+                                "item.nextalbum.suit.effect.narrow_escape")
+                        .withStyle(theme),
+                Component.literal(String.valueOf(
+                                NextAlbumGameEvents.mistaSuitPieces(viewer)))
+                        .withStyle(theme),
+                Component.literal("4").withStyle(theme),
+                Component.translatable(
+                        "item.nextalbum.suit.effect.narrow_escape.desc")));
+        if (getType() == ArmorItem.Type.BOOTS) {
+            tooltip.add(Component.translatable(
+                    "item.nextalbum.suit.effect.line.simple",
+                    Component.translatable(
+                                    "item.nextalbum.suit.effect.bullet_storage")
+                            .withStyle(theme),
+                    Component.translatable(
+                            "item.nextalbum.suit.effect.bullet_storage.desc")));
+            tooltip.add(Component.translatable(
+                    "item.nextalbum.suit.effect.line.simple",
+                    Component.translatable(
+                                    "item.nextalbum.suit.effect.speedloader")
+                            .withStyle(theme),
+                    Component.translatable(
+                            "item.nextalbum.suit.effect.speedloader.desc")));
+        }
         tooltip.add(Component.translatable(
                         stack.getDescriptionId()
                                 + ".reference_quote")
                 .withStyle(ChatFormatting.DARK_GRAY));
+    }
+
+    @Override
+    public boolean isValidRepairItem(ItemStack toRepair, ItemStack repair) {
+        return false;
+    }
+
+    private static final class ClientViewer {
+        private static Player player() {
+            return net.minecraft.client.Minecraft.getInstance().player;
+        }
     }
 
     @Override

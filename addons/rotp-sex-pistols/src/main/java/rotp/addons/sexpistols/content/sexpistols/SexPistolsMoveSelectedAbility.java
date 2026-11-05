@@ -20,6 +20,7 @@ import rotp.addons.sexpistols.registry.SexPistolsSounds;
 import rotp.addons.sexpistols.registry.SexPistolsStands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.Level;
@@ -36,12 +37,12 @@ public final class SexPistolsMoveSelectedAbility extends EntityActionAbility {
     // 1.16 InitStands: cooldown(4), no stamina cost on any branch.
     public static final int COOLDOWN_TICKS = 4;
     public static final int RESOLVE_LEVEL = 1;
-    public static final double TARGET_RANGE =
-            SexPistolsEntity.COMMAND_RANGE;
-    // 1.16 getHoldDurationMax, MOVE_SPEED and MOVE_MAX_DISTANCE.
+    // 0.1.13 ITEM_TARGET_RANGE and MOVE_MAX_DISTANCE: 10 -> 30.
+    public static final double TARGET_RANGE = 30.0D;
+    // 1.16 getHoldDurationMax and MOVE_SPEED.
     public static final int HOLD_DURATION_MAX = 72000;
     public static final double MOVE_STEP = 0.36D;
-    public static final double MOVE_MAX_DISTANCE = 10.0D;
+    public static final double MOVE_MAX_DISTANCE = 30.0D;
     public static final String PISTOL_NAME_KEY =
             "rotp_sex_pistols.sex_pistols.pistol_name";
 
@@ -118,17 +119,32 @@ public final class SexPistolsMoveSelectedAbility extends EntityActionAbility {
         // it gives or would pick up.
         Component pistol = pistolName(coordinator.selectedNumber());
         if (member != null) {
+            boolean fixed = member.getMemberState()
+                    == SexPistolsMemberState.SCOUTING;
             if (member.hasCarriedItem()) {
+                // 0.1.13: a fixed member away from the user drops it.
                 return Component.translatable(
-                        getTranslationKey(".give"),
+                        getTranslationKey(
+                                fixed && !member.isNearOwnerForItemGive()
+                                        ? ".drop"
+                                        : ".give"),
                         pistol,
                         member.getCarriedItem().getHoverName());
             }
-            if (member.isRetrievingItem()
-                    || member.getMemberState()
-                            == SexPistolsMemberState.SCOUTING) {
+            if (member.isRetrievingItem()) {
                 return Component.translatable(
                         getTranslationKey(".recall"), pistol);
+            }
+            if (fixed) {
+                ItemEntity remoteItem = findLookedAtItemFrom(
+                        member, owner, TARGET_RANGE);
+                return remoteItem != null
+                        ? Component.translatable(
+                                getTranslationKey(".pickup"),
+                                pistol,
+                                remoteItem.getItem().getHoverName())
+                        : Component.translatable(
+                                getTranslationKey(".recall"), pistol);
             }
         }
         ItemEntity itemTarget = findLookedAtItem(owner, TARGET_RANGE);
@@ -235,13 +251,19 @@ public final class SexPistolsMoveSelectedAbility extends EntityActionAbility {
                 return;
             }
 
-            boolean recalling = member.getMemberState()
-                            == SexPistolsMemberState.SCOUTING
+            boolean fixed = member.getMemberState()
+                    == SexPistolsMemberState.SCOUTING;
+            boolean recalling = fixed
                     || member.isRetrievingItem()
                     || member.hasCarriedItem();
-            ItemEntity itemTarget = !recalling
-                    ? findLookedAtItem(owner, TARGET_RANGE)
-                    : null;
+            // 0.1.13: a fixed member looks for the item from where it is.
+            ItemEntity itemTarget = member.hasCarriedItem()
+                            || member.isRetrievingItem()
+                    ? null
+                    : fixed
+                            ? findLookedAtItemFrom(
+                                    member, owner, TARGET_RANGE)
+                            : findLookedAtItem(owner, TARGET_RANGE);
 
             if (member.hasCarriedItem()) {
                 member.deliverCarriedItem();
@@ -252,7 +274,7 @@ public final class SexPistolsMoveSelectedAbility extends EntityActionAbility {
                         SexPistolsMemberState.FORMATION);
             }
             else if (itemTarget != null) {
-                member.startRetrievingItem(itemTarget);
+                member.startRetrievingItem(itemTarget, fixed);
             }
             else if (member.getMemberState()
                     == SexPistolsMemberState.SCOUTING) {
@@ -286,7 +308,7 @@ public final class SexPistolsMoveSelectedAbility extends EntityActionAbility {
         }
 
         // 1.16 tickMovingState: 0.36 further along the line each held tick,
-        // up to 10; the hold itself goes on until the release.
+        // up to 30 (0.1.13); the hold itself goes on until the release.
         private void tickFlight(ServerLevel serverLevel) {
             if (!(serverLevel.getEntity(flyingMember)
                             instanceof SexPistolsEntity member)
@@ -346,15 +368,37 @@ public final class SexPistolsMoveSelectedAbility extends EntityActionAbility {
         if (owner == null || owner.level() == null) {
             return null;
         }
-        Vec3 eye = owner.getEyePosition();
-        Vec3 end = eye.add(owner.getLookAngle().scale(range));
-        BlockHitResult blockHit = owner.level().clip(
+        return findLookedAtItem(
+                owner,
+                owner.getEyePosition(),
+                owner.getLookAngle(),
+                range);
+    }
+
+    // The port's fixed members do not turn with the user's view: the ray
+    // starts at the member and follows the user's look.
+    public static ItemEntity findLookedAtItemFrom(
+            SexPistolsEntity member, LivingEntity owner, double range) {
+        if (member == null || owner == null || member.level() == null) {
+            return null;
+        }
+        return findLookedAtItem(
+                member,
+                member.getEyePosition(),
+                owner.getLookAngle(),
+                range);
+    }
+
+    private static ItemEntity findLookedAtItem(
+            Entity context, Vec3 eye, Vec3 look, double range) {
+        Vec3 end = eye.add(look.scale(range));
+        BlockHitResult blockHit = context.level().clip(
                 new ClipContext(
                         eye,
                         end,
                         ClipContext.Block.OUTLINE,
                         ClipContext.Fluid.NONE,
-                        owner));
+                        context));
         double maximumDistance = blockHit.getType()
                         == HitResult.Type.BLOCK
                 ? eye.distanceToSqr(blockHit.getLocation())
@@ -363,7 +407,7 @@ public final class SexPistolsMoveSelectedAbility extends EntityActionAbility {
         ItemEntity best = null;
         double bestDistance = maximumDistance;
         for (ItemEntity item :
-                owner.level().getEntitiesOfClass(
+                context.level().getEntitiesOfClass(
                         ItemEntity.class,
                         search,
                         SexPistolsMoveSelectedAbility

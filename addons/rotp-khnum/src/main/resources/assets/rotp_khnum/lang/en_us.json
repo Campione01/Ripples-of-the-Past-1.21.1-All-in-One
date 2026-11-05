@@ -22,6 +22,6 @@
   "rotp_khnum.configuration.minimumEntityWidth.tooltip": "Entities narrower than this many blocks cannot be chosen for Entity Disguise.",
   "rotp_khnum.configuration.maximumEntityWidth": "Maximum Disguise Entity Width",
   "rotp_khnum.configuration.maximumEntityWidth.tooltip": "Entities wider than this many blocks cannot be chosen for Entity Disguise.",
-  "rotp_khnum.configuration.entityBlacklist": "Entity Disguise Blacklist",
+  "rotp_khnum.configuration.entityBlacklist": "Entity Blacklist",
   "rotp_khnum.configuration.entityBlacklist.tooltip": "Entity ids (resource location format, for example minecraft:arrow) that can never be chosen for Entity Disguise."
 }

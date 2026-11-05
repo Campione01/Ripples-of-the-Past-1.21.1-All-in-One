@@ -322,18 +322,7 @@ public final class D4CAnnihilationCloneEntity extends PathfinderMob {
                 shareWithMinions(level, target, 0.0025F, false);
             }
         }
-        if (annihilation % 10 == 0) {
-            level.sendParticles(
-                    D4CAddon.ANNIHILATE.get(),
-                    target.getX(),
-                    target.getY(0.5D),
-                    target.getZ(),
-                    12,
-                    target.getBbWidth() * 0.6D,
-                    target.getBbHeight() * 0.5D,
-                    target.getBbWidth() * 0.6D,
-                    0.02D);
-        }
+        emitAnnihilation(level, target, annihilation);
         // 1.16 ag/ab.java:368-378: the final blow needs no contact
         if (annihilation >= 160) {
             finalBurst(level, target);
@@ -592,6 +581,84 @@ public final class D4CAnnihilationCloneEntity extends PathfinderMob {
                 getSoundSource(),
                 1.0F,
                 0.8F);
+    }
+
+    // one particle per packet as 1.16 sent them: with a count of 1 the
+    // offsets are the gaussian spread and 0.1 the random speed
+    private void emitAnnihilation(
+            ServerLevel level, LivingEntity target, int tick) {
+        AABB box = target.getBoundingBox();
+        double width = box.getXsize();
+        double height = box.getYsize();
+        double depth = box.getZsize();
+        int base = D4CAnnihilationCloneEffects.burstBase(
+                width, depth, height);
+        double x = target.getX();
+        double y = target.getY();
+        double z = target.getZ();
+        if (tick <= D4CAnnihilationCloneEffects.SECOND_PHASE_TICK
+                && tick % 10 == 0) {
+            double spreadXZ = Math.max(width, depth) + 1.0D;
+            double spreadY = height + 0.5D;
+            for (int i = 0; i < base; i++) {
+                level.sendParticles(
+                        D4CAddon.ANNIHILATE.get(),
+                        x + (random.nextDouble() - 0.5D) * spreadXZ,
+                        y + random.nextDouble() * spreadY,
+                        z + (random.nextDouble() - 0.5D) * spreadXZ,
+                        1, 0.0D, 0.0D, 0.0D, 0.0D);
+            }
+        }
+        int phaseTick = tick - D4CAnnihilationCloneEffects.SECOND_PHASE_TICK;
+        if (phaseTick < 0
+                || phaseTick >= D4CAnnihilationCloneEffects
+                        .SECOND_PHASE_TICKS) {
+            return;
+        }
+        int count = D4CAnnihilationCloneEffects.faceBurstCount(
+                base, phaseTick);
+        for (int i = 0; i < count; i++) {
+            double px = x + (random.nextDouble() - 0.5D) * width;
+            double py = y + random.nextDouble() * height;
+            double pz = z + (random.nextDouble() - 0.5D) * depth;
+            double dx = 0.0D;
+            double dy = 0.0D;
+            double dz = 0.0D;
+            double out = 0.1D + random.nextDouble() * 0.2D;
+            switch (random.nextInt(6)) {
+                case 0 -> {
+                    pz = z - depth / 2.0D;
+                    dz = -out;
+                }
+                case 1 -> {
+                    pz = z + depth / 2.0D;
+                    dz = out;
+                }
+                case 2 -> {
+                    px = x - width / 2.0D;
+                    dx = -out;
+                }
+                case 3 -> {
+                    px = x + width / 2.0D;
+                    dx = out;
+                }
+                case 4 -> {
+                    py = y;
+                    dy = -out;
+                }
+                default -> {
+                    py = y + height;
+                    dy = out;
+                }
+            }
+            level.sendParticles(
+                    D4CAddon.ANNIHILATE.get(),
+                    px, py, pz, 1,
+                    dx + (random.nextDouble() - 0.5D) * 0.1D,
+                    dy + (random.nextDouble() - 0.5D) * 0.1D,
+                    dz + (random.nextDouble() - 0.5D) * 0.1D,
+                    0.1D);
+        }
     }
 
     // 1.16 ag/ab.java:368-375 and ah/aa.java:352-359

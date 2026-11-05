@@ -23,6 +23,7 @@ import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.init.ModParticles;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.subsystems.target.ActionTarget;
@@ -34,9 +35,11 @@ import rotp.addons.d4c.D4CRuntimeRules;
 import rotp.addons.d4c.entity.D4CAnnihilationCloneEntity;
 import rotp.addons.d4c.entity.D4CMinionEntity;
 import rotp.addons.d4c.network.D4CLoveTrainSync;
+import rotp.addons.d4c.travel.D4CParallelTerrainMirror;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -124,7 +127,8 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
     public ActionAnimIdentifier getEntityAnim(EntityActionInstance action) {
         String donorAnimation = switch (mode) {
             case RAPID_PUNCH -> "rapidpunch";
-            case HAND_CHOP -> "heavyPunch";
+            // 1.16 ai/ah.java:96 setFinisherVariation: HEAVY_ATTACK_FINISHER
+            case HAND_CHOP -> "finisherPunch";
             case SUMMON_MINION, ANNIHILATION, PULL_IN_TRAVEL ->
                     "flangatck";
             case FLAG_TRAVEL -> "flangte";
@@ -135,6 +139,14 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                 ? ActionAnimIdentifier.getOrCreate(
                         donorAnimation, false)
                 : super.getEntityAnim(action);
+    }
+
+    // 1.16 ai/ah.java:72: the hand chop was the heavy punch's finisher
+    // variation and the rapid punch a light attack, so under the owner's T2
+    // rule they reach out as D4C's punches and heavy punch do
+    @Override
+    public boolean isReachingMeleeAttack(EntityActionInstance action) {
+        return mode == Mode.HAND_CHOP || mode == Mode.RAPID_PUNCH;
     }
 
     @Override
@@ -234,7 +246,8 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
         EntityActionInstance action = standEntity.getCurStandAction();
         if (mode != Mode.RAPID_PUNCH
                 || action == null
-                || !action.isOfAbility(this)) {
+                || !action.isOfAbility(this)
+                || fliesOutToStrike(action)) {
             return false;
         }
         ActionPhase phase = action.getPhase();
@@ -243,6 +256,16 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                                 - action.getPhaseTick() <= 2.0F
                 || phase == ActionPhase.PERFORM
                 || phase == ActionPhase.RECOVERY;
+    }
+
+    // owner T2: a rapid punch whose front offset reaches past 1.16's 2 blocks
+    // flies out to its target and follows it there, as the core's reaching
+    // attacks do, instead of standing still where its lunge stopped. Read off
+    // the offset the action set, since the core's reach asks whether the
+    // Stand follows its user, which asks this
+    private static boolean fliesOutToStrike(EntityActionInstance action) {
+        Vec3 offset = action.getSyncedStandOffset();
+        return offset != null && offset.z > 2.0D + 1.0E-4D;
     }
 
     // 1.16 ac.java:137 standRetractsAfterTask
@@ -408,7 +431,10 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                     && getPerformer() instanceof StandEntity stand) {
                 // what pressedTaskTarget hands to the task; aa.java:74-78
                 // measured front3dOffset to the task's target from the start
+                ActionTarget sentByServer = getActionTargetSnapshot(level());
                 ActionTarget chopTarget = captureActionTargetFromAim(stand);
+                chopTarget = pastUserReach(stand, chopTarget, sentByServer,
+                        StandEntityPunchAbility.CrosshairRule.ENTITY);
                 setStandFrontOffsetFromTarget(
                         stand,
                         chopTarget,
@@ -440,7 +466,10 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                 if (!isRestoringInputLifecycle()) {
                     stand.alternateHands();
                 }
+                ActionTarget sentByServer = getActionTargetSnapshot(level());
                 ActionTarget target = captureActionTargetFromAim(stand);
+                target = pastUserReach(stand, target, sentByServer,
+                        StandEntityPunchAbility.CrosshairRule.BLOCK_OR_ENTITY);
                 setStandFrontOffsetFromTarget(
                         stand,
                         target,
@@ -456,6 +485,32 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                     Ability.sayShoutOf(ability, user, modeShout(mode));
                 }
             }
+        }
+
+        // the Stand's aim a client sends stops at its user's reach: past it the
+        // server picks the entity the press reaches out to, as the core
+        // punch's pressTarget does, and a client takes the one its server sent
+        private ActionTarget pastUserReach(StandEntity stand, ActionTarget aimed,
+                ActionTarget sentByServer,
+                StandEntityPunchAbility.CrosshairRule rule) {
+            Level level = level();
+            LivingEntity user = stand.getUser();
+            if (!aimed.isEmpty(level) || user == null) {
+                return aimed;
+            }
+            ActionTarget far = level.isClientSide()
+                    ? sentByServer
+                    : StandEntityPunchAbility.pressTarget(
+                            stand, ActionTarget.EMPTY, rule, ability);
+            Entity entity = far.getType() == ActionTarget.TargetType.ENTITY
+                    ? far.getEntity() : null;
+            if (entity == null
+                    || StandMeleeReach.userDistance(user, entity)
+                            <= StandEntityPunchAbility.userAimReach(
+                                    user, stand)) {
+                return aimed;
+            }
+            return setActionTargetSnapshot(far);
         }
 
         // 1.16 StandEntityHeavyAttack.isFreeRecovery: the hand chop, a
@@ -562,6 +617,12 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                                 stand.getLastHeavyFinisherValue())
                                 * 0.8F));
             }
+            if (mode == Mode.FLAG_TRAVEL
+                    && newPhase == ActionPhase.BUTTON_CHARGE
+                    && !level().isClientSide()
+                    && getPowerUser() instanceof ServerPlayer player) {
+                D4CParallelTerrainMirror.prewarm(player);
+            }
             if (mode == Mode.LOVE_TRAIN
                     && newPhase == ActionPhase.BUTTON_CHARGE
                     && !level().isClientSide()) {
@@ -622,7 +683,7 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                     D4CPhase2BService.notify(user, reason);
                 }
                 cancelLoveTrainPresentation();
-                forceStop();
+                stopAndTellClients();
                 return;
             }
             StandPower power = StandPower.get(user);
@@ -631,7 +692,7 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                     mode, serverLevel, user);
             if (!committed) {
                 cancelLoveTrainPresentation();
-                forceStop();
+                stopAndTellClients();
                 return;
             }
             // 1.16 StandEntityTask paid after the perform with the result
@@ -801,8 +862,16 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
             if (mode.chargeTicks > 0
                     && getPhase() == ActionPhase.BUTTON_CHARGE) {
                 cancelLoveTrainPresentation();
-                forceStop();
+                stopAndTellClients();
             }
+        }
+
+        // a client's copy hears of no release (its user's key reaches only the
+        // server's action), so a charge the server drops must be ended there
+        // too, or the client keeps charging and posing to the charge's end
+        private void stopAndTellClients() {
+            forceStop();
+            syncPhaseChanges();
         }
 
         @Override
@@ -891,6 +960,9 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                     * D4CPhase2BSpec.RAPID_DAMAGE_MULTIPLIER;
             // read before the hit, which may remove the entity
             boolean admitted = damage > 0.0F && stand.canAttackEntity(struck);
+            // owner T2: the rapid punch's own knockback and nausea fall with
+            // its damage past the base reach
+            float strikeFactor = StandMeleeReach.strikeFactor(stand, struck);
             boolean hurt = standEntityAttack(
                     stand,
                     struck,
@@ -911,7 +983,7 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                             * Mth.RAD_TO_DEG;
                     struck.setDeltaMovement(new Vec3(0.0D, 0.0D,
                             D4CRuntimeRules.rapidBaseKnockback(rapidHits)
-                                    * 0.5D)
+                                    * 0.5D * strikeFactor)
                             .yRot(-yaw * Mth.DEG_TO_RAD));
                 }
                 playImpactSound(stand, struck,
@@ -921,19 +993,23 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
             if (!hurt) {
                 return;
             }
-            target.addEffect(new MobEffectInstance(
-                    MobEffects.CONFUSION,
-                    100,
-                    0,
-                    false,
-                    false,
-                    true));
+            int nauseaTicks = Math.round(100 * strikeFactor);
+            if (nauseaTicks > 0) {
+                target.addEffect(new MobEffectInstance(
+                        MobEffects.CONFUSION,
+                        nauseaTicks,
+                        0,
+                        false,
+                        false,
+                        true));
+            }
             Vec3 direction = target.position()
                     .subtract(stand.position());
             if (direction.horizontalDistanceSqr() > 0.0D) {
                 direction = direction.normalize();
                 double baseKnockback =
-                        D4CRuntimeRules.rapidBaseKnockback(rapidHits);
+                        D4CRuntimeRules.rapidBaseKnockback(rapidHits)
+                                * strikeFactor;
                 target.push(
                         direction.x * baseKnockback,
                         0.0D,
@@ -942,12 +1018,15 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                     target.push(
                             direction.x
                                     * D4CPhase2BSpec
-                                            .RAPID_FINAL_HORIZONTAL_KNOCKBACK,
+                                            .RAPID_FINAL_HORIZONTAL_KNOCKBACK
+                                    * strikeFactor,
                             D4CPhase2BSpec
-                                    .RAPID_FINAL_UPWARD_KNOCKBACK,
+                                    .RAPID_FINAL_UPWARD_KNOCKBACK
+                                    * strikeFactor,
                             direction.z
                                     * D4CPhase2BSpec
-                                            .RAPID_FINAL_HORIZONTAL_KNOCKBACK);
+                                            .RAPID_FINAL_HORIZONTAL_KNOCKBACK
+                                    * strikeFactor);
                 }
                 target.hurtMarked = true;
             }
@@ -993,6 +1072,10 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                     stand.getAttackDamage())
                     * D4CPhase2BSpec
                             .HAND_CHOP_DAMAGE_MULTIPLIER;
+            // the share the core leaves of a strike past the base reach,
+            // read before the hit
+            float strikeFactor = StandMeleeReach.strikeFactor(
+                    stand, struckEntity);
             boolean hurt = standEntityAttack(
                     stand,
                     struckEntity,
@@ -1000,14 +1083,18 @@ public final class D4CPhase2BAbility extends StandEntityAbility {
                     damage);
             if (hurt && struckEntity instanceof LivingEntity target) {
                 // 1.16 aa/aa/aa.java:95 (100, 0, false, false):
-                // no particles and, like 1.16, no icon.
-                target.addEffect(new MobEffectInstance(
-                        D4CAddon.BLEEDING,
-                        100,
-                        0,
-                        false,
-                        false,
-                        false));
+                // no particles and, like 1.16, no icon; owner T2: shorter
+                // past the base reach, with the hit's damage
+                int bleedingTicks = Math.round(100 * strikeFactor);
+                if (bleedingTicks > 0) {
+                    target.addEffect(new MobEffectInstance(
+                            D4CAddon.BLEEDING,
+                            bleedingTicks,
+                            0,
+                            false,
+                            false,
+                            false));
+                }
                 // 1.16 aa/aa/aa.java:100-111: 40 drops sent one by one, each
                 // at its own spot around the feet with its own spread
                 if (target.level()

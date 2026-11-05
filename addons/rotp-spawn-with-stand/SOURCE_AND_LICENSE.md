@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-spawn-with-stand`, mod id `rotp_sws`, version `1.1-port.5`.
+- Module: `rotp-spawn-with-stand`, mod id `rotp_sws`, version `1.1-port.6`.
 - Original 1.16.5 add-on: `RotP-SpawnWithStand-1.1.jar` (RotP Spawn With Stand, mod id `rotp_sws`), by Hello There; declared license: GNU GPL v3.0; SHA-256 `8BE9FAE4F2CAA0584EACD14702B6BEF10E97C81002B8F716FFE5FF79A9A32AF7`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

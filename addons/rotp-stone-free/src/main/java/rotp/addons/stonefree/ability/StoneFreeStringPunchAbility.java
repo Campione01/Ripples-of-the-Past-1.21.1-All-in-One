@@ -17,6 +17,7 @@ import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import rotp.addons.stonefree.StoneFreeAddon;
 import rotp.addons.stonefree.entity.StoneFreeStandEntity;
@@ -24,7 +25,9 @@ import rotp.addons.stonefree.entity.StoneFreeStringEntity;
 import rotp.addons.stonefree.state.StoneFreeState;
 import javax.annotation.Nullable;
 
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
@@ -80,7 +83,7 @@ public final class StoneFreeStringPunchAbility
 
     private static boolean movesByItself(StandEntity standEntity) {
         EntityActionInstance action = standEntity.getCurStandAction();
-        if (!(action instanceof StringPunchAction)) {
+        if (!(action instanceof StringPunchAction punch) || punch.fliesOut) {
             return false;
         }
         ActionPhase phase = action.getPhase();
@@ -182,21 +185,57 @@ public final class StoneFreeStringPunchAbility
     public static final class StringPunchAction
             extends StandEntityHeavyPunch {
         private boolean captureQueued;
+        private boolean reachDecided;
+        // Owner T2: pressed at an entity past what the windup slide reaches,
+        // the punch flies out and strikes as the core heavy punch does,
+        // instead of moving by itself (which stops its reach-out at the strike).
+        private boolean fliesOut;
 
         public StringPunchAction(EntityActionType ability) {
             super(ability);
         }
 
+        public boolean fliesOut() {
+            return fliesOut;
+        }
+
+        @Override
+        public void toBuf(FriendlyByteBuf buf) {
+            super.toBuf(buf);
+            buf.writeBoolean(fliesOut);
+        }
+
+        @Override
+        public void fromBuf(FriendlyByteBuf buf) {
+            super.fromBuf(buf);
+            fliesOut = buf.readBoolean();
+            reachDecided = true;
+        }
+
         // 1.16 StoneFreeStringPunch.getOffsetFromUser: noYOffset(0, 0.5) in
         // either mode, at that mode's default y and turned by the view yaw,
         // where the heavy punch it extends put the Stand in front of its
-        // target; the heavy punch places it through here.
+        // target; the heavy punch places it through here. Decided once, at
+        // the press (onActionSet), before the action is sent to clients.
         @Override
         public boolean setStandFrontOffsetFromTarget(
                 StandEntity stand,
-                ActionTarget target,
+                @Nullable ActionTarget target,
                 double minOffset,
                 double maxOffset) {
+            if (!reachDecided && !stand.level().isClientSide()) {
+                reachDecided = true;
+                Entity entity = target != null
+                        ? target.copy().resolveEntityId(stand.level())
+                                .getMainEntity()
+                        : null;
+                fliesOut = entity != null
+                        && StandMeleeReach.fliesOutTo(stand, entity, maxOffset);
+            }
+            if (fliesOut) {
+                return super.setStandFrontOffsetFromTarget(
+                        stand, target, minOffset, maxOffset);
+            }
             boolean armsOnly = stand.isArmsOnlyMode();
             double y = armsOnly
                     ? stand.offsetFromUser.armsOnlyIdleOffset.y
@@ -211,7 +250,7 @@ public final class StoneFreeStringPunchAbility
         @Override
         public void actionTick() {
             super.actionTick();
-            if (getPhase() == ActionPhase.WINDUP
+            if (getPhase() == ActionPhase.WINDUP && !fliesOut
                     && performer instanceof StandEntity stand) {
                 slideInWindup(stand);
             }

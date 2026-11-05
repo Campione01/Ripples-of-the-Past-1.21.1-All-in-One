@@ -5,6 +5,8 @@ import java.util.EnumSet;
 import javax.annotation.Nullable;
 
 import rotp.core.api.stand.StandPowerTransitions;
+import rotp.core.api.time.event.BitesTheDustDetonateEvent;
+import rotp.core.api.time.event.TimeEraseStartEvent;
 import rotp.core.api.timestop.TimeStopLifecycleEvent;
 import rotp.core.event.RipplesAbilityKeyPressEvent;
 import rotp.core.init.ModItems;
@@ -23,6 +25,7 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.type.StandType;
 
+import rotp.addons.ger.ability.GerReturnToZeroAbility;
 import rotp.addons.ger.client.GerDisablerClientState;
 import rotp.addons.ger.entity.GerFieldEntity;
 import rotp.addons.ger.network.GerDisablerPayloads;
@@ -321,11 +324,13 @@ public final class GoldExperienceRequiemGameEvents {
         tickLockdowns(living, state);
         if (living instanceof ServerPlayer player
                 && state.markActionsDisabledSent(
-                        state.actionsDisabled())) {
+                        state.actionsDisabled(),
+                        state.disablerActive())) {
             PacketDistributor.sendToPlayer(player,
                     new GerDisablerPayloads.StatePayload(
                             player.getId(),
-                            state.actionsDisabled()));
+                            state.actionsDisabled(),
+                            state.disablerActive()));
         }
     }
 
@@ -667,13 +672,18 @@ public final class GoldExperienceRequiemGameEvents {
      * the slot, its press was refused and a held action ended on its next
      * tick. The core asks this refusal in those checks (AbilityRefusals),
      * never for the manual-control key, which 1.16 sent as no action.
+     * Owner Q9: another's Return to Zero lockdown lets its holder's own Return
+     * to Zero through; the Disabler, which is no time state, does not.
      */
     @Nullable
     public static ConditionCheck refuseWhileDisabled(
             Ability ability, Power<?> context, LivingEntity user) {
-        return actionsDisabled(user)
-                ? ConditionCheck.createNegative(ON_DISABLE_MESSAGE)
-                : null;
+        if (!actionsDisabled(user)
+                || ability instanceof GerReturnToZeroAbility
+                        && !disablerHolds(user)) {
+            return null;
+        }
+        return ConditionCheck.createNegative(ON_DISABLE_MESSAGE);
     }
 
     public static boolean actionsDisabled(LivingEntity user) {
@@ -686,6 +696,16 @@ public final class GoldExperienceRequiemGameEvents {
                 && user.hasData(GoldExperienceRequiemAddon.LIVING_STATE)
                 && GoldExperienceRequiemAddon.livingState(user)
                         .actionsDisabled();
+    }
+
+    private static boolean disablerHolds(LivingEntity user) {
+        if (user instanceof Player player && player.isLocalPlayer()) {
+            return GerDisablerClientState.isHeldByDisabler(user.getId());
+        }
+        return !user.level().isClientSide()
+                && user.hasData(GoldExperienceRequiemAddon.LIVING_STATE)
+                && GoldExperienceRequiemAddon.livingState(user)
+                        .disablerActive();
     }
 
     /** Every ability a dying victim presses, Stand or not, is refused. */
@@ -840,6 +860,26 @@ public final class GoldExperienceRequiemGameEvents {
                 event.getLevel(), event.getInstance());
     }
 
+    // Requiem acts on its own will (owner Q3, Q4): no mark, no key.
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void onTimeEraseStart(TimeEraseStartEvent event) {
+        if (GerRtzRewindService.returnsTimeEraseToZero(
+                event.getLevel(),
+                event.getEraser(),
+                event.getPosition())) {
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void onBitesTheDustDetonate(
+            BitesTheDustDetonateEvent event) {
+        if (GerRtzRewindService.returnsDetonationToZero(
+                event.getTarget())) {
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent
     public static void onServerStopping(
             ServerStoppingEvent event) {
@@ -898,11 +938,13 @@ public final class GoldExperienceRequiemGameEvents {
             // of it; 1.16 ended the lockdown here and told the client so.
             GerLivingState state =
                     GoldExperienceRequiemAddon.livingState(player);
-            state.markActionsDisabledSent(state.actionsDisabled());
+            state.markActionsDisabledSent(
+                    state.actionsDisabled(), state.disablerActive());
             PacketDistributor.sendToPlayer(player,
                     new GerDisablerPayloads.StatePayload(
                             player.getId(),
-                            state.actionsDisabled()));
+                            state.actionsDisabled(),
+                            state.disablerActive()));
         }
     }
 

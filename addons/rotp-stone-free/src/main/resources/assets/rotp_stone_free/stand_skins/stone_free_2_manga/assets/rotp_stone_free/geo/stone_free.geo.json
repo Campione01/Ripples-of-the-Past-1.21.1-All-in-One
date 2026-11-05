@@ -975,6 +975,15 @@
                                                                ]
                                                  },
                                                  {
+                                                     "name":  "left_item",
+                                                     "parent":  "left_arm_bend",
+                                                     "pivot":  [
+                                                                   5.5,
+                                                                   14.25,
+                                                                   -2
+                                                               ]
+                                                 },
+                                                 {
                                                      "name":  "right_arm_xrot",
                                                      "pivot":  [
                                                                    -6,

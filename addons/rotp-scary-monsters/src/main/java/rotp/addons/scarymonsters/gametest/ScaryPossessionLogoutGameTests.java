@@ -123,7 +123,8 @@ public final class ScaryPossessionLogoutGameTests {
             ScaryMonstersState decodedState = new ScaryMonstersState();
             decodedState.deserializeNBT(level.registryAccess(), persistedState);
             helper.assertTrue(decodedState.ownsFacet(POSSESSION)
-                            && decodedState.serializeNBT(level.registryAccess()).equals(persistedState),
+                            && ScaryOwnerDeathGameTests.sameSavedState(
+                                    decodedState.serializeNBT(level.registryAccess()), persistedState),
                     "Saved possession ownership did not survive the production state codec");
             LOGGER.info("R521_PROBE possessionState={}", persistedState);
 
@@ -205,7 +206,8 @@ public final class ScaryPossessionLogoutGameTests {
                 dinosaur != null && player.getVehicle() == dinosaur,
                 dinosaur != null && !dinosaur.isRemoved()
                         && helper.getLevel().getEntity(dinosaur.getUUID()) == dinosaur,
-                dinosaur != null ? dinosaur.getUUID() : null, savedState);
+                dinosaur != null ? dinosaur.getUUID() : null,
+                (CompoundTag) ScaryOwnerDeathGameTests.curesSorted(savedState));
     }
 
     @Nullable

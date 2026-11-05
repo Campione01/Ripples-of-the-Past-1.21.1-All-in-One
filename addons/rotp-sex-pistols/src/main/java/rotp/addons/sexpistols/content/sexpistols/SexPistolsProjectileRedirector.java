@@ -89,24 +89,41 @@ public final class SexPistolsProjectileRedirector {
             return false;
         }
 
-        LivingEntity target = findTarget(
+        // 0.1.13: forced targets first; only revolver shots carry an AIM lock.
+        SexPistolsGuidance.Plan plan = SexPistolsGuidance.plan(
                 level,
-                projectile,
                 owner,
-                coordinator.targetMode(),
-                hitPosition);
-        SexPistolsEntity relay = findRelay(
-                level,
+                coordinator,
                 projectile,
                 member,
-                target,
-                coordinator,
-                hitPosition);
+                hitPosition,
+                movement,
+                projectile.getPersistentData().getInt(REDIRECTED_MASK),
+                null);
+        LivingEntity target = plan != null
+                ? plan.target()
+                : findTarget(
+                        level,
+                        projectile,
+                        owner,
+                        coordinator.targetMode(),
+                        hitPosition);
+        SexPistolsEntity relay = plan != null && plan.relay() != null
+                ? plan.relay()
+                : findRelay(
+                        level,
+                        projectile,
+                        member,
+                        target,
+                        coordinator,
+                        hitPosition);
         Vec3 aim = relay != null
                 ? relay.getBoundingBox().getCenter()
-                : target != null
-                        ? target.getBoundingBox().getCenter()
-                        : hitPosition.add(movement.normalize());
+                : plan != null
+                        ? plan.aimPoint()
+                        : target != null
+                                ? target.getBoundingBox().getCenter()
+                                : hitPosition.add(movement.normalize());
         Vec3 direction = aim.subtract(hitPosition);
         if (direction.lengthSqr() <= 1.0E-7D) {
             direction = owner.getLookAngle();
@@ -220,18 +237,27 @@ public final class SexPistolsProjectileRedirector {
                 targetRange * 2.0D,
                 targetRange * 2.0D,
                 targetRange * 2.0D);
-        return level.getEntitiesOfClass(
-                        LivingEntity.class,
-                        search,
-                        candidate -> mode.matches(
-                                        owner, candidate)
-                                && hasLineOfSight(
-                                        level,
-                                        projectile,
-                                        origin,
-                                        candidate.getBoundingBox()
-                                                .getCenter()))
-                .stream()
+        List<LivingEntity> candidates = level.getEntitiesOfClass(
+                LivingEntity.class,
+                search,
+                candidate -> mode.matches(owner, candidate)
+                        && candidate.distanceToSqr(origin)
+                                <= targetRange * targetRange);
+        LivingEntity seen = candidates.stream()
+                .filter(candidate -> hasLineOfSight(
+                        level,
+                        projectile,
+                        origin,
+                        candidate.getBoundingBox().getCenter()))
+                .min(Comparator.comparingDouble(
+                        candidate -> candidate
+                                .distanceToSqr(origin)))
+                .orElse(null);
+        if (seen != null) {
+            return seen;
+        }
+        // 0.1.13 findBestEffortAttack: the nearest target without a clear line.
+        return candidates.stream()
                 .min(Comparator.comparingDouble(
                         candidate -> candidate
                                 .distanceToSqr(origin)))

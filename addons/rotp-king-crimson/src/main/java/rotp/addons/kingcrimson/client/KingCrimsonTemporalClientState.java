@@ -1,12 +1,19 @@
 package rotp.addons.kingcrimson.client;
 
+import rotp.core.client.ClientTimeStopHandler;
+import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.subsystems.timestop.TimeStopClientAwareness;
+
 import rotp.addons.kingcrimson.KingCrimsonAddon;
 import rotp.addons.kingcrimson.KingCrimsonPhase5Spec;
+import rotp.addons.kingcrimson.entity.KingCrimsonTimeEraseDecoyEntity;
 import rotp.addons.kingcrimson.state.KingCrimsonTemporalState;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
@@ -74,6 +81,38 @@ public final class KingCrimsonTemporalClientState {
                         KingCrimsonAddon.TEMPORAL_STATE)
                 && KingCrimsonAddon.temporalState(localPlayer)
                         .isErasing(level.getGameTime());
+    }
+
+    /** T1: a viewer who sees in stopped time does not see the decoy of an erase frozen in a time stop. */
+    public static boolean hidesDecoyFromLocalViewer(
+            KingCrimsonTimeEraseDecoyEntity decoy) {
+        return decoy.isOwnerErasePaused()
+                && ClientTimeStopHandler.isTimeStoppedStatic()
+                && TimeStopClientAwareness.canSee();
+    }
+
+    // The decoy's Stand has a core renderer, so it is hidden through its invisible flag, which the server
+    // leaves alone: nothing makes a decoy's Stand invisible there.
+    public static void syncDecoyStandVisibility() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) {
+            return;
+        }
+        for (Entity entity : minecraft.level.entitiesForRendering()) {
+            if (!(entity instanceof KingCrimsonTimeEraseDecoyEntity decoy)) {
+                continue;
+            }
+            StandPower power = StandPower.get(decoy);
+            StandEntity stand = power != null
+                    ? power.getSummonedStandEntity()
+                    : null;
+            boolean hide = hidesDecoyFromLocalViewer(decoy);
+            boolean changed = decoy.markClientStandHidden(hide);
+            // set again each tick while hidden: a shared-flags update from the server would clear it
+            if (stand != null && (hide || changed)) {
+                stand.setInvisible(hide);
+            }
+        }
     }
 
     public static boolean timeSkipActive() {

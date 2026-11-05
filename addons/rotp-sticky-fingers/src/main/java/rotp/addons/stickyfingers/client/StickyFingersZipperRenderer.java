@@ -7,6 +7,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import rotp.addons.stickyfingers.StickyFingersAddon;
 import rotp.addons.stickyfingers.block.StickyFingersZipperBlock;
 import rotp.addons.stickyfingers.blockentity.StickyFingersZipperBlockEntity;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
@@ -21,9 +22,13 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class StickyFingersZipperRenderer
         implements BlockEntityRenderer<
                 StickyFingersZipperBlockEntity> {
-    private static final ResourceLocation VOID_TEXTURE =
-            StickyFingersAddon.id(
-                    "textures/zipper/effect/zipper_void.png");
+    // A zipper sheet is 32x32: 1.16 StickyFingersZipperBlockRenderer drew
+    // the face from its top-left 16x16 (texOffs 0,0 of a 16x16x0 box).
+    private static final float FACE_UV = 0.5F;
+    // Off the zipped block's face, which the chunk now draws: 1.16 put the
+    // void 0.001 and the zipper 0.03/16 in front of the wall.
+    private static final float VOID_OFFSET = 0.002F;
+    private static final float ZIPPER_OFFSET = 0.004F;
 
     public StickyFingersZipperRenderer(
             BlockEntityRendererProvider.Context context) {
@@ -53,6 +58,17 @@ public final class StickyFingersZipperRenderer
         }
     }
 
+    // 1.16 drew the zipper in the free cell in front of the face, lit as
+    // that cell.
+    private static int faceLight(
+            Level level, BlockPos position, Direction facing,
+            int packedLight) {
+        BlockPos front = position.relative(facing);
+        return level.isLoaded(front)
+                ? LevelRenderer.getLightColor(level, front)
+                : packedLight;
+    }
+
     private static void renderSide(
             StickyFingersZipperBlockEntity zipper,
             Level level,
@@ -66,14 +82,12 @@ public final class StickyFingersZipperRenderer
         boolean open =
                 state.getValue(StickyFingersZipperBlock.OPEN);
         if (open) {
-            renderPlane(
+            renderVoid(
                     poseStack,
                     buffer.getBuffer(
-                            RenderType.entityTranslucent(
-                                    VOID_TEXTURE)),
-                    facing,
-                    0.006F,
-                    packedLight);
+                            StickyFingersZipperVoidRenderType
+                                    .zipperVoid()),
+                    facing);
         }
         renderPlane(
                 poseStack,
@@ -83,8 +97,10 @@ public final class StickyFingersZipperRenderer
                                         ? openTexture(face.texture())
                                         : face.texture())),
                 facing,
-                0.002F,
-                packedLight);
+                ZIPPER_OFFSET,
+                FACE_UV,
+                faceLight(level, zipper.getBlockPos(), facing,
+                        packedLight));
     }
 
     private static ZipperFace selectFace(
@@ -132,7 +148,8 @@ public final class StickyFingersZipperRenderer
             while (connected[missing]) {
                 missing++;
             }
-            return texture("t", Integer.toString(missing + 1));
+            // zipper_t_1..4 lack their bottom, left, top and right arm
+            return texture("t", Integer.toString((missing + 2) % 4 + 1));
         }
         return texture("cross", "");
     }
@@ -206,76 +223,58 @@ public final class StickyFingersZipperRenderer
         };
     }
 
+    // The quad of a zipped face, pushed off it by offset.
+    private static float[][] faceCorners(
+            Direction facing, float offset) {
+        float low = -offset;
+        float high = 1.0F + offset;
+        return switch (facing) {
+            case NORTH -> new float[][] {
+                {0, 0, low}, {1, 0, low}, {1, 1, low}, {0, 1, low}};
+            case SOUTH -> new float[][] {
+                {1, 0, high}, {0, 0, high}, {0, 1, high}, {1, 1, high}};
+            case EAST -> new float[][] {
+                {high, 0, 0}, {high, 0, 1}, {high, 1, 1}, {high, 1, 0}};
+            case WEST -> new float[][] {
+                {low, 0, 1}, {low, 0, 0}, {low, 1, 0}, {low, 1, 1}};
+            case UP -> new float[][] {
+                {0, high, 1}, {1, high, 1}, {1, high, 0}, {0, high, 0}};
+            case DOWN -> new float[][] {
+                {0, low, 0}, {1, low, 0}, {1, low, 1}, {0, low, 1}};
+        };
+    }
+
+    private static void renderVoid(
+            PoseStack poseStack,
+            VertexConsumer vertices,
+            Direction facing) {
+        PoseStack.Pose pose = poseStack.last();
+        for (float[] corner : faceCorners(facing, VOID_OFFSET)) {
+            vertices.addVertex(
+                    pose.pose(), corner[0], corner[1], corner[2]);
+        }
+    }
+
     private static void renderPlane(
             PoseStack poseStack,
             VertexConsumer vertices,
             Direction facing,
-            float inset,
+            float offset,
+            float uv,
             int packedLight) {
         PoseStack.Pose pose = poseStack.last();
-        float low = inset;
-        float high = 1.0F - inset;
-        switch (facing) {
-            case NORTH -> {
-                vertex(vertices, pose, low, low, low,
-                        0.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, high, low, low,
-                        1.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, high, high, low,
-                        1.0F, 0.0F, facing, packedLight);
-                vertex(vertices, pose, low, high, low,
-                        0.0F, 0.0F, facing, packedLight);
-            }
-            case SOUTH -> {
-                vertex(vertices, pose, high, low, high,
-                        0.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, low, low, high,
-                        1.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, low, high, high,
-                        1.0F, 0.0F, facing, packedLight);
-                vertex(vertices, pose, high, high, high,
-                        0.0F, 0.0F, facing, packedLight);
-            }
-            case EAST -> {
-                vertex(vertices, pose, high, low, low,
-                        0.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, high, low, high,
-                        1.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, high, high, high,
-                        1.0F, 0.0F, facing, packedLight);
-                vertex(vertices, pose, high, high, low,
-                        0.0F, 0.0F, facing, packedLight);
-            }
-            case WEST -> {
-                vertex(vertices, pose, low, low, high,
-                        0.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, low, low, low,
-                        1.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, low, high, low,
-                        1.0F, 0.0F, facing, packedLight);
-                vertex(vertices, pose, low, high, high,
-                        0.0F, 0.0F, facing, packedLight);
-            }
-            case UP -> {
-                vertex(vertices, pose, low, high, high,
-                        0.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, high, high, high,
-                        1.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, high, high, low,
-                        1.0F, 0.0F, facing, packedLight);
-                vertex(vertices, pose, low, high, low,
-                        0.0F, 0.0F, facing, packedLight);
-            }
-            case DOWN -> {
-                vertex(vertices, pose, low, low, low,
-                        0.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, high, low, low,
-                        1.0F, 1.0F, facing, packedLight);
-                vertex(vertices, pose, high, low, high,
-                        1.0F, 0.0F, facing, packedLight);
-                vertex(vertices, pose, low, low, high,
-                        0.0F, 0.0F, facing, packedLight);
-            }
+        float[][] corners = faceCorners(facing, offset);
+        float[][] uvs = {
+            {0.0F, uv}, {uv, uv}, {uv, 0.0F}, {0.0F, 0.0F}};
+        for (int index = 0; index < corners.length; index++) {
+            vertex(vertices, pose,
+                    corners[index][0],
+                    corners[index][1],
+                    corners[index][2],
+                    uvs[index][0],
+                    uvs[index][1],
+                    facing,
+                    packedLight);
         }
     }
 

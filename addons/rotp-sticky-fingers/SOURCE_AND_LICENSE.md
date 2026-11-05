@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-sticky-fingers`, mod id `rotp_stfn`, version `1.0.1-port.29`.
+- Module: `rotp-sticky-fingers`, mod id `rotp_stfn`, version `1.0.2-port.30`.
 - Original 1.16.5 add-on: `RotP-钢链手指-1.0.1.jar` (RotP Sticky Fingers, mod id `rotp_stfn`), by HK47bot, StandoByte, DikiyTechies, TheDoGGyS, Weever; declared license: GNU GPL v3.0; SHA-256 `FBF5BB6C46C1F885BDD5D742E0772DA5522EF3875ECE9D90E6D5D0E4D26F97CF`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

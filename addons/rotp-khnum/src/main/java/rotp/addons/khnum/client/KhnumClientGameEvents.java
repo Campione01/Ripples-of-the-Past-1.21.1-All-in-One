@@ -77,6 +77,17 @@ public final class KhnumClientGameEvents {
                 player, event.getPartialTick())) {
             return;
         }
+        // As in the 1.16.5 original, a mob disguise replaces the whole player
+        // render, so the player's armor and held-item layers are not drawn.
+        if (KhnumDisguiseLayer.renderEntityReplacement(
+                player,
+                event.getPoseStack(),
+                event.getMultiBufferSource(),
+                event.getPackedLight(),
+                event.getPartialTick())) {
+            event.setCanceled(true);
+            return;
+        }
         ScopedPlayerModelVisibility.hideForCurrentRender(
                 player, event.getRenderer().getModel());
     }

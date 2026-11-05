@@ -5,6 +5,7 @@ import rotp.core.powersystem.ability.AbilityType;
 
 import rotp.addons.sexpistols.SexPistolsIds;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsCycleCommandAbility;
+import rotp.addons.sexpistols.content.sexpistols.SexPistolsForcedTargetAbility;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsMoveSelectedAbility;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsRecallAbility;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsReloadAbility;
@@ -48,6 +49,14 @@ public final class SexPistolsAbilities {
             SEX_PISTOLS_TRANSFER_ORDER = cycleCommand(
                     SexPistolsIds.SEX_PISTOLS_TRANSFER_ORDER_PATH,
                     SexPistolsCycleCommandAbility.Command.TRANSFER_ORDER);
+    public static final DeferredHolder<
+            AbilityType<?>,
+            AbilityType<SexPistolsForcedTargetAbility>>
+            SEX_PISTOLS_FORCED_TARGET = ABILITY_TYPES.register(
+                    SexPistolsIds.SEX_PISTOLS_FORCED_TARGET_PATH,
+                    key -> new AbilityType<>(
+                            key,
+                            SexPistolsForcedTargetAbility::new));
 
     public static final DeferredHolder<
             AbilityType<?>,

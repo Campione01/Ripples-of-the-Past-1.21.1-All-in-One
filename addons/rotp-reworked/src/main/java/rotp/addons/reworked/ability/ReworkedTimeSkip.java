@@ -159,7 +159,8 @@ final class ReworkedTimeSkip {
                 speed * timeStopTicks, MAX_BLINK_DISTANCE);
         if (performer == stand) {
             distance = Math.min(distance, Math.max(
-                    stand.getMaxRange() - stand.distanceTo(user),
+                    stand.getMaxRangeForMovement(user)
+                            - stand.distanceTo(user),
                     0.0D));
         }
         ActionTarget target = rayTraceBlinkTarget(

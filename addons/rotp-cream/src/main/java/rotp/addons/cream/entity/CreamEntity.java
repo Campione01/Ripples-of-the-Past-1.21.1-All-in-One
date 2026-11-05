@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import rotp.core.init.ModStatusEffects;
 import rotp.core.init.power.ModPlayerPowers;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
@@ -21,6 +22,7 @@ import rotp.addons.cream.CreamConfig;
 import rotp.addons.cream.CreamSpec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.protocol.game.ClientboundStopSoundPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -47,6 +49,7 @@ public final class CreamEntity extends StandEntity {
     private static final EntityDataAccessor<Integer> VOID_TICKS =
             SynchedEntityData.defineId(
                     CreamEntity.class, EntityDataSerializers.INT);
+    private static final int VOID_EFFECT_TICKS = 4;
 
     private final Set<UUID> erasedEntities = new HashSet<>();
     private final Map<UUID, Integer> damageCooldowns =
@@ -153,7 +156,9 @@ public final class CreamEntity extends StandEntity {
         entityData.set(VOID_TICKS, 0, true);
         grantFlightLease();
 
-        if (requested == VoidMode.DASH) {
+        // 1.16 CreamVoidBall :195 and CreamVoidDash :123 sounded the entry;
+        // CreamSemiVoidState entered Cream silently.
+        if (requested == VoidMode.BALL || requested == VoidMode.DASH) {
             playVoidSound(CreamAddon.CREAM_VOID_START.get());
         }
     }
@@ -177,11 +182,22 @@ public final class CreamEntity extends StandEntity {
         damageCooldowns.clear();
 
         restoreFlightLease();
+        removeOwnFullInvisibility(this);
         if (user != null) {
             user.removeEffect(CreamAddon.VOIDED);
             user.removeEffect(CreamAddon.INSIDE_CREAM);
             user.removeEffect(CreamAddon.TRUE_BLINDNESS);
-            if (ending != VoidMode.NONE) {
+            removeOwnFullInvisibility(user);
+            // 1.16 CreamVoidBall :404-406 cut the entry sound for its user
+            // and sounded the exit, as CreamVoidDash :257 did; leaving Cream
+            // (CreamSemiVoidState.onTaskStopped) made no sound.
+            if (ending == VoidMode.BALL
+                    && user instanceof ServerPlayer player) {
+                player.connection.send(new ClientboundStopSoundPacket(
+                        CreamAddon.CREAM_VOID_START.getId(),
+                        SoundSource.PLAYERS));
+            }
+            if (ending == VoidMode.BALL || ending == VoidMode.DASH) {
                 playVoidSound(CreamAddon.CREAM_VOID_END.get());
             }
             if (applyCooldown
@@ -327,6 +343,33 @@ public final class CreamEntity extends StandEntity {
                 false,
                 false,
                 false));
+        // 1.16 VoidedEffect :53 and CreamSemiVoidState :119 hid the user
+        // whole (armour and held items too); the ball and the dash hid Cream
+        // as well (CreamVoidBall :197, CreamVoidDash :128).
+        user.addEffect(fullInvisibility());
+        if (mode != VoidMode.SEMI) {
+            addEffect(fullInvisibility());
+        }
+    }
+
+    private static MobEffectInstance fullInvisibility() {
+        return new MobEffectInstance(
+                ModStatusEffects.FULL_INVISIBILITY,
+                VOID_EFFECT_TICKS,
+                0,
+                false,
+                false,
+                false);
+    }
+
+    // The void keeps its effects up for VOID_EFFECT_TICKS at a time: a longer
+    // one came from something else and stays.
+    private static void removeOwnFullInvisibility(LivingEntity entity) {
+        MobEffectInstance effect =
+                entity.getEffect(ModStatusEffects.FULL_INVISIBILITY);
+        if (effect != null && effect.getDuration() <= VOID_EFFECT_TICKS) {
+            entity.removeEffect(ModStatusEffects.FULL_INVISIBILITY);
+        }
     }
 
     private void grantFlightLease() {
@@ -375,6 +418,7 @@ public final class CreamEntity extends StandEntity {
             LivingEntity user, VoidMode mode) {
         AABB area = user.getBoundingBox()
                 .inflate(CreamSpec.VOID_RADIUS);
+        boolean erased = false;
         for (Entity entity : level().getEntities(
                 user, area, candidate -> candidate != this)) {
             if (entity == user
@@ -425,15 +469,19 @@ public final class CreamEntity extends StandEntity {
                 else {
                     hit = false;
                 }
-                if (hit) {
-                    playVoidSound(
-                            CreamAddon.CREAM_ENTITY_VOID.get());
-                }
+                erased |= CreamConfig.VOID_INSTAKILLS.get()
+                        ? hit
+                        : hit && !living.isAlive();
             }
             else if (erasedEntities.add(entity.getUUID())) {
                 entity.discard();
-                playVoidSound(CreamAddon.CREAM_VOID.get());
+                erased |= CreamConfig.VOID_INSTAKILLS.get();
             }
+        }
+        // 1.16 CreamVoidBall :291 and CreamVoidDash :198: one cream_void a
+        // tick for what the void took (the plain-damage mode only for a kill)
+        if (erased) {
+            playVoidSound(CreamAddon.CREAM_VOID.get());
         }
     }
 

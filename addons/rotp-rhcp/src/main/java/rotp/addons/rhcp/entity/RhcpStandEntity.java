@@ -19,11 +19,13 @@ import java.util.EnumSet;
 import java.util.Locale;
 
 import rotp.addons.rhcp.RhcpAddon;
+import rotp.addons.rhcp.RhcpConductorTravel;
 import rotp.addons.rhcp.RhcpService;
 import rotp.addons.rhcp.ability.RhcpAbility;
 import rotp.addons.rhcp.network.RhcpManualMovePayload;
 import rotp.addons.rhcp.state.RhcpState;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
@@ -33,7 +35,9 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -63,6 +67,11 @@ public final class RhcpStandEntity extends StandEntity {
     private static final EntityDataAccessor<Boolean> CHASING =
             SynchedEntityData.defineId(
                     RhcpStandEntity.class, EntityDataSerializers.BOOLEAN);
+    // Beta2 RHCPEntity.DIRECTION as the server set it on entry (RhcpConductorTravel codes); the server writes it
+    // only then, so the controller's own turns are never sent back to it.
+    private static final EntityDataAccessor<Integer> TRAVEL_DIRECTION =
+            SynchedEntityData.defineId(
+                    RhcpStandEntity.class, EntityDataSerializers.INT);
     // 1.16 RHCPEntity.setPotency (RhcpService.potencySpeedBonus)
     private static final ResourceLocation POTENCY_SPEED =
             RhcpAddon.id("potency_movement_speed");
@@ -82,10 +91,8 @@ public final class RhcpStandEntity extends StandEntity {
     // 1.16 RHCPEntity.canBreakBlock without power: harvest level 0 at most.
     private static final StandStatFormulas.BlockMiningTier UNPOWERED_TIER =
             new StandStatFormulas.BlockMiningTier.VanillaTierWrapper(Tiers.WOOD);
-    private int lastLightningTick = -100;
-    // 1.16 RHCPEntity.lastFireDamageTick
-    private int lastFireDamageTick = -100;
     private boolean wetExhaustionRemoval;
+    private net.minecraft.core.BlockPos previousConductor;
     private int alternateAttackTicks;
     // 1.16 RHCPEntity.ticksEvaded
     private int ticksEvaded;
@@ -110,21 +117,33 @@ public final class RhcpStandEntity extends StandEntity {
             RhcpAbility.Mode.HEAVY_PUNCH, RhcpAbility.Mode.COMBO_PUNCH,
             RhcpAbility.Mode.ELECTROCUTE_TARGET, RhcpAbility.Mode.CHASE_TARGET,
             RhcpAbility.Mode.ELECTRIC_DASH);
-    // 1.16 GameplayEventHandler: a direct entity named for fire or lightning.
+    // Beta2 GameplayEventHandler: lightning words in the damage id and in the
+    // direct entity's name. Beta2's own 电/雷 entries are mis-encoded in
+    // its jar; the readable characters are kept here.
+    private static final String[] ABSORB_DAMAGE_KEYWORDS = {
+            "lightning", "electric", "thunder", "bolt", "electrico", "电", "雷"};
     private static final String[] ABSORB_ENTITY_KEYWORDS = {
-            "lightning", "fire", "flame", "电", "火", "雷"};
+            "lightning", "trueno", "rayo", "electrico", "电", "雷"};
     // Walk and jump costs seen on the controlling client, sent once a tick.
     private boolean manualWalkPending;
     private boolean manualJumpPending;
     private boolean manualChaseCancelPending;
     private boolean walkingManualInputActive;
     private boolean walkingManualTravelPrepared;
+    // The controller's travel keys of this tick in a conductor (conductorTravelInput):
+    // x strafe, z forward, y +1 up / -1 down.
+    private Vec3 conductorInput = Vec3.ZERO;
+    // The controlling client's travel direction, and Beta2's wait between two strafe turns (standCount).
+    private int travelDirection = RhcpConductorTravel.NONE;
+    private int turnWait = -1;
+    private boolean clientInConductor;
     // Last synced teleport (RhcpService.teleportStand): server game time and
     // its two spots. Stale controller packets are dropped for at most this long.
     public static final int DIRECT_POS_STALE_TICKS = 20;
     private long directPosTick = -1000L;
     private Vec3 directPosFrom;
     private Vec3 directPosTo;
+    private static RhcpStandEntity sparkSource;
 
     public RhcpStandEntity(
             EntityType<? extends RhcpStandEntity> type,
@@ -152,6 +171,26 @@ public final class RhcpStandEntity extends StandEntity {
         builder.define(ATTACK_ALTERNATE, false);
         builder.define(MANUAL_SHIFT, false);
         builder.define(CHASING, false);
+        builder.define(TRAVEL_DIRECTION, RhcpConductorTravel.NONE);
+    }
+
+    @Override
+    public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
+        super.onSyncedDataUpdated(key);
+        if (TRAVEL_DIRECTION.equals(key)) {
+            travelDirection = entityData.get(TRAVEL_DIRECTION);
+        }
+    }
+
+    public int entryDirection() {
+        return entityData.get(TRAVEL_DIRECTION);
+    }
+
+    // Server, RhcpService.enterConductor: Beta2 RHCPGettingIntoTheMechanism.standPerform's direction, faced at once.
+    public void setEntryDirection(int direction) {
+        entityData.set(TRAVEL_DIRECTION, direction);
+        travelDirection = direction;
+        faceTravelDirection(direction);
     }
 
     public boolean isAttackAlternate() {
@@ -262,17 +301,22 @@ public final class RhcpStandEntity extends StandEntity {
     @Override
     public void tick() {
         updateStatModifiers();
+        prepareConductorPhysics();
         prepareWalkingManualTravel();
         super.tick();
         walkingManualTravelPrepared = false;
         LivingEntity user = getUser();
         boolean insideConductor = user != null
                 && RhcpAddon.state(user).inConductor();
-        noPhysics = insideConductor;
+        // 1.16 StandEntity.shouldHaveNoPhysics: a recalled RHCP passes through blocks on its way
+        // back, out of the conductor it was in too, so the unsummon can start beside its user.
+        noPhysics = insideConductor || isBeingRetracted();
         setNoGravity(insideConductor);
         setInvisible(insideConductor);
         if (level().isClientSide()) {
             sendManualMovementCosts();
+            turnWait = RhcpConductorTravel.waited(turnWait);
+            idleSparks(user);
         }
         else {
             entityData.set(MANUAL_SHIFT, isManuallyControlled()
@@ -313,22 +357,36 @@ public final class RhcpStandEntity extends StandEntity {
             RhcpService.sync(player);
         }
         if (state.inConductor()) {
+            // Beta2 RHCPEntity.updatePosition: RHCP being called back (the
+            // core retracts it when manual control is turned off) leaves the
+            // wire, or it would be held in the block with the recall and an
+            // unsummon waiting on it for good.
             if (!RhcpService.isConductor(
-                    level().getBlockState(state.conductorPos()))) {
+                    level().getBlockState(state.conductorPos()))
+                    || isBeingRetracted()) {
                 RhcpService.leaveConductor(player);
             }
             else {
-                net.minecraft.core.BlockPos conductor =
-                        RhcpService.nearestConductor(
-                                level(), blockPosition(), 1);
-                if (conductor == null) {
+                // Beta2 RHCPEntity.tick: a travelling RHCP is in the conductor
+                // block it stands in, on its bottom centre. In any other block
+                // (a conductor next to it does not count) it goes back to the
+                // conductor it was in.
+                net.minecraft.core.BlockPos conductor = blockPosition();
+                if (!RhcpService.isConductor(level().getBlockState(conductor))) {
                     conductor = state.conductorPos();
-                    RhcpService.teleportStand(this,
-                            RhcpService.conductorSpot(conductor));
-                    setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
                 }
-                else if (state.enterConductor(conductor)) {
-                    RhcpService.sync(player);
+                else {
+                    // Beta2 RHCPEntity.previousBlock: the conductor RHCP last
+                    // came from, where Self Destruct puts it back.
+                    net.minecraft.core.BlockPos from = state.conductorPos();
+                    if (state.enterConductor(conductor)) {
+                        previousConductor = from;
+                        RhcpService.sync(player);
+                    }
+                }
+                Vec3 spot = RhcpService.conductorSpot(conductor);
+                if (position().distanceToSqr(spot) > 1.0E-4D) {
+                    RhcpService.teleportStand(this, spot);
                 }
                 setNoGravity(true);
                 noPhysics = true;
@@ -337,11 +395,16 @@ public final class RhcpStandEntity extends StandEntity {
                 // Resting or travelling in a wire costs no energy in 1.16.
                 setDeltaMovement(Vec3.ZERO);
                 RhcpService.tickCarriedTarget(player, this);
+                // Under manual control the yaw is the controller's, which
+                // faces the direction it travels in (travelInConductor).
+                if (!isManuallyControlled()) {
+                    faceTravelDirection(entityData.get(TRAVEL_DIRECTION));
+                }
             }
         }
         else {
             setNoGravity(false);
-            noPhysics = false;
+            noPhysics = isBeingRetracted();
             setInvisible(false);
         }
 
@@ -358,30 +421,8 @@ public final class RhcpStandEntity extends StandEntity {
             }
         }
 
-        // 1.16 RHCPEntity.tick: only a powered RHCP with room in its battery
-        // takes in a nearby bolt.
-        if (!level().isClientSide()
-                && state.potency() > 0
-                && state.energy() < RhcpState.MAX_ENERGY
-                && tickCount - lastLightningTick >= 5) {
-            LightningBolt bolt = level().getEntitiesOfClass(
-                    LightningBolt.class,
-                    getBoundingBox().inflate(6.0D),
-                    Entity::isAlive)
-                    .stream()
-                    .filter(lightning -> distanceToSqr(lightning) <= 36.0D)
-                    .findFirst()
-                    .orElse(null);
-            if (bolt != null) {
-                lastLightningTick = tickCount;
-                state.addEnergy(300.0F + state.potency() * 50.0F);
-                raisePotencyAfterAbsorbing(state);
-                bolt.discard();
-                RhcpService.sync(player);
-                RhcpService.emitElectricParticles(
-                        player.serverLevel(), this, 30);
-            }
-        }
+        // Beta2 dropped RHCPEntity.tick's own pull of bolts within 6 blocks:
+        // a bolt now comes in through energyCharge, within 3 blocks.
 
         // 1.16 RHCPEntity.tick: once the dodge (and a counter it started) is
         // over, the dodge cools down for as long as it was held, at most 400
@@ -419,6 +460,73 @@ public final class RhcpStandEntity extends StandEntity {
         }
     }
 
+    public net.minecraft.core.BlockPos previousConductor() {
+        return previousConductor;
+    }
+
+    // Beta2 RHCPEntity.tick :473-487, on the client: a powered RHCP out of the
+    // conductors gives off sparks, every tick while it recharges or boosts
+    // (until the recovery), else with a chance of potency / 10 a tick.
+    private void idleSparks(LivingEntity user) {
+        RhcpState state = user != null ? RhcpAddon.state(user) : null;
+        if (state == null || state.potency() <= 0 || state.inConductor()) {
+            return;
+        }
+        EntityActionInstance action = getCurStandAction();
+        RhcpAbility.Mode mode = RhcpAbility.modeOf(action);
+        float chance = (mode == RhcpAbility.Mode.RECHARGE || mode == RhcpAbility.Mode.BOOST)
+                && action.getPhase() != ActionPhase.RECOVERY
+                ? 1.0F : state.potency() / 10.0F;
+        if (random.nextFloat() > chance) {
+            return;
+        }
+        int count = Math.max(Mth.ceil(getBbWidth() * getBbHeight() * 2.0F * getBbHeight()), 1);
+        sparkSource = this;
+        try {
+            for (int i = 0; i < count; i++) {
+                level().addParticle(RhcpAddon.RHCP_PARTICLE.get(),
+                        getRandomX(1.0D), getRandomY(), getRandomZ(1.0D), 0.0D, 0.0D, 0.0D);
+            }
+        }
+        finally {
+            sparkSource = null;
+        }
+    }
+
+    // The RHCP whose idle sparks are being made: Beta2's RHCPParticle kept it,
+    // and none of them is drawn in its own first-person view.
+    public static RhcpStandEntity sparkSource() {
+        return sparkSource;
+    }
+
+    // Both sides, before the entity's own movement: in a conductor RHCP moves
+    // only by its hops (no momentum carried into the next tick, no collision,
+    // no push out of the block); out of one, physics and gravity hold from the
+    // first tick, not a tick late. Beta2 RHCPExit cleared previousBlock.
+    private void prepareConductorPhysics() {
+        LivingEntity user = getUser();
+        boolean insideConductor = user != null
+                && RhcpAddon.state(user).inConductor();
+        noPhysics = insideConductor || isBeingRetracted();
+        setNoGravity(insideConductor);
+        if (insideConductor && !isBeingRetracted()) {
+            setDeltaMovement(Vec3.ZERO);
+        }
+        else {
+            conductorInput = Vec3.ZERO;
+            if (!insideConductor && !level().isClientSide()) {
+                previousConductor = null;
+            }
+        }
+        // Each entry starts from the server's entry direction, which may arrive just before or after the entry.
+        if (level().isClientSide()) {
+            if (insideConductor && !clientInConductor) {
+                travelDirection = entityData.get(TRAVEL_DIRECTION);
+            }
+            clientInConductor = insideConductor;
+        }
+    }
+
     @Override
     public void onUnsummonUserInput() {
         if (isChasing()) {
@@ -434,9 +542,15 @@ public final class RhcpStandEntity extends StandEntity {
     @Override
     public boolean onActionSet(EntityActionInstance action) {
         boolean continuingChase = action == null && isChasing() && !isBeingRetracted();
+        LivingEntity user = getUser();
+        boolean restingInConductor = action == null && !isBeingRetracted()
+                && user != null && RhcpAddon.state(user).inConductor();
         boolean canceled = super.onActionSet(action);
-        // The core's automatic post-action recall must not end the donor's continuing chase.
-        if (continuingChase && !canceled) {
+        // The core's automatic post-action recall must not end the donor's continuing chase,
+        // nor call RHCP out of the conductor it entered or acted in: 1.16 StandEntity.clearTask
+        // retracted only a Stand following its user, and RHCPEntity.isFollowingUser is false
+        // while it travels.
+        if ((continuingChase || restingInConductor) && !canceled) {
             stopRetraction();
         }
         return canceled;
@@ -464,21 +578,19 @@ public final class RhcpStandEntity extends StandEntity {
     @Override
     public boolean hurt(DamageSource source, float amount) {
         LivingEntity user = getUser();
-        boolean lightning = source.is(DamageTypeTags.IS_LIGHTNING)
-                || source.getDirectEntity() instanceof LightningBolt;
         if (!level().isClientSide()
-                && user instanceof ServerPlayer player
-                && (lightning || source.is(DamageTypeTags.IS_FIRE))) {
+                && user instanceof ServerPlayer player) {
             RhcpState state = RhcpAddon.state(player);
-            // 1.16 GameplayEventHandler (HIGHEST LivingAttackEvent): with room
-            // in the battery a powered RHCP takes in every fire or lightning
-            // hit, puts the fire out and cancels it. At potency 0 RHCP takes
-            // the hit.
-            if (state.potency() > 0
+            // Beta2 GameplayEventHandler (HIGHEST LivingAttackEvent): with
+            // room in the battery a powered RHCP takes in a lightning or
+            // plain fire hit and cancels it, without putting the fire out.
+            // At potency 0 or with a full battery RHCP takes the hit.
+            float absorbed = absorbedEnergy(source, state.potency());
+            if (absorbed >= 0.0F
+                    && state.potency() > 0
                     && state.energy() < RhcpState.MAX_ENERGY) {
-                state.addEnergy(absorbedEnergy(source, state.potency()));
+                state.addEnergy(absorbed);
                 raisePotencyAfterAbsorbing(state);
-                clearFire();
                 RhcpService.sync(player);
                 RhcpService.emitElectricParticles(
                         player.serverLevel(), this, 20);
@@ -490,31 +602,8 @@ public final class RhcpStandEntity extends StandEntity {
 
     @Override
     protected void actuallyHurt(DamageSource source, float amount) {
-        LivingEntity user = getUser();
-        boolean lightning = source.is(DamageTypeTags.IS_LIGHTNING)
-                || source.getDirectEntity() instanceof LightningBolt;
-        if (!level().isClientSide()
-                && user instanceof ServerPlayer player
-                && player.isAlive()
-                && (lightning || source.is(DamageTypeTags.IS_FIRE))) {
-            RhcpState state = RhcpAddon.state(player);
-            // Native hurt has already established its hurt window before this callback.
-            if (state.potency() > 0
-                    && state.energy() >= RhcpState.MAX_ENERGY
-                    && (lightning || tickCount - lastFireDamageTick >= 5)) {
-                if (!lightning) {
-                    lastFireDamageTick = tickCount;
-                }
-                if (damageContainers != null && !damageContainers.isEmpty()) {
-                    damageContainers.peek().setNewDamage(0.0F);
-                }
-                raisePotencyAfterAbsorbing(state);
-                RhcpService.sync(player);
-                RhcpService.emitElectricParticles(
-                        player.serverLevel(), this, 20);
-                return;
-            }
-        }
+        // Beta2 dropped RHCPEntity.actuallyHurt's fire and lightning intake
+        // at a full battery.
         // Scale the accepted native hurt-window remainder, not its admission amount.
         if (damageContainers != null && !damageContainers.isEmpty()) {
             var container = damageContainers.peek();
@@ -524,24 +613,50 @@ public final class RhcpStandEntity extends StandEntity {
         super.actuallyHurt(source, amount);
     }
 
-    // 1.16 GameplayEventHandler: every vanilla fire or lightning msgId
-    // (inFire, onFire, lava, hotFloor, fireball, lightningBolt) matches its
-    // keywords, 100 + 15 a potency level; a direct entity named for fire or
-    // lightning (a fireball, a bolt) overrides that with 80 + 10.
-    // RHCPEntity.absorbLightningEnergy adds 50 a potency level.
+    // Beta2 GameplayEventHandler, each later rule overriding: lightning 300,
+    // plain fire (inFire, onFire, lava, hotFloor) 40 + 5 a potency level, a
+    // bolt as direct entity 250 + 30, a lightning word in the damage id
+    // 100 + 15, one in the direct entity's name 80 + 10. Fireballs and other
+    // fire no longer count. RHCPEntity.absorbLightningEnergy adds 50 a
+    // potency level. -1: not taken in. 1.16's campfire hurt with IN_FIRE;
+    // 1.21's has its own type.
     static float absorbedEnergy(DamageSource source, int potency) {
-        float base = 100.0F + potency * 15.0F;
+        float base = -1.0F;
+        if (source.is(DamageTypes.LIGHTNING_BOLT)) {
+            base = 300.0F;
+        }
+        if (source.is(DamageTypes.IN_FIRE)
+                || source.is(DamageTypes.CAMPFIRE)
+                || source.is(DamageTypes.ON_FIRE)
+                || source.is(DamageTypes.LAVA)
+                || source.is(DamageTypes.HOT_FLOOR)) {
+            base = 40.0F + potency * 5.0F;
+        }
         Entity direct = source.getDirectEntity();
-        if (direct != null) {
-            String name = direct.getName().getString().toLowerCase(Locale.ROOT);
-            for (String keyword : ABSORB_ENTITY_KEYWORDS) {
-                if (name.contains(keyword)) {
-                    base = 80.0F + potency * 10.0F;
-                    break;
-                }
+        if (direct instanceof LightningBolt) {
+            base = 250.0F + potency * 30.0F;
+        }
+        if (containsAny(source.getMsgId(), ABSORB_DAMAGE_KEYWORDS)) {
+            base = 100.0F + potency * 15.0F;
+        }
+        if (direct != null && containsAny(
+                direct.getName().getString(), ABSORB_ENTITY_KEYWORDS)) {
+            base = 80.0F + potency * 10.0F;
+        }
+        return base < 0.0F ? -1.0F : base + potency * 50.0F;
+    }
+
+    private static boolean containsAny(String text, String[] keywords) {
+        if (text == null) {
+            return false;
+        }
+        String lower = text.toLowerCase(Locale.ROOT);
+        for (String keyword : keywords) {
+            if (lower.contains(keyword)) {
+                return true;
             }
         }
-        return base + potency * 50.0F;
+        return false;
     }
 
     // 1.16 RHCPEntity: an absorption raises potency only from 400 energy,
@@ -829,14 +944,26 @@ public final class RhcpStandEntity extends StandEntity {
         return !isInvisible() && super.isPickable();
     }
 
+    // RHCP travels inside solid conductors on purpose; 1.16 drew no in-wall
+    // overlay over a Stand camera, so its view from a lamp or a redstone
+    // block shows the world around it.
+    @Override
+    public boolean coversCameraInsideBlocks() {
+        LivingEntity user = getUser();
+        return (user == null || !RhcpAddon.state(user).inConductor())
+                && super.coversCameraInsideBlocks();
+    }
+
     @Override
     public void manualControlInput(Vec3 motionInput) {
         cancelChaseFromManualInput(motionInput.x != 0.0D || motionInput.z != 0.0D, false);
         LivingEntity user = getUser();
         boolean conductor = user != null
                 && RhcpAddon.state(user).inConductor();
+        // In a conductor RHCP hops by the raw keys (conductorTravelInput):
+        // the core's motion skips a new press's first tick and slides.
         super.manualControlInput(conductor
-                ? motionInput
+                ? Vec3.ZERO
                 : new Vec3(motionInput.x, 0.0D, motionInput.z));
         // 1.16 RHCPEntity.moveStandManually: 0.1 / 0.05 energy each tick the
         // walking Stand's own input moves it.
@@ -844,6 +971,75 @@ public final class RhcpStandEntity extends StandEntity {
                 && (motionInput.x != 0.0D || motionInput.z != 0.0D)) {
             manualWalkPending = true;
         }
+    }
+
+    // Client: the controller's travel keys of this tick (RhcpConductorInput),
+    // the first tick of a press too, as 1.16 RHCPEntity.moveStandManually got
+    // them every tick; moveStandManualControl hops by them.
+    public void conductorTravelInput(float strafe, float forward,
+            boolean jumping, boolean sneaking) {
+        if (!canMoveManually()) {
+            conductorInput = Vec3.ZERO;
+            return;
+        }
+        var locks = getManualMovementLocks();
+        strafe = locks.strafe(strafe);
+        forward = locks.forward(forward);
+        jumping = locks.up(jumping);
+        sneaking = locks.down(sneaking);
+        conductorInput = new Vec3(strafe, jumping ? 1.0D : sneaking ? -1.0D : 0.0D, forward);
+    }
+
+    // 1.16 RHCPEntity.moveStandManually while canTravel: each tick a key is
+    // held RHCP turns with a strafe key and is set on the bottom centre of the
+    // next conductor along its travel direction (RhcpConductorTravel), else it
+    // stays on the one it is in. The spot is absolute: neither the user's
+    // movement nor any momentum moves it. It faces the direction every tick.
+    private void travelInConductor(LivingEntity user) {
+        Vec3 input = conductorInput;
+        conductorInput = Vec3.ZERO;
+        _manualControlInput = Vec3.ZERO;
+        BlockPos from = blockPosition();
+        if (!RhcpService.isConductor(level().getBlockState(from))) {
+            from = RhcpAddon.state(user).conductorPos();
+        }
+        RhcpConductorTravel.Travel travel = RhcpConductorTravel.travel(level(), from,
+                travelDirection, turnWait, (float) input.x, (float) input.z, input.y > 0.0D, input.y < 0.0D);
+        travelDirection = travel.direction();
+        turnWait = travel.turnWait();
+        BlockPos next = travel.next();
+        Vec3 spot = RhcpService.conductorSpot(next != null ? next : from);
+        if (!position().equals(spot)) {
+            setPos(spot.x, spot.y, spot.z);
+        }
+        setDeltaMovement(Vec3.ZERO);
+        updateUserOffset(user);
+        faceTravelDirection(travelDirection);
+    }
+
+    // Beta2 RHCPEntity.updatePosition: a travelling RHCP faces its travel
+    // direction (the view of its controller turns with it), its pitch kept;
+    // the nearest equal yaw, so the view does not spin round.
+    private void faceTravelDirection(int direction) {
+        Direction facing = RhcpConductorTravel.direction(direction);
+        if (facing == null) {
+            return;
+        }
+        float yaw = getYRot() + Mth.wrapDegrees(facing.toYRot() - getYRot());
+        setYRot(yaw);
+        setYHeadRot(yaw);
+    }
+
+    // Beta2 reset the travelling RHCP's yaw to its direction every tick, so
+    // the mouse turned the view only until the next one; it takes no yaw from
+    // the mouse here, only the pitch.
+    @Override
+    public void turn(double yRot, double xRot) {
+        LivingEntity user = getUser();
+        boolean travelling = user != null && isManuallyControlled()
+                && isControlledByLocalInstance()
+                && RhcpAddon.state(user).inConductor() && !isBeingRetracted();
+        super.turn(travelling ? 0.0D : yRot, xRot);
     }
 
     // 1.16 RHCPEntity.standHasNoGravity = canTravel: outside a conductor RHCP
@@ -935,6 +1131,11 @@ public final class RhcpStandEntity extends StandEntity {
             return;
         }
         LivingEntity user = getUser();
+        if (user != null && isControlledByLocalInstance()
+                && RhcpAddon.state(user).inConductor() && !isBeingRetracted()) {
+            travelInConductor(user);
+            return;
+        }
         if (user == null || !isControlledByLocalInstance()
                 || RhcpAddon.state(user).inConductor()) {
             super.moveStandManualControl();
@@ -998,6 +1199,15 @@ public final class RhcpStandEntity extends StandEntity {
         if (type == MoverType.PLAYER && !level().isClientSide()
                 && isManuallyControlled()
                 && isStaleManualMove(position().add(vec))) {
+            return;
+        }
+        // The core pushes a stuck controlled Stand toward its user on the
+        // client only; the server follows that step, as 1.16 took the
+        // client's position.
+        if (type == MoverType.PLAYER && !level().isClientSide()
+                && isManuallyControlled() && !noPhysics
+                && isInsideViewBlockingBlock(position())) {
+            moveWithoutCollision(vec);
             return;
         }
         super.move(type, vec);

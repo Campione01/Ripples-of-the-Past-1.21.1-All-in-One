@@ -185,7 +185,7 @@ public final class StickyFingersUnzipPartAbility extends Ability {
                         ActionTargetRange.DEFAULT_ENTITY_RANGE_SQ);
     }
 
-    // ZipperWorldCap.isHumanoid is the rotp_stfn:zipper_humanoids tag here;
+    // ZipperWorldCap.isHumanoid is ZipperCombatData.isSupportedTarget here;
     // a detached body part is no living entity
     private static boolean canUnzip(Entity target, LivingEntity user) {
         return target instanceof LivingEntity living
@@ -297,10 +297,14 @@ public final class StickyFingersUnzipPartAbility extends Ability {
                     detached = null;
                 }
             }
-            target.setHealth(target.getHealth()
-                    + action.lastDamageDealtToLiving
-                            * StickyFingersPhase1Spec
-                                    .UNZIP_DAMAGE_REFUND_MULTIPLIER);
+            float refund = action.lastDamageDealtToLiving
+                    * StickyFingersPhase1Spec
+                            .UNZIP_DAMAGE_REFUND_MULTIPLIER;
+            if (Float.isFinite(refund)
+                    && refund > 0.0F
+                    && target.getHealth() > 0.0F) {
+                target.setHealth(target.getHealth() + refund);
+            }
             if (detached != null) {
                 knockback(detached, user.getYHeadRot());
             }

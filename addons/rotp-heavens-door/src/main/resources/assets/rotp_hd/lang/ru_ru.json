@@ -62,5 +62,17 @@
   "gui.rotp_hd.text.itsplayer": "Это Игрок",
   "jojo.rps.cheat.rotp_hd.heavens_door": "Прочитать игрока",
   "gui.rotp_hd.book.health": "Жизнь: %s",
-  "gui.rotp_hd.book.owner": "Хозяин: %s"
+  "gui.rotp_hd.book.owner": "Хозяин: %s",
+  "subtitles.rotp_hd.rohan_summon": "Heaven's Door",
+  "subtitles.rotp_hd.heavens_door_write_command": "Heaven's Door что-то написал",
+  "effect.rotp_hd.forgot_attack": "Forgot attack",
+  "effect.rotp_hd.forgot_second_hand": "Forgot second hand",
+  "effect.rotp_hd.forgot_swim": "Forgot swim",
+  "effect.rotp_hd.forgot_run": "Forgot run",
+  "effect.rotp_hd.forgot_jump": "Forgot jump",
+  "effect.rotp_hd.forgot_break": "Forgot break",
+  "effect.rotp_hd.forgot_craft": "Forgot craft",
+  "effect.rotp_hd.forgot_stand": "Forgot stand",
+  "effect.rotp_hd.forgot_containers": "Forgot containers",
+  "effect.rotp_hd.forgot_shift": "Forgot shift"
 }

@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-guanggun`, mod id `guanggun`, version `1.0.0-port.4`.
+- Module: `rotp-guanggun`, mod id `guanggun`, version `1.0.0-port.5`.
 - Original 1.16.5 add-on: `guanggun-1.0.0.jar` (RotP: Guanggun (åæ£), mod id `guanggun`), by Ultra Instinct; declared license: GNU GPL v3.0; SHA-256 `731BC473C40BF8F9FC0FEEDEF7CD93C5A701CE7E84F91DF50D687630ABC7C44B`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-10-14); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -22,3 +22,9 @@ This module is a NeoForge 1.21.1 migration of the GPL-3.0 donor
 The 1.21.1 implementation preserves the donor's reachable Stand, projectile,
 controls, stats, geometry, textures, and localization while translating them
 to current ROTP and NeoForge APIs.
+
+The donor drew the Stand with GeckoLib 3 through an animation controller that
+never set a clip, and it shipped no animation file, so the Stand never moved in
+1.16. The skin's clip file keeps that: its idle, punch, barrage, heavy punch and
+guard clips hold the rest pose, so neither the look nor the core's default
+humanoid clips turn its parts.

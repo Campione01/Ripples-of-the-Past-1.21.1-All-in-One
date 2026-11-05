@@ -11,6 +11,7 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import rotp.addons.stickyfingers.StickyFingersAddon;
 import rotp.addons.stickyfingers.StickyFingersPhase1Spec;
@@ -125,10 +126,13 @@ public final class StickyFingersUnzipPunchAbility
                 float explosionRadius) {
             if (target.getMainEntity()
                     instanceof LivingEntity livingTarget) {
+                // Owner T2: past the base reach the zipper falls with the strike's damage.
                 livingTarget.addEffect(new MobEffectInstance(
                         StickyFingersAddon.ZIPPER_EFFECT,
-                        StickyFingersPhase1Spec
-                                .ZIPPER_EFFECT_DURATION_TICKS));
+                        Math.max(1, Math.round(StickyFingersPhase1Spec
+                                .ZIPPER_EFFECT_DURATION_TICKS
+                                * StandMeleeReach.strikeFactor(
+                                        stand, livingTarget)))));
             }
             super.hitEntity(
                     target,

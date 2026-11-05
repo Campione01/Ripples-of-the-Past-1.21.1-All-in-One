@@ -120,6 +120,7 @@ public final class RhcpEvents {
         if (event.getEntity() instanceof ServerPlayer player) {
             RhcpAddon.state(player).clearTransient();
             RhcpService.sync(player);
+            RhcpConfig.sendTo(player);
         }
     }
 

@@ -29,7 +29,7 @@
     "global_renderer_hook": false
   },
   "current_registrations": {
-    "abilities": 4,
+    "abilities": 6,
     "special_actions": 1,
     "stand_types": 1,
     "entity_types": 2,
@@ -183,9 +183,10 @@
     },
     {
       "source": "assets/rotp_zemperor/textures/entity/projectiles/bullet_trace.png",
+      "source_artifact": "RotP-Emperor-1.3.jar",
       "destination": "assets/rotp_zemperor/textures/entity/projectiles/bullet_trace.png",
-      "bytes": 7623,
-      "sha256": "8CE634E16B09B3E22721363F09918B6B66492D30C8A546E5EE2C13AC6C68821B"
+      "bytes": 1166,
+      "sha256": "DF5ABEDF064E01EEA509E6D7863EA2FDDDCDBB3581200C4EE0B97F63D73AF01C"
     },
     {
       "source": "assets/rotp_zemperor/textures/item/emperor.png",

@@ -53,6 +53,10 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RenderNameTagEvent;
+import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
+import net.neoforged.neoforge.client.gui.ConfigurationScreen;
+import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import net.neoforged.fml.ModContainer;
 
 @EventBusSubscriber(
         modid = GratefulDeadAddon.MOD_ID,
@@ -196,6 +200,19 @@ public final class GratefulDeadClientEvents {
             query.model().leftSleeve.copyFrom(
                     query.model().leftArm);
         }
+    }
+
+    public static void registerConfigScreen(ModContainer modContainer) {
+        modContainer.registerExtensionPoint(
+                IConfigScreenFactory.class, ConfigurationScreen::new);
+    }
+
+    @SubscribeEvent
+    public static void registerParticles(
+            RegisterParticleProvidersEvent event) {
+        event.registerSpriteSet(
+                GratefulDeadAddon.AGING_MIST.get(),
+                AgingMistParticle.Provider::new);
     }
 
     @SubscribeEvent

@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-weather-report`, mod id `rotp_wr`, version `1.4.1-port.32`.
+- Module: `rotp-weather-report`, mod id `rotp_wr`, version `1.4.1-port.33`.
 - Original 1.16.5 add-on: `RotP-天气预报-1.4.1.jar` (RotP Weather Report, mod id `rotp_wr`), by HK47bot, StandoByte; declared license: GNU GPL v3.0; SHA-256 `88F5A79BDDB3562E3C5528BD3167AA777B55A64059AF182C4C25D8F17EDFF3BE`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-gold-experience-requiem`, mod id `geraddon`, version `1.0.0-port.5-candidate.29`.
+- Module: `rotp-gold-experience-requiem`, mod id `geraddon`, version `1.0.0-port.5-candidate.30`.
 - Original 1.16.5 add-on: see the record below (original authors: Inza).
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

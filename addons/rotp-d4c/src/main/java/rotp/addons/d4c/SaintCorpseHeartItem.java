@@ -14,6 +14,11 @@ public final class SaintCorpseHeartItem extends Item {
     }
 
     @Override
+    public boolean isFoil(ItemStack stack) {
+        return true;
+    }
+
+    @Override
     public void appendHoverText(
             ItemStack stack,
             Item.TooltipContext context,

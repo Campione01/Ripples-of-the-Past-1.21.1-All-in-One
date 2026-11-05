@@ -1,0 +1,31 @@
+{
+  "type": "jojo_ripples:crafting_shaped_stand",
+  "category": "combat",
+  "pattern": [
+    " c ",
+    "aba",
+    "ada"
+  ],
+  "key": {
+    "a": {
+      "item": "minecraft:leather"
+    },
+    "b": {
+      "tag": "c:dyes/yellow"
+    },
+    "c": {
+      "tag": "c:dyes/black"
+    },
+    "d": {
+      "tag": "minecraft:wool"
+    }
+  },
+  "stand": [
+    {
+      "name": "rotp_grateful_dead:the_grateful_dead"
+    }
+  ],
+  "result": {
+    "id": "rotp_nextalbum:prosciutto_suit_boots"
+  }
+}

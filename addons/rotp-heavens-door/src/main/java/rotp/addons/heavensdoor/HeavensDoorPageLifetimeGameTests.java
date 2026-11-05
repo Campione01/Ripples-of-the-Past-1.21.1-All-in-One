@@ -87,8 +87,23 @@ public final class HeavensDoorPageLifetimeGameTests {
         });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 40)
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40)
     public static void unloadedTargetsKeepLowHealthPagesButReconcileDeathRevocation(GameTestHelper helper) {
+        HeavensDoorGameTestArea.whenLoaded(helper,
+                () -> unloadedTargetsKeepLowHealthPagesButReconcileDeathRevocationInLoadedArea(helper));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = HeavensDoorGameTestArea.WAIT_TEST_TICKS + 40,
+            batch = "hd_chunk_border")
+    public static void unloadedTargetsKeepLowHealthPagesButReconcileDeathRevocationAcrossAChunkBorder(
+            GameTestHelper helper) {
+        HeavensDoorAwayHelper away = new HeavensDoorAwayHelper(helper, 8);
+        HeavensDoorGameTestArea.whenLoaded(away,
+                () -> unloadedTargetsKeepLowHealthPagesButReconcileDeathRevocationInLoadedArea(away));
+    }
+
+    private static void unloadedTargetsKeepLowHealthPagesButReconcileDeathRevocationInLoadedArea(
+            GameTestHelper helper) {
         ServerPlayer owner = owner(helper, "hd-pages-revoke");
         Cow target = helper.spawnWithNoFreeWill(EntityType.COW, 2, 2, 2);
         try {

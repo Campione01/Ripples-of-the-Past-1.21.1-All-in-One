@@ -13,6 +13,7 @@ import rotp.core.subsystems.target.ActionTarget.TargetType;
 import rotp.core.util.functions.ItemUtil;
 
 import rotp.addons.whitesnake.WhitesnakeAddon;
+import rotp.addons.whitesnake.buffdisc.DiscItem;
 import rotp.addons.whitesnake.disc.DiscPayload;
 import rotp.addons.whitesnake.disc.DiscPayload.Type;
 import rotp.addons.whitesnake.disc.MemoryDiscPayloadItem;
@@ -39,6 +40,7 @@ public final class DiscProjectile extends ModdedProjectileEntity {
     private static final String STAND_PAYLOAD_TAG = "disc_stand";
     private static final String MEMORY_PAYLOAD_TAG = "player_data";
     private static final String MEMORY_ITEM_TAG = "memory_disc_item";
+    private static final String EFFECT_PAYLOAD_TAG = "effect_data";
     private static final String DROP_ON_FAILURE_TAG = "drop_on_failure";
 
     private Type payloadType = Type.NONE;
@@ -113,6 +115,7 @@ public final class DiscProjectile extends ModdedProjectileEntity {
             switch (payloadType) {
                 case STAND_DISC -> applyStandPayload(target);
                 case MEMORY_DISC -> applyMemoryPayload(target);
+                case EFFECT_DISC -> applyEffectPayload(target);
                 case NONE -> {
                 }
             }
@@ -193,6 +196,16 @@ public final class DiscProjectile extends ModdedProjectileEntity {
         }
     }
 
+    // PATCH1 effect_disc: the living entity hit takes the disc's effects and the disc is spent, blank or not
+    private void applyEffectPayload(Entity target) {
+        if (!(target instanceof LivingEntity living)
+                || !living.isAlive()) {
+            return;
+        }
+        DiscItem.applyEffectTo(living, carrier.copy());
+        consumePayload();
+    }
+
     @Nullable
     private static LivingEntity normalizeLivingTarget(Entity target) {
         if (!(target instanceof LivingEntity living)) {
@@ -221,8 +234,9 @@ public final class DiscProjectile extends ModdedProjectileEntity {
             dropped.setPickUpDelay(5);
             LivingEntity owner = getOwner();
             if (owner != null
-                    && (payloadType != Type.STAND_DISC
-                            || StandDiscService.isAuthoritative(carrier))) {
+                    && (payloadType == Type.MEMORY_DISC
+                            || payloadType == Type.STAND_DISC
+                                    && StandDiscService.isAuthoritative(carrier))) {
                 LivingEntity user = StandUtil.getStandUser(owner);
                 if (user != null) {
                     dropped.setTarget(user.getUUID());
@@ -288,6 +302,10 @@ public final class DiscProjectile extends ModdedProjectileEntity {
                         carrier.save(registryAccess()));
             }
             nbt.put(MEMORY_PAYLOAD_TAG, memoryPayload.copy());
+        } else if (payloadType == Type.EFFECT_DISC && !carrier.isEmpty()) {
+            nbt.put(
+                    EFFECT_PAYLOAD_TAG,
+                    carrier.save(registryAccess()));
         }
     }
 
@@ -305,6 +323,9 @@ public final class DiscProjectile extends ModdedProjectileEntity {
             case MEMORY_DISC -> ItemStack.parseOptional(
                     registryAccess(),
                     nbt.getCompound(MEMORY_ITEM_TAG));
+            case EFFECT_DISC -> ItemStack.parseOptional(
+                    registryAccess(),
+                    nbt.getCompound(EFFECT_PAYLOAD_TAG));
             case NONE -> ItemStack.EMPTY;
         };
         memoryPayload = payloadType == Type.MEMORY_DISC

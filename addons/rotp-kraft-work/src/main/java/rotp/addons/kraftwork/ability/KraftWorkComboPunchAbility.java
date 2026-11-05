@@ -9,8 +9,11 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.subsystems.target.ActionTarget;
 
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.phys.Vec3;
 
@@ -46,7 +49,8 @@ public final class KraftWorkComboPunchAbility
 
     private static boolean movesByItself(StandEntity standEntity) {
         EntityActionInstance action = standEntity.getCurStandAction();
-        if (!(action instanceof KraftWorkComboPunch)) {
+        if (!(action instanceof KraftWorkComboPunch combo)
+                || combo.flewOut) {
             return false;
         }
         ActionPhase phase = action.getPhase();
@@ -59,6 +63,11 @@ public final class KraftWorkComboPunchAbility
     // keeps the heavy punch's Lock Equipment follow-up.
     public static final class KraftWorkComboPunch
             extends KraftWorkHeavyPunchAbility.KraftWorkHeavyPunch {
+        // Owner T2: at an entity past its user's reach the combo flies out
+        // in front of it as every heavy punch does, without the 1.16 slide.
+        // Decided by the server, which alone finds such a target.
+        private boolean flewOut;
+
         public KraftWorkComboPunch(EntityActionType ability) {
             super(ability);
         }
@@ -73,6 +82,13 @@ public final class KraftWorkComboPunchAbility
                 ActionTarget target,
                 double minOffset,
                 double maxOffset) {
+            if (!stand.level().isClientSide()) {
+                flewOut = fliesOutTo(stand, target);
+            }
+            if (flewOut) {
+                return super.setStandFrontOffsetFromTarget(
+                        stand, target, minOffset, maxOffset);
+            }
             boolean armsOnly = stand.isArmsOnlyMode();
             double y = armsOnly
                     ? stand.offsetFromUser.armsOnlyIdleOffset.y
@@ -84,9 +100,34 @@ public final class KraftWorkComboPunchAbility
             return true;
         }
 
+        private static boolean fliesOutTo(
+                StandEntity stand, ActionTarget target) {
+            if (target == null || stand.isArmsOnlyMode()) {
+                return false;
+            }
+            ActionTarget resolved = target.resolveEntityId(stand.level());
+            Entity entity = resolved.getType() == ActionTarget.TargetType.ENTITY
+                    ? resolved.getMainEntity()
+                    : null;
+            return entity != null
+                    && StandMeleeReach.fliesOutTo(stand, entity, 0.5D);
+        }
+
+        @Override
+        public void toBuf(FriendlyByteBuf buf) {
+            super.toBuf(buf);
+            buf.writeBoolean(flewOut);
+        }
+
+        @Override
+        public void fromBuf(FriendlyByteBuf buf) {
+            super.fromBuf(buf);
+            flewOut = buf.readBoolean();
+        }
+
         @Override
         public void actionPerformStart() {
-            if (performer instanceof StandEntity stand) {
+            if (performer instanceof StandEntity stand && !flewOut) {
                 Vec3 slide = stand.getLookAngle()
                         .normalize()
                         .scale(SLIDE_DISTANCE);

@@ -113,7 +113,7 @@ public final class D4CAddon {
                     CORPSE_FINDER_NAME,
                     key -> new AbilityType<>(
                             key, D4CCorpseFinderAbility::new));
-    // Core barrage plus the 1.16 valentine_barrage shout.
+    // Core barrage plus the 1.16 heavy-attack follow-up.
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<D4CBarrageAbility>>
             D4C_STAND_BARRAGE = ABILITY_TYPES.register(
@@ -661,8 +661,10 @@ public final class D4CAddon {
                         "d4c_barrage",
                         D4C_STAND_BARRAGE,
                         barrage -> {
-                            barrage.barrageHitSound(D4C_BARRAGE);
-                            // 1.16 standSound(d4c_ushya); the user shout is in D4CBarrageAbility
+                            // 1.16 ai/ah.java:70 barrageHitSound(ag.ad), the
+                            // d4c_punch event; d4c_barrage was never a hit
+                            barrage.barrageHitSound(D4C_PUNCH);
+                            // 1.16 standSound(d4c_ushya), the 4.8 s rush, once
                             barrage.barrageCrySound(D4C_USHYA);
                             // the one-argument standSound also cried with the arms only
                             barrage.barrageCryInArmsOnly();
@@ -691,7 +693,7 @@ public final class D4CAddon {
                         "grab_barrage",
                         D4C_STAND_BARRAGE,
                         barrage -> {
-                            barrage.barrageHitSound(D4C_BARRAGE);
+                            barrage.barrageHitSound(D4C_PUNCH);
                             barrage.barrageCrySound(D4C_USHYA);
                             barrage.initIsGrabVariation();
                         })

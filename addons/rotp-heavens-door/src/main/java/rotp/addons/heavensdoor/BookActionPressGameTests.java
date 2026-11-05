@@ -414,6 +414,12 @@ public final class BookActionPressGameTests {
                     "the summoned Heaven's Door returned the page; pages " + scene.pages(scene.booked) + ", held "
                             + scene.owner.getMainHandItem());
             AbilityInput.keyRelease(KEY, scene.owner);
+            // the author's 1.2 LivingUtilCap.removeEffects: the last page back closes the book
+            helper.assertTrue(!HeavensDoorAddon.bookState(scene.booked).active(),
+                    "the book stayed open with no page left out");
+            helper.assertTrue(HeavensDoorAddon.controller(scene.owner) != null
+                            && BookStateService.markFromHit(HeavensDoorAddon.controller(scene.owner), scene.booked),
+                    "fixture: the booked cow could not be booked again");
 
             scene.unsummon();
             HeavensDoorGameTestAims.lookAt(scene.owner, scene.other);

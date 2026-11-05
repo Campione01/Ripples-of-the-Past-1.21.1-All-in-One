@@ -113,7 +113,9 @@ public final class StickyFingersHideInMobAbility
         float targetVolume =
                 targetSize.width() * targetSize.width()
                         * targetSize.height();
-        return targetVolume <= userVolume ? livingTarget : null;
+        // 1.0.2: only a mob at least as big as the user can be entered
+        // (1.0.1 compared the other way round).
+        return targetVolume >= userVolume ? livingTarget : null;
     }
 
     public static final class HideInMobAction

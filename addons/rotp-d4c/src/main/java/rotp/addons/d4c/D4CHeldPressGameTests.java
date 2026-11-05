@@ -35,8 +35,14 @@ import rotp.core.subsystems.target.ActionTarget;
 public final class D4CHeldPressGameTests {
     private D4CHeldPressGameTests() {}
 
-    @GameTest(template = "empty", batch = "d4cCorpseKeysDuringABarrage", timeoutTicks = 80)
+    @GameTest(template = "empty", batch = "d4cCorpseKeysDuringABarrage",
+            timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
     public static void corpseKeysLeaveAHeldBarrageAloneAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> corpseKeysLeaveAHeldBarrageAloneAsIn116Body(h));
+    }
+
+    private static void corpseKeysLeaveAHeldBarrageAloneAsIn116Body(GameTestHelper helper) {
         List<String> wrong = new ArrayList<>();
         try (D4CGameTestScene scene = new D4CGameTestScene(helper, "d4c-corpse-keys")) {
             Cow cow = scene.cow(new Vec3(0.0D, 0.0D, 6.0D));

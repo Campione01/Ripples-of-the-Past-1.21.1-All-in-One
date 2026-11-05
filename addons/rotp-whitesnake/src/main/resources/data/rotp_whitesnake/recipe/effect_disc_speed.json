@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "rotp_whitesnake:disc"
+    },
+    {
+      "item": "minecraft:potion"
+    }
+  ],
+  "result": {
+    "id": "rotp_whitesnake:disc",
+    "components": {
+      "rotp_whitesnake:disc_effect": {
+        "effect": "rotp_whitesnake:random"
+      }
+    }
+  }
+}

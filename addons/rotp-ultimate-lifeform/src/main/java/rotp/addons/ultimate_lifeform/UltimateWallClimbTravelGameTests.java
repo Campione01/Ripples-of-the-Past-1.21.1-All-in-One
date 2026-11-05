@@ -725,6 +725,7 @@ public final class UltimateWallClimbTravelGameTests {
             }
         };
         BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        UltimateLifeformFixtures.claim(helper, player);
         player.setPos(
                 origin.getX() + 3.5D,
                 origin.getY() + 5.0D,

@@ -35,17 +35,22 @@ public final class EchoesHeavyClipGameTests {
             + "animations/echoes_act1.animation.json";
     private static final String ACT2_ANIMS = "/assets/rotp_echoes/stand_skins/echoes_act2/assets/rotp_echoes/"
             + "animations/echoes_act2.animation.json";
+    private static final String ACT3_ANIMS = "/assets/rotp_echoes/stand_skins/echoes_act3/assets/rotp_echoes/"
+            + "animations/echoes_act3.animation.json";
 
     private EchoesHeavyClipGameTests() {}
 
     @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 20)
     public static void heavyClipsPutTheImpactOnTheirOneTickPerform(GameTestHelper helper) {
         List<String> wrong = new ArrayList<>();
-        // ACT1 heavy: the punching arm is out at 0.0833; ACT2 heavy: the flip ends and the tail lands at 1.375;
-        // ACT2 finisher: the tail sweep that throws the spike ends at 1.375
-        check(helper, EchoesStands.ECHOES_ACT1.get(), "heavy_punch", ACT1_ANIMS, "heavy_punch", 0.0833F, wrong);
-        check(helper, EchoesStands.ECHOES_ACT2.get(), "act2_heavy_punch", ACT2_ANIMS, "heavy_punch", 1.375F, wrong);
-        check(helper, EchoesStands.ECHOES_ACT2.get(), "act2_finisher", ACT2_ANIMS, "finisher", 1.375F, wrong);
+        // the author's 1.21.1 heavy and finisher clips land the blow at 0.4333
+        check(helper, EchoesStands.ECHOES_ACT1.get(), "heavy_punch", ACT1_ANIMS, "heavy_punch", 0.4333F, wrong);
+        check(helper, EchoesStands.ECHOES_ACT1.get(), "act1_finisher", ACT1_ANIMS, "finisher", 0.4333F, wrong);
+        check(helper, EchoesStands.ECHOES_ACT2.get(), "act2_heavy_punch", ACT2_ANIMS, "heavy_punch", 0.4333F, wrong);
+        check(helper, EchoesStands.ECHOES_ACT2.get(), "act2_finisher", ACT2_ANIMS, "finisher", 0.4333F, wrong);
+        // R772 F11: ACT3's finisher is its heavy's finisher variation too (master InitStands 274-291)
+        check(helper, EchoesStands.ECHOES_ACT3.get(), "heavy_punch", ACT3_ANIMS, "heavy_punch", 0.4333F, wrong);
+        check(helper, EchoesStands.ECHOES_ACT3.get(), "finisher", ACT3_ANIMS, "finisher", 0.4333F, wrong);
         helper.assertTrue(wrong.isEmpty(), "A heavy hits on its perform's only tick, so its clip must hold the impact on"
                 + " PERFORM and enter RECOVERY one tick (0.05 s) later, as 1.16's heavy clips did: " + wrong);
         helper.succeed();

@@ -66,7 +66,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
+import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.network.connection.ConnectionType;
 
 @GameTestHolder(UltimateLifeformAddon.MOD_ID)
@@ -238,6 +238,8 @@ public final class UltimateLifeformGameTests {
     @GameTest(template = "empty", timeoutTicks = 20, batch = "ulf_own_sendo_reload_preserves_phase_damage_and_hit")
     public static void sendoReloadPreservesPhaseDamageAndHitIdentity(
             GameTestHelper helper) {
+        // the Sendo and its target stand on block (8, 2, 8)
+        UltimateLifeformChunkTickets.holdScene(helper);
         Cow owner = living(helper, new Vec3(2.5D, 2.0D, 2.5D));
         BlockPos blockPos = helper.absolutePos(new BlockPos(8, 2, 8));
         UltimateAreaEffectEntity sendo = area(
@@ -312,6 +314,14 @@ public final class UltimateLifeformGameTests {
         target.discard();
         owner.discard();
         helper.succeed();
+    }
+
+    // the same scene with its Sendo and target in the chunk next to the template's
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "ulf_own_sendo_reload_across_a_chunk_border")
+    public static void sendoReloadPreservesPhaseDamageAndHitIdentityAcrossAChunkBorder(
+            GameTestHelper helper) {
+        sendoReloadPreservesPhaseDamageAndHitIdentity(
+                new UltimateLifeformAwayHelper(helper, 0));
     }
 
     @GameTest(template = "empty", timeoutTicks = 20)
@@ -510,6 +520,8 @@ public final class UltimateLifeformGameTests {
     @GameTest(template = "empty", timeoutTicks = 20, batch = "ulf_own_tentacles_and_kick_release_match_donor_cardi")
     public static void tentaclesAndKickReleaseMatchDonorCardinality(
             GameTestHelper helper) {
+        // the kick at a fluid stands on block (8, 2, 2)
+        UltimateLifeformChunkTickets.holdScene(helper);
         Cow owner = living(
                 helper, new Vec3(2.5D, 2.0D, 2.5D));
         UltimateLifeformData data = new UltimateLifeformData();
@@ -590,6 +602,14 @@ public final class UltimateLifeformGameTests {
         collisionOwner.discard();
         owner.discard();
         helper.succeed();
+    }
+
+    // the same scene with the kick at a fluid in the chunk next to the template's
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "ulf_own_tentacles_and_kick_across_a_chunk_border")
+    public static void tentaclesAndKickReleaseMatchDonorCardinalityAcrossAChunkBorder(
+            GameTestHelper helper) {
+        tentaclesAndKickReleaseMatchDonorCardinality(
+                new UltimateLifeformAwayHelper(helper, 1));
     }
 
     @GameTest(template = "empty", timeoutTicks = 40)
@@ -1234,9 +1254,12 @@ public final class UltimateLifeformGameTests {
             String name,
             String uuid,
             Vec3 relativePosition) {
-        ServerPlayer player = FakePlayerFactory.get(
-                helper.getLevel(),
-                new GameProfile(UUID.fromString(uuid), name));
+        // FakePlayerFactory keeps one instance per profile, which cannot join
+        // again once removed
+        ServerPlayer player = UltimateLifeformFixtures.claim(helper,
+                new FakePlayer(
+                        helper.getLevel(),
+                        new GameProfile(UUID.fromString(uuid), name)));
         player.setPos(absolute(helper, relativePosition));
         player.setGameMode(GameType.SURVIVAL);
         if (!helper.getLevel().addFreshEntity(player)) {
@@ -1280,6 +1303,7 @@ public final class UltimateLifeformGameTests {
                 server, connection, player, cookie);
         player.setPos(absolute(helper, relativePosition));
         player.setGameMode(GameType.SURVIVAL);
+        UltimateLifeformFixtures.claim(helper, player);
         level.addNewPlayer(player);
         PlayerPower power = PowerClass.PLAYER_POWER.attachGet(player);
         if (!power.trySetPowerType(

@@ -18,8 +18,9 @@ import net.minecraft.world.entity.player.Player;
 public final class ShadowCounterAbility
         extends StandEntityAbility {
     public static final int ACTIVE_TICKS = 1200;
+    // 1.16 TimeStopCounter set no standPose: StandPose.IDLE while held
     private static final ActionAnimIdentifier ANIM =
-            ActionAnimIdentifier.getOrCreate("block", false);
+            ActionAnimIdentifier.getOrCreate("idle", true);
 
     public ShadowCounterAbility(
             AbilityType<?> abilityType, AbilityId abilityId) {

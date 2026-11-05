@@ -37,11 +37,16 @@
   "rotp_rhcp.ability.rhcp_counterattack": "反击",
   "action.rotp_rhcp.rhcp_blitz_attack": "闪电突袭",
   "rotp_rhcp.ability.rhcp_blitz_attack": "闪电突袭",
-  "action.rotp_rhcp.rhcp_drag_into_line": "拖入线路",
-  "rotp_rhcp.ability.rhcp_drag_into_line": "拖入线路",
+  "action.rotp_rhcp.rhcp_self_destruct": "自爆",
+  "rotp_rhcp.ability.rhcp_self_destruct": "自爆",
   "jojo.message.action_condition.full_block_rhcp": "当你处于全防御状态时，此技能可用",
   "rotp_rhcp.subtitle.rhcp_name": "\"辛红辣椒\"",
   "rotp_rhcp.subtitle.rhcp_this_is_the_end": "\"这是结束\"",
   "rotp_rhcp.subtitle.rhcp_electricity": "电疗",
-  "entity.rotp_rhcp.rhcp": "辛红辣椒"
+  "entity.rotp_rhcp.rhcp": "辛红辣椒",
+  "rotp_rhcp.configuration.title": "辛红辣椒配置",
+  "rotp_rhcp.configuration.section.rotp.rhcp.common.toml": "通用设置",
+  "rotp_rhcp.configuration.section.rotp.rhcp.common.toml.title": "辛红辣椒通用配置",
+  "rotp_rhcp.configuration.SaveRHCPData": "保存电量与强度",
+  "rotp_rhcp.configuration.SaveRHCPData.tooltip": "收回替身后保留辛红辣椒的电量与强度。关闭时，每次召唤都从 0 电量、0 强度开始。"
 }

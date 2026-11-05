@@ -1,9 +1,14 @@
 package rotp.addons.echoes;
 
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.entity.StandEntity;
 
 import rotp.addons.echoes.init.EchoesAttachments;
+import rotp.addons.echoes.state.EchoesAct0Awakening;
+import rotp.addons.echoes.network.EchoesOnomatopoeiaPayloads;
 import rotp.addons.echoes.state.EchoesChatService;
+import rotp.addons.echoes.state.EchoesOnomatopoeiaService;
+import rotp.addons.echoes.state.EchoesSoundService;
 import rotp.addons.echoes.state.EchoesGravityService;
 import rotp.addons.echoes.state.EchoesUserState;
 import rotp.addons.echoes.state.GravityMarkSavedData;
@@ -16,6 +21,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.bus.api.EventPriority;
@@ -24,12 +30,14 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDestroyBlockEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -47,6 +55,7 @@ public final class EchoesGameEvents {
 
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
+        EchoesSoundService.tick(event.getServer());
         ServerLevel overworld = event.getServer().overworld();
         if (overworld.getGameTime() % 20L != 0L) {
             return;
@@ -66,6 +75,7 @@ public final class EchoesGameEvents {
             return;
         }
         EchoesGravityService.tickInventoryGravity(player);
+        EchoesAct0Awakening.tick(player);
         if (player.hasData(EchoesAttachments.USER_STATE)) {
             EchoesGravityService.tickUser(player);
         }
@@ -92,11 +102,60 @@ public final class EchoesGameEvents {
                 && living.hasData(EchoesAttachments.FREEZE_STATE)) {
             EchoesGravityService.tickFrozenTarget(living);
         }
+        if (entity instanceof LivingEntity living
+                && living.hasData(EchoesAttachments.ONOMATOPOEIA_MARK)) {
+            EchoesOnomatopoeiaService.tickMarked(living);
+        }
+        if (entity instanceof LivingEntity living && living.tickCount % 20 == 0) {
+            EchoesOnomatopoeiaService.tickBlockMarks(living);
+        }
+    }
+
+    // R772 F11: a player who starts seeing a marked entity is told its word
+    @SubscribeEvent
+    public static void onStartTracking(PlayerEvent.StartTracking event) {
+        if (event.getEntity() instanceof ServerPlayer player
+                && event.getTarget() instanceof LivingEntity living
+                && living.hasData(EchoesAttachments.ONOMATOPOEIA_MARK)) {
+            EchoesOnomatopoeiaPayloads.sendMark(player, living);
+        }
+    }
+
+    // Stand punches (the arms-only punch of an unsummoned Stand too) and mobs break blocks through
+    // LivingDestroyBlockEvent, never BreakEvent, so Yingbangbang must refuse them here as well.
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onEntityDestroyBlock(LivingDestroyBlockEvent event) {
+        LivingEntity entity = event.getEntity();
+        LivingEntity user = entity instanceof StandEntity stand ? stand.getUser() : entity;
+        if (!(user instanceof Player player && player.isCreative())
+                && EchoesOnomatopoeiaService.isHardened(entity.level(), event.getPos())) {
+            event.setCanceled(true);
+        }
+    }
+
+    // Runs on both sides so the client neither draws cracks nor plays the break effect for a hardened block.
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onBreakSpeed(PlayerEvent.BreakSpeed event) {
+        if (!event.getEntity().isCreative()
+                && event.getPosition().filter(pos -> EchoesOnomatopoeiaService.isHardened(event.getEntity().level(), pos)).isPresent()) {
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onExplosionDetonate(ExplosionEvent.Detonate event) {
+        event.getAffectedBlocks().removeIf(pos -> EchoesOnomatopoeiaService.isHardened(event.getLevel(), pos));
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (EchoesGravityService.isHandFrozen(event.getPlayer())) {
+            event.setCanceled(true);
+            return;
+        }
+        // R772 F11: ACT2's Yingbangbang
+        if (!event.getPlayer().isCreative()
+                && EchoesOnomatopoeiaService.isHardened(event.getLevel(), event.getPos())) {
             event.setCanceled(true);
             return;
         }
@@ -254,18 +313,57 @@ public final class EchoesGameEvents {
     public static void onPlayerLogout(
             PlayerEvent.PlayerLoggedOutEvent event) {
         cleanupPlayer(event.getEntity());
+        if (event.getEntity() instanceof ServerPlayer player) {
+            EchoesSoundService.forget(player);
+        }
     }
 
     @SubscribeEvent
     public static void onPlayerChangedDimension(
             PlayerEvent.PlayerChangedDimensionEvent event) {
         cleanupPlayer(event.getEntity());
+        if (event.getEntity() instanceof ServerPlayer player) {
+            EchoesSoundService.forget(player);
+        }
     }
 
     @SubscribeEvent
     public static void onPlayerClone(PlayerEvent.Clone event) {
         cleanupPlayer(event.getOriginal());
         cleanupPlayer(event.getEntity());
+        // R772 F11: the chosen word and sound, favourites and names stay with the player (the master kept them by id)
+        if (event.getOriginal().hasData(EchoesAttachments.USER_STATE)) {
+            RotpEchoes.userState(event.getEntity()).copyChoicesFrom(RotpEchoes.userState(event.getOriginal()));
+        }
+    }
+
+    // R772 F11: the user's client learns his sound state (master SoundNameNbtHandler.onPlayerLogin, SoundSyncPacket)
+    @SubscribeEvent
+    public static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            EchoesSoundService.sync(player);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            EchoesSoundService.sync(player);
+        }
+    }
+
+    // R772 F11, master SoundMarkMiningClientHandler: breaking a block a sound mark is on plays its sound
+    @SubscribeEvent
+    public static void onMineBlock(PlayerInteractEvent.LeftClickBlock event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+        if (event.getAction() == PlayerInteractEvent.LeftClickBlock.Action.START) {
+            EchoesSoundService.startMining(player, event.getPos());
+        }
+        else if (event.getAction() != PlayerInteractEvent.LeftClickBlock.Action.CLIENT_HOLD) {
+            EchoesSoundService.stopMining(player);
+        }
     }
 
     private static void cleanupPlayer(

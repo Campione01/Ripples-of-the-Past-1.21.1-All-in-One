@@ -19,7 +19,8 @@ public record SexPistolsConfigSyncPayload(
         int reviveTicks,
         boolean hungerEnabled,
         int hungerMinTicks,
-        int hungerExtraTicks)
+        int hungerExtraTicks,
+        double recoilMultiplier)
         implements CustomPacketPayload {
     public static final Type<SexPistolsConfigSyncPayload> TYPE =
             new Type<>(SexPistolsIds.id(
@@ -73,6 +74,10 @@ public record SexPistolsConfigSyncPayload(
         }
         requireNonNegative(
                 "hungerExtraTicks", hungerExtraTicks);
+        requireFiniteInRange(
+                "recoilMultiplier",
+                recoilMultiplier,
+                SexPistolsConfig.MAX_RECOIL_MULTIPLIER);
     }
 
     private SexPistolsConfigSyncPayload(
@@ -90,7 +95,8 @@ public record SexPistolsConfigSyncPayload(
                 buffer.readVarInt(),
                 buffer.readBoolean(),
                 buffer.readVarInt(),
-                buffer.readVarInt());
+                buffer.readVarInt(),
+                buffer.readDouble());
     }
 
     private void write(RegistryFriendlyByteBuf buffer) {
@@ -107,6 +113,7 @@ public record SexPistolsConfigSyncPayload(
         buffer.writeBoolean(hungerEnabled);
         buffer.writeVarInt(hungerMinTicks);
         buffer.writeVarInt(hungerExtraTicks);
+        buffer.writeDouble(recoilMultiplier);
     }
 
     private static void requireNonNegative(

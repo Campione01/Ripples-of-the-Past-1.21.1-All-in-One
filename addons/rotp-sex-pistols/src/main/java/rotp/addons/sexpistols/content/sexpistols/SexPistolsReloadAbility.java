@@ -117,6 +117,14 @@ public final class SexPistolsReloadAbility extends Ability {
         }
         SexPistolsCoordinator coordinator =
                 SexPistolsAttachments.coordinator(owner);
+        // 0.1.13 StandSummonUtil.ensureSummoned: a swarm that was never
+        // summoned has no member to lend, so the reload brings it out. An
+        // established swarm still lends members with the Stand put away.
+        if (!standPower.isSummoned()
+                && !coordinator.isSwarmEstablished()) {
+            SexPistolsStands.SEX_PISTOLS.get()
+                    .summon(owner, standPower);
+        }
         if (!RevolverItem.openForStandReload(
                 serverLevel, player, revolver, true, true)) {
             fail(

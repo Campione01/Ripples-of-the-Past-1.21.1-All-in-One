@@ -52,8 +52,13 @@ public final class WeatherReportTaskTargetGameTests {
 
     private WeatherReportTaskTargetGameTests() {}
 
-    @GameTest(template = "empty", batch = "wr_task_target", timeoutTicks = 100)
+    @GameTest(template = "empty", batch = "wr_task_target", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void lightningTurnsTheStandToTheMobItWasPressedAt(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> lightningTurnsTheStandToTheMobItWasPressedAtBody(h));
+    }
+
+    private static void lightningTurnsTheStandToTheMobItWasPressedAtBody(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Player user = new Player(level, BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "wr-task-target")) {
             @Override
@@ -149,8 +154,13 @@ public final class WeatherReportTaskTargetGameTests {
      * cow there (standKeepsTarget: a living entity); with nothing behind, the press kept nothing. The Stand's eyes are
      * level with its user's, 0.35 ahead, looking the same way, so the ray runs along the user's crosshair line.
      */
-    @GameTest(template = "empty", batch = "wr_task_target_torch", timeoutTicks = 100)
+    @GameTest(template = "empty", batch = "wr_task_target_torch", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void lightningPressedAtATorchKeepsTheCowBehindAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> lightningPressedAtATorchKeepsTheCowBehindAsIn116Body(h));
+    }
+
+    private static void lightningPressedAtATorchKeepsTheCowBehindAsIn116Body(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Player user = new Player(level, BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "wr-task-torch")) {
             @Override

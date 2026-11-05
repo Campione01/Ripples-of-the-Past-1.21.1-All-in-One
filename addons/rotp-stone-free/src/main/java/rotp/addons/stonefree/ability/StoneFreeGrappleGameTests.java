@@ -6,6 +6,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import com.mojang.authlib.GameProfile;
 
@@ -550,19 +551,25 @@ public final class StoneFreeGrappleGameTests {
      * flight: back at age 10, 10 and 16. Drawn here from arms brought out for them (D-rotp-stone-free-02), which are also
      * their owner, so the arms stay until the string is back, even under Resolve (arms leave in 3 ticks), and go with it.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
+            timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void armsBroughtOutForASweepUnderResolveStayUntilItIsBackAsIn116(GameTestHelper helper) {
-        runArmsStayForString(helper, StoneFreeAddon.USER_STRING_SWEEP_NAME, Kind.USER_SWEEP, 9);
+        GameTestChunkTickets.aroundOrigin(helper).whenTicking(() -> {},
+                later -> runArmsStayForString(later, StoneFreeAddon.USER_STRING_SWEEP_NAME, Kind.USER_SWEEP, 9));
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
+            timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void armsBroughtOutForAWhipUnderResolveStayUntilItIsBackAsIn116(GameTestHelper helper) {
-        runArmsStayForString(helper, StoneFreeAddon.USER_STRING_WHIP_NAME, Kind.USER_WHIP, 9);
+        GameTestChunkTickets.aroundOrigin(helper).whenTicking(() -> {},
+                later -> runArmsStayForString(later, StoneFreeAddon.USER_STRING_WHIP_NAME, Kind.USER_WHIP, 9));
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
+            timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void armsBroughtOutForAPickUnderResolveStayUntilItsSpikeIsBackAsIn116(GameTestHelper helper) {
-        runArmsStayForString(helper, StoneFreeAddon.USER_STRING_PICK_NAME, Kind.USER_SPIKE, 15);
+        GameTestChunkTickets.aroundOrigin(helper).whenTicking(() -> {},
+                later -> runArmsStayForString(later, StoneFreeAddon.USER_STRING_PICK_NAME, Kind.USER_SPIKE, 15));
     }
 
     private static void runArmsStayForString(GameTestHelper helper, String abilityName, Kind kind, int lastAge) {
@@ -594,7 +601,7 @@ public final class StoneFreeGrappleGameTests {
                         }
                     }
                     return out == null;
-                }, "The user's " + kind + " outlived 30 ticks", () -> {
+                }, () -> "The user's " + kind + " outlived 30 ticks: " + describeString(helper, fixture, kind), () -> {
                     helper.assertTrue(flight.lastAge == lastAge && flight.lastReach < 0.0D,
                             "1.16's " + kind + " was its user's own and lived until it was back, last seen at age "
                                     + lastAge + "; thrown from arms under Resolve it was last seen at age "
@@ -836,11 +843,16 @@ public final class StoneFreeGrappleGameTests {
 
     private static void when(GameTestHelper helper, Fixture fixture, int ticksLeft, BooleanSupplier condition,
             String failure, Runnable then) {
+        when(helper, fixture, ticksLeft, condition, () -> failure, then);
+    }
+
+    private static void when(GameTestHelper helper, Fixture fixture, int ticksLeft, BooleanSupplier condition,
+            Supplier<String> failure, Runnable then) {
         if (condition.getAsBoolean()) {
             then.run();
             return;
         }
-        helper.assertTrue(ticksLeft > 0, failure);
+        helper.assertTrue(ticksLeft > 0, failure.get());
         StoneFreeBarrierGameTests.later(helper, fixture, 1,
                 () -> when(helper, fixture, ticksLeft - 1, condition, failure, then));
     }
@@ -1297,6 +1309,17 @@ public final class StoneFreeGrappleGameTests {
             }
         }
         return null;
+    }
+
+    // What a string that outlives its flight was doing: whether its chunk and its user's tick entities says a
+    // string that never ticked from one that ticked and was not removed.
+    private static String describeString(GameTestHelper helper, Fixture fixture, Kind kind) {
+        StoneFreeStringEntity string = find(helper, fixture, kind);
+        return "owner at " + fixture.owner.blockPosition() + " ticks "
+                + helper.getLevel().isPositionEntityTicking(fixture.owner.blockPosition()) + ", "
+                + (string == null ? "no live string" : "string age " + string.tickCount + " at " + string.blockPosition()
+                        + " ticks " + helper.getLevel().isPositionEntityTicking(string.blockPosition()))
+                + ", test origin " + helper.absolutePos(BlockPos.ZERO);
     }
 
     static void await(GameTestHelper helper, Fixture fixture, Kind kind, int ticksLeft,

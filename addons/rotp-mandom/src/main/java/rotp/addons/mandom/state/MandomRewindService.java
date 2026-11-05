@@ -14,6 +14,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 
+import rotp.core.api.time.EntityTimeRates;
+import rotp.core.api.time.LevelTimeRates;
+import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.impl.powers.vampirism.VampirismData;
 import rotp.core.impl.powers.zombie.ZombieData;
@@ -31,7 +34,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.game.ClientboundRemoveMobEffectPacket;
 import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
@@ -58,10 +63,12 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.attachment.AttachmentHolder;
@@ -76,9 +83,13 @@ import org.slf4j.Logger;
 public final class MandomRewindService {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int SAMPLE_INTERVAL_TICKS = 20;
-    private static final int MAX_SNAPSHOTS =
-            MandomRollbackGate.REWIND_TICKS
-                    / SAMPLE_INTERVAL_TICKS + 1;
+    private static final int MAX_SAMPLES =
+            (int) (MandomRollbackGate.REWIND_TICKS
+                    * EntityTimeRates.MAX_RATE)
+                    / SAMPLE_INTERVAL_TICKS + 64;
+    private static final double OWN_TIME_EPSILON = 1.0E-6D;
+    private static final ResourceLocation REWIND_SOURCE =
+            MandomAddon.id("time_rewind");
     private static final int BLOCK_UPDATE_FLAGS =
             Block.UPDATE_CLIENTS | Block.UPDATE_NEIGHBORS;
     private static final Map<MinecraftServer, ServerHistory> HISTORIES =
@@ -135,11 +146,66 @@ public final class MandomRewindService {
         for (ServerLevel level : server.getAllLevels()) {
             LevelHistory levelHistory = serverHistory.level(level);
             long now = level.getGameTime();
-            levelHistory.prune(now);
+            float worldRate = worldTimeRate(level);
+            levelHistory.prune(now, worldRate);
             if (now % SAMPLE_INTERVAL_TICKS == 0L) {
-                levelHistory.capture(level, now);
+                levelHistory.capture(level, now, true, null);
+            }
+            else if (worldRate > 1.0F
+                    && now - levelHistory.lastCapture
+                            >= denseInterval(worldRate)) {
+                // The world goes back only 6 / m seconds, so it needs samples finer than the 20-tick grid.
+                List<LivingEntity> users = mandomUsers(level);
+                if (!users.isEmpty()) {
+                    levelHistory.capture(level, now, false, users);
+                }
             }
         }
+    }
+
+    /**
+     * How many times faster the level's time runs (Made in Heaven's m while it accelerates), at least 1.
+     */
+    public static float worldTimeRate(Level level) {
+        float rate = LevelTimeRates.rate(
+                LevelTimeRates.Channel.TIME, level);
+        return rate > 1.0F
+                ? Math.min(rate, EntityTimeRates.MAX_RATE)
+                : 1.0F;
+    }
+
+    /** The world's part of the rewind: 6 seconds of the level's own time, so 6 / m real seconds. */
+    public static long worldRewindTicks(float worldRate) {
+        return Math.max(1L, Math.round(
+                MandomRollbackGate.REWIND_TICKS / (double) worldRate));
+    }
+
+    /** How fast the entity's own time runs (1/m for a being Made in Heaven holds back in its mode A). */
+    public static double ownTimeRate(LivingEntity entity) {
+        float rate = EntityTimeRates.rate(
+                EntityTimeRates.Channel.BEING, entity);
+        if (!(rate > 0.0F) || Float.isInfinite(rate)) {
+            return 1.0D;
+        }
+        return Math.max(1.0D / EntityTimeRates.MAX_RATE,
+                Math.min(rate, EntityTimeRates.MAX_RATE));
+    }
+
+    private static int denseInterval(float worldRate) {
+        return Math.max(1,
+                (int) (SAMPLE_INTERVAL_TICKS / worldRate));
+    }
+
+    private static List<LivingEntity> mandomUsers(ServerLevel level) {
+        List<LivingEntity> users = new ArrayList<>();
+        for (Entity entity : level.getAllEntities()) {
+            if (entity instanceof LivingEntity living
+                    && living.isAlive()
+                    && MandomAddon.isMandomUser(living)) {
+                users.add(living);
+            }
+        }
+        return users;
     }
 
     public static void clear(MinecraftServer server) {
@@ -228,14 +294,20 @@ public final class MandomRewindService {
         LevelHistory history =
                 history(level.getServer()).level(level);
         long now = level.getGameTime();
-        long targetTick = now - MandomRollbackGate.REWIND_TICKS;
+        // MIH-FRAME: during an acceleration the world goes back 6 / m seconds and its day time stays with it (G3).
+        float worldRate = worldTimeRate(level);
+        long targetTick = now - worldRewindTicks(worldRate);
         WorldSnapshot worldTarget =
                 history.worldAtOrBefore(targetTick);
         EntityTimeline userTimeline =
                 history.entities.get(user.getUUID());
-        if (worldTarget == null
-                || userTimeline == null
-                || userTimeline.atOrBefore(targetTick) == null) {
+        // The user goes back 6 seconds of his own time.
+        EntitySnapshot userTarget = userTimeline != null
+                ? userTimeline.atOrBeforeOwn(
+                        userTimeline.ownNow(now, ownTimeRate(user))
+                                - MandomRollbackGate.REWIND_TICKS)
+                : null;
+        if (worldTarget == null || userTarget == null) {
             return Result.HISTORY_NOT_READY;
         }
 
@@ -243,6 +315,7 @@ public final class MandomRewindService {
         double rangeSquared =
                 (double) MandomRollbackGate.RANGE_BLOCKS
                         * MandomRollbackGate.RANGE_BLOCKS;
+        AABB region = rewindRegion(origin);
         UUID protectedPerformer =
                 performer != null ? performer.getUUID() : null;
         StageResult staged = stage(
@@ -252,20 +325,76 @@ public final class MandomRewindService {
                 now,
                 origin,
                 rangeSquared,
-                protectedPerformer);
+                protectedPerformer,
+                user.getUUID(),
+                userTarget,
+                ContinuingStops.of(level, targetTick, region));
         if (staged.failure != null) {
             return staged.failure;
         }
 
         RewindPlan plan = staged.plan;
-        boolean committed = commit(level, plan);
+        boolean committed = commit(level, plan, worldRate <= 1.0F);
         if (!committed) {
             return Result.COMMIT_FAILED;
         }
 
         history.consume(plan);
+        repinMoved(level, plan);
+        postRewindApplied(level, user, targetTick, region);
         playSuccessSafely(level, user, origin);
         return Result.SUCCESS;
+    }
+
+    /** The region the rewind posts with its event: the box around its sphere of RANGE_BLOCKS. */
+    public static AABB rewindRegion(Vec3 origin) {
+        double size = 2.0D * MandomRollbackGate.RANGE_BLOCKS;
+        return AABB.ofSize(origin, size, size, size);
+    }
+
+    // A2-REPIN: an entity the rewind put into or moved inside stopped time stays where it was put.
+    private static void repinMoved(
+            ServerLevel level, RewindPlan plan) {
+        if (!level.hasData(ModDataAttachmentTypes.TIME_STOP.get())) {
+            return;
+        }
+        for (EntityMutation mutation : plan.entities()) {
+            if (mutation.operation() == EntityOperation.REMOVE) {
+                continue;
+            }
+            Entity entity = level.getEntity(mutation.uuid());
+            if (entity == null) {
+                continue;
+            }
+            try {
+                TimeStopState.repinOrReleaseOnServer(entity);
+            }
+            catch (RuntimeException exception) {
+                LOGGER.error(
+                        "Mandom rewind committed, but re-pinning {} "
+                                + "in stopped time failed",
+                        mutation.uuid(),
+                        exception);
+            }
+        }
+    }
+
+    // Rule G1: the core ends the time stops, and an erasing add-on its erases, begun after the point in the region.
+    private static void postRewindApplied(
+            ServerLevel level,
+            LivingEntity user,
+            long point,
+            AABB region) {
+        try {
+            RewindAppliedEvent.post(
+                    user, level, point, region, REWIND_SOURCE);
+        }
+        catch (RuntimeException exception) {
+            LOGGER.error(
+                    "Mandom rewind committed, but its rewind event "
+                            + "failed",
+                    exception);
+        }
     }
 
     private static StageResult stage(
@@ -275,7 +404,10 @@ public final class MandomRewindService {
             long now,
             Vec3 origin,
             double rangeSquared,
-            UUID protectedPerformer) {
+            UUID protectedPerformer,
+            UUID userId,
+            EntitySnapshot userTarget,
+            ContinuingStops continuingStops) {
         LinkedHashMap<BlockPos, BlockPreimage> blocks =
                 new LinkedHashMap<>();
         for (BlockPreimage preimage :
@@ -316,9 +448,14 @@ public final class MandomRewindService {
             }
             EntityTimeline timeline =
                     history.entities.get(entity.getUUID());
-            EntitySnapshot target = timeline != null
-                    ? timeline.atOrBefore(targetTick)
-                    : null;
+            EntitySnapshot target = entity.getUUID().equals(userId)
+                    ? userTarget
+                    : timeline != null
+                            ? timeline.atOrBefore(targetTick)
+                            : null;
+            if (continuingStops.holds(entity, target == null)) {
+                continue;
+            }
             if (target == null) {
                 if (!(entity instanceof Player)
                         && !entity.getUUID().equals(
@@ -379,7 +516,9 @@ public final class MandomRewindService {
     }
 
     private static boolean commit(
-            ServerLevel level, RewindPlan plan) {
+            ServerLevel level,
+            RewindPlan plan,
+            boolean restoreDayTime) {
         List<BlockInverse> blockInverses = new ArrayList<>();
         List<EntityInverse> entityInverses = new ArrayList<>();
         List<UUID> created = new ArrayList<>();
@@ -423,7 +562,9 @@ public final class MandomRewindService {
                 }
             }
             restoreRelationships(level, plan.entities());
-            level.setDayTime(plan.world().dayTime());
+            if (restoreDayTime) {
+                level.setDayTime(plan.world().dayTime());
+            }
             syncPlayersAndEntities(level, plan.entities());
             return true;
         }
@@ -672,7 +813,7 @@ public final class MandomRewindService {
         for (MobEffectInstance effect : effects.values()) {
             MobEffectInstance current = living.getEffect(effect.getEffect());
             Tag expected = effect.save();
-            if (current != null && expected.equals(current.save())) {
+            if (current != null && sameEffectState(expected, current.save())) {
                 continue;
             }
             if (current != null && isKeptPassiveEffect(living, current)) {
@@ -693,7 +834,7 @@ public final class MandomRewindService {
                 living.addEffect(effect);
             }
             MobEffectInstance restored = living.getEffect(effect.getEffect());
-            if (restored == null || !expected.equals(restored.save())) {
+            if (restored == null || !sameEffectState(expected, restored.save())) {
                 throw new IllegalStateException("Could not restore effect while rewinding " + entity.getUUID());
             }
         }
@@ -706,6 +847,38 @@ public final class MandomRewindService {
         }
     }
 
+    private static final String EFFECT_CURES_KEY = "neoforge:cures";
+
+    // NeoForge saves an effect's cures from an identity hash set, so a copy can list the same cures in another order.
+    static boolean sameEffectState(Tag first, Tag second) {
+        return first == null ? second == null
+                : second != null && effectStateKey(first).equals(effectStateKey(second));
+    }
+
+    private static Tag effectStateKey(Tag tag) {
+        if (!(tag instanceof CompoundTag compound)) {
+            return tag;
+        }
+        CompoundTag key = compound.copy();
+        if (key.get(EFFECT_CURES_KEY) instanceof ListTag cures
+                && cures.getElementType() == Tag.TAG_STRING) {
+            List<String> names = new ArrayList<>();
+            for (int index = 0; index < cures.size(); index++) {
+                names.add(cures.getString(index));
+            }
+            names.sort(null);
+            ListTag sorted = new ListTag();
+            for (String name : names) {
+                sorted.add(StringTag.valueOf(name));
+            }
+            key.put(EFFECT_CURES_KEY, sorted);
+        }
+        if (key.contains("hidden_effect", Tag.TAG_COMPOUND)) {
+            key.put("hidden_effect", effectStateKey(key.getCompound("hidden_effect")));
+        }
+        return key;
+    }
+
     private static void replaceSnapshotEffect(
             LivingEntity entity,
             MobEffectInstance current,
@@ -713,7 +886,7 @@ public final class MandomRewindService {
         Tag expected = replacement.save();
         entity.forceAddEffect(replacement, null);
         MobEffectInstance restored = entity.getEffect(replacement.getEffect());
-        if (restored != null && expected.equals(restored.save())) {
+        if (restored != null && sameEffectState(expected, restored.save())) {
             // forceAddEffect checks applicability and updates modifiers but omits normal merge notifications.
             NeoForge.EVENT_BUS.post(new MobEffectEvent.Added(entity, current, replacement, null));
             replacement.onEffectStarted(entity);
@@ -1145,7 +1318,59 @@ public final class MandomRewindService {
         RECREATE
     }
 
-    private record WorldSnapshot(long tick, long dayTime) {}
+    private record WorldSnapshot(
+            long tick, long dayTime, boolean base) {}
+
+    // base: a sample of the 20-tick grid; otherwise one of the finer samples taken while the world accelerates.
+    private record Sample(
+            EntitySnapshot snapshot, boolean base, double ownTime) {}
+
+    /**
+     * The time stops a rewind to this point in this region leaves running (rule G1 ends the others): what they hold
+     * stays as it is. Asks the core's TimeStopState.endsOnRewind, the rule it applies when the rewind's event is posted.
+     */
+    private record ContinuingStops(
+            TimeStopState state,
+            List<TimeStopState.Instance> instances) {
+        private static final ContinuingStops NONE =
+                new ContinuingStops(null, List.of());
+
+        private static ContinuingStops of(
+                ServerLevel level, long point, AABB region) {
+            if (!level.hasData(ModDataAttachmentTypes.TIME_STOP.get())) {
+                return NONE;
+            }
+            TimeStopState state = level.getData(
+                    ModDataAttachmentTypes.TIME_STOP.get());
+            List<TimeStopState.Instance> continuing =
+                    new ArrayList<>();
+            for (TimeStopState.Instance instance :
+                    state.getInstances()) {
+                if (instance.isActive()
+                        && !state.endsOnRewind(instance, point, region)) {
+                    continuing.add(instance);
+                }
+            }
+            return continuing.isEmpty()
+                    ? NONE
+                    : new ContinuingStops(
+                            state, List.copyOf(continuing));
+        }
+
+        // Frozen in a stop that goes on, or inside one with no sample of its own (unsampled because time stopped).
+        private boolean holds(Entity entity, boolean unsampled) {
+            if (instances.isEmpty()) {
+                return false;
+            }
+            ChunkPos chunk = new ChunkPos(entity.blockPosition());
+            for (TimeStopState.Instance instance : instances) {
+                if (instance.covers(chunk)) {
+                    return unsampled || state.shouldFreeze(entity);
+                }
+            }
+            return false;
+        }
+    }
 
     private record BlockStateSnapshot(
             CompoundTag state, CompoundTag blockEntity) {}
@@ -1254,27 +1479,65 @@ public final class MandomRewindService {
 
     private static final class EntityTimeline {
         private final UUID uuid;
-        private final Deque<EntitySnapshot> snapshots =
+        private final Deque<Sample> samples =
                 new ArrayDeque<>();
         private long destroyedAt = Long.MIN_VALUE;
+        // The entity's own clock, in its own ticks; only a Mandom user's runs at his own rate.
+        private double ownClock;
+        private long ownClockTick = Long.MIN_VALUE;
+        private double ownRate = 1.0D;
+        private boolean mandomUser;
 
         private EntityTimeline(UUID uuid) {
             this.uuid = uuid;
         }
 
-        private void add(EntitySnapshot snapshot) {
-            snapshots.addLast(snapshot);
-            while (snapshots.size() > MAX_SNAPSHOTS) {
-                snapshots.removeFirst();
+        private void add(
+                EntitySnapshot snapshot,
+                boolean base,
+                double rate,
+                boolean user) {
+            if (ownClockTick != Long.MIN_VALUE) {
+                ownClock += (snapshot.tick() - ownClockTick) * ownRate;
+            }
+            ownClockTick = snapshot.tick();
+            ownRate = rate;
+            mandomUser = user;
+            samples.addLast(new Sample(snapshot, base, ownClock));
+            while (samples.size() > MAX_SAMPLES) {
+                samples.removeFirst();
             }
             destroyedAt = Long.MIN_VALUE;
         }
 
+        private double ownNow(long now, double rate) {
+            if (ownClockTick == Long.MIN_VALUE) {
+                return 0.0D;
+            }
+            return ownClock + (now - ownClockTick) * rate;
+        }
+
         private EntitySnapshot atOrBefore(long tick) {
             EntitySnapshot selected = null;
-            for (EntitySnapshot snapshot : snapshots) {
-                if (snapshot.tick() <= tick) {
-                    selected = snapshot;
+            for (Sample sample : samples) {
+                if (sample.snapshot().tick() <= tick) {
+                    selected = sample.snapshot();
+                }
+                else {
+                    break;
+                }
+            }
+            return selected;
+        }
+
+        private EntitySnapshot atOrBeforeOwn(double ownTime) {
+            EntitySnapshot selected = null;
+            for (Sample sample : samples) {
+                if (!sample.base()) {
+                    continue;
+                }
+                if (sample.ownTime() <= ownTime + OWN_TIME_EPSILON) {
+                    selected = sample.snapshot();
                 }
                 else {
                     break;
@@ -1287,18 +1550,23 @@ public final class MandomRewindService {
             return destroyedAt > tick;
         }
 
-        private void prune(long oldestTick) {
-            while (!snapshots.isEmpty()
-                    && snapshots.peekFirst().tick()
-                            < oldestTick) {
-                snapshots.removeFirst();
-            }
+        private void prune(
+                long now, long oldestBase, long oldestDense) {
+            double oldestOwn = mandomUser
+                    ? ownNow(now, ownRate)
+                            - MandomRollbackGate.REWIND_TICKS
+                            - SAMPLE_INTERVAL_TICKS
+                    : Double.POSITIVE_INFINITY;
+            samples.removeIf(sample -> sample.base()
+                    ? sample.snapshot().tick() < oldestBase
+                            && sample.ownTime() < oldestOwn
+                    : sample.snapshot().tick() < oldestDense);
         }
 
         private void consumeThrough(long tick) {
-            while (!snapshots.isEmpty()
-                    && snapshots.peekFirst().tick() <= tick) {
-                snapshots.removeFirst();
+            while (!samples.isEmpty()
+                    && samples.peekFirst().snapshot().tick() <= tick) {
+                samples.removeFirst();
             }
         }
     }
@@ -1311,41 +1579,67 @@ public final class MandomRewindService {
                 new ArrayDeque<>();
         private final List<BlockPreimage> blocks =
                 new ArrayList<>();
+        private long lastCapture = Long.MIN_VALUE;
 
         private LevelHistory(ResourceKey<Level> dimension) {
             this.dimension = dimension;
         }
 
-        private void capture(ServerLevel level, long tick) {
+        private void capture(
+                ServerLevel level,
+                long tick,
+                boolean base,
+                List<LivingEntity> nearUsers) {
             if (!level.dimension().equals(dimension)) {
                 throw new IllegalStateException(
                         "Mandom level history dimension drift");
             }
-            worlds.addLast(
-                    new WorldSnapshot(tick, level.getDayTime()));
-            while (worlds.size() > MAX_SNAPSHOTS) {
-                worlds.removeFirst();
-            }
+            worlds.addLast(new WorldSnapshot(
+                    tick, level.getDayTime(), base));
+            lastCapture = tick;
 
             TimeStopState timeStop = level.hasData(
                     ModDataAttachmentTypes.TIME_STOP.get())
                     ? level.getData(
                             ModDataAttachmentTypes.TIME_STOP.get())
                     : null;
+            double rangeSquared =
+                    (double) MandomRollbackGate.RANGE_BLOCKS
+                            * MandomRollbackGate.RANGE_BLOCKS;
             for (Entity entity :
                     snapshotEntities(level.getAllEntities())) {
                 if (!isTracked(entity)
                         || timeStop != null
-                                && timeStop.isTimeStopped(entity)) {
+                                && timeStop.isTimeStopped(entity)
+                        || nearUsers != null
+                                && !isNear(entity, nearUsers,
+                                        rangeSquared)) {
                     continue;
                 }
+                boolean user = entity instanceof LivingEntity living
+                        && MandomAddon.isMandomUser(living);
+                double rate = user
+                        ? ownTimeRate((LivingEntity) entity)
+                        : 1.0D;
                 EntitySnapshot snapshot =
                         EntitySnapshot.capture(entity, tick);
                 entities.computeIfAbsent(
                                 entity.getUUID(),
                                 EntityTimeline::new)
-                        .add(snapshot);
+                        .add(snapshot, base, rate, user);
             }
+        }
+
+        private static boolean isNear(
+                Entity entity,
+                List<LivingEntity> users,
+                double rangeSquared) {
+            for (LivingEntity user : users) {
+                if (user.distanceToSqr(entity) <= rangeSquared) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private synchronized void recordBlock(
@@ -1388,16 +1682,22 @@ public final class MandomRewindService {
             return selected;
         }
 
-        private synchronized void prune(long now) {
+        private synchronized void prune(long now, float worldRate) {
             long oldest =
                     now - MandomRollbackGate.REWIND_TICKS
                             - SAMPLE_INTERVAL_TICKS;
+            // Keeps a fine sample at or before the world's target 6 / m seconds back.
+            long oldestDense = now - worldRewindTicks(worldRate)
+                    - 2L * denseInterval(worldRate);
             blocks.removeIf(preimage ->
                     preimage.tick() < oldest);
+            worlds.removeIf(world -> world.tick()
+                    < (world.base() ? oldest : oldestDense));
             entities.values().forEach(
-                    timeline -> timeline.prune(oldest));
+                    timeline -> timeline.prune(
+                            now, oldest, oldestDense));
             entities.values().removeIf(
-                    timeline -> timeline.snapshots.isEmpty());
+                    timeline -> timeline.samples.isEmpty());
         }
 
         private synchronized void consume(RewindPlan plan) {
@@ -1407,10 +1707,15 @@ public final class MandomRewindService {
                             <= plan.targetTick()) {
                 worlds.removeFirst();
             }
-            for (UUID uuid : plan.affectedEntities()) {
-                EntityTimeline timeline = entities.get(uuid);
+            for (EntityMutation mutation : plan.entities()) {
+                EntityTimeline timeline =
+                        entities.get(mutation.uuid());
                 if (timeline != null) {
-                    timeline.consumeThrough(plan.targetTick());
+                    // The user went back further, to his own sample.
+                    timeline.consumeThrough(mutation.target() != null
+                            ? Math.min(mutation.target().tick(),
+                                    plan.targetTick())
+                            : plan.targetTick());
                 }
             }
         }

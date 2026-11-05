@@ -38,8 +38,18 @@ public final class HarvestAutoTargetGameTests {
 
     private HarvestAutoTargetGameTests() {}
 
-    @GameTest(template = "empty", batch = "harvest_auto_target", timeoutTicks = 200)
+    @GameTest(template = "empty", batch = "harvest_auto_target",
+            timeoutTicks = 200 + GameTestChunkTickets.WAIT_TICKS)
     public static void automaticTargetsRefuseInvulnerableOnesAsIn116(GameTestHelper helper) {
+        // The last attacker stands in the chunk west of the owner's; level.getEntity finds it only once that chunk
+        // is loaded, and the framework waits for the template's own chunk alone.
+        BlockPos owner = Fixture.ownerPos(helper);
+        GameTestChunkTickets.forTest(helper)
+                .coverBox(owner.getX() - 10.0D, owner.getZ(), owner.getX() + 9.0D, owner.getZ() + 1.0D)
+                .whenTicking(() -> {}, h -> automaticTargetsRefuseInvulnerableOnesAsIn116Body(h));
+    }
+
+    private static void automaticTargetsRefuseInvulnerableOnesAsIn116Body(GameTestHelper helper) {
         Fixture f = new Fixture(helper);
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(
@@ -67,9 +77,7 @@ public final class HarvestAutoTargetGameTests {
         private Fixture(GameTestHelper helper) {
             this.helper = helper;
             this.level = helper.getLevel();
-            BlockPos template = helper.absolutePos(new BlockPos(0, 2, 0));
-            ChunkPos chunk = new ChunkPos(template);
-            ownerPos = new BlockPos(chunk.getMinBlockX() + 4, template.getY() + 8, chunk.getMinBlockZ() + 8);
+            ownerPos = ownerPos(helper);
             owner = HarvestWallsGameTests.makeServerPlayer(level, ownerPos);
             owner.setNoGravity(true);
             owner.setGameMode(GameType.SURVIVAL);
@@ -78,6 +86,12 @@ public final class HarvestAutoTargetGameTests {
                             new StandInstance(HarvestAddon.HARVEST_STAND.get())).status()
                             == StandPowerTransitions.Status.APPLIED,
                     "Could not grant Harvest");
+        }
+
+        static BlockPos ownerPos(GameTestHelper helper) {
+            BlockPos template = helper.absolutePos(new BlockPos(0, 2, 0));
+            ChunkPos chunk = new ChunkPos(template);
+            return new BlockPos(chunk.getMinBlockX() + 4, template.getY() + 8, chunk.getMinBlockZ() + 8);
         }
 
         private void run() {

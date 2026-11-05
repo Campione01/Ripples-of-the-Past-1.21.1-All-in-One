@@ -86,6 +86,14 @@ public final class SexPistolsClientEvents {
             MarkerRenderer.registerMarkerRenderer(
                     new SexPistolsMoveItemMarker(
                             Minecraft.getInstance()));
+            MarkerRenderer.registerMarkerRenderer(
+                    new SexPistolsForcedTargetMarker(
+                            Minecraft.getInstance()));
+            for (int number : SexPistolsIds.SEX_PISTOLS_NUMBERS) {
+                MarkerRenderer.registerMarkerRenderer(
+                        new SexPistolsRemoteNumberMarker(
+                                Minecraft.getInstance(), number));
+            }
             RevolverVisualPayloads.installClientHandlers(
                     RevolverVisualClientHandler::spawnMuzzleFlash,
                     RevolverVisualClientHandler::ejectCasings,
@@ -187,7 +195,9 @@ public final class SexPistolsClientEvents {
         event.registerItem(
                 new RevolverExtensions(),
                 rotp.addons.sexpistols
-                        .registry.SexPistolsItems.REVOLVER);
+                        .registry.SexPistolsItems.REVOLVER,
+                rotp.addons.sexpistols
+                        .registry.SexPistolsItems.HEAVY_REVOLVER);
     }
 
     @SubscribeEvent

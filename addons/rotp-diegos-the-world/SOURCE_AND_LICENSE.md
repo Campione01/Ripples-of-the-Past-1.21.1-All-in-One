@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-diegos-the-world`, mod id `rotp_theworld`, version `1.2.1-mc1.21.1-phase11`.
+- Module: `rotp-diegos-the-world`, mod id `rotp_theworld`, version `1.2.1-mc1.21.1-phase12`.
 - Original 1.16.5 add-on: `RotP-The-World-Alternative-Universe-1.2.1.jar` (RotP THE WORLD, mod id `rotp_theworld`), by Solkree, August_dr feat.Pr1tcha, StandoByte; declared license: GNU GPL v3.0; SHA-256 `17D2C9DDE44928BEA726FBCD883731C74C336D2BD899DC6DF52D114160719B52`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

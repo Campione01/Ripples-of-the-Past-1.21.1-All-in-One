@@ -40,7 +40,7 @@
   "jojo.message.action_condition.hammer": "You need an Iron Sledgehammer in either hand.",
   "jojo.message.action_condition.no_more_henchmen": "Both nearby henchman slots must be empty.",
 
-  "rotp_sp.config.keepSpOnDeath": "Keep Speedwagon Power After Death",
+  "rotp_sp.config.keepSpOnDeath": "Keep Power After Death",
   "rotp_sp.config.instructorsHouseSpawn": "Generate Instructor Houses",
   "rotp_sp.config.keepSpOnDeath.tooltip": "Keep the Speedwagon non-Stand power after death.",
   "rotp_sp.config.instructorsHouseSpawn.tooltip": "Allow new instructor houses to generate.",

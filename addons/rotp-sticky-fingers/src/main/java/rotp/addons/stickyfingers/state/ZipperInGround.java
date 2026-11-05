@@ -27,6 +27,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.Shapes;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
@@ -244,11 +245,17 @@ public final class ZipperInGround {
                             && userBox.intersects(new AABB(pos))) {
                         return null;
                     }
+                    // A zipper is aimed at as the whole block it took
+                    // over: through its thin outline the ray reached the
+                    // block behind, zipped it too and refused presses.
                     return level.clipWithInteractionOverride(
                             ctx.getFrom(),
                             ctx.getTo(),
                             pos,
-                            ctx.getBlockShape(state, level, pos),
+                            state.is(StickyFingersAddon
+                                            .STICKY_FINGERS_ZIPPER.get())
+                                    ? Shapes.block()
+                                    : ctx.getBlockShape(state, level, pos),
                             state);
                 },
                 ctx -> {

@@ -32,23 +32,41 @@ import rotp.addons.gratefuldead.GratefulDeadAddon;
 import rotp.addons.gratefuldead.effect.AgingAuraEffect;
 import rotp.addons.gratefuldead.service.AgingService;
 import rotp.addons.gratefuldead.state.BlockAgingData;
+import rotp.addons.gratefuldead.state.LivingAgingState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 public final class AgingAbility extends EntityActionAbility {
     public enum Mode {
         TOUCH,
         AURA,
-        REMOVE
+        REMOVE,
+        // Next Album 0.1.13 the_grateful_dead_aging_self,
+        // _remove_self_aging and _remove_all_aging
+        SELF,
+        REMOVE_SELF,
+        REMOVE_ALL
     }
+
+    /** 0.1.13 Remove Aging reach: 4096 squared, 64 blocks. */
+    public static final double REMOVE_RANGE = 64.0D;
+    public static final int REMOVE_BLOCK_FADE_TICKS = 60;
 
     private final Mode mode;
 
@@ -65,12 +83,16 @@ public final class AgingAbility extends EntityActionAbility {
         setDefaultPhaseLength(ActionPhase.WINDUP, 0);
         setDefaultPhaseLength(ActionPhase.PERFORM, 1);
         setDefaultPhaseLength(ActionPhase.RECOVERY, 2);
-        if (mode == Mode.TOUCH) {
+        if (mode == Mode.TOUCH || mode == Mode.SELF) {
             setButtonHoldPhase(ActionPhase.PERFORM);
         }
         else {
             cooldown(mode == Mode.AURA ? 10 : 40);
         }
+    }
+
+    public boolean isHeldMode() {
+        return mode == Mode.TOUCH || mode == Mode.SELF;
     }
 
     public boolean isTouchMode() {
@@ -116,7 +138,7 @@ public final class AgingAbility extends EntityActionAbility {
             EntityActionInstance action, Level level,
             LivingEntity powerUser, LivingEntity performer) {
         super.initActionFromConfig(action, level, powerUser, performer);
-        if (mode == Mode.TOUCH) {
+        if (isHeldMode()) {
             StandPower power = powerUser != null ? StandPower.get(powerUser) : null;
             double durability = power != null && power.getPowerType() != null
                     ? power.getPowerType().getStandStats().durability(power.getStatsDevelopment())
@@ -140,9 +162,18 @@ public final class AgingAbility extends EntityActionAbility {
                                 .THE_GRATEFUL_DEAD.get())) {
             return ConditionCheck.NEGATIVE;
         }
+        if (mode == Mode.SELF) {
+            return checkSelf(context.getUser());
+        }
         return mode == Mode.TOUCH
                 ? checkTouch(context.getUser())
                 : ConditionCheck.POSITIVE;
+    }
+
+    private static ConditionCheck checkSelf(LivingEntity user) {
+        return user == null || AgingService.isAgeableLiving(user)
+                ? ConditionCheck.POSITIVE
+                : ConditionCheck.createNegative(TouchRefusal.NOT_LIVING);
     }
 
     // 1.16 re-ran these checks on every held tick.
@@ -153,6 +184,9 @@ public final class AgingAbility extends EntityActionAbility {
         ConditionCheck parent =
                 super.checkHeldSpecificConditions(
                         action, context);
+        if (parent.isPositive() && mode == Mode.SELF) {
+            return checkSelf(context.getUser());
+        }
         if (!parent.isPositive() || mode != Mode.TOUCH) {
             return parent;
         }
@@ -189,11 +223,7 @@ public final class AgingAbility extends EntityActionAbility {
         }
         String refusal = TouchRefusal.of(
                 hasAgeableHeldItem(user),
-                AgingService.isCold(
-                        level, user.blockPosition()),
                 hit,
-                hit && AgingService.isCold(
-                        level, targetPos),
                 ageable);
         return refusal == null
                 ? ConditionCheck.POSITIVE
@@ -252,7 +282,11 @@ public final class AgingAbility extends EntityActionAbility {
         return false;
     }
 
-    /** 1.16 checkTarget then checkConditions, as they ran together. */
+    /**
+     * 1.16 checkTarget then checkConditions, as they ran together. 0.1.13
+     * dropped the cold refusals: the touch works everywhere and the aging
+     * rate only drives the aura and the recovery.
+     */
     public static final class TouchRefusal {
         public static final String COLD =
                 "aging_touch_cold_biome";
@@ -264,21 +298,12 @@ public final class AgingAbility extends EntityActionAbility {
         /** The refusal key, or null when the touch may go on. */
         public static String of(
                 boolean heldAgeableItem,
-                boolean userCold,
                 boolean targetHit,
-                boolean targetCold,
                 boolean targetAgeable) {
-            if (heldAgeableItem) {
-                // The kept target is still checked for cold.
-                return userCold || targetHit && targetCold
-                        ? COLD
-                        : null;
-            }
-            if (targetHit && !targetCold && targetAgeable) {
+            if (heldAgeableItem || targetHit && targetAgeable) {
                 return null;
             }
-            // A refused target became EMPTY: the user's spot decides.
-            return userCold ? COLD : NOT_LIVING;
+            return NOT_LIVING;
         }
     }
 
@@ -288,16 +313,33 @@ public final class AgingAbility extends EntityActionAbility {
                 || !(context instanceof StandPower power)) {
             return super.getName(context);
         }
-        boolean active = power.userStandEffects
+        return Component.translatable(
+                getTranslationKey(
+                        auraActive(power)
+                                ? ".deactivate"
+                                : ".activate"));
+    }
+
+    // 0.1.13 TheGratefulDeadAgingAuraAction.getIconTexturePath: the "off" picture while no aura runs
+    @Override
+    public String getSpriteName(Power<?> context) {
+        if (mode == Mode.AURA
+                && context instanceof StandPower power
+                && !auraActive(power)) {
+            return AURA_OFF_SPRITE;
+        }
+        return super.getSpriteName(context);
+    }
+
+    public static final String AURA_OFF_SPRITE =
+            GratefulDeadAddon.AGING_AURA + "_off";
+
+    private static boolean auraActive(StandPower power) {
+        return power.userStandEffects
                 .getEffectOfType(
                         GratefulDeadAddon
                                 .AGING_AURA_EFFECT.get())
                 .isPresent();
-        return Component.translatable(
-                getTranslationKey(
-                        active
-                                ? ".deactivate"
-                                : ".activate"));
     }
 
     public static final class AgingAction
@@ -312,23 +354,130 @@ public final class AgingAbility extends EntityActionAbility {
 
         @Override
         public void onButtonStopHold() {
-            if (mode == Mode.TOUCH) {
+            if (mode == Mode.TOUCH || mode == Mode.SELF) {
                 startRecovery();
             }
         }
 
         @Override
         public void actionPerformStart() {
-            if (mode != Mode.TOUCH) {
+            if (mode == Mode.AURA || mode == Mode.REMOVE_ALL) {
                 performToggle();
+            }
+            else if (mode == Mode.REMOVE) {
+                performRemoveLooked();
+            }
+            else if (mode == Mode.REMOVE_SELF) {
+                performRemoveSelf();
             }
         }
 
         @Override
         public void actionTick() {
-            if (mode == Mode.TOUCH
-                    && getPhase() == ActionPhase.PERFORM) {
+            if (getPhase() != ActionPhase.PERFORM) {
+                return;
+            }
+            if (mode == Mode.TOUCH) {
                 performTouch();
+            }
+            else if (mode == Mode.SELF) {
+                performSelf();
+            }
+        }
+
+        // 0.1.13 TheGratefulDeadAgingSelfAction.onHoldTick: a player ages
+        // himself at his own aging speed (a self-aging takes no Stand penalty).
+        private void performSelf() {
+            if (!(level() instanceof ServerLevel level)
+                    || !(getPowerUser() instanceof Player user)
+                    || !AgingService.isAgeableLiving(user)) {
+                return;
+            }
+            float speed = AgingService.livingAgingMultiplier(user);
+            if (speed <= 0.0F) {
+                return;
+            }
+            UUID owner = user.getUUID();
+            AgingService.ageLiving(
+                    user,
+                    owner,
+                    AgingService.generation(level.getServer(), owner),
+                    AgingService.SELF_LIVING_DELTA * speed,
+                    true);
+        }
+
+        private void performRemoveSelf() {
+            LivingEntity user = getPowerUser();
+            if (user != null && level() instanceof ServerLevel
+                    && user.hasData(GratefulDeadAddon.LIVING_AGING)) {
+                LivingAgingState.get(user).clearImmediately(user);
+            }
+        }
+
+        // 0.1.13 TheGratefulDeadRemoveAgingAction.perform: the looked-at
+        // entity or block within 64 blocks, else the aging of the held items.
+        private void performRemoveLooked() {
+            if (!(level() instanceof ServerLevel level)) {
+                return;
+            }
+            LivingEntity user = getPowerUser();
+            if (user == null) {
+                return;
+            }
+            Vec3 eye = user.getEyePosition();
+            Vec3 end = eye.add(user.getViewVector(1.0F).scale(REMOVE_RANGE));
+            BlockHitResult block = level.clip(new ClipContext(
+                    eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, user));
+            Vec3 reach = block.getType() == HitResult.Type.MISS ? end : block.getLocation();
+            EntityHitResult entity = ProjectileUtil.getEntityHitResult(
+                    user, eye, reach,
+                    user.getBoundingBox().expandTowards(reach.subtract(eye)).inflate(1.0D),
+                    candidate -> !candidate.isSpectator() && candidate.isPickable()
+                            || candidate instanceof ItemEntity,
+                    eye.distanceToSqr(reach));
+            if (entity != null) {
+                clearEntity(user, entity.getEntity());
+            }
+            else if (block.getType() == HitResult.Type.BLOCK) {
+                BlockAgingData.get(level).startFade(
+                        level, block.getBlockPos(), REMOVE_BLOCK_FADE_TICKS);
+            }
+            else {
+                for (InteractionHand hand : InteractionHand.values()) {
+                    user.getItemInHand(hand).remove(GratefulDeadAddon.ITEM_AGING);
+                }
+            }
+        }
+
+        private static void clearEntity(LivingEntity user, Entity entity) {
+            if (entity instanceof ItemEntity item) {
+                ItemStack stack = item.getItem().copy();
+                if (stack.has(GratefulDeadAddon.ITEM_AGING)) {
+                    stack.remove(GratefulDeadAddon.ITEM_AGING);
+                    item.setItem(stack);
+                }
+                return;
+            }
+            if (!(entity instanceof LivingEntity living)) {
+                return;
+            }
+            LivingEntity target = AgingService.canonicalLivingTarget(living);
+            if (target == user) {
+                return;
+            }
+            if (target.hasData(GratefulDeadAddon.LIVING_AGING)) {
+                LivingAgingState.get(target).clearImmediately(target);
+            }
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                target.getItemBySlot(slot).remove(GratefulDeadAddon.ITEM_AGING);
+            }
+            if (target instanceof Player player) {
+                for (int index = 0; index < player.getInventory().getContainerSize(); index++) {
+                    player.getInventory().getItem(index).remove(GratefulDeadAddon.ITEM_AGING);
+                }
+                player.containerMenu.getCarried().remove(GratefulDeadAddon.ITEM_AGING);
+                player.getInventory().setChanged();
+                player.containerMenu.broadcastChanges();
             }
         }
 
@@ -366,7 +515,7 @@ public final class AgingAbility extends EntityActionAbility {
                                     .withStand(power));
                 }
             }
-            else if (mode == Mode.REMOVE) {
+            else if (mode == Mode.REMOVE_ALL) {
                 active.ifPresent(
                         power.userStandEffects::removeEffect);
                 AgingService.requestFade(
@@ -387,38 +536,26 @@ public final class AgingAbility extends EntityActionAbility {
             UUID owner = user.getUUID();
             long generation = AgingService.generation(
                     level.getServer(), owner);
-            float ownerSpeed =
-                    AgingService.biomeAgingMultiplier(
-                            level, user.blockPosition());
+            // 0.1.13: the touch ages at a fixed rate, whatever the climate.
+            float targetSpeed = 1.0F;
             if (ageHeldItem(
                     user,
                     owner,
                     generation,
-                    ownerSpeed)) {
+                    targetSpeed)) {
                 return;
             }
 
             ActionTarget target = touchTarget(user, level);
             Entity entity = target.getMainEntity();
-            float targetSpeed = entity != null
-                    ? AgingService.biomeAgingMultiplier(
-                            level, entity.blockPosition())
-                    : target.getBlockPos() != null
-                            ? AgingService
-                                    .biomeAgingMultiplier(
-                                            level,
-                                            target.getBlockPos())
-                            : 0.0F;
-            if (targetSpeed <= 0.0F) {
-                return;
-            }
             if (entity instanceof LivingEntity living) {
                 AgingService.ageLiving(
                         living,
                         owner,
                         generation,
                         AgingService.TOUCH_LIVING_DELTA
-                                * targetSpeed);
+                                * targetSpeed,
+                        true);
             }
             else if (entity instanceof ItemEntity item) {
                 ItemStack aged = AgingService.ageItem(

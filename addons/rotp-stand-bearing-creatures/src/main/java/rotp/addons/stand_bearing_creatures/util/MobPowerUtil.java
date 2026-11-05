@@ -485,8 +485,7 @@ public final class MobPowerUtil {
             Mob mob,
             Ability ability) {
         String name = ability.name();
-        LivingEntity grabbed =
-                LivingComponentGrab.getEntityGrabbedBy(mob);
+        LivingEntity grabbed = getGrabbedEntity(mob);
         if (name.equals("grab")) {
             return grabbed == null;
         }
@@ -494,6 +493,23 @@ public final class MobPowerUtil {
             return grabbed != null && grabbed.isAlive();
         }
         return true;
+    }
+
+    // The core's grab is held by the summoned Stand (StandEntityGrabAbility sets the Stand's grab component), not by
+    // its user, so the mob's grab moves follow its Stand's hold.
+    @Nullable
+    public static LivingEntity getGrabbedEntity(LivingEntity mob) {
+        LivingEntity grabbed = LivingComponentGrab.getEntityGrabbedBy(mob);
+        if (grabbed != null) {
+            return grabbed;
+        }
+        StandPower standPower = StandPower.get(mob);
+        StandEntity stand = standPower != null && standPower.hasPower()
+                ? standPower.getSummonedStandEntity()
+                : null;
+        return stand != null
+                ? LivingComponentGrab.getEntityGrabbedBy(stand)
+                : null;
     }
 
     public static void rememberHeldKey(

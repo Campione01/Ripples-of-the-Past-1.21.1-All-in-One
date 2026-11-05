@@ -32,8 +32,13 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 public final class PurpleHazeCapsuleSpreadGameTests {
     private PurpleHazeCapsuleSpreadGameTests() {}
 
-    @GameTest(template = "empty", batch = "ph_capsule_spread", timeoutTicks = 40)
+    @GameTest(template = "empty", batch = "ph_capsule_spread", timeoutTicks = 40 + GameTestChunkTickets.WAIT_TICKS)
     public static void capsuleShotsSpreadByTheStandsPrecisionAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> capsuleShotsSpreadByTheStandsPrecisionAsIn116Body(h));
+    }
+
+    private static void capsuleShotsSpreadByTheStandsPrecisionAsIn116Body(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         FakePlayer owner = new FakePlayer(level, new GameProfile(UUID.randomUUID(), "PHCapsuleSpread"));
         StandPower power = null;

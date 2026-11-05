@@ -23,6 +23,8 @@ public final class NeoStandClientEvents {
         event.enqueueWork(() -> {
             BulletTimeService.installClientOwnerActiveLookup(
                     BulletTimeHud::isOwnerActive);
+            BulletTimeService.installClientFieldDilationLookup(
+                    BulletTimeHud::fieldDilationFor);
             ClientRegionalTimeDilationPolicies.register(
                     NeoStandAddon.id("bullet_time"),
                     BulletTimeHud::dilation);

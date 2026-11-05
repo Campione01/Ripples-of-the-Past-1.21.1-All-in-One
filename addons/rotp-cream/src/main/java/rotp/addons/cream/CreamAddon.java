@@ -410,11 +410,9 @@ public final class CreamAddon {
         MovesetBuilder moveset = new MovesetBuilder()
                 .addHumanoidStandStuff()
                 .addAbility("punch", CREAM_PUNCH_TYPE)
-                .addAbility(
-                        "barrage",
-                        ModStandAbilities.BARRAGE,
-                        barrage -> barrage.barrageHitSound(
-                                CREAM_CLAW_SOUND))
+                // 1.16 Cream had no barrage; the shared one keeps the core's
+                // hit sound (the 1.7 s claw clip piled up at barrage rate).
+                .addAbility("barrage", ModStandAbilities.BARRAGE)
                 .addAbility(
                         CREAM_CLAW_NAME,
                         CREAM_CLAW_TYPE,

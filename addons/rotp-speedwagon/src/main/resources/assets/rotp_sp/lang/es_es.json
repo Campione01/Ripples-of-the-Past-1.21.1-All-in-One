@@ -40,13 +40,13 @@
   "jojo.message.action_condition.hammer": "Necesitas un mazo de hierro en una mano.",
   "jojo.message.action_condition.no_more_henchmen": "Los dos espacios de secuaces cercanos deben estar vacíos.",
 
-  "rotp_sp.config.keepSpOnDeath": "Conservar el poder Speedwagon al morir",
+  "rotp_sp.config.keepSpOnDeath": "Conservar el poder al morir",
   "rotp_sp.config.instructorsHouseSpawn": "Generar casas de instructor",
   "rotp_sp.config.keepSpOnDeath.tooltip": "Conserva el poder Speedwagon, que no es un Stand, después de morir.",
   "rotp_sp.config.instructorsHouseSpawn.tooltip": "Permite que se generen nuevas casas de instructor.",
   "rotp_sp.configuration.title": "Configuración de RotP Speedwagon",
   "rotp_sp.configuration.section.rotp.sp.common.toml": "Ajustes comunes",
-  "rotp_sp.configuration.section.rotp.sp.common.toml.title": "Ajustes comunes de RotP Speedwagon",
+  "rotp_sp.configuration.section.rotp.sp.common.toml.title": "Ajustes de Speedwagon",
   "rotp_sp.configuration.Keep Powers After Death": "Conservar poderes al morir",
   "rotp_sp.configuration.Structures Spawn": "Generación de estructuras",
 

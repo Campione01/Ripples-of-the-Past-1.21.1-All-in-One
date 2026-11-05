@@ -8,6 +8,7 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -45,7 +46,7 @@ public final class SoftAndWetFinisherAbility
                     instanceof LivingEntity living) {
                 living.addEffect(new MobEffectInstance(
                         ModStatusEffects.STUN,
-                        STUN_DURATION_TICKS,
+                        stunDurationTicks(stand, living),
                         STUN_AMPLIFIER,
                         false,
                         false,
@@ -58,6 +59,12 @@ public final class SoftAndWetFinisherAbility
                     damageSource,
                     damage,
                     explosionRadius);
+        }
+
+        /** Owner T2: past the base reach the stun falls with the strike's damage. */
+        static int stunDurationTicks(StandEntity stand, LivingEntity target) {
+            return Math.max(1, Math.round(STUN_DURATION_TICKS
+                    * StandMeleeReach.strikeFactor(stand, target)));
         }
 
         @Override

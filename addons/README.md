@@ -1,7 +1,7 @@
 # ROTP 1.21.1 add-ons
 
 This folder holds the NeoForge 1.21.1 ports of the Ripples of the Past (ROTP)
-add-ons that may be published as open source: 73 modules, each a mod of its
+add-ons that may be published as open source: 79 modules, each a mod of its
 own, ported from the 1.16.5 add-ons of their original authors and modified for
 this ROTP 1.21.1 core. Only the sources and the build are here; the port's
 private verification records are not.
@@ -13,6 +13,8 @@ private verification records are not.
 | `rotp-achtung-baby` | `rotp_ab` | RotP Achtung Baby | Weever | GPL-3.0-only |
 | `rotp-aqua-necklace` | `rotp_aqua_necklace` | RotP Aqua Necklace | DanielGamer321, StandoByte | GPL-3.0-only |
 | `rotp-bad-company` | `rotp_zbc` | RotP Bad Company | Makuta Zeml, StandoByte | GPL-3.0-only |
+| `rotp-bastet` | `bastet` | Bastet Stand | Grasshopper | GPL-3.0-only |
+| `rotp-beach-boy` | `rotp_beach_boy` | RotP Beach Boy | Babelmoth | GPL-3.0-only |
 | `rotp-blood-bottle` | `rotp_bb` | Blood Bottle RotP Addon | dikiytechies | GPL-3.0-only |
 | `rotp-c-moon` | `rotp_cm` | RotP 新月 | Weever | GPL-3.0-only |
 | `rotp-catch-the-rainbow` | `rotp_ctr` | RotP Catch the Rainbow | ArchLunatic, StandoByte | GPL-3.0-only |
@@ -20,6 +22,7 @@ private verification records are not.
 | `rotp-craftable-discs` | `rotp_cds` | RotP Craftable Discs | Hello There | GPL-3.0-only |
 | `rotp-cream` | `rotp_cream` | RotP Cream | Hello There | GPL-3.0-only |
 | `rotp-d4c` | `rotp_d4c` | RotP D4C - Dirty Deeds Done Dirt Cheap | Core:LL, 浪浪, ResSupport:Denis | LGPL-3.0-only |
+| `rotp-dark-blue-moon` | `darkbluemoon` | Dark Blue Moon Stand | Grasshopper, Day_GeE | GPL-3.0-only |
 | `rotp-diegos-the-world` | `rotp_theworld` | RotP - Diego's The World | Solkree, August_dr feat.Pr1tcha, StandoByte | GPL-3.0-only |
 | `rotp-diver-down` | `rotp_dd` | RotP Diver Down | HK47bot, Agamatius (sounds), FriendlyCoop (suggestion author) | GPL-3.0-only |
 | `rotp-echoes` | `rotp_echoes` | RotP - Echoes | Grasshopper, Day_GeE | GPL-3.0-only |
@@ -32,6 +35,7 @@ private verification records are not.
 | `rotp-harvest` | `rotp_harvest` | RotP Harvest | Weever | GPL-3.0-only |
 | `rotp-heavens-door` | `rotp_hd` | RotP - Heaven's Door | YarickTT, TheDoGGyS, HK47bot | GPL-3.0-only |
 | `rotp-hermit-purple` | `rotp_zhp` | RotP Hermit Purple | Makuta Zeml, StandoByte, StandSkins and Icons by: MlgMC | GPL-3.0-only |
+| `rotp-highway-star` | `highwaystar` | Highway Star Stand | Grasshopper | GPL-3.0-only |
 | `rotp-jumping-jack-flash` | `jumping_jack_flash` | RotP Jumpin' Jack Flash | jiutoh | GPL-3.0-only |
 | `rotp-khnum` | `rotp_khnum` | RotP Khnum | TheChaYe | GPL-3.0-only |
 | `rotp-killer-queen` | `rotp_zkq` | RotP Killer Queen | Makuta Zeml, StandoByte, Model by: Lanostry, StandSkins by: MlgMC | GPL-3.0-only |
@@ -48,6 +52,7 @@ private verification records are not.
 | `rotp-neo-stand` | `neojojostand` | NEOJOJOSTAND | 浪浪 | GPL-3.0-only |
 | `rotp-next-album` | `rotp_nextalbum` | RotP:NextAlbum | Babelmoth | GPL-3.0-only |
 | `rotp-november-rain` | `rotp_november_rain` | RotP November Rain | Ptitboo83, the one who will make the texture | GPL-3.0-only |
+| `rotp-nut-king-call` | `nutkingcall` | Nut King Call Stand Addon | Grasshopper, Day_GeE | GPL-3.0-only |
 | `rotp-ova-the-world` | `rotp_ova_addon` | RotP OVA The World | Pr1tcha feat. August.dr, StandoByte | GPL-3.0-only |
 | `rotp-pearl-jam` | `rotp_pj` | RotP Pearl Jam | Weever | GPL-3.0-only |
 | `rotp-planet-waves` | `rotp_pw` | RotP Planet Waves | Hello There | GPL-3.0-only |
@@ -68,6 +73,7 @@ private verification records are not.
 | `rotp-stone-free` | `rotp_stone_free` | RotP Stone Free | DanielGamer321, StandoByte | GPL-3.0-only |
 | `rotp-stone-legacy` | `stone_legacy` | Stone Legacy | DikiyTechies, Weever | GPL-3.0-only |
 | `rotp-stone-legacy-zombie-orders` | `stone_legacy_zombie_orders` | Stone Legacy: Zombie Orders | DikiyTechies, Weever | GPL-3.0-only |
+| `rotp-survivor` | `survivor` | Survivor Stand Addon | Grasshopper | GPL-3.0-only |
 | `rotp-the-hand` | `rotp_the_hand` | RotP The Hand | DanielGamer321, StandoByte | GPL-3.0-only |
 | `rotp-the-lock` | `rotp_tl` | RotP The Lock | YarickTT | GPL-3.0-only |
 | `rotp-the-sun` | `rotp_the_sun` | RotP The Sun | Babelmoth | GPL-3.0-only |
@@ -95,19 +101,19 @@ The jars go in the `mods` folder of a Minecraft 1.21.1 game with NeoForge
 never nested in a ROTP jar. The all-in-one and the bundle need all four; an
 individual add-on jar needs only the ones listed for it:
 
-- [Curios API](https://modrinth.com/mod/curios), version `[9.5.1+1.21.1]` (built with 9.5.1+1.21.1, LGPL-3.0-or-later): needed by `rotp-d4c`, `rotp-next-album`
+- [Curios API](https://modrinth.com/mod/curios), version `[9.5.1+1.21.1]` (built with 9.5.1+1.21.1, LGPL-3.0-or-later): needed by `rotp-d4c`; optional for `rotp-next-album`
 - [GeckoLib](https://modrinth.com/mod/geckolib), version `[4.9.2,4.10)` (built with 4.9.2, MIT): needed by `rotp-next-album`
 - [Pehkui](https://modrinth.com/mod/pehkui), version `[3.8.3,3.9)` (built with 3.8.3+1.21-neoforge, MIT): needed by `rotp-khnum`, `rotp-little-feet`, `rotp-yellow-temperance`
 - [Caelus API](https://modrinth.com/mod/caelus), version `[7.0.1,)` (built with 7.0.1+1.21.1, LGPL-3.0-or-later): needed by `rotp-ultimate-lifeform`
 
 Then take one of these three choices:
 
-1. The simplest: the all-in-one, `rotp-all-in-one-open-2026.10.29.jar`, and the four
+1. The simplest: the all-in-one, `rotp-all-in-one-open-2026.11.05.jar`, and the four
    libraries. It holds the ROTP core (`RipplesOfThePast-Unofficial-NeoForge-1.21.1-0.2.2.2.jar`) and
-   all 73 add-ons; NeoForge loads each nested jar as its own mod, with its own
+   all 79 add-ons; NeoForge loads each nested jar as its own mod, with its own
    mod id, configs and screens.
 2. The ROTP core, `RipplesOfThePast-Unofficial-NeoForge-1.21.1-0.2.2.2.jar`, and the bundle,
-   `rotp-addon-bundle-open-2026.10.29.jar`, which holds all 73 add-ons, and the four
+   `rotp-addon-bundle-open-2026.11.05.jar`, which holds all 79 add-ons, and the four
    libraries.
 3. The ROTP core and the individual add-on jars of the GitHub release
    (`<module>-<version>.jar`), only the ones you want, and the libraries they
@@ -140,23 +146,29 @@ Optional integrations (not needed to play):
 
 ## Config screens
 
-These 19 add-ons have a config file and a config screen: open the Mods
+These 25 add-ons have a config file and a config screen: open the Mods
 list, select the add-on (listed under the name below) and press Config.
 
 - Blood Bottle RotP Addon (`rotp-blood-bottle`)
 - RotP 新月 (`rotp-c-moon`)
 - RotP Cream (`rotp-cream`)
+- Dark Blue Moon Stand (`rotp-dark-blue-moon`)
+- RotP Grateful Dead (`rotp-grateful-dead`)
 - RotP Hermit Purple (`rotp-hermit-purple`)
+- Highway Star Stand (`rotp-highway-star`)
 - RotP Khnum (`rotp-khnum`)
 - RotP King Crimson (`rotp-king-crimson`)
 - RotP - Lovers (`rotp-lovers`)
 - RotP Made in Heaven (`rotp-made-in-heaven`)
+- RotP:NextAlbum (`rotp-next-album`)
 - Ripples of the Past Reworked (`rotp-reworked`)
+- RotP RHCP (`rotp-rhcp`)
 - RotP Scary Monsters (`rotp-scary-monsters`)
 - RotP: Sex Pistols (`rotp-sex-pistols`)
 - RotP Spawn With Stand (`rotp-spawn-with-stand`)
 - RotP Speedwagon (`rotp-speedwagon`)
 - RotP Stand-Bearing Creatures (`rotp-stand-bearing-creatures`)
+- Survivor Stand Addon (`rotp-survivor`)
 - RotP The Hand (`rotp-the-hand`)
 - Tournament RotP Addon (`rotp-tournament`)
 - RotP Ultimate Lifeform (`rotp-ultimate-lifeform`)
@@ -177,8 +189,8 @@ chmod +x gradlew
 On Windows use `gradlew.bat` instead of `./gradlew`. The first command builds
 the core (`build/libs/`); the second builds the core again as an included
 build, then every add-on (`addons/<module>/build/libs/<module>-<version>.jar`),
-the bundle (`addons/bundle/build/libs/rotp-addon-bundle-open-2026.10.29.jar`) and the
-all-in-one (`addons/all-in-one/build/libs/rotp-all-in-one-open-2026.10.29.jar`), which nests the
+the bundle (`addons/bundle/build/libs/rotp-addon-bundle-open-2026.11.05.jar`) and the
+all-in-one (`addons/all-in-one/build/libs/rotp-all-in-one-open-2026.11.05.jar`), which nests the
 core jar of the same build. The version of the bundle and of the all-in-one is
 `bundle_version` in `addons/gradle.properties`. Libraries are downloaded from
 their public Maven repositories.

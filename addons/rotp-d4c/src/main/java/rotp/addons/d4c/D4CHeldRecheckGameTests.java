@@ -33,13 +33,35 @@ import rotp.core.powersystem.standpower.StandInstance.StandPart;
 public final class D4CHeldRecheckGameTests {
     private D4CHeldRecheckGameTests() {}
 
-    @GameTest(template = "empty", batch = "d4cHeldRecheckAnnihilation", timeoutTicks = 80)
+    @GameTest(template = "empty", batch = "d4cHeldRecheckAnnihilation",
+            timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
     public static void annihilationHoldStopsOnceItsMarkIsGoneOrStaminaIsUnder300(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> annihilationHoldStops(h, Vec3.ZERO));
+    }
+
+    /**
+     * The scene of the test above 256 blocks west of the grid, where no chunk of the framework or of another test
+     * reaches, its user 3.5 blocks short of a chunk's south edge and so the marked cow 6 blocks south in the next chunk:
+     * the press and the held ticks find the mark there only in chunks the test holds itself.
+     */
+    @GameTest(template = "empty", batch = "d4cHeldRecheckAnnihilationAway",
+            timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
+    public static void annihilationHoldStopsWithItsMarkAcrossAChunkBorder(GameTestHelper helper) {
+        int z = helper.absolutePos(BlockPos.ZERO).getZ();
+        Vec3 shift = new Vec3(-256.0D, 0.0D, 11 - (z & 15));
+        GameTestChunkTickets.forTest(helper)
+                .coverAround(BlockPos.containing(helper.absoluteVec(Vec3.ZERO).add(shift)),
+                        GameTestChunkTickets.FIXTURE_REACH)
+                .whenTicking(() -> {}, h -> annihilationHoldStops(h, shift));
+    }
+
+    private static void annihilationHoldStops(GameTestHelper helper, Vec3 shift) {
         List<String> wrong = new ArrayList<>();
         for (boolean byStamina : new boolean[] {false, true}) {
             String what = byStamina ? "stamina 299" : "mark gone";
             try (D4CGameTestScene scene = new D4CGameTestScene(
-                    helper, "d4c-held-annihilation-" + (byStamina ? "st" : "mk"))) {
+                    helper, "d4c-held-annihilation-" + (byStamina ? "st" : "mk"), false, shift)) {
                 Cow cow = scene.cow(new Vec3(0.0D, 0.0D, 6.0D));
                 scene.owner.getPersistentData().putUUID(D4CGameTestScene.ANNIHILATION_TARGET, cow.getUUID());
                 EntityActionInstance held = scene.pressAndHold("annihilation", (short) (byStamina ? 212 : 211));
@@ -84,8 +106,14 @@ public final class D4CHeldRecheckGameTests {
      * after 20 ticks, or the 20-tick check dropped the mark) passed annihilation's checkStandConditions at the press and
      * on every held tick (aa/aa.java:63-72), and its standPerform (:19-31) spawned the clone and took 300 stamina.
      */
-    @GameTest(template = "empty", batch = "d4cAnnihilationDyingMark", timeoutTicks = 80)
+    @GameTest(template = "empty", batch = "d4cAnnihilationDyingMark",
+            timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
     public static void annihilationAtADyingMarkedTargetSpawnsTheCloneAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> annihilationAtADyingMarkedTargetSpawnsTheCloneAsIn116Body(h));
+    }
+
+    private static void annihilationAtADyingMarkedTargetSpawnsTheCloneAsIn116Body(GameTestHelper helper) {
         List<String> wrong = new ArrayList<>();
         for (boolean diesInHold : new boolean[] {false, true}) {
             String what = diesInHold ? "the cow dies during the hold" : "the cow is dying at the press";
@@ -138,8 +166,14 @@ public final class D4CHeldRecheckGameTests {
      * 1.16 aa/aa.java:69-71: annihilation pressed with no marked target was refused with conditionMessage
      * 'annihilation_need_mark' (jojo.message.action_condition.annihilation_need_mark, "Need to mark a target first").
      */
-    @GameTest(template = "empty", batch = "d4cAnnihilationNeedMark", timeoutTicks = 80)
+    @GameTest(template = "empty", batch = "d4cAnnihilationNeedMark",
+            timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
     public static void annihilationWithoutAMarkIsRefusedWithItsMessage(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> annihilationWithoutAMarkIsRefusedWithItsMessageBody(h));
+    }
+
+    private static void annihilationWithoutAMarkIsRefusedWithItsMessageBody(GameTestHelper helper) {
         try (D4CGameTestScene scene = new D4CGameTestScene(helper, "d4c-annihilation-need-mark")) {
             scene.cow(new Vec3(0.0D, 0.0D, 6.0D));
             float stamina = scene.power.getStamina();
@@ -154,8 +188,13 @@ public final class D4CHeldRecheckGameTests {
         }
     }
 
-    @GameTest(template = "empty", batch = "d4cHeldRecheckPullIn", timeoutTicks = 80)
+    @GameTest(template = "empty", batch = "d4cHeldRecheckPullIn", timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
     public static void pullInHoldStopsOnceNoTargetIsWithinFourBlocks(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> pullInHoldStopsOnceNoTargetIsWithinFourBlocksBody(h));
+    }
+
+    private static void pullInHoldStopsOnceNoTargetIsWithinFourBlocksBody(GameTestHelper helper) {
         try (D4CGameTestScene scene = new D4CGameTestScene(helper, "d4c-held-pullin")) {
             Cow cow = scene.cow(new Vec3(0.0D, 0.6D, 2.5D));
             helper.assertTrue(D4CPhase2BService.findPullInTarget(scene.owner) == cow,
@@ -175,8 +214,14 @@ public final class D4CHeldRecheckGameTests {
         }
     }
 
-    @GameTest(template = "empty", batch = "d4cHeldRecheckPullInArms", timeoutTicks = 80)
+    @GameTest(template = "empty", batch = "d4cHeldRecheckPullInArms",
+            timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
     public static void pullInNeedsNoStandArms(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> pullInNeedsNoStandArmsBody(h));
+    }
+
+    private static void pullInNeedsNoStandArmsBody(GameTestHelper helper) {
         try (D4CGameTestScene scene = new D4CGameTestScene(helper, "d4c-held-pullin-arms")) {
             scene.cow(new Vec3(0.0D, 0.6D, 2.5D));
             StandInstance instance = scene.power.getStandInstance().orElse(null);
@@ -199,8 +244,14 @@ public final class D4CHeldRecheckGameTests {
         }
     }
 
-    @GameTest(template = "empty", batch = "d4cHeldRecheckLoveTrain", timeoutTicks = 80)
+    @GameTest(template = "empty", batch = "d4cHeldRecheckLoveTrain",
+            timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
     public static void loveTrainHoldStopsOnceTheCorpseIsGone(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> loveTrainHoldStopsOnceTheCorpseIsGoneBody(h));
+    }
+
+    private static void loveTrainHoldStopsOnceTheCorpseIsGoneBody(GameTestHelper helper) {
         try (D4CGameTestScene scene = new D4CGameTestScene(helper, "d4c-held-love-train", true)) {
             scene.owner.getInventory().setItem(0, new ItemStack(D4CAddon.COMPLETE_SAINT_CORPSE.get()));
             EntityActionInstance held = scene.pressAndHold("love_train", (short) 241);
@@ -217,8 +268,13 @@ public final class D4CHeldRecheckGameTests {
         }
     }
 
-    @GameTest(template = "empty", batch = "d4cHeldRecheckTravel", timeoutTicks = 80)
+    @GameTest(template = "empty", batch = "d4cHeldRecheckTravel", timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
     public static void parallelWorldTravelHoldStopsOnceNoLongerCaughtBetween(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> parallelWorldTravelHoldStopsOnceNoLongerCaughtBetweenBody(h));
+    }
+
+    private static void parallelWorldTravelHoldStopsOnceNoLongerCaughtBetweenBody(GameTestHelper helper) {
         try (D4CGameTestScene scene = new D4CGameTestScene(helper, "d4c-held-travel")) {
             BlockPos feet = scene.owner.blockPosition();
             List<BlockPos> walls = List.of(feet.east(), feet.west());
@@ -249,8 +305,13 @@ public final class D4CHeldRecheckGameTests {
         }
     }
 
-    @GameTest(template = "empty", batch = "d4cHeldRecheckMinion", timeoutTicks = 80)
+    @GameTest(template = "empty", batch = "d4cHeldRecheckMinion", timeoutTicks = 80 + GameTestChunkTickets.WAIT_TICKS)
     public static void summonMinionHoldIsNotRecheckedAgainstTheMinionCount(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> summonMinionHoldIsNotRecheckedAgainstTheMinionCountBody(h));
+    }
+
+    private static void summonMinionHoldIsNotRecheckedAgainstTheMinionCountBody(GameTestHelper helper) {
         try (D4CGameTestScene scene = new D4CGameTestScene(helper, "d4c-held-minion")) {
             for (int i = 0; i < D4CPhase2BSpec.MAX_MINIONS - 1; i++) {
                 scene.minion(new Vec3(-3.0D, 0.0D, i));

@@ -842,6 +842,7 @@ public final class UltimateHamonRulesGameTests {
         };
         player.setPos(Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(2, 2, 2))));
         player.setGameMode(GameType.SURVIVAL);
+        UltimateLifeformFixtures.claim(helper, player);
         level.addNewPlayer(player);
         PlayerPower power = PowerClass.PLAYER_POWER.attachGet(player);
         if (!power.trySetPowerType(UltimateLifeformAddon.ULTIMATE_LIFEFORM.get())) {
@@ -864,6 +865,7 @@ public final class UltimateHamonRulesGameTests {
         };
         // the sounds sent to this player alone
         UserSoundRecorder.attach(player, heard -> notified.add(heard.line()));
+        UltimateLifeformFixtures.claim(helper, player);
         player.setPos(Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(2, 2, 2))));
         player.setGameMode(GameType.SURVIVAL);
         if (!helper.getLevel().addFreshEntity(player)) {

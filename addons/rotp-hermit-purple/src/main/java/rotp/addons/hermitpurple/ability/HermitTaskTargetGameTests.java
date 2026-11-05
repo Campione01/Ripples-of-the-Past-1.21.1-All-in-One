@@ -168,6 +168,9 @@ public final class HermitTaskTargetGameTests {
         BlockPos stone = null;
         try {
             BlockPos origin = helper.absolutePos(new BlockPos(1, 4, 1));
+            // the cow stands 3.5 blocks east of the user, past the one-block template's chunk at a border
+            new HermitPurpleChunkTickets(helper).hold(Vec3.atLowerCornerOf(origin.offset(-3, 0, 0)),
+                    Vec3.atLowerCornerOf(origin.offset(5, 1, 1)));
             player.setPos(origin.getX() + 0.5D, origin.getY(), origin.getZ() + 0.5D);
             player.setNoGravity(true);
             player.setYRot(0.0F);
@@ -333,6 +336,9 @@ public final class HermitTaskTargetGameTests {
         };
         HermitPurpleStandEntity summoned;
         try {
+            // the string is counted at relative x -2, in the west chunk when the template's x mod 16 is 0 or 1
+            new HermitPurpleChunkTickets(helper).hold(Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(-3, 4, 0))),
+                    Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(1, 4, 2))));
             player.setPos(origin.getX() + 0.5D, origin.getY(), origin.getZ() + 0.5D);
             player.setNoGravity(true);
             level.addNewPlayer(player);
@@ -437,6 +443,9 @@ public final class HermitTaskTargetGameTests {
         };
         HermitPurpleStandEntity summoned;
         try {
+            // the cow stands 2 blocks south of the user, the torch 1
+            new HermitPurpleChunkTickets(helper).hold(Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(0, 4, 0))),
+                    Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(2, 4, 4))));
             player.setNoGravity(true);
             player.moveTo(origin.getX() + 0.5D, origin.getY(), origin.getZ() + 0.5D, 0.0F, 0.0F);
             player.setYHeadRot(0.0F);

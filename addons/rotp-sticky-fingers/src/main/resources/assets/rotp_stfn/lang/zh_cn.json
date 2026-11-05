@@ -28,7 +28,7 @@
   "rotp_stfn.ability.sticky_fingers_zip_target_wounds": "治愈目标",
   "rotp_stfn.ability.sticky_fingers_open_storage": "拉链储物",
   "rotp_stfn.ability.sticky_fingers_open_inner_storage": "本体储物",
-  "rotp_stfn.message.zipper_rejected": "钢链手指无法在此处安全地放置或操作拉链。",
+  "rotp_stfn.message.zipper_rejected": "钢链手指无法在这个方块上拉拉链。",
   "rotp_stfn.message.storage_rejected": "钢链手指无法在该目标中打开储物空间。",
   "rotp_stfn.message.storage_not_owner": "该方块储物空间属于另一名钢链手指使用者。",
   "rotp_stfn.message.cant_pickup.no_arm": "你没有可以拿住它的手臂，无法捡起！",

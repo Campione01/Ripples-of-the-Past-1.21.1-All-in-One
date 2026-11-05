@@ -68,10 +68,8 @@ public final class KissEvents {
                         action.ability.getAbilityId().nameInMoveset())) {
             return;
         }
+        // 1.0.2a KissFinisherAttack keeps the head of a victim the finisher killed
         KissTokenService.grantEntityToken(owner, event.getEntity());
-        if (event.getEntity().isDeadOrDying()) {
-            KissTokenService.removeEntityTokens(owner, event.getEntity().getUUID());
-        }
     }
 
     @SubscribeEvent

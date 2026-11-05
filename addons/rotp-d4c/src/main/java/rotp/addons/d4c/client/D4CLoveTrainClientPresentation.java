@@ -244,10 +244,15 @@ public final class D4CLoveTrainClientPresentation {
     private static void tickLightWalls(ClientLevel level) {
         Set<UUID> activeNow = new HashSet<>();
         for (Player player : level.players()) {
+            // the wall works only during Love Train (D4CCorpseService
+            // tickLoveTrain); a client copy whose time ran out without a
+            // removal packet must not keep drawing it
             if (!player.isAlive()
                     || player.isRemoved()
                     || !player.hasEffect(
-                            D4CAddon.LOVE_TRAIN_LIGHT_WALL)) {
+                            D4CAddon.LOVE_TRAIN_LIGHT_WALL)
+                    || !running(player, D4CAddon.LOVE_TRAIN_LIGHT_WALL)
+                    || !running(player, D4CAddon.LOVE_TRAIN)) {
                 continue;
             }
             activeNow.add(player.getUUID());
@@ -261,6 +266,17 @@ public final class D4CLoveTrainClientPresentation {
         }
         ACTIVE_LIGHT_WALLS.clear();
         ACTIVE_LIGHT_WALLS.addAll(activeNow);
+    }
+
+    private static boolean running(
+            Player player,
+            net.minecraft.core.Holder<
+                    net.minecraft.world.effect.MobEffect> effect) {
+        net.minecraft.world.effect.MobEffectInstance instance =
+                player.getEffect(effect);
+        return instance != null
+                && (instance.isInfiniteDuration()
+                        || instance.getDuration() > 0);
     }
 
     private static void spawnGather(

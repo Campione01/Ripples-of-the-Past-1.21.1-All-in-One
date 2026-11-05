@@ -7,5 +7,13 @@
   "rotp_mih.configuration.Client config": "用戶端設定",
   "rotp_mih.configuration.Client config.tooltip": "只影響本用戶端顯示內容的設定。",
   "rotp_mih.config.client.enableNewTSIcons": "新版時間系統圖示",
-  "rotp_mih.config.client.enableNewTSIcons.tooltip": "時間系統的「增加」與「清除」使用新版時鐘圖示。"
+  "rotp_mih.config.client.enableNewTSIcons.tooltip": "時間系統的「增加」與「清除」使用新版時鐘圖示。",
+  "rotp_mih.configuration.section.rotp.mih.server.toml": "伺服器設定",
+  "rotp_mih.configuration.section.rotp.mih.server.toml.title": "天堂製造伺服器設定",
+  "rotp_mih.config.server.timeAcceleration": "時間加速",
+  "rotp_mih.config.server.timeAcceleration.tooltip": "天堂製造的時間加速在本伺服器上的方式。",
+  "rotp_mih.config.server.accelerationMode": "加速模式",
+  "rotp_mih.config.server.accelerationMode.tooltip": "世界加速：生物保有自己的時間；投射物、掉落物、下落的方塊、作物、流體、熔爐與天氣快 m 倍，本體以同樣的速度攻擊、挖掘、使用物品與替身。他人落後：本體保持正常速度，其他所有生物慢 m 倍。每次加速沿用開始時的模式。",
+  "rotp_mih.config.server.accelerationMode.others_fall_behind": "他人落後",
+  "rotp_mih.config.server.accelerationMode.world_accelerates": "世界加速"
 }

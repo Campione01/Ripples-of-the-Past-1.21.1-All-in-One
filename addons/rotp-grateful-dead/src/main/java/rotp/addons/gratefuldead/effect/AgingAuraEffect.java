@@ -62,7 +62,7 @@ public final class AgingAuraEffect extends StandEffectInstance {
             remove();
             return;
         }
-        AgingService.tickAura(getStandUser());
+        AgingService.tickAura(getStandUser(), tickCount);
     }
 
     @Override

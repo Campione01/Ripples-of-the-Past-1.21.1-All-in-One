@@ -37,10 +37,15 @@
   "rotp_rhcp.ability.rhcp_counterattack": "反擊",
   "action.rotp_rhcp.rhcp_blitz_attack": "雷襲",
   "rotp_rhcp.ability.rhcp_blitz_attack": "雷襲",
-  "action.rotp_rhcp.rhcp_drag_into_line": "曳入線",
-  "rotp_rhcp.ability.rhcp_drag_into_line": "曳入線",
+  "action.rotp_rhcp.rhcp_self_destruct": "自爆",
+  "rotp_rhcp.ability.rhcp_self_destruct": "自爆",
   "jojo.message.action_condition.full_block_rhcp": "禦守之時，此技可用",
   "rotp_rhcp.subtitle.rhcp_name": "\"辛紅椒\"",
   "rotp_rhcp.subtitle.rhcp_this_is_the_end": "\"終矣\"",
-  "rotp_rhcp.subtitle.rhcp_electricity": "雷音"
+  "rotp_rhcp.subtitle.rhcp_electricity": "雷音",
+  "rotp_rhcp.configuration.title": "辛紅椒之設",
+  "rotp_rhcp.configuration.section.rotp.rhcp.common.toml": "通用之設",
+  "rotp_rhcp.configuration.section.rotp.rhcp.common.toml.title": "辛紅椒通用之設",
+  "rotp_rhcp.configuration.SaveRHCPData": "存其電與力",
+  "rotp_rhcp.configuration.SaveRHCPData.tooltip": "收替身而存辛紅椒之電與力。不存，則每召皆自零始。"
 }

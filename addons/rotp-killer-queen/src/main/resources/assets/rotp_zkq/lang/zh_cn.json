@@ -72,5 +72,15 @@
   "rotp_zkq.subtitle.sheer_heart_step": "枯萎穿心攻击滚动",
   "rotp_zkq.subtitle.bites_reversal_short": "败者食尘逆转时间",
   "rotp_zkq.subtitle.user_bites_za_dust": "“败者食尘！”",
-  "jojo.message.action_condition.killer_queen_btd_requires_stand_arrow": "败者食尘需要替身箭"
+  "jojo.message.action_condition.killer_queen_btd_requires_stand_arrow": "败者食尘需要替身箭",
+  "rotp_zkq.ability.bite_the_dust": "败者食尘",
+  "rotp_zkq.ability.bite_the_dust.desc": "将败者食尘放进另一名玩家体内。在其体内期间，你的替身被锁定，耐力持续消耗。若你死亡，时间回溯，携带者须在败者食尘持续的同样刻数内杀死你。",
+  "jojo.message.action_condition.btd_stand_locked": "你的替身正在败者食尘的携带者体内",
+  "jojo.message.action_condition.btd_already_active": "败者食尘已经在发动中",
+  "jojo.message.action_condition.btd_invalid_target": "败者食尘只能放进另一名活着的玩家体内",
+  "jojo.message.action_condition.btd_other_dimension": "目标在另一个维度",
+  "jojo.message.action_condition.btd_too_far": "目标太远了",
+  "jojo.message.action_condition.btd_target_busy": "这名玩家已经携带着败者食尘",
+  "rotp_zkq.btd.title": "",
+  "death.attack.rotp_zkq.bite_the_dust": "%1$s 因败者食尘而死"
 }

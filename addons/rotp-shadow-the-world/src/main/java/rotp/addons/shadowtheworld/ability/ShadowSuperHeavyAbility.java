@@ -30,9 +30,11 @@ import net.minecraft.world.phys.Vec3;
 public final class ShadowSuperHeavyAbility
         extends StandEntityAbility {
     private static final float STAMINA = 150.0F;
+    // 1.16 SuperHeavyPunch kept StandEntityHeavyAttack's default
+    // standPose(HEAVY_ATTACK), the heavyPunch clip
     private static final ActionAnimIdentifier ANIM =
             ActionAnimIdentifier.getOrCreate(
-                    "knockbackPunch", false);
+                    "heavy_punch", false);
 
     public ShadowSuperHeavyAbility(
             AbilityType<?> abilityType, AbilityId abilityId) {

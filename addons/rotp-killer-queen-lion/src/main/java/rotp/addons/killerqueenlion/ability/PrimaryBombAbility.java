@@ -25,10 +25,12 @@ import rotp.core.subsystems.target.StandPrecisionRay;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import rotp.addons.killerqueenlion.KillerQueenLionAddon;
 import rotp.addons.killerqueenlion.KillerQueenPhase1Spec;
 import rotp.addons.killerqueenlion.state.KillerQueenStateService;
+import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 import net.minecraft.server.level.ServerPlayer;
@@ -89,6 +91,17 @@ public final class PrimaryBombAbility extends StandEntityAbility {
         ActionTarget pressed = overridePressedTarget(user,
                 pressedTarget(level, user, stand))
                 .resolveEntityId(level);
+        // owner T2: past its user's reach the plant reaches out as far
+        // as Killer Queen's punch does, which bounds it instead of 1.16's
+        // 8 blocks
+        boolean reachingOut = false;
+        if (pressed.getType() == ActionTarget.TargetType.EMPTY
+                && reachesOutFrom(stand, user)) {
+            pressed = entityPastUsersReach(user, stand)
+                    .resolveEntityId(level);
+            reachingOut =
+                    pressed.getType() == ActionTarget.TargetType.ENTITY;
+        }
         Entity entity = pressed.getType() == ActionTarget.TargetType.ENTITY
                 ? pressed.getMainEntity()
                 : null;
@@ -96,7 +109,7 @@ public final class PrimaryBombAbility extends StandEntityAbility {
             return ConditionCheck.NEGATIVE;
         }
         LivingEntity performer = stand != null ? stand : user;
-        if (!ActionTargetRange.isEntityWithinRange(
+        if (!reachingOut && !ActionTargetRange.isEntityWithinRange(
                 performer,
                 pressed.getEntity(),
                 ActionTargetRange.DEFAULT_ENTITY_RANGE_SQ)) {
@@ -145,6 +158,74 @@ public final class PrimaryBombAbility extends StandEntityAbility {
         }
         return target;
     }
+
+    // StandMeleeReach.reachesOut but for the action, which is not the
+    // Stand's yet when its press is checked
+    private static boolean reachesOutFrom(
+            @Nullable StandEntity stand, LivingEntity user) {
+        return stand != null
+                && stand.getUser() == user
+                && !stand.isManuallyControlled()
+                && StandMeleeReach.isCloseRange(stand)
+                && !stand.aimsWithoutUser()
+                && stand.isFollowingUser()
+                && !stand.isArmsOnlyMode();
+    }
+
+    // The core's far pick of a reaching attack (farEntityAim): the entity
+    // the user's aim meets past the user's reach, as far as the max reach,
+    // on the user's look and in the user's sight; walls always hide it.
+    private static ActionTarget entityPastUsersReach(
+            LivingEntity user, StandEntity stand) {
+        double userReach = StandEntityPunchAbility.userAimReach(user, stand);
+        double reach = StandMeleeReach.maxReach(stand, user, false);
+        Predicate<Entity> pastUserReach = candidate ->
+                StandMeleeReach.userDistance(user, candidate) > userReach;
+        ActionTarget far = StandEntityPunchAbility.aimAssist(user)
+                ? StandPrecisionRay.trace(user, stand, reach, 0.0D,
+                        true, true, pastUserReach)
+                : StandPrecisionRay.crosshair(user, stand, reach,
+                        true, true, pastUserReach);
+        Entity entity = far.getType() == ActionTarget.TargetType.ENTITY
+                ? far.getEntity()
+                : null;
+        return entity != null
+                && StandMeleeReach.onUserLook(stand, user, entity)
+                && StandMeleeReach.userSees(user, entity)
+                ? far
+                : ActionTarget.EMPTY;
+    }
+
+    // 1.16 kq_entitybomb (PunchBomb) was a StandEntityLightAttack, a
+    // punch that planted the bomb, so under the owner's T2 rule it
+    // reaches out as Killer Queen's punch does
+    @Override
+    public boolean isReachingMeleeAttack(EntityActionInstance action) {
+        return true;
+    }
+
+    // past 1.16's 8 blocks the task keeps an entity the plant reaches out
+    // to, as a punch's task does (StandMeleeReach.keepsEntity)
+    @Override
+    public boolean keepsTaskTarget(
+            StandEntity standEntity, @Nullable ActionTarget target) {
+        if (super.keepsTaskTarget(standEntity, target)) {
+            return true;
+        }
+        ActionTarget kept = target != null
+                ? target.resolveEntityId(standEntity.level())
+                : ActionTarget.EMPTY;
+        Entity entity = kept.getType() == ActionTarget.TargetType.ENTITY
+                ? kept.getEntity()
+                : null;
+        return entity != null
+                && entity != standEntity
+                && !(entity instanceof LivingEntity living
+                        && living.deathTime >= 20)
+                && keepsTaskTargetEntity(standEntity, entity)
+                && StandMeleeReach.reachable(standEntity, entity);
+    }
+
     // 1.16 PunchBomb: the ENTITY requirement passes an entity and
     // StandEntityLightAttack.standKeepsTarget any other target
     @Override
@@ -240,7 +321,9 @@ public final class PrimaryBombAbility extends StandEntityAbility {
                     && stand.swingingArm == InteractionHand.OFF_HAND) {
                 stand.setArmsOnlyMode(true, false);
             }
-            ActionTarget target = captureActionTargetFromAim(stand);
+            ActionTarget sentByServer = getActionTargetSnapshot(level());
+            ActionTarget target = pastUserReach(stand,
+                    captureActionTargetFromAim(stand), sentByServer);
             setStandFrontOffsetFromTarget(
                     stand,
                     target,
@@ -248,6 +331,33 @@ public final class PrimaryBombAbility extends StandEntityAbility {
                     Math.min(2.0D, stand.getMaxRange()));
             keepStandAimedAtTarget(target);
             aimAs = AimingEntity.STAND;
+        }
+
+        // The Stand's aim a client sends stops at its user's reach: past
+        // it the server takes the entity the plant reaches out to (the
+        // core punch's pressTarget) and a client the one its server sent
+        // with the action, so both put the Stand at the same flown-out
+        // offset.
+        private ActionTarget pastUserReach(StandEntity stand,
+                ActionTarget aimed, ActionTarget sentByServer) {
+            LivingEntity user = stand.getUser();
+            if (!aimed.isEmpty(level()) || user == null) {
+                return aimed;
+            }
+            ActionTarget far = StandEntityPunchAbility.pressTarget(stand,
+                    sentByServer,
+                    StandEntityPunchAbility.CrosshairRule.ENTITY,
+                    ability).resolveEntityId(level());
+            Entity entity = far.getType() == ActionTarget.TargetType.ENTITY
+                    ? far.getEntity()
+                    : null;
+            if (entity == null
+                    || StandMeleeReach.userDistance(user, entity)
+                            <= StandEntityPunchAbility.userAimReach(
+                                    user, stand)) {
+                return aimed;
+            }
+            return setActionTargetSnapshot(far);
         }
 
         // 1.16 StandEntityLightAttack.getOffsetFromUser measured the front

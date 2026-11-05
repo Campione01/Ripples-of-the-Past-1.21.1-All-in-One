@@ -1,5 +1,8 @@
 package rotp.addons.catchtherainbow.entity;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
@@ -21,6 +24,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -31,6 +35,13 @@ public final class CatchTheRainbowEntity extends StandEntity {
     public static final float RAIN_WALK_STAMINA_PER_TICK = 1.0F;
     public static final float FALLING_BLADE_STAMINA = 20.0F;
     public static final double FALLING_BLADE_RADIUS = 25.0D;
+    public static final float RAIN_STOP_STAMINA_PER_TICK = 2.0F;
+    public static final double RAIN_STOP_RADIUS = 8.0D;
+    public static final int RAIN_STOP_CUT_INTERVAL = 10;
+    // Blocks moved in one interval; standing or creeping is not cut.
+    public static final double RAIN_STOP_MIN_TRAVEL = 0.5D;
+    public static final float RAIN_STOP_DAMAGE_PER_BLOCK = 1.5F;
+    public static final float RAIN_STOP_MAX_DAMAGE = 6.0F;
     private static final EntityDimensions RENDER_DIMENSIONS =
             EntityDimensions.scalable(
                     CatchTheRainbowAddon.RENDER_WIDTH,
@@ -64,6 +75,10 @@ public final class CatchTheRainbowEntity extends StandEntity {
             TEMP_HEALTH_ACTIVE = SynchedEntityData.defineId(
                     CatchTheRainbowEntity.class,
                     EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean>
+            RAIN_STOP_ACTIVE = SynchedEntityData.defineId(
+                    CatchTheRainbowEntity.class,
+                    EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Float> PLAYER_MAX_HP =
             SynchedEntityData.defineId(
                     CatchTheRainbowEntity.class,
@@ -71,6 +86,10 @@ public final class CatchTheRainbowEntity extends StandEntity {
 
     private int bladeRainTicks;
     private int rainStepTicks;
+    private int rainStopTicks;
+    private long rainStopSampleTime = Long.MIN_VALUE;
+    private final Map<Integer, Vec3> rainStopLastPositions =
+            new HashMap<>();
 
     public CatchTheRainbowEntity(
             EntityType<? extends CatchTheRainbowEntity> entityType,
@@ -110,6 +129,20 @@ public final class CatchTheRainbowEntity extends StandEntity {
     public void setMergeActive(boolean active) {
         if (!level().isClientSide()) {
             entityData.set(MERGE_ACTIVE, active);
+        }
+    }
+
+    public boolean isRainStopActive() {
+        return entityData.get(RAIN_STOP_ACTIVE);
+    }
+
+    public void setRainStopActive(boolean active) {
+        if (!level().isClientSide()) {
+            entityData.set(RAIN_STOP_ACTIVE, active);
+            if (!active) {
+                rainStopTicks = 0;
+                rainStopLastPositions.clear();
+            }
         }
     }
 
@@ -164,6 +197,7 @@ public final class CatchTheRainbowEntity extends StandEntity {
         }
 
         tickFallingBlades(user, power, creative);
+        tickRainStop(user, power, creative);
         tickRainMerge(user, power, creative);
         tickRainStepSound(user);
         // Players are refilled from the player tick, as in 1.16, so an
@@ -319,6 +353,70 @@ public final class CatchTheRainbowEntity extends StandEntity {
                     1.0F,
                     1.0F);
         }
+    }
+
+    // Pauses in dry weather like the blade rain; the stopped drops cut
+    // whoever moves through them, deeper the faster they go.
+    private void tickRainStop(
+            LivingEntity user,
+            StandPower power,
+            boolean creative) {
+        if (!isRainStopActive()) {
+            return;
+        }
+        if (!creative
+                && (power == null
+                        || !power.consumeStamina(
+                                RAIN_STOP_STAMINA_PER_TICK, true))) {
+            setRainStopActive(false);
+            return;
+        }
+        if (++rainStopTicks < RAIN_STOP_CUT_INTERVAL) {
+            return;
+        }
+        rainStopTicks = 0;
+        long time = level().getGameTime();
+        // A dry spell paused the sampling: old positions are not a move.
+        if (time - rainStopSampleTime > RAIN_STOP_CUT_INTERVAL) {
+            rainStopLastPositions.clear();
+        }
+        rainStopSampleTime = time;
+
+        Map<Integer, Vec3> seen = new HashMap<>();
+        AABB area = user.getBoundingBox().inflate(RAIN_STOP_RADIUS);
+        double radiusSqr = RAIN_STOP_RADIUS * RAIN_STOP_RADIUS;
+        for (LivingEntity target : level().getEntitiesOfClass(
+                LivingEntity.class,
+                area,
+                candidate -> candidate != user
+                        && candidate.isAlive()
+                        && !(candidate instanceof StandEntity)
+                        && !candidate.isPassengerOfSameVehicle(user)
+                        && candidate.distanceToSqr(user) <= radiusSqr
+                        && RainExposure.isExposedToRain(candidate))) {
+            Vec3 now = target.position();
+            seen.put(target.getId(), now);
+            Vec3 before = rainStopLastPositions.get(target.getId());
+            if (before == null) {
+                continue;
+            }
+            double travelled = now.distanceTo(before);
+            if (travelled < RAIN_STOP_MIN_TRAVEL) {
+                continue;
+            }
+            float damage = Math.min(
+                    RAIN_STOP_MAX_DAMAGE,
+                    (float) travelled * RAIN_STOP_DAMAGE_PER_BLOCK);
+            target.hurt(rainStopDamage(user), damage);
+        }
+        rainStopLastPositions.clear();
+        rainStopLastPositions.putAll(seen);
+    }
+
+    private DamageSource rainStopDamage(LivingEntity user) {
+        return user instanceof Player player
+                ? damageSources().playerAttack(player)
+                : damageSources().mobAttack(user);
     }
 
     private static int bladeFrequency(StandPower power) {
@@ -485,6 +583,7 @@ public final class CatchTheRainbowEntity extends StandEntity {
         builder.define(RAIN_WALK_ACTIVE, false);
         builder.define(MERGE_ACTIVE, false);
         builder.define(TEMP_HEALTH_ACTIVE, false);
+        builder.define(RAIN_STOP_ACTIVE, false);
         builder.define(PLAYER_MAX_HP, 20.0F);
     }
 

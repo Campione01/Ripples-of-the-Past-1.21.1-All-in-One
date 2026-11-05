@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-ova-the-world`, mod id `rotp_ova_addon`, version `1.0.0-port.14`.
+- Module: `rotp-ova-the-world`, mod id `rotp_ova_addon`, version `1.0.0-port.15`.
 - Original 1.16.5 add-on: `RotP-OVA附属-1.0.jar` (RotP OVA附属, mod id `rotp_ova_addon`), by Pr1tcha feat. August.dr, StandoByte; declared license: GNU GPL v3.0; SHA-256 `7EDAE43D54E6609A318FF9A928C68F72446B47C37DDF4EBE394C44FB9760E75C`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

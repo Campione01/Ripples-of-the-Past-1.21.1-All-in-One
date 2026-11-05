@@ -16,6 +16,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.entity_puppetcontrol.EntityComponentController;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandEntityManualControlToggle;
+import rotp.core.init.ModSpecialActions;
 
 import rotp.addons.purplehaze.PurpleHazeAddon;
 import rotp.addons.purplehaze.effect.PurpleHazeVirusEffect;
@@ -183,7 +184,7 @@ public final class PurpleHazeEntity extends StandEntity {
 
         if (target == null) {
             stopAutonomousAction();
-            retract();
+            retractUnlessUnsummoning();
             return;
         }
 
@@ -354,8 +355,13 @@ public final class PurpleHazeEntity extends StandEntity {
                                         power.getStaminaTickGain())));
     }
 
-    private static boolean shouldEnterAutomaticMadness(
+    // 1.16 main-branch build (2024-07-08): no automatic madness in the
+    // arms-only mode or with the user's stamina spent.
+    private boolean shouldEnterAutomaticMadness(
             LivingEntity user, StandPower power) {
+        if (isArmsOnlyMode() || power.getStamina() <= 0.0F) {
+            return false;
+        }
         int resolve = power.getResolveLevel();
         float healthRatio = user.getMaxHealth() > 0.0F
                 ? user.getHealth() / user.getMaxHealth()
@@ -364,6 +370,18 @@ public final class PurpleHazeEntity extends StandEntity {
                 || resolve == 1 && healthRatio <= 0.5F
                 || resolve == 2 && healthRatio <= 0.25F
                 || resolve >= 3 && healthRatio <= 0.1F;
+    }
+
+    // 1.16 main-branch retractWhenOver / setAutoAttackTarget: no new
+    // retraction over a running one or over the unsummon.
+    private void retractUnlessUnsummoning() {
+        EntityActionInstance action = getCurStandAction();
+        if (!isBeingRetracted()
+                && (action == null
+                        || action.ability
+                                != ModSpecialActions.STAND_UNSUMMON.get())) {
+            retract();
+        }
     }
 
     @Override
@@ -510,6 +528,11 @@ public final class PurpleHazeEntity extends StandEntity {
             @Nullable LivingEntity target) {
         if (level().isClientSide()) {
             return;
+        }
+        // 1.16 setAutoAttackTarget(null): a Stand that loses the target it
+        // chased flies back to its user.
+        if (target == null && getMadTargetUuid() != null) {
+            retractUnlessUnsummoning();
         }
         entityData.set(
                 MAD_TARGET_ID,

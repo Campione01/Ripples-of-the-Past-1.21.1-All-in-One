@@ -42,10 +42,18 @@ public final class KingCrimsonTemporalState
             "HiddenStandUuid";
     private static final String PREVIOUS_STAND_INVISIBILITY_TAG =
             "PreviousStandInvisibility";
+    private static final String PAUSED_TICKS_TAG = "PausedTicks";
+    private static final String ERASE_PAUSED_TAG = "ErasePaused";
 
     private Mode mode = Mode.IDLE;
     private long startedAt;
     private long expiresAt;
+    // Ticks the erase spent frozen in someone's time stop; expiresAt has already been moved by them.
+    private long pausedTicks;
+    private boolean erasePaused;
+    private transient boolean endRequestedWhilePaused;
+    // The part of a tick the eraser's own time fell behind the world's and expiresAt has not taken yet (KC-MIH).
+    private transient double lagCarry;
     private boolean hadPreviousInvisibility;
     private boolean previousInvisibilityInfinite;
     private int previousInvisibilityDuration;
@@ -80,7 +88,57 @@ public final class KingCrimsonTemporalState
     }
 
     public boolean isErasing(long gameTime) {
-        return mode == Mode.TIME_ERASE && gameTime < expiresAt;
+        return mode == Mode.TIME_ERASE
+                && (erasePaused || gameTime < expiresAt);
+    }
+
+    /** Whether the erase is frozen in someone's time stop: no time passes for it. */
+    public boolean isErasePaused() {
+        return mode == Mode.TIME_ERASE && erasePaused;
+    }
+
+    /** One server tick frozen in a time stop; true when the pause starts with it. */
+    boolean pauseEraseTick() {
+        if (mode != Mode.TIME_ERASE) {
+            return false;
+        }
+        expiresAt++;
+        pausedTicks++;
+        boolean started = !erasePaused;
+        erasePaused = true;
+        return started;
+    }
+
+    /** Ends the pause; true when the user asked to end the erase while it was frozen. */
+    boolean resumeErase() {
+        boolean endRequested = endRequestedWhilePaused;
+        erasePaused = false;
+        endRequestedWhilePaused = false;
+        return endRequested;
+    }
+
+    /**
+     * One world tick in which the eraser's own time ran at this rate (below 1 when another ability holds him back):
+     * the erase lasts in his own time, so its end moves on by what he fell behind. True when the end moved.
+     */
+    boolean lagEraseTick(float ownRate) {
+        if (mode != Mode.TIME_ERASE || !(ownRate < 1.0F) || !(ownRate > 0.0F)) {
+            return false;
+        }
+        lagCarry += 1.0D - ownRate;
+        if (lagCarry < 1.0D) {
+            return false;
+        }
+        long whole = (long) lagCarry;
+        expiresAt += whole;
+        lagCarry -= whole;
+        return true;
+    }
+
+    void requestEndOnResume() {
+        if (isErasePaused()) {
+            endRequestedWhilePaused = true;
+        }
     }
 
     public boolean isSkipping(long gameTime) {
@@ -127,8 +185,13 @@ public final class KingCrimsonTemporalState
     }
 
     public int elapsedTicks(long gameTime, int maximum) {
-        long elapsed = Math.max(0L, gameTime - startedAt);
+        long elapsed = activeElapsed(gameTime);
         return (int) Math.min(elapsed, Math.max(maximum, 0));
+    }
+
+    // The user's effects did not tick while frozen, so remembered durations skip the paused ticks too.
+    private long activeElapsed(long gameTime) {
+        return Math.max(0L, gameTime - startedAt - pausedTicks);
     }
 
     @Nullable
@@ -141,7 +204,7 @@ public final class KingCrimsonTemporalState
         if (previousInvisibilityInfinite) {
             duration = MobEffectInstance.INFINITE_DURATION;
         } else {
-            long elapsed = Math.max(0L, gameTime - startedAt);
+            long elapsed = activeElapsed(gameTime);
             duration = (int) Math.max(
                     0L,
                     (long) previousInvisibilityDuration - elapsed);
@@ -188,10 +251,16 @@ public final class KingCrimsonTemporalState
                 || hadPreviousInvisibility
                 || previousFullInvisibility != null
                 || hiddenStandUuid != null
-                || previousStandInvisibility != null;
+                || previousStandInvisibility != null
+                || pausedTicks != 0L
+                || erasePaused;
         mode = Mode.IDLE;
         startedAt = 0L;
         expiresAt = 0L;
+        pausedTicks = 0L;
+        erasePaused = false;
+        endRequestedWhilePaused = false;
+        lagCarry = 0.0D;
         clearPreviousInvisibility();
         clearVisibilitySnapshots();
         projectionSession = null;
@@ -221,7 +290,8 @@ public final class KingCrimsonTemporalState
     public void applyClientSnapshot(
             int modeOrdinal,
             long newStartedAt,
-            long newExpiresAt) {
+            long newExpiresAt,
+            boolean newErasePaused) {
         clear();
         Mode newMode = Mode.byOrdinal(modeOrdinal);
         if (newMode == Mode.IDLE
@@ -232,6 +302,7 @@ public final class KingCrimsonTemporalState
         mode = newMode;
         startedAt = newStartedAt;
         expiresAt = newExpiresAt;
+        erasePaused = newMode == Mode.TIME_ERASE && newErasePaused;
     }
 
     @Override
@@ -242,6 +313,8 @@ public final class KingCrimsonTemporalState
         tag.putInt(MODE_TAG, mode.ordinal());
         tag.putLong(STARTED_AT_TAG, startedAt);
         tag.putLong(EXPIRES_AT_TAG, expiresAt);
+        tag.putLong(PAUSED_TICKS_TAG, pausedTicks);
+        tag.putBoolean(ERASE_PAUSED_TAG, erasePaused);
         tag.putBoolean(
                 PREVIOUS_INVISIBILITY_TAG,
                 hadPreviousInvisibility);
@@ -299,6 +372,10 @@ public final class KingCrimsonTemporalState
         mode = loadedMode;
         startedAt = loadedStartedAt;
         expiresAt = loadedExpiresAt;
+        if (loadedMode == Mode.TIME_ERASE) {
+            pausedTicks = Math.max(0L, tag.getLong(PAUSED_TICKS_TAG));
+            erasePaused = tag.getBoolean(ERASE_PAUSED_TAG);
+        }
         if (loadedMode == Mode.TIME_ERASE
                 && tag.getBoolean(PREVIOUS_INVISIBILITY_TAG)) {
             hadPreviousInvisibility = true;
@@ -375,7 +452,7 @@ public final class KingCrimsonTemporalState
         }
         return snapshot.restore(
                 effect,
-                Math.max(0L, gameTime - startedAt));
+                activeElapsed(gameTime));
     }
 
     private record EffectSnapshot(

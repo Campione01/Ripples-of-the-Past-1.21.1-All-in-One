@@ -330,9 +330,10 @@ public final class MetallicaVictimBladesHoldGameTests {
 
         private void tickCooldowns() {
             try {
-                Method method = StandPower.class.getDeclaredMethod("tickAbilityCooldowns");
+                // R772 core: the cooldown tick takes its step count (the user's time rate decides it).
+                Method method = StandPower.class.getDeclaredMethod("tickAbilityCooldowns", int.class);
                 method.setAccessible(true);
-                method.invoke(power);
+                method.invoke(power, 1);
             }
             catch (ReflectiveOperationException e) {
                 throw new IllegalStateException("StandPower.tickAbilityCooldowns is not reachable", e);

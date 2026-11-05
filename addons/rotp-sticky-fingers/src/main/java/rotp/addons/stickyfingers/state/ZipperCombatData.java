@@ -3,6 +3,7 @@ package rotp.addons.stickyfingers.state;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,9 +33,19 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.AbstractIllager;
+import net.minecraft.world.entity.monster.AbstractSkeleton;
+import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.world.entity.monster.Giant;
+import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.monster.piglin.AbstractPiglin;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class ZipperCombatData extends SavedData {
@@ -56,6 +67,7 @@ public final class ZipperCombatData extends SavedData {
             new HashMap<>();
     private final Map<UUID, DetachedBodyPartRecord> partsByEntity =
             new HashMap<>();
+    private Set<UUID> crawling = new HashSet<>();
 
     public static ZipperCombatData get(ServerLevel level) {
         return level.getDataStorage()
@@ -289,9 +301,23 @@ public final class ZipperCombatData extends SavedData {
         return partsByEntity.containsKey(entityId);
     }
 
+    // 1.16 HumanoidParser counted every entity type drawn with a BipedModel or
+    // IllagerModel, modded ones included. A server cannot read renderer models,
+    // so the tag (datapacks may add to it) is joined by the vanilla bases whose
+    // 1.16 models were biped or illager ones. Villagers, witches and vexes
+    // stay out: VillagerModel was neither, and the 1.21 VexModel is no
+    // HumanoidModel whose limbs could be hidden.
     public static boolean isSupportedTarget(
             LivingEntity target) {
-        return target.getType().is(ZIPPER_HUMANOIDS);
+        return target.getType().is(ZIPPER_HUMANOIDS)
+                || target instanceof Player
+                || target instanceof Zombie
+                || target instanceof AbstractSkeleton
+                || target instanceof AbstractIllager
+                || target instanceof AbstractPiglin
+                || target instanceof EnderMan
+                || target instanceof Giant
+                || target instanceof ArmorStand;
     }
 
     public Set<DetachedPartType> partsFor(UUID targetId) {
@@ -446,6 +472,7 @@ public final class ZipperCombatData extends SavedData {
                                     DetachedPartType.class))
                     .add(record.part());
         }
+        Set<UUID> nowCrawling = new HashSet<>();
         for (Map.Entry<UUID, EnumSet<DetachedPartType>> entry :
                 byTarget.entrySet()) {
             LivingEntity target =
@@ -476,6 +503,10 @@ public final class ZipperCombatData extends SavedData {
                         false,
                         false));
             }
+            if (legCount == 2) {
+                crawl(target);
+                nowCrawling.add(target.getUUID());
+            }
             if (legCount == 2
                     && parts.contains(
                             DetachedPartType.LEFT_ARM)
@@ -490,6 +521,39 @@ public final class ZipperCombatData extends SavedData {
                         false,
                         false));
             }
+        }
+        for (UUID id : crawling) {
+            if (!nowCrawling.contains(id)) {
+                LivingEntity target = resolveLiving(level, id);
+                if (target != null) {
+                    standUp(target);
+                }
+            }
+        }
+        crawling = nowCrawling;
+    }
+
+    // Sticky Fingers 1.0.2 EntityZipperCapability.tickLegs: with both legs
+    // off the entity lies in the swimming pose and its jumps are halved.
+    private static void crawl(LivingEntity target) {
+        if (target instanceof Player player) {
+            player.setForcedPose(Pose.SWIMMING);
+            return;
+        }
+        target.setPose(Pose.SWIMMING);
+        Vec3 motion = target.getDeltaMovement();
+        if (motion.y > 0.0D) {
+            target.setDeltaMovement(motion.x, motion.y / 2.0D, motion.z);
+        }
+    }
+
+    public static void standUp(LivingEntity target) {
+        if (target instanceof Player player) {
+            if (player.getForcedPose() == Pose.SWIMMING) {
+                player.setForcedPose(null);
+            }
+        } else if (target.getPose() == Pose.SWIMMING) {
+            target.setPose(Pose.STANDING);
         }
     }
 

@@ -20,6 +20,7 @@ import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
@@ -1124,7 +1125,8 @@ public final class ScaryOwnerDeathGameTests {
                                 ? target.getEffect(MobEffects.INVISIBILITY).save() : null,
                         externalInvisibility);
                 helper.assertTrue(target.hasEffect(MobEffects.INVISIBILITY)
-                                && externalInvisibility.equals(target.getEffect(MobEffects.INVISIBILITY).save()),
+                                && sameSavedState(externalInvisibility,
+                                        target.getEffect(MobEffects.INVISIBILITY).save()),
                         "Owner-death release erased or changed external invisibility");
             }
             else {
@@ -1186,6 +1188,48 @@ public final class ScaryOwnerDeathGameTests {
      * template (outside the barriers GameTest puts around it); offsets are non-negative and are mirrored to the
      * other side of the template when the chunk edge is closer on this one.
      */
+    private static final String EFFECT_CURES_KEY = "neoforge:cures";
+
+    // NeoForge saves an effect's cures from an identity hash set, so an equal copy can list them in another order.
+    static boolean sameSavedState(Tag first, Tag second) {
+        return first == null ? second == null
+                : second != null && curesSorted(first).equals(curesSorted(second));
+    }
+
+    static Tag curesSorted(Tag tag) {
+        if (tag instanceof CompoundTag compound) {
+            CompoundTag key = new CompoundTag();
+            for (String name : compound.getAllKeys()) {
+                Tag value = compound.get(name);
+                if (EFFECT_CURES_KEY.equals(name) && value instanceof ListTag cures
+                        && cures.getElementType() == Tag.TAG_STRING) {
+                    List<String> names = new ArrayList<>();
+                    for (int index = 0; index < cures.size(); index++) {
+                        names.add(cures.getString(index));
+                    }
+                    names.sort(null);
+                    ListTag sorted = new ListTag();
+                    for (String cure : names) {
+                        sorted.add(StringTag.valueOf(cure));
+                    }
+                    key.put(name, sorted);
+                }
+                else {
+                    key.put(name, curesSorted(value));
+                }
+            }
+            return key;
+        }
+        if (tag instanceof ListTag list) {
+            ListTag key = new ListTag();
+            for (Tag element : list) {
+                key.add(curesSorted(element));
+            }
+            return key;
+        }
+        return tag;
+    }
+
     static Frame frame(GameTestHelper helper) {
         BlockPos template = helper.absolutePos(new BlockPos(0, 2, 0));
         int signX = (template.getX() & 15) + 2 + FRAME_REACH > 15 ? -1 : 1;
@@ -1272,7 +1316,7 @@ public final class ScaryOwnerDeathGameTests {
         helper.assertTrue(possession.size() == 1, "Missing unique possession ownership record");
         CompoundTag owned = possession.getFirst();
         helper.assertTrue(owned.hasUUID("InstalledIdentity")
-                        && owned.getCompound("Previous").equals(beforeConversion),
+                        && sameSavedState(owned.getCompound("Previous"), beforeConversion),
                 "Conversion changed the full previous external effect snapshot");
         UUID installedIdentity = owned.getUUID("InstalledIdentity");
         MobEffectInstance preview = MobEffectInstance.load(beforeConversion.copy());
@@ -1289,7 +1333,7 @@ public final class ScaryOwnerDeathGameTests {
                         && !installedIdentity.equals(ScaryMonstersOwnedEffects.identity(preview)),
                 "Preview did not produce exactly the known new weak possession layer");
         CompoundTag expected = (CompoundTag) preview.save();
-        helper.assertTrue(expected.equals(target.getEffect(MobEffects.INVISIBILITY).save()),
+        helper.assertTrue(sameSavedState(expected, target.getEffect(MobEffects.INVISIBILITY).save()),
                 "Production conversion differs from the full normal merge preview, including flags, cures and identities");
         // The original had no hidden chain; release removes only the verified newly owned layer.
         expected.remove("hidden_effect");

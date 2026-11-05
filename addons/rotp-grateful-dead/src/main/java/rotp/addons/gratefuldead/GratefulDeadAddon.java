@@ -5,16 +5,22 @@ import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import static rotp.core.init.power.ModStands.SWITCH_SPECIAL;
 import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 
 import rotp.core.api.RotpAddonApi;
 import rotp.core.api.block.BlockRandomTickSuppressionProviders;
+import rotp.core.api.power.AbilityRefusals;
+import rotp.core.powersystem.ability.condition.ConditionCheck;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.api.control.CreeperFuseSuppressionProviders;
 import rotp.core.api.control.LivingSwingDurationModifiers;
+import rotp.core.api.hamon.HamonEfficiencyFactors;
+import rotp.core.api.stand.StandStaminaCostFactors;
 import rotp.core.api.timestop.TimeStopTicksModifiers;
 import rotp.core.core.JojoRegistries;
 import rotp.core.entityattachment.custom_effect.EntityCustomEffectType;
-import rotp.core.init.ModSoundEvents;
 import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.ability.AbilityType;
@@ -30,6 +36,10 @@ import rotp.core.powersystem.standpower.type.StandTypePersistentData;
 
 import rotp.addons.gratefuldead.ability.AgingAbility;
 import rotp.addons.gratefuldead.ability.AgingAbility.Mode;
+import rotp.addons.gratefuldead.ability.AgingInjectAbility;
+import rotp.addons.gratefuldead.ability.GratefulDeadGrabThrowAbility;
+import rotp.addons.gratefuldead.ability.GratefulDeadHeavyPunchAbility;
+import rotp.core.subsystems.entity_grab.LivingComponentGrab;
 import rotp.addons.gratefuldead.effect.AgingAuraEffect;
 import rotp.addons.gratefuldead.entity.GratefulDeadStandEntity;
 import rotp.addons.gratefuldead.network.BlockAgingPayload;
@@ -37,6 +47,16 @@ import rotp.addons.gratefuldead.service.AgingService;
 import rotp.addons.gratefuldead.state.ItemAgingState;
 import rotp.addons.gratefuldead.state.BlockAgingData;
 import rotp.addons.gratefuldead.state.LivingAgingState;
+import rotp.addons.gratefuldead.state.AgingRateState;
+import rotp.addons.gratefuldead.item.IceCubeItem;
+import com.mojang.serialization.Codec;
+import net.minecraft.core.particles.ParticleType;
+import net.minecraft.core.particles.SimpleParticleType;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.loading.FMLEnvironment;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -68,6 +88,17 @@ public final class GratefulDeadAddon {
             "the_grateful_dead_aging_aura";
     public static final String REMOVE_AGING =
             "the_grateful_dead_remove_aging";
+    public static final String AGING_SELF =
+            "the_grateful_dead_aging_self";
+    public static final String REMOVE_SELF_AGING =
+            "the_grateful_dead_remove_self_aging";
+    public static final String REMOVE_ALL_AGING =
+            "the_grateful_dead_remove_all_aging";
+    // Next Album 0.1.13 grab moveset, on the core's grab.
+    public static final String GRAB_HEAVY_PUNCH = "grab_heavy_punch";
+    public static final String FINISHER = "the_grateful_dead_finisher";
+    public static final String AGING_INJECT =
+            "the_grateful_dead_aging_inject";
     public static final int REQUIRED_CORE_ABI = 1;
 
     public static final DeferredRegister<AbilityType<?>>
@@ -101,6 +132,10 @@ public final class GratefulDeadAddon {
             STAND_EFFECT_TYPES = DeferredRegister.create(
                     JojoRegistries.STAND_EFFECTS_REG,
                     LEGACY_NAMESPACE);
+    public static final DeferredRegister<ParticleType<?>>
+            PARTICLE_TYPES = DeferredRegister.create(
+                    Registries.PARTICLE_TYPE,
+                    LEGACY_NAMESPACE);
 
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<AgingAbility>>
@@ -112,6 +147,48 @@ public final class GratefulDeadAddon {
             AbilityType<?>, AbilityType<AgingAbility>>
             REMOVE_AGING_TYPE =
                     agingAbility(REMOVE_AGING, Mode.REMOVE);
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<AgingAbility>>
+            AGING_SELF_TYPE = agingAbility(AGING_SELF, Mode.SELF);
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<AgingAbility>>
+            REMOVE_SELF_AGING_TYPE =
+                    agingAbility(REMOVE_SELF_AGING, Mode.REMOVE_SELF);
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<AgingAbility>>
+            REMOVE_ALL_AGING_TYPE =
+                    agingAbility(REMOVE_ALL_AGING, Mode.REMOVE_ALL);
+
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<AgingInjectAbility>>
+            AGING_INJECT_TYPE = ABILITY_TYPES.register(
+                    AGING_INJECT,
+                    key -> new AbilityType<>(
+                            key, AgingInjectAbility::new));
+
+    public static final Supplier<AttachmentType<AgingRateState>>
+            AGING_RATE = ATTACHMENT_TYPES.register(
+                    "aging_rate",
+                    () -> AttachmentType.serializable(
+                                    AgingRateState::new)
+                            .build());
+
+    public static final Supplier<DataComponentType<Float>>
+            ICE_MELT =
+                    DATA_COMPONENT_TYPES.registerComponentType(
+                            "ice_melt",
+                            builder -> builder
+                                    .persistent(Codec.FLOAT)
+                                    .networkSynchronized(
+                                            ByteBufCodecs.FLOAT));
+
+    public static final DeferredItem<IceCubeItem> ICE_CUBE =
+            ITEMS.registerItem("ice_cube", IceCubeItem::new);
+
+    public static final DeferredHolder<ParticleType<?>, SimpleParticleType>
+            AGING_MIST = PARTICLE_TYPES.register(
+                    "aging_mist",
+                    () -> new SimpleParticleType(false));
 
     public static final Supplier<AttachmentType<LivingAgingState>>
             LIVING_AGING = ATTACHMENT_TYPES.register(
@@ -159,6 +236,58 @@ public final class GratefulDeadAddon {
                     "the_grateful_dead",
                     SoundEvent::createVariableRangeEvent);
 
+    // Next Album 0.1.13 InitSounds: the Stand's own summon (one of two,
+    // its MultiSoundEvent) and unsummon, and Prosciutto's two shout sets.
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            THE_GRATEFUL_DEAD_SUMMON = sound("the_grateful_dead_summon");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            THE_GRATEFUL_DEAD_SUMMON_2 =
+                    sound("the_grateful_dead_summon_2");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            THE_GRATEFUL_DEAD_UNSUMMON =
+                    sound("the_grateful_dead_unsummon");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            PROSCIUTTO_KILL = sound("prosciutto_kill");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            PROSCIUTTO_MUDA = sound("prosciutto_muda");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            PROSCIUTTO_TAKE_THIS = sound("prosciutto_take_this");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            PROSCIUTTO_ORA = sound("prosciutto_ora");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
+            PROSCIUTTO_NOISY = sound("prosciutto_noisy");
+    private static final List<DeferredHolder<SoundEvent, SoundEvent>>
+            SUMMON_SOUNDS = List.of(
+                    THE_GRATEFUL_DEAD_SUMMON,
+                    THE_GRATEFUL_DEAD_SUMMON_2);
+    // PROSCIUTTO_AGING_PUNCH: the Aging Punch and the finisher
+    private static final List<DeferredHolder<SoundEvent, SoundEvent>>
+            AGING_PUNCH_SHOUTS = List.of(
+                    PROSCIUTTO_KILL,
+                    PROSCIUTTO_MUDA,
+                    PROSCIUTTO_TAKE_THIS,
+                    PROSCIUTTO_ORA,
+                    PROSCIUTTO_NOISY);
+    // PROSCIUTTO_HEAVY_SHOUT: the heavy punch and the throw
+    private static final List<DeferredHolder<SoundEvent, SoundEvent>>
+            HEAVY_SHOUTS = List.of(
+                    PROSCIUTTO_TAKE_THIS,
+                    PROSCIUTTO_ORA,
+                    PROSCIUTTO_NOISY);
+
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<GratefulDeadHeavyPunchAbility>>
+            HEAVY_PUNCH_TYPE = ABILITY_TYPES.register(
+                    HEAVY_PUNCH,
+                    key -> new AbilityType<>(
+                            key, GratefulDeadHeavyPunchAbility::new));
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<GratefulDeadGrabThrowAbility>>
+            GRAB_THROW_TYPE = ABILITY_TYPES.register(
+                    "the_grateful_dead_throw",
+                    key -> new AbilityType<>(
+                            key, GratefulDeadGrabThrowAbility::new));
+
     public static final DeferredHolder<
             EntityCustomEffectType<?>,
             EntityCustomEffectType<AgingAuraEffect>>
@@ -172,8 +301,43 @@ public final class GratefulDeadAddon {
                     "the_grateful_dead",
                     GratefulDeadAddon::createStand);
 
-    public GratefulDeadAddon(IEventBus modEventBus) {
+    public GratefulDeadAddon(IEventBus modEventBus, ModContainer modContainer) {
         requireCoreApi();
+        modContainer.registerConfig(
+                ModConfig.Type.COMMON,
+                GratefulDeadConfig.COMMON_SPEC,
+                "rotp_grateful_dead-common.toml");
+        modContainer.registerConfig(
+                ModConfig.Type.CLIENT,
+                GratefulDeadConfig.CLIENT_SPEC,
+                "rotp_grateful_dead-client.toml");
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            rotp.addons.gratefuldead.client.GratefulDeadClientEvents
+                    .registerConfigScreen(modContainer);
+        }
+        // 0.1.13 ActionAgingMixin / PowerBaseImplAgingMixin: a user aged to 0
+        // Stand durability can no longer use the Stand (Sex Pistols excepted).
+        AbilityRefusals.register(
+                ResourceLocation.fromNamespaceAndPath(
+                        MOD_ID, "aging_stand_lock"),
+                (ability, context, user) ->
+                        context instanceof StandPower power
+                                && !isSexPistols(power)
+                                && AgingService.cannotUseStand(user)
+                        ? ConditionCheck.NEGATIVE
+                        : null);
+        // 0.1.13 TheGratefulDeadBlockAction: no guard while the Stand holds someone.
+        AbilityRefusals.register(
+                ResourceLocation.fromNamespaceAndPath(
+                        MOD_ID, "grab_block_lock"),
+                (ability, context, user) ->
+                        context instanceof StandPower power
+                                && BLOCK.equals(ability.abilityId.nameInMoveset())
+                                && power.getSummonedStandEntity() != null
+                                && LivingComponentGrab.getEntityGrabbedBy(
+                                        power.getSummonedStandEntity()) != null
+                        ? ConditionCheck.NEGATIVE
+                        : null);
         CreeperFuseSuppressionProviders.register(
                 ResourceLocation.fromNamespaceAndPath(
                         MOD_ID, "aging"),
@@ -198,6 +362,16 @@ public final class GratefulDeadAddon {
                 ResourceLocation.fromNamespaceAndPath(
                         MOD_ID, "aging"),
                 AgingService::agedTimeStopBlinkTicks);
+        StandStaminaCostFactors.register(
+                ResourceLocation.fromNamespaceAndPath(
+                        MOD_ID, "aging_stamina"),
+                (ability, power, baseCost, ticking) ->
+                        AgingService.skillStaminaCostFactor(
+                                ability, power.getUser()));
+        HamonEfficiencyFactors.register(
+                ResourceLocation.fromNamespaceAndPath(
+                        MOD_ID, "aging_hamon"),
+                AgingService::hamonEfficiency);
         ABILITY_TYPES.register(modEventBus);
         ATTACHMENT_TYPES.register(modEventBus);
         DATA_COMPONENT_TYPES.register(modEventBus);
@@ -206,6 +380,7 @@ public final class GratefulDeadAddon {
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
         STAND_EFFECT_TYPES.register(modEventBus);
+        PARTICLE_TYPES.register(modEventBus);
         modEventBus.addListener(
                 GratefulDeadModEvents::registerAttributes);
         modEventBus.addListener(
@@ -219,6 +394,7 @@ public final class GratefulDeadAddon {
             BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == rotp.core.init.ModItems.MAIN_TAB.getKey()) {
             event.accept(PLANT_AGING_DUST.get());
+            event.accept(ICE_CUBE.get());
         }
     }
 
@@ -252,16 +428,42 @@ public final class GratefulDeadAddon {
                 .addHumanoidStandStuff()
                 .addAbility(PUNCH, ModStandAbilities.PUNCH)
                 .addAbility(BARRAGE, ModStandAbilities.BARRAGE)
-                .addAbility(
-                        HEAVY_PUNCH,
-                        ModStandAbilities.HEAVY_PUNCH)
+                .addAbility(HEAVY_PUNCH, HEAVY_PUNCH_TYPE)
                 .addAbility(
                         "heavy_charged",
                         ModStandAbilities.HEAVY_CHARGED)
                 .addAbility(BLOCK, ModStandAbilities.GUARD)
+                .addAbility(
+                        FINISHER,
+                        HEAVY_PUNCH_TYPE,
+                        punch -> punch.initIsFinisher(HEAVY_PUNCH))
+                .addAbility("grab", ModStandAbilities.GRAB)
+                .addAbility("grab_throw", GRAB_THROW_TYPE)
+                .addAbility(
+                        "grab_punch",
+                        ModStandAbilities.PUNCH,
+                        punch -> {
+                            punch.initIsGrabVariation();
+                        })
+                .addAbility(
+                        "grab_barrage",
+                        ModStandAbilities.BARRAGE,
+                        barrage -> {
+                            barrage.initIsGrabVariation();
+                        })
+                .addAbility(
+                        "grab_heavy_punch",
+                        HEAVY_PUNCH_TYPE,
+                        punch -> {
+                            punch.initIsGrabVariation();
+                        })
+                .addAbility(AGING_INJECT, AGING_INJECT_TYPE)
                 .addAbility(AGING_TOUCH, AGING_TOUCH_TYPE)
                 .addAbility(AGING_AURA, AGING_AURA_TYPE)
                 .addAbility(REMOVE_AGING, REMOVE_AGING_TYPE)
+                .addAbility(AGING_SELF, AGING_SELF_TYPE)
+                .addAbility(REMOVE_SELF_AGING, REMOVE_SELF_AGING_TYPE)
+                .addAbility(REMOVE_ALL_AGING, REMOVE_ALL_AGING_TYPE)
                 .makeControlScheme("hotbar")
                     .bind(PUNCH, InputMethod.CLICK, InputKey.LMB)
                     .bind(BARRAGE, InputMethod.HOLD, InputKey.LMB)
@@ -275,11 +477,28 @@ public final class GratefulDeadAddon {
                             MovesetBuilder
                                     .DEFAULT_CHARGED_HEAVY_INPUT)
                     .bind(BLOCK, InputMethod.HOLD, InputKey.RMB)
+                    .bind(
+                            "grab",
+                            InputMethod.CLICK,
+                            MovesetBuilder.DEFAULT_GRAB_INPUT)
+                    .bind(
+                            "grab_throw",
+                            InputMethod.HOLD,
+                            MovesetBuilder.DEFAULT_GRAB_THROW_INPUT)
                     .makeHotbar(0, USE_SPECIAL, SWITCH_SPECIAL)
                     .addToHotbar(
                             AGING_TOUCH,
                             0,
                             InputMethod.HOLD)
+                    .addToHotbar(
+                            AGING_SELF,
+                            0,
+                            InputMethod.HOLD)
+                    .addHotbarSlotVariation(
+                            REMOVE_SELF_AGING,
+                            AGING_SELF,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             AGING_AURA,
                             0,
@@ -287,6 +506,11 @@ public final class GratefulDeadAddon {
                     .addToHotbar(
                             REMOVE_AGING,
                             0,
+                            InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            REMOVE_ALL_AGING,
+                            REMOVE_AGING,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")
@@ -302,6 +526,14 @@ public final class GratefulDeadAddon {
                             MovesetBuilder
                                     .DEFAULT_CHARGED_HEAVY_INPUT)
                     .bind(BLOCK, InputMethod.HOLD, InputKey.RMB)
+                    .bind(
+                            "grab",
+                            InputMethod.CLICK,
+                            MovesetBuilder.DEFAULT_GRAB_INPUT)
+                    .bind(
+                            "grab_throw",
+                            InputMethod.HOLD,
+                            MovesetBuilder.DEFAULT_GRAB_THROW_INPUT)
                 .finalizeControlScheme()
                 .addSkill(
                         StandUnlockableSkill.startingAbility(PUNCH))
@@ -317,6 +549,19 @@ public final class GratefulDeadAddon {
                 .addSkill(
                         StandUnlockableSkill.startingAbility(BLOCK))
                 .addSkill(
+                        StandUnlockableSkill.startingAbility(FINISHER)
+                                .withAbility(AGING_INJECT)
+                                .prerequisiteSkill(HEAVY_PUNCH))
+                .addSkill(StandUnlockableSkill.startingAbility("grab"))
+                .addSkill(StandUnlockableSkill.unlockableAbility(
+                        "grab_throw",
+                        100)
+                        .withAbility(
+                                "grab_punch",
+                                "grab_barrage",
+                                "grab_heavy_punch")
+                        .prerequisiteSkill("grab"))
+                .addSkill(
                         StandUnlockableSkill.startingAbility(
                                 AGING_TOUCH))
                 .addSkill(
@@ -325,6 +570,15 @@ public final class GratefulDeadAddon {
                 .addSkill(
                         StandUnlockableSkill.startingAbility(
                                 REMOVE_AGING))
+                .addSkill(
+                        StandUnlockableSkill.startingAbility(
+                                AGING_SELF))
+                .addSkill(
+                        StandUnlockableSkill.startingAbility(
+                                REMOVE_SELF_AGING))
+                .addSkill(
+                        StandUnlockableSkill.startingAbility(
+                                REMOVE_ALL_AGING))
                 .addSkill(
                         StandUnlockableSkill.startingAbility(
                                 "manual_control"));
@@ -352,8 +606,38 @@ public final class GratefulDeadAddon {
                 .distanceStrengthDecay(true)
                 .standDimensions(0.65F, 1.8F)
                 .summonShout(() -> THE_GRATEFUL_DEAD_SOUND)
-                .summonSound(() -> ModSoundEvents.STAND_SUMMON)
-                .unsummonSound(() -> ModSoundEvents.STAND_UNSUMMON);
+                .summonSound(GratefulDeadAddon::randomSummonSound)
+                .unsummonSound(() -> THE_GRATEFUL_DEAD_UNSUMMON);
+    }
+
+    public static DeferredHolder<SoundEvent, SoundEvent> randomSummonSound() {
+        return pick(SUMMON_SOUNDS);
+    }
+
+    public static DeferredHolder<SoundEvent, SoundEvent>
+            randomAgingPunchShout() {
+        return pick(AGING_PUNCH_SHOUTS);
+    }
+
+    public static DeferredHolder<SoundEvent, SoundEvent> randomHeavyShout() {
+        return pick(HEAVY_SHOUTS);
+    }
+
+    private static DeferredHolder<SoundEvent, SoundEvent> pick(
+            List<DeferredHolder<SoundEvent, SoundEvent>> sounds) {
+        return sounds.get(
+                ThreadLocalRandom.current().nextInt(sounds.size()));
+    }
+
+    private static DeferredHolder<SoundEvent, SoundEvent> sound(String path) {
+        return SOUND_EVENTS.register(
+                path, SoundEvent::createVariableRangeEvent);
+    }
+
+    private static boolean isSexPistols(StandPower power) {
+        return power.getPowerType() != null
+                && "sex_pistols".equals(
+                        power.getPowerType().getId().getPath());
     }
 
     private static int agedSwingDuration(
@@ -369,16 +653,23 @@ public final class GratefulDeadAddon {
                 || !aged.hasData(LIVING_AGING)) {
             return currentDuration;
         }
-        float progress = LivingAgingState.get(aged).progress();
-        if (progress <= 0.0F) {
+        LivingAgingState state = LivingAgingState.get(aged);
+        float progress = state.progress();
+        if (progress <= 0.0F
+                || stand && state.selfInflicted(aged)) {
             return currentDuration;
         }
-        float efficiency = stand
-                ? Math.max(0.1F, 1.0F - progress * 0.9F)
-                : Math.max(0.4F, 1.0F - progress * 0.55F);
+        // 0.1.13 getSwingDurationMultiplier: 1 / max(0.08, speed efficiency)
+        double efficiency =
+                LivingAgingState.strengthEfficiency(progress);
+        if (efficiency >= 0.999D) {
+            return currentDuration;
+        }
         return Math.max(
                 currentDuration,
-                (int) Math.ceil(currentDuration / efficiency));
+                (int) Math.ceil(
+                        currentDuration
+                                / Math.max(0.08D, efficiency)));
     }
 
     private static void requireCoreApi() {
@@ -430,7 +721,10 @@ public final class GratefulDeadAddon {
                                 .FEATURE_STAND_POWER_ACTION_SLOT_V1)
                 || !RotpAddonApi.supportsFeature(
                         RotpAddonApi
-                                .FEATURE_STAND_ACTION_PORT_SLOT_V1)) {
+                                .FEATURE_STAND_ACTION_PORT_SLOT_V1)
+                || !RotpAddonApi.supportsFeature(
+                        RotpAddonApi
+                                .FEATURE_ABILITY_CONDITION_REFUSALS_V1)) {
             throw new IllegalStateException(
                     "RotP Grateful Dead requires ROTP addon ABI 1 "
                             + "with namespaced ability resources and "
@@ -444,7 +738,8 @@ public final class GratefulDeadAddon {
                             + "material tint policies, time-stop "
                             + "ticks modifiers, and the user's "
                             + "Stand-power action slot with its Stand "
-                            + "action ports.");
+                            + "action ports, and ability condition "
+                            + "refusals.");
         }
     }
 }

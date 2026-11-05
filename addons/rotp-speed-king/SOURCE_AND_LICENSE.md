@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-speed-king`, mod id `speedking`, version `1.0-port.19`.
+- Module: `rotp-speed-king`, mod id `speedking`, version `1.0-port.20`.
 - Original 1.16.5 add-on: `RotP-speedking-1.0.jar` (速度之王, mod id `speedking`), by 1adolf1(B站超级气球真理部_official); declared license: GNU GPL v3.0; SHA-256 `2C7926A44071483156186E73E1C35C512BEAFB2FAD955618490348273A42F229`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-10-24); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -56,3 +56,12 @@ meanwhile already spent, so it keeps counting down as it did in 1.16.
 Not from the donor: a player's barrage ends on a tick it cannot pay. That is
 the owner's rule for the core barrage (decision D-core-90); the 1.16 barrage
 went on at 0 stamina.
+
+The idle loop, the three summon poses and the guard are clips converted from
+the donor `ExampleStandModel` (`initIdlePose`, `initIdlePose2Loop`,
+`initSummonPoseRotations`) and the 1.16 `HumanoidStandModel` guard pose, and
+the melee clips end on the donor idle and keep its legs, as 1.16 laid the idle
+under every move and returned to it. As in 1.16 the idle loop also eases the
+look itself, so the head nods to twice the look every 4 s. The heat moves and
+the pickaxe throw keep their Java arm poses (`SpeedKingModel`), which also gives
+this rig, whose bones keep the 1.16 names, the 1.16 motion tilt.

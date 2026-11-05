@@ -5,6 +5,7 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 
 import rotp.core.api.stand.StandPowerTransitions;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.entityaction.ActionPhase;
@@ -124,8 +125,14 @@ public final class StoneFreeActionOffsetGameTests {
      * the Stand aimed at as it was pressed, and while it ran the default offset turned by the yaw from the user's
      * eyes to that target's eyes, wherever the user looked.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
+            timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void stringBindTurnsTheOffsetToItsTarget(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> stringBindTurnsTheOffsetToItsTargetBody(h));
+    }
+
+    private static void stringBindTurnsTheOffsetToItsTargetBody(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "sf-bind-target")) {
             @Override
@@ -199,8 +206,14 @@ public final class StoneFreeActionOffsetGameTests {
      * (clamped to the distance less the Stand's width, at most 1.5), or the
      * look vector times 1.5 without a target; with 1 tick left it is zero.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
+            timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void stringPunchSlidesToItsTargetAndStops(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> stringPunchSlidesToItsTargetAndStopsBody(h));
+    }
+
+    private static void stringPunchSlidesToItsTargetAndStopsBody(GameTestHelper helper) {
         Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
                 new GameProfile(UUID.randomUUID(), "sf-string-slide")) {
             @Override
@@ -310,6 +323,109 @@ public final class StoneFreeActionOffsetGameTests {
             }
             near.discard();
             far.discard();
+            user.discard();
+        }
+    }
+
+    /**
+     * Owner T2: pressed at a mob on its user's look past what the windup slide reaches (6.2 blocks; base reach 5,
+     * reach out to 6.25), the string punch flies out in front of it as the core heavy punch does, follows its user
+     * through the strike instead of moving by itself, and strikes weaker past the base reach.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
+            timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
+    public static void stringPunchFliesOutToAMobPastItsSlideAndStrikesWeaker(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> stringPunchFliesOutBody(h));
+    }
+
+    private static void stringPunchFliesOutBody(GameTestHelper helper) {
+        Player user = new Player(helper.getLevel(), BlockPos.ZERO, 0.0F,
+                new GameProfile(UUID.randomUUID(), "sf-string-reach")) {
+            @Override
+            public boolean isSpectator() {
+                return false;
+            }
+
+            @Override
+            public boolean isCreative() {
+                return false;
+            }
+        };
+        StandType type = StoneFreeAddon.STONE_FREE.get();
+        StandPower power = null;
+        Cow cow = EntityType.COW.create(helper.getLevel());
+        try {
+            user.getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get())
+                    .standSide = HumanoidArm.RIGHT;
+            Vec3 pos = helper.absoluteVec(new Vec3(2.5D, 12.0D, 2.5D));
+            user.setNoGravity(true);
+            user.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
+            helper.assertTrue(helper.getLevel().addFreshEntity(user),
+                    "Could not add the Stone Free user");
+            power = PowerClass.STAND.attachGet(user);
+            helper.assertTrue(StandPowerTransitions.insert(power,
+                            new StandInstance(type)).status()
+                            == StandPowerTransitions.Status.APPLIED,
+                    "Could not grant Stone Free");
+            power.skipProgression();
+            helper.assertTrue(type.summon(user, power), "Could not summon Stone Free");
+            StandEntity stand = power.getSummonedStandEntity();
+            stand.setNoGravity(true);
+            helper.assertTrue(cow != null, "setup: could not make a cow");
+            cow.setNoAi(true);
+            cow.setNoGravity(true);
+            Vec3 cowPos = null;
+            float yaw = 0.0F;
+            for (float side : new float[] {0.0F, 180.0F, -90.0F, 90.0F}) {
+                Vec3 look = Vec3.directionFromRotation(0.0F, side);
+                Vec3 candidate = pos.add(look.scale(6.2D));
+                if (helper.getLevel().isPositionEntityTicking(BlockPos.containing(candidate))) {
+                    cowPos = candidate;
+                    yaw = side;
+                    break;
+                }
+            }
+            helper.assertTrue(cowPos != null, "setup: no side of the user is 6.2 blocks of entity-ticking ground");
+            turn(user, yaw, yaw);
+            user.setXRot(0.0F);
+            stand.updatePosition(user);
+            cow.moveTo(cowPos.x, cowPos.y, cowPos.z, 0.0F, 0.0F);
+            helper.assertTrue(helper.getLevel().addFreshEntity(cow), "setup: could not add the cow");
+            // what the Stand's aim met, as its user's client sent it
+            LivingComponentAction.getComponent(stand).entityAim.setTarget(new ActionTarget(cow));
+
+            EntityActionInstance punch = start(helper, user, power, stand,
+                    StoneFreeAddon.STRING_PUNCH_NAME);
+            helper.assertTrue(punch instanceof StoneFreeStringPunchAbility.StringPunchAction string
+                            && string.fliesOut(),
+                    "The string punch pressed at a cow 6.2 blocks away did not fly out; it holds "
+                            + punch.getTaskTarget(helper.getLevel()));
+            double forward = stand.offsetFromUser.getRelativeOffset().z;
+            helper.assertTrue(forward > 4.0D && forward < 5.0D,
+                    "The string punch did not put Stone Free in front of the cow 6.2 blocks away (4.75 forward):"
+                            + " offset " + stand.offsetFromUser.getRelativeOffset());
+            punch.setPhase(ActionPhase.WINDUP, 8);
+            helper.assertTrue(stand.isFollowingUser(),
+                    "A string punch that flew out moved by itself in its last windup ticks");
+            punch.setPhase(ActionPhase.PERFORM, 0);
+            float factor = StandMeleeReach.strikeFactor(stand, cow);
+            helper.assertTrue(stand.isFollowingUser() && StandMeleeReach.reachable(stand, cow)
+                            && factor > 0.5F && factor < 0.6F,
+                    "A string punch that flew out to a cow 5.75 blocks from its user's eyes did not strike it"
+                            + " at about 0.55 of its strength (base reach 5, margin 1.25): following "
+                            + stand.isFollowingUser() + ", reachable " + StandMeleeReach.reachable(stand, cow)
+                            + ", factor " + factor);
+            stop(user, stand);
+            helper.succeed();
+        }
+        finally {
+            if (power != null && power.isSummoned()) {
+                type.forceUnsummon(user, power);
+            }
+            if (cow != null) {
+                cow.discard();
+            }
             user.discard();
         }
     }

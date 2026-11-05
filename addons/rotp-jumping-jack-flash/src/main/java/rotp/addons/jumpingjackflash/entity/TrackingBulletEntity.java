@@ -1,16 +1,13 @@
 package rotp.addons.jumpingjackflash.entity;
 
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import rotp.core.customobjects.entity_projectile.ModdedProjectileEntity;
+import rotp.core.customobjects.entity_projectile.TommyGunBulletEntity;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
 import rotp.addons.jumpingjackflash.JumpingJackFlashAddon;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -18,29 +15,22 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.projectile.ItemSupplier;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-public final class TrackingBulletEntity
-        extends ModdedProjectileEntity implements ItemSupplier {
+// 1.16 TrackingBulletEntity extended TommyGunBulletEntity and was drawn as
+// its bright trace; an item sprite at 3 blocks a tick read as "nothing fired".
+public final class TrackingBulletEntity extends TommyGunBulletEntity {
     public static final int VOLLEY_COUNT = 16;
     public static final float BASE_DAMAGE = 8.0F;
     public static final float TRACKING_RANGE = 20.0F;
     public static final float TRACKING_BLEND = 0.1F;
-    public static final int LIFETIME_TICKS = 100;
-    public static final int MAX_TRACE_POINTS = 48;
 
     private static final EntityDataAccessor<Optional<UUID>> TARGET_UUID =
             SynchedEntityData.defineId(
                     TrackingBulletEntity.class,
                     EntityDataSerializers.OPTIONAL_UUID);
-
-    public final List<Vec3> tracePos = new LinkedList<>();
-    public Vec3 initialPos;
 
     public TrackingBulletEntity(
             EntityType<? extends TrackingBulletEntity> type,
@@ -50,8 +40,8 @@ public final class TrackingBulletEntity
     }
 
     public TrackingBulletEntity(LivingEntity shooter, Level level) {
-        super(JumpingJackFlashAddon.TRACKING_BULLET.get(), shooter, level);
-        setNoGravity(true);
+        this(JumpingJackFlashAddon.TRACKING_BULLET.get(), level);
+        setOwner(shooter);
     }
 
     @Override
@@ -62,7 +52,6 @@ public final class TrackingBulletEntity
         }
         setNoGravity(true);
         if (level().isClientSide()) {
-            appendTrace(position());
             return;
         }
         if (!(getOwner() instanceof LivingEntity owner)
@@ -147,17 +136,6 @@ public final class TrackingBulletEntity
         return target instanceof LivingEntity living ? living : null;
     }
 
-    private void appendTrace(Vec3 pos) {
-        if (tracePos.isEmpty()
-                || pos.distanceToSqr(
-                        tracePos.get(tracePos.size() - 1)) >= 0.05D) {
-            tracePos.add(pos);
-            while (tracePos.size() > MAX_TRACE_POINTS) {
-                tracePos.remove(0);
-            }
-        }
-    }
-
     @Override
     protected boolean canHitEntity(Entity entity) {
         return super.canHitEntity(entity)
@@ -170,24 +148,11 @@ public final class TrackingBulletEntity
         return BASE_DAMAGE;
     }
 
-    @Override
-    protected float getMaxHardnessBreakable() {
-        return 0.0F;
-    }
-
+    // Kept from the tommy gun bullet the 1.16 volley was: seen by everyone,
+    // non-Stand damage, 40-tick life, breaks blocks up to hardness 0.3.
     @Override
     public boolean standDamage() {
-        return true;
-    }
-
-    @Override
-    public int ticksLifespan() {
-        return LIFETIME_TICKS;
-    }
-
-    @Override
-    public ItemStack getItem() {
-        return new ItemStack(Items.IRON_NUGGET);
+        return false;
     }
 
     @Override
@@ -213,12 +178,6 @@ public final class TrackingBulletEntity
     }
 
     @Override
-    public void readSpawnData(RegistryFriendlyByteBuf buffer) {
-        super.readSpawnData(buffer);
-        initialPos = position();
-    }
-
-    @Override
     protected void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         entityData.get(TARGET_UUID)
@@ -233,17 +192,5 @@ public final class TrackingBulletEntity
                 tag.hasUUID("Target")
                         ? Optional.of(tag.getUUID("Target"))
                         : Optional.empty());
-    }
-
-    @Override
-    public void remove(RemovalReason reason) {
-        tracePos.clear();
-        initialPos = null;
-        super.remove(reason);
-    }
-
-    @Override
-    public boolean shouldRenderAtSqrDistance(double distance) {
-        return true;
     }
 }

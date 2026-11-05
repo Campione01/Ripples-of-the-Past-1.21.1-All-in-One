@@ -1,0 +1,33 @@
+{
+  "variants": {
+    "facing=up,variant=0":    { "model": "rotp_echoes:block/mark_particle_0" },
+    "facing=up,variant=1":    { "model": "rotp_echoes:block/mark_particle_1" },
+    "facing=up,variant=2":    { "model": "rotp_echoes:block/mark_particle_2" },
+    "facing=up,variant=3":    { "model": "rotp_echoes:block/mark_particle_3" },
+
+    "facing=down,variant=0":  { "model": "rotp_echoes:block/mark_particle_0" },
+    "facing=down,variant=1":  { "model": "rotp_echoes:block/mark_particle_1" },
+    "facing=down,variant=2":  { "model": "rotp_echoes:block/mark_particle_2" },
+    "facing=down,variant=3":  { "model": "rotp_echoes:block/mark_particle_3" },
+
+    "facing=north,variant=0": { "model": "rotp_echoes:block/mark_particle_0" },
+    "facing=north,variant=1": { "model": "rotp_echoes:block/mark_particle_1" },
+    "facing=north,variant=2": { "model": "rotp_echoes:block/mark_particle_2" },
+    "facing=north,variant=3": { "model": "rotp_echoes:block/mark_particle_3" },
+
+    "facing=south,variant=0": { "model": "rotp_echoes:block/mark_particle_0" },
+    "facing=south,variant=1": { "model": "rotp_echoes:block/mark_particle_1" },
+    "facing=south,variant=2": { "model": "rotp_echoes:block/mark_particle_2" },
+    "facing=south,variant=3": { "model": "rotp_echoes:block/mark_particle_3" },
+
+    "facing=west,variant=0":  { "model": "rotp_echoes:block/mark_particle_0" },
+    "facing=west,variant=1":  { "model": "rotp_echoes:block/mark_particle_1" },
+    "facing=west,variant=2":  { "model": "rotp_echoes:block/mark_particle_2" },
+    "facing=west,variant=3":  { "model": "rotp_echoes:block/mark_particle_3" },
+
+    "facing=east,variant=0":  { "model": "rotp_echoes:block/mark_particle_0" },
+    "facing=east,variant=1":  { "model": "rotp_echoes:block/mark_particle_1" },
+    "facing=east,variant=2":  { "model": "rotp_echoes:block/mark_particle_2" },
+    "facing=east,variant=3":  { "model": "rotp_echoes:block/mark_particle_3" }
+  }
+}

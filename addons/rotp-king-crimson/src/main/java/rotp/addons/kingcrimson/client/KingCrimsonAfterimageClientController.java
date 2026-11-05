@@ -33,6 +33,7 @@ public final class KingCrimsonAfterimageClientController {
                 payload.lifespanTicks());
         // the server sends these only to the Time Erase user, so the red outline is seen by that user alone
         afterimage.showTimeEraseOutline();
+        afterimage.followErasePauseOf(Minecraft.getInstance().player);
         afterimage.moveTo(
                 payload.x(),
                 payload.y(),

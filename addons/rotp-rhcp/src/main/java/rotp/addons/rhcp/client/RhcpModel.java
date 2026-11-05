@@ -1,5 +1,8 @@
 package rotp.addons.rhcp.client;
 
+import org.joml.Vector3f;
+
+import rotp.core.client.entityanim.playerbend.ArmsFollowPitch;
 import rotp.core.client.entityrender.stand.StandEntityModel;
 import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.compat.v1_21_4.missingmethods.Model_1_21_2plus;
@@ -13,8 +16,12 @@ import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.client.model.geom.builders.MeshDefinition;
 import net.minecraft.client.model.geom.builders.PartDefinition;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.HumanoidArm;
 
-/** Native 1.21.1 translation of the donor 128x128 RHCP model. */
+/**
+ * Native 1.21.1 translation of the donor 128x128 RHCP model (RotP-RHCP Beta1 and
+ * Beta2 RHCPModel over the 1.16 HumanoidStandModel) and of the 1.16 poses it plays.
+ */
 public final class RhcpModel extends StandEntityModel<
         RhcpStandEntity, RhcpRenderState> {
     private final ModelPart tail;
@@ -25,6 +32,9 @@ public final class RhcpModel extends StandEntityModel<
     private final ModelPart beakLower;
     private final ModelPart[] actionParts;
     private final ModelPart[] joints;
+    // 1.16 HumanoidStandModel.setSecondXRot: the look pitch the arms take on top of a pose.
+    private float armPitch;
+    private final Frame blockScratch = new Frame();
 
     private static final int BODY = 0;
     private static final int TORSO = 1;
@@ -48,6 +58,17 @@ public final class RhcpModel extends StandEntityModel<
             LEFT_LEG, LEFT_LOWER_LEG,
             TAIL, TAIL + 1, TAIL + 2, TAIL + 3, TAIL + 4
     };
+
+    // 1.16 ModelPose.setEasing of the pose a transition goes to.
+    private static final int LINEAR = 0;
+    private static final int SQUARE = 1;
+    private static final int CUBE = 2;
+
+    // 1.16 HumanoidStandModel armsRotation, armsRotationFull and armsRotationBack.
+    private static final int PITCH_NONE = 0;
+    private static final int PITCH_TURN = 1;
+    private static final int PITCH_FULL = 2;
+    private static final int PITCH_BACK = 3;
 
     private static final Frame EMPTY = frame();
 
@@ -73,7 +94,64 @@ public final class RhcpModel extends StandEntityModel<
             .leftArm(15, 0, -35).leftForearm(-90, 50, -57.5F)
             .rightArm(15, 0, 35).rightForearm(-90, -50, 57.5F);
 
-    // The inherited 1.16.5 HumanoidStandModel light-jab timeline.
+    // RHCP donor summon poses (RHCPModel.initSummonPoseRotations).
+    private static final Frame SUMMON_1 = frame()
+            .head(10.0F, 0.0F, 5.0F)
+            .body(40.0F, 15.0F, 10.0F)
+            .torso(0.0F, 0.0F, 0.0F)
+            .tail(0, -26.5F, 30.0F, 0.0F)
+            .tail(1, -10.0F, 10.0F, 0.0F)
+            .tail(2, 0.0F, 15.0F, 0.0F)
+            .tail(3, 0.0F, 15.0F, 0.0F)
+            .tail(4, 0.0F, 20.0F, 0.0F)
+            .leftArm(-90.0F, 55.0F, -110.0F)
+            .leftForearm(-90.0F, -67.5F, 90.0F)
+            .rightArm(-90.0F, -55.0F, 110.0F)
+            .rightForearm(-90.0F, 67.5F, -90.0F)
+            .leftLeg(-75.0F, -30.0F, 0.0F)
+            .leftLowerLeg(110.0F, 0.0F, 0.0F)
+            .rightLeg(-75.0F, 30.0F, 0.0F)
+            .rightLowerLeg(110.0F, 0.0F, 0.0F);
+    private static final Frame SUMMON_2 = frame()
+            .head(-7.5F, 0.0F, 0.0F)
+            .body(0.0F, 0.0F, 2.5F)
+            .torso(0.0F, 0.0F, 0.0F)
+            .tail(0, 10.0F, 40.0F, 0.0F)
+            .tail(1, 5.0F, 10.0F, 0.0F)
+            .tail(2, 0.0F, 15.0F, 0.0F)
+            .tail(3, -5.0F, 15.0F, 0.0F)
+            .tail(4, -5.0F, 20.0F, 0.0F)
+            .leftArm(-110.0F, 77.5F, -95.0F)
+            .leftForearm(-98.2468F, -10.5378F, 6.8048F)
+            .rightArm(-110.0F, -77.5F, 95.0F)
+            .rightForearm(-102.0559F, 4.0043F, -13.027F)
+            .leftLeg(-5.0F, 0.0F, -2.5F)
+            .leftLowerLeg(10.0F, 0.0F, 0.0F)
+            .rightLeg(-5.0F, 0.0F, 2.5F)
+            .rightLowerLeg(20.0F, 0.0F, 0.0F);
+    private static final Frame SUMMON_3 = frame()
+            .head(5.0F, -5.0F, 10.0F)
+            .body(15.0F, -5.0F, 10.0F)
+            .torso(0.0F, 15.0F, 0.0F)
+            .tail(0, 0.0F, -40.0F, 0.0F)
+            .tail(1, 0.0F, -15.0F, 0.0F)
+            .tail(2, 0.0F, -17.5F, 0.0F)
+            .tail(3, -5.0F, -20.0F, 0.0F)
+            .tail(4, -7.5F, -20.0F, 0.0F)
+            .leftArm(-56.0297F, 24.0929F, -83.1183F)
+            .leftForearm(-32.5F, 0.0F, 0.0F)
+            .rightArm(100.0F, -40.0F, 0.0F)
+            .rightForearm(-80.0F, 0.0F, 0.0F)
+            .leftLeg(-120.0F, -5.0F, 0.0F)
+            .leftLowerLeg(130.0F, 0.0F, 0.0F)
+            .rightLeg(-25.0F, 30.0F, 0.0F)
+            .rightLowerLeg(90.0F, 0.0F, 0.0F);
+    private static final Frame[] SUMMON_POSES = {SUMMON_1, SUMMON_2, SUMMON_3};
+    // 1.16 LegacyStandAnimator SUMMON_ANIMATION_LENGTH and its reverse point.
+    private static final float SUMMON_TICKS = 20.0F;
+    private static final float SUMMON_REVERSE_POINT = 0.75F;
+
+    // The inherited 1.16 HumanoidStandModel light-jab timeline.
     private static final Frame JAB_1 = frame()
             .body(0.0F, 0.0F, 0.0F)
             .torso(0.0F, -15.0F, 0.0F)
@@ -87,21 +165,24 @@ public final class RhcpModel extends StandEntityModel<
             .leftArm(30.0F, 0.0F, -15.0F)
             .leftForearm(-107.5F, 15.0F, 7.5F)
             .rightArm(5.941F, 8.4211F, 69.059F)
-            .rightForearm(-75.0F, 0.0F, 0.0F);
+            .rightForearm(-75.0F, 0.0F, 0.0F)
+            .pitch(PITCH_TURN);
     private static final Frame JAB_3 = frame()
             .body(0.0F, -12.5F, 0.0F)
             .torso(0.0F, -17.5F, 0.0F)
             .leftArm(37.5F, 0.0F, -15.0F)
             .leftForearm(-115.0F, 15.0F, 7.5F)
             .rightArm(-81.9244F, 11.0311F, 70.2661F)
-            .rightForearm(0.0F, 0.0F, 0.0F);
+            .rightForearm(0.0F, 0.0F, 0.0F)
+            .pitch(PITCH_FULL).ease(CUBE);
     private static final Frame JAB_4 = frame()
             .body(0.0F, -3.75F, 0.0F)
             .torso(0.0F, -3.75F, 0.0F)
             .leftArm(5.63F, 0.0F, -20.62F)
             .leftForearm(-103.75F, 3.75F, 13.13F)
             .rightArm(5.941F, 8.4211F, 69.059F)
-            .rightForearm(-75.0F, 0.0F, 0.0F);
+            .rightForearm(-75.0F, 0.0F, 0.0F)
+            .pitch(PITCH_BACK).ease(CUBE);
 
     // RHCP donor regular heavy-punch timeline.
     private static final Frame HEAVY_1 = frame()
@@ -156,7 +237,8 @@ public final class RhcpModel extends StandEntityModel<
             .leftArm(3.33F, -5.0F, -90.0F)
             .leftForearm(-90.0F, 3.33F, 90.0F)
             .rightArm(25.0F, 0.0F, 60.0F)
-            .rightForearm(-53.33F, -6.66F, -6.66F);
+            .rightForearm(-53.33F, -6.66F, -6.66F)
+            .ease(SQUARE);
     private static final Frame HEAVY_ALT_3 = frame()
             .beak(20.0F, 0.0F, 0.0F)
             .body(5.0F, 0.0F, 0.0F)
@@ -164,7 +246,8 @@ public final class RhcpModel extends StandEntityModel<
             .leftArm(6.66F, -5.0F, -90.0F)
             .leftForearm(-90.0F, 6.66F, 90.0F)
             .rightArm(25.0F, 0.0F, 60.0F)
-            .rightForearm(-46.67F, -3.33F, -3.33F);
+            .rightForearm(-46.67F, -3.33F, -3.33F)
+            .ease(SQUARE);
     private static final Frame HEAVY_ALT_4 = frame()
             .beak(25.0F, 0.0F, 0.0F)
             .body(5.0F, 0.0F, 0.0F)
@@ -172,7 +255,8 @@ public final class RhcpModel extends StandEntityModel<
             .leftArm(10.0F, -5.0F, -90.0F)
             .leftForearm(-90.0F, 10.0F, 90.0F)
             .rightArm(25.0F, 0.0F, 60.0F)
-            .rightForearm(-40.0F, 0.0F, 0.0F);
+            .rightForearm(-40.0F, 0.0F, 0.0F)
+            .ease(SQUARE);
     private static final Frame HEAVY_ALT_5 = frame()
             .beak(25.0F, 0.0F, 0.0F)
             .body(0.0F, 0.0F, 0.0F)
@@ -180,7 +264,8 @@ public final class RhcpModel extends StandEntityModel<
             .leftArm(-59.9053F, -4.3288F, -92.5048F)
             .leftForearm(-90.0F, -80.0F, 90.0F)
             .rightArm(20.0F, 0.0F, 30.0F)
-            .rightForearm(-90.0F, 0.0F, 0.0F);
+            .rightForearm(-90.0F, 0.0F, 0.0F)
+            .ease(CUBE);
 
     // RHCP donor normal double-hit combo.
     private static final Frame DOUBLE_HIT_1 = frame()
@@ -289,7 +374,7 @@ public final class RhcpModel extends StandEntityModel<
             .rightLeg(-50.0F, 30.0F, 10.0F)
             .rightLowerLeg(100.0F, 0.0F, 0.0F);
 
-    // RHCP donor dodge taunt, where both counters start.
+    // RHCP donor dodge taunt loop (TAUNT_POSE), where both counters start.
     private static final Frame TAUNT_1 = counterStance()
             .head(25.0F, 110.0F, 25.5F)
             .body(0.0F, 45.0F, 0.0F)
@@ -302,6 +387,84 @@ public final class RhcpModel extends StandEntityModel<
             .leftForearm(-90.0F, -20.0F, 90.0F)
             .rightArm(40.0458F, -17.6444F, 7.1442F)
             .rightForearm(-57.5F, 0.0F, 0.0F);
+    private static final Frame TAUNT_2 = counterStance()
+            .head(25.0F, 110.0F, 25.5F)
+            .body(0.0F, 45.0F, 0.0F)
+            .tail(0, -27.0F, 0.0F, 0.0F)
+            .tail(1, -5.0F, -10.0F, 0.0F)
+            .tail(2, -5.0F, -15.0F, 0.0F)
+            .tail(3, 0.0F, -15.0F, 0.0F)
+            .tail(4, 2.5F, -20.0F, 0.0F)
+            .leftArm(-68.5365F, 3.9942F, -58.1966F)
+            .leftForearm(-90.0F, 0.0F, 90.0F)
+            .rightArm(40.0458F, -17.6444F, 7.1442F)
+            .rightForearm(-57.5F, 0.0F, 0.0F);
+    private static final float TAUNT_LOOP_TICKS = 40.0F;
+
+    // RHCP donor recharge loop (RECHARGE_POSE).
+    private static final Frame RECHARGE_1 = frame()
+            .tail(0, -27.0F, 0.0F, 0.0F)
+            .tail(1, -12.5F, 10.0F, 0.0F)
+            .tail(2, 15.0F, 15.0F, 0.0F)
+            .tail(3, 15.0F, 15.0F, 0.0F)
+            .tail(4, 15.0F, 20.0F, 0.0F)
+            .leftArm(-40.8764F, -57.2995F, 13.8593F)
+            .leftForearm(-90.0F, -10.0F, 90.0F)
+            .rightArm(-40.8764F, 57.2995F, -13.8593F)
+            .rightForearm(-90.0F, 10.0F, -90.0F)
+            .leftLeg(-60.0F, -45.0F, 0.0F)
+            .leftLowerLeg(90.0F, 0.0F, 0.0F)
+            .rightLeg(-60.0F, 45.0F, 0.0F)
+            .rightLowerLeg(90.0F, 0.0F, 0.0F);
+    private static final Frame RECHARGE_2 = frame()
+            .tail(0, -27.0F, 0.0F, 0.0F)
+            .tail(1, -12.5F, -10.0F, 0.0F)
+            .tail(2, 15.0F, -15.0F, 0.0F)
+            .tail(3, 15.0F, -15.0F, 0.0F)
+            .tail(4, 15.0F, -20.0F, 0.0F)
+            .leftArm(-38.3764F, -57.2995F, 13.8593F)
+            .leftForearm(-90.0F, -7.5F, 90.0F)
+            .rightArm(-38.3764F, 57.2995F, -13.8593F)
+            .rightForearm(-90.0F, 7.5F, -90.0F)
+            .leftLeg(-62.5F, -45.0F, 0.0F)
+            .leftLowerLeg(92.5F, 0.0F, 0.0F)
+            .rightLeg(-62.5F, 45.0F, 0.0F)
+            .rightLowerLeg(92.5F, 0.0F, 0.0F);
+    private static final float RECHARGE_LOOP_TICKS = 30.0F;
+
+    // The inherited 1.16 HumanoidStandModel two-handed barrage (StandTwoHandedBarrageAnimation).
+    private static final Frame BARRAGE_IMPACT = frame()
+            .body(0.0F, 0.0F, 0.0F)
+            .torso(0.0F, -30.0F, 0.0F)
+            .leftArm(22.5F, 0.0F, -60.0F)
+            .leftForearm(-135.0F, 0.0F, 0.0F)
+            .rightArm(-90.0F, 0.0F, 90.0F)
+            .rightForearm(0.0F, 0.0F, 0.0F)
+            .pitch(PITCH_FULL);
+    private static final Frame BARRAGE_READY = frame()
+            .body(0.0F, 0.0F, 0.0F)
+            .torso(0.0F, 0.0F, 0.0F)
+            .leftArm(-33.75F, 0.0F, -75.0F)
+            .leftForearm(-67.5F, 0.0F, 0.0F)
+            .rightArm(-33.75F, 0.0F, 75.0F)
+            .rightForearm(-67.5F, 0.0F, 0.0F)
+            .pitch(PITCH_FULL);
+    private static final Frame BARRAGE_RECOVERY = frame()
+            .body(0.0F, 0.0F, 0.0F)
+            .torso(0.0F, 0.0F, 0.0F)
+            .leftArm(22.5F, 0.0F, -22.5F)
+            .leftForearm(-75.0F, 7.5F, 22.5F)
+            .rightArm(22.5F, 0.0F, 22.5F)
+            .rightForearm(-75.0F, -7.5F, -22.5F);
+    // TwoHandedBarrageAnimation: one punch of each fist every 4 ticks.
+    private static final float BARRAGE_LOOP_TICKS = 4.0F;
+
+    // The inherited 1.16 HumanoidStandModel guard; the arms follow the look (block()).
+    private static final Frame BLOCK = frame()
+            .body(0.0F, 0.0F, 0.0F)
+            .torso(0.0F, 0.0F, 0.0F)
+            .rightForearm(-90.0F, 30.0F, -90.0F)
+            .leftForearm(-90.0F, -30.0F, 90.0F);
 
     // RHCP donor counterattack timeline.
     private static final Frame COUNTER_1 = counterStance()
@@ -386,6 +549,19 @@ public final class RhcpModel extends StandEntityModel<
             {JAB_1, JAB_2, JAB_3, JAB_3};
     private static final float[] JAB_WINDUP_MARKS =
             {0.0F, 0.5F, 0.75F, 1.0F};
+    // jabEnd is the other hand's jabStart.
+    private static final Frame[] JAB_PERFORM =
+            {JAB_3, JAB_3, JAB_4, JAB_1};
+    private static final boolean[] JAB_PERFORM_OTHER_HAND =
+            {false, false, false, true};
+    private static final float[] JAB_PERFORM_MARKS =
+            {0.0F, 0.25F, 0.5F, 1.0F};
+    private static final Frame[] JAB_RECOVERY =
+            {JAB_1, JAB_1, EMPTY};
+    private static final boolean[] JAB_RECOVERY_OTHER_HAND =
+            {true, true, false};
+    private static final float[] JAB_RECOVERY_MARKS =
+            {0.0F, 0.75F, 1.0F};
     private static final Frame[] HEAVY_WINDUP =
             {EMPTY, HEAVY_1, HEAVY_2, HEAVY_3, HEAVY_4};
     private static final float[] HEAVY_WINDUP_MARKS =
@@ -407,10 +583,11 @@ public final class RhcpModel extends StandEntityModel<
             {DOUBLE_HIT_1, DOUBLE_HIT_2, DOUBLE_HIT_3};
     private static final float[] DOUBLE_HIT_PERFORM_MARKS =
             {0.0F, 0.5F, 1.0F};
+    // The finisher has no recovery pose: PosedActionAnimation eases its last pose to idle.
     private static final Frame[] DOUBLE_HIT_RECOVERY =
-            {DOUBLE_HIT_3, DOUBLE_HIT_3, EMPTY};
+            {DOUBLE_HIT_3, EMPTY};
     private static final float[] DOUBLE_HIT_RECOVERY_MARKS =
-            {0.0F, 0.25F, 1.0F};
+            {0.0F, 1.0F};
     private static final Frame[] COMBO_ALT_WINDUP =
             {EMPTY, COMBO_ALT_1, COMBO_ALT_2, COMBO_ALT_3};
     private static final float[] COMBO_ALT_WINDUP_MARKS =
@@ -419,6 +596,10 @@ public final class RhcpModel extends StandEntityModel<
             {COMBO_ALT_3, COMBO_ALT_3, COMBO_ALT_3, EMPTY};
     private static final float[] COMBO_ALT_RECOVERY_MARKS =
             {0.0F, 0.5F, 0.7F, 1.0F};
+    private static final Frame[] BARRAGE_RECOVERY_FRAMES =
+            {BARRAGE_READY, BARRAGE_RECOVERY, BARRAGE_RECOVERY, EMPTY};
+    private static final float[] BARRAGE_RECOVERY_MARKS =
+            {0.0F, 0.25F, 0.5F, 1.0F};
     private static final Frame[] COUNTER_WINDUP =
             {TAUNT_1, COUNTER_1, COUNTER_2, COUNTER_3, COUNTER_3};
     private static final float[] COUNTER_WINDUP_MARKS =
@@ -447,10 +628,11 @@ public final class RhcpModel extends StandEntityModel<
         tail3 = part(model, "tail_3");
         tail4 = part(model, "tail_4");
         beakLower = part(model, "beak_lower");
+        // 1.16 posed leftArm under its leftArmXRot, which only carried the look pitch.
         actionParts = new ModelPart[] {
                 body_rot, torso_bend, head, beakLower,
-                left_arm_xrot, left_arm_bend,
-                right_arm_xrot, right_arm_bend,
+                left_arm, left_arm_bend,
+                right_arm, right_arm_bend,
                 left_leg_xrot, left_leg_bend,
                 right_leg_xrot, right_leg_bend,
                 tail, tail1, tail2, tail3, tail4
@@ -461,6 +643,7 @@ public final class RhcpModel extends StandEntityModel<
         };
     }
 
+    // RHCPModel: HumanoidStandModel's base boxes without the torso, and RHCP's own cubes.
     public static LayerDefinition createBodyLayer() {
         MeshDefinition mesh = new MeshDefinition();
         PartDefinition root = mesh.getRoot();
@@ -472,18 +655,19 @@ public final class RhcpModel extends StandEntityModel<
         PartDefinition torsoBend = empty(
                 torso, "torso_bend", PartPose.ZERO);
 
+        // 1.16 HumanoidStandModel: the head is not a child of the body.
         PartDefinition head = empty(
                 standPos,
                 "head",
                 PartPose.ZERO);
         PartDefinition headRot = head.addOrReplaceChild(
                 "head_rot",
-                box(1, 1)
-                        .addBox(-3.5F, -5.75F, -3.5F, 7, 5.75F, 7)
+                box(0, 0)
+                        .addBox(-4, -8, -4, 8, 8, 8)
                         .texOffs(32, 0)
                         .addBox(
-                                -4, -6.4F, -4, 8, 1.65F, 8,
-                                new CubeDeformation(0.05F))
+                                -4, -8, -4, 8, 3, 8,
+                                new CubeDeformation(0.1F))
                         .texOffs(32, 11)
                         .addBox(
                                 -2, -5.25F, -4.75F, 1, 1, 1,
@@ -515,11 +699,7 @@ public final class RhcpModel extends StandEntityModel<
                         .texOffs(40, 13)
                         .addBox(
                                 -4.75F, -5.25F, -2, 1, 1, 1,
-                                new CubeDeformation(-0.1F))
-                        .texOffs(64, 0)
-                        .addBox(-3.5F, -7.7F, -3.5F, 7, 1.3F, 7)
-                        .texOffs(88, 10)
-                        .addBox(-2.5F, -8, -2.5F, 5, 0.3F, 5),
+                                new CubeDeformation(-0.1F)),
                 PartPose.ZERO);
 
         PartDefinition cornerA = empty(
@@ -559,76 +739,57 @@ public final class RhcpModel extends StandEntityModel<
 
         PartDefinition beak = headRot.addOrReplaceChild(
                 "beak_upper",
-                box(64, 24).addBox(-0.9F, -2.6F, -5.45F, 1.8F, 1.1F, 1.9F),
+                box(0, 16).addBox(-0.5F, -2, -6, 1, 1, 2),
                 PartPose.offset(0.0F, -0.05F, 0.0F));
         beak.addOrReplaceChild(
                 "beak_tip",
-                box(80, 24).addBox(-0.8F, -0.05F, 0.2F, 1.6F, 0.5F, 0.9F),
+                box(3, 16).addBox(-0.5F, 0, 0, 1, 1, 3),
                 PartPose.offsetAndRotation(
                         0, -2, -6, 0.3491F, 0, 0));
         beak.addOrReplaceChild(
                 "beak_left",
-                box(72, 24).addBox(-1, -1.5F, 0.6F, 1, 1, 2.15F),
+                box(8, 19).addBox(-1, -1.05F, 0, 1, 1, 3),
                 PartPose.offsetAndRotation(
                         0.5F, -0.95F, -6, 0, 0.2618F, 0));
         beak.addOrReplaceChild(
                 "beak_right",
-                box(72, 24).addBox(0, -1.5F, 0.6F, 1, 1, 2.15F),
+                box(0, 20).addBox(0, -1.05F, 0, 1, 1, 3),
                 PartPose.offsetAndRotation(
                         -0.5F, -0.95F, -6, 0, -0.2618F, 0));
         PartDefinition lowerBeak = headRot.addOrReplaceChild(
                 "beak_lower",
-                box(88, 24)
-                        .addBox(-0.8F, -0.55F, -1.6F, 1.6F, 0.5F, 1.65F)
-                        .addBox(-0.9F, -0.75F, -1.15F, 1.8F, 0.55F, 1.65F)
-                        .texOffs(112, 26).addBox(-0.82F, -0.7F, -1.65F, 1.64F, 0.2F, 1.95F)
-                        .texOffs(120, 26).addBox(-0.7F, -0.25F, -1.68F, 1.4F, 0.2F, 0.28F),
+                box(21, 16)
+                        .addBox(-0.5F, -0.3F, -2, 1, 1, 2)
+                        .texOffs(21, 20)
+                        .addBox(-0.5F, -0.45F, -1.5F, 1, 1, 2),
                 PartPose.offset(0, -0.75F, -4));
         lowerBeak.addOrReplaceChild(
                 "beak_lower_left",
-                box(96, 24).addBox(-1, -1.4F, 0.45F, 1, 0.5F, 2.3F),
+                box(24, 16).addBox(-1, -1.05F, 0, 1, 1, 3),
                 PartPose.offsetAndRotation(
                         0.5F, 0.75F, -2, 0, 0.2618F, 0));
         lowerBeak.addOrReplaceChild(
                 "beak_lower_right",
-                box(96, 24).addBox(0, -1.4F, 0.45F, 1, 0.5F, 2.3F),
+                box(16, 16).addBox(0, -1.05F, 0, 1, 1, 3),
                 PartPose.offsetAndRotation(
                         -0.5F, 0.75F, -2, 0, -0.2618F, 0));
-
-        // Newly authored Blockbench groups flip both X and Y, so their Z angles keep their sign.
-        headRot.addOrReplaceChild(
-                "rhcp_eye_left",
-                box(64, 16).addBox(-1.175F, -0.7F, -0.3F, 2.35F, 1.45F, 0.5F)
-                        .texOffs(72, 16).addBox(-1.3F, -0.94F, -0.55F, 2.6F, 0.31F, 0.45F)
-                        .texOffs(80, 16).addBox(-0.625F, -0.28F, -0.68F, 0.45F, 0.55F, 0.18F)
-                        .texOffs(112, 16).addBox(-0.9F, -0.5F, -0.52F, 1.6F, 1, 0.3F)
-                        .texOffs(118, 16).addBox(0.7F, -0.3F, -0.52F, 0.4F, 0.65F, 0.3F)
-                        .texOffs(122, 16).addBox(-0.74F, -0.36F, -0.57F, 0.68F, 0.72F, 0.17F),
-                PartPose.offsetAndRotation(
-                        1.75F, -3, -3.5F, 0, 0, -10 * Mth.DEG_TO_RAD));
-        headRot.addOrReplaceChild(
-                "rhcp_eye_right",
-                box(64, 19).addBox(-1.175F, -0.7F, -0.3F, 2.35F, 1.45F, 0.5F)
-                        .texOffs(72, 16).addBox(-1.3F, -0.94F, -0.55F, 2.6F, 0.31F, 0.45F)
-                        .texOffs(80, 16).addBox(0.175F, -0.28F, -0.68F, 0.45F, 0.55F, 0.18F)
-                        .texOffs(112, 16).addBox(-0.7F, -0.5F, -0.52F, 1.6F, 1, 0.3F)
-                        .texOffs(118, 16).addBox(-1.1F, -0.3F, -0.52F, 0.4F, 0.65F, 0.3F)
-                        .texOffs(122, 16).addBox(0.06F, -0.36F, -0.57F, 0.68F, 0.72F, 0.17F),
-                PartPose.offsetAndRotation(
-                        -1.75F, -3, -3.5F, 0, 0, 10 * Mth.DEG_TO_RAD));
 
         PartDefinition torsoNoArms = torsoBend.addOrReplaceChild(
                 "torso_no_arms",
                 box(0, 64)
                         .addBox(-4, 0, -2, 8, 6, 4)
+                        .texOffs(20, 64)
+                        .addBox(
+                                -3.5F, 1.1F, -2, 7, 3, 1,
+                                new CubeDeformation(0.4F))
                         .texOffs(15, 74)
                         .addBox(-0.5F, 2.5F, 2, 1, 1, 1)
                         .texOffs(19, 74)
                         .addBox(-0.5F, 4, 1.9F, 1, 1, 1)
                         .texOffs(18, 76)
                         .addBox(-0.5F, 5.25F, 0.65F, 1, 1, 2)
-                        .texOffs(92, 36)
-                        .addBox(-2.75F, 6, -1.5F, 5.5F, 4, 3)
+                        .texOffs(0, 74)
+                        .addBox(-3, 6, -1.5F, 6, 4, 3)
                         .texOffs(0, 81)
                         .addBox(-3.5F, 10, -2, 7, 2, 4)
                         .texOffs(0, 87)
@@ -640,11 +801,7 @@ public final class RhcpModel extends StandEntityModel<
                         .texOffs(18, 88)
                         .addBox(-0.5F, 11.1F, -2.1F, 1, 2, 1)
                         .texOffs(0, 88)
-                        .addBox(-0.5F, 11.1F, -2.6F, 1, 2, 1)
-                        .texOffs(64, 46)
-                        .addBox(-2.5F, 9, -1.8F, 5, 1, 0.3F)
-                        .addBox(-2.5F, 7.65F, -1.8F, 5, 1, 0.3F)
-                        .addBox(-2.5F, 6.3F, -1.8F, 5, 1, 0.3F),
+                        .addBox(-0.5F, 11.1F, -2.6F, 1, 2, 1),
                 PartPose.offset(0.0F, -12.0F, 0.0F));
         torsoNoArms.addOrReplaceChild(
                 "chest_diamond",
@@ -654,17 +811,6 @@ public final class RhcpModel extends StandEntityModel<
                         0.0F, 3.8F, 0.0F,
                         0.0F, 0.0F, 0.7854F));
         empty(torso, "torso_lower", PartPose.ZERO);
-
-        torsoNoArms.addOrReplaceChild(
-                "rhcp_chest_left_relief",
-                box(64, 36).addBox(-1.75F, -1.3F, -0.7F, 3.5F, 2.6F, 0.8F),
-                PartPose.offsetAndRotation(
-                        1.75F, 2.4F, -2, 0, -3 * Mth.DEG_TO_RAD, -3 * Mth.DEG_TO_RAD));
-        torsoNoArms.addOrReplaceChild(
-                "rhcp_chest_right_relief",
-                box(76, 36).addBox(-1.75F, -1.3F, -0.7F, 3.5F, 2.6F, 0.8F),
-                PartPose.offsetAndRotation(
-                        -1.75F, 2.4F, -2, 0, 3 * Mth.DEG_TO_RAD, 3 * Mth.DEG_TO_RAD));
 
         PartDefinition tail = torsoNoArms.addOrReplaceChild(
                 "tail",
@@ -725,10 +871,17 @@ public final class RhcpModel extends StandEntityModel<
     }
 
     private void setupDonorAnim(RhcpRenderState state) {
+        armPitch = state.xRot * Mth.DEG_TO_RAD;
         String actionName = state.actionName;
         boolean idle = actionName == null || actionName.isEmpty();
-        applyIdlePose(actionParts, state.floating, state.moving, state.idleLoopTick, idle);
-        if (!idle) {
+        boolean summon = idle && state.summonPose >= 0;
+        // 1.16 kept the idle loop running through an action that has no pose of its own.
+        boolean loop = !summon && (idle || !hasDonorPose(actionName));
+        applyIdlePose(actionParts, state.floating, state.moving, state.idleLoopTick, loop);
+        if (summon) {
+            applySummon(state);
+        }
+        else if (!idle) {
             switch (actionName) {
                 case "rhcp_punch_off", "rhcp_punch" -> applyLight(state);
                 case "rhcp_barrage" -> applyBarrage(state);
@@ -740,7 +893,11 @@ public final class RhcpModel extends StandEntityModel<
                         state.actionPhase, state.actionPhaseRatio, !state.mirrorAction);
                 case "rhcp_blitz_attack" -> applyCounter(actionParts, true,
                         state.actionPhase, state.actionPhaseRatio, !state.mirrorAction);
-                default -> applyPhaseAwareFallback(state);
+                case "rhcp_block" -> applyBlock(state);
+                case "rhcp_recharge" -> applyLoopPose(state, RECHARGE_1, RECHARGE_2, RECHARGE_LOOP_TICKS);
+                case "rhcp_dodge" -> applyLoopPose(state, TAUNT_1, TAUNT_2, TAUNT_LOOP_TICKS);
+                default -> {
+                }
             }
         }
         if (!state.floating && state.moving
@@ -749,6 +906,17 @@ public final class RhcpModel extends StandEntityModel<
             applyWalkingPose(actionParts, state.walkAnimationPos, state.walkAnimationSpeed,
                     state.walkSpeedFactor, state.userCrouching);
         }
+    }
+
+    // The moves RHCPModel and HumanoidStandModel have a StandPose animation for.
+    static boolean hasDonorPose(String actionName) {
+        return switch (actionName) {
+            case "rhcp_punch_off", "rhcp_punch", "rhcp_barrage", "rhcp_combo_punch",
+                    "rhcp_heavy_punch", "rhcp_electrocute_target", "rhcp_chase_target",
+                    "rhcp_counterattack", "rhcp_blitz_attack", "rhcp_block",
+                    "rhcp_recharge", "rhcp_dodge" -> true;
+            default -> false;
+        };
     }
 
     // 1.16 RHCPDodge.dodge, which RHCPModel.walkAnim reads: the dodge before
@@ -857,40 +1025,27 @@ public final class RhcpModel extends StandEntityModel<
         }
     }
 
+    // 1.16 LegacyStandAnimator.poseSummon: the summon pose, back to idle over its last quarter.
+    private void applySummon(RhcpRenderState state) {
+        Frame summon = SUMMON_POSES[state.summonPose % SUMMON_POSES.length];
+        float back = Mth.clamp((state.ageInTicks - SUMMON_TICKS)
+                / (SUMMON_TICKS * (1.0F - SUMMON_REVERSE_POINT)) + 1.0F, 0.0F, 1.0F);
+        transition(summon, false, EMPTY, false, back);
+    }
+
+    // 1.16 HumanoidStandModel LIGHT_ATTACK: a jab of the punching hand (ModelPoseSided),
+    // which ends in the other hand's start pose.
     private void applyLight(RhcpRenderState state) {
         float progress = state.actionPhaseRatio;
         boolean mirror = state.mirrorAction;
         if (state.actionPhase == ActionPhase.WINDUP) {
-            applyTimeline(
-                    JAB_WINDUP, JAB_WINDUP_MARKS, progress, mirror);
+            timeline(JAB_WINDUP, null, JAB_WINDUP_MARKS, progress, mirror);
         }
         else if (state.actionPhase == ActionPhase.PERFORM) {
-            if (progress <= 0.25F) {
-                applyFrame(JAB_3, mirror);
-            }
-            else if (progress <= 0.5F) {
-                applyTransition(
-                        JAB_3, mirror, JAB_4, mirror,
-                        normalize(progress, 0.25F, 0.5F));
-            }
-            else {
-                applyTransition(
-                        JAB_4, mirror, JAB_1, !mirror,
-                        normalize(progress, 0.5F, 1.0F));
-            }
+            timeline(JAB_PERFORM, JAB_PERFORM_OTHER_HAND, JAB_PERFORM_MARKS, progress, mirror);
         }
         else if (state.actionPhase == ActionPhase.RECOVERY) {
-            if (progress <= 0.75F) {
-                applyFrame(JAB_1, !mirror);
-            }
-            else {
-                applyTransition(
-                        JAB_1, !mirror, EMPTY, false,
-                        normalize(progress, 0.75F, 1.0F));
-            }
-        }
-        else {
-            applyFrame(JAB_3, mirror);
+            timeline(JAB_RECOVERY, JAB_RECOVERY_OTHER_HAND, JAB_RECOVERY_MARKS, progress, mirror);
         }
     }
 
@@ -899,34 +1054,30 @@ public final class RhcpModel extends StandEntityModel<
         float progress = state.actionPhaseRatio;
         if (alternate) {
             if (state.actionPhase == ActionPhase.WINDUP) {
-                applyTimeline(
-                        HEAVY_ALT_WINDUP,
+                timeline(HEAVY_ALT_WINDUP, null,
                         HEAVY_ALT_WINDUP_MARKS,
                         progress, state.mirrorAction);
             }
             else if (state.actionPhase == ActionPhase.RECOVERY) {
-                applyTimeline(
-                        HEAVY_ALT_RECOVERY,
+                timeline(HEAVY_ALT_RECOVERY, null,
                         HEAVY_ALT_RECOVERY_MARKS,
                         progress, state.mirrorAction);
             }
-            else {
+            else if (state.actionPhase == ActionPhase.PERFORM) {
                 applyFrame(HEAVY_ALT_5, state.mirrorAction);
             }
             return;
         }
 
         if (state.actionPhase == ActionPhase.WINDUP) {
-            applyTimeline(
-                    HEAVY_WINDUP, HEAVY_WINDUP_MARKS, progress, false);
+            timeline(HEAVY_WINDUP, null, HEAVY_WINDUP_MARKS, progress, false);
         }
         else if (state.actionPhase == ActionPhase.RECOVERY) {
-            applyTimeline(
-                    HEAVY_RECOVERY,
+            timeline(HEAVY_RECOVERY, null,
                     HEAVY_RECOVERY_MARKS,
                     progress, false);
         }
-        else {
+        else if (state.actionPhase == ActionPhase.PERFORM) {
             applyFrame(HEAVY_4, false);
         }
     }
@@ -935,125 +1086,143 @@ public final class RhcpModel extends StandEntityModel<
         float progress = state.actionPhaseRatio;
         if (state.comboAlternate) {
             if (state.actionPhase == ActionPhase.WINDUP) {
-                applyTimeline(
-                        COMBO_ALT_WINDUP,
+                timeline(COMBO_ALT_WINDUP, null,
                         COMBO_ALT_WINDUP_MARKS,
                         progress, false);
             }
             else if (state.actionPhase == ActionPhase.RECOVERY) {
-                applyTimeline(
-                        COMBO_ALT_RECOVERY,
+                timeline(COMBO_ALT_RECOVERY, null,
                         COMBO_ALT_RECOVERY_MARKS,
                         progress, false);
             }
-            else {
+            else if (state.actionPhase == ActionPhase.PERFORM) {
                 applyFrame(COMBO_ALT_3, false);
             }
             return;
         }
 
         if (state.actionPhase == ActionPhase.WINDUP) {
-            applyTransition(
-                    EMPTY, false, DOUBLE_HIT_1, false, progress);
+            transition(EMPTY, false, DOUBLE_HIT_1, false, progress);
         }
         else if (state.actionPhase == ActionPhase.PERFORM) {
-            applyTimeline(
-                    DOUBLE_HIT_PERFORM,
+            timeline(DOUBLE_HIT_PERFORM, null,
                     DOUBLE_HIT_PERFORM_MARKS,
                     progress, false);
         }
         else if (state.actionPhase == ActionPhase.RECOVERY) {
-            applyTimeline(
-                    DOUBLE_HIT_RECOVERY,
+            timeline(DOUBLE_HIT_RECOVERY, null,
                     DOUBLE_HIT_RECOVERY_MARKS,
                     progress, false);
         }
-        else {
-            applyFrame(DOUBLE_HIT_3, false);
-        }
     }
 
+    // 1.16 HumanoidStandModel BARRAGE (StandTwoHandedBarrageAnimation): in PERFORM the
+    // right side's loop from the left fist out to the right one and back, idle in the windup.
     private void applyBarrage(RhcpRenderState state) {
-        float weight = phaseWeight(state);
-        float wave = Mth.sin(state.actionPhaseTick * 1.35F);
-        rotate(left_arm_xrot,
-                (-1.35F + wave * 0.3F) * weight,
-                0.18F * weight,
-                -0.45F * weight);
-        rotate(right_arm_xrot,
-                (-1.35F - wave * 0.3F) * weight,
-                -0.18F * weight,
-                0.45F * weight);
-        rotate(left_arm_bend,
-                (-0.45F - wave * 0.25F) * weight, 0.0F, 0.0F);
-        rotate(right_arm_bend,
-                (-0.45F + wave * 0.25F) * weight, 0.0F, 0.0F);
-        rotate(torso_bend,
-                0.08F * weight, wave * 0.18F * weight, 0.0F);
-    }
-
-    private void applyPhaseAwareFallback(RhcpRenderState state) {
-        float weight = phaseWeight(state);
-        float wave = Mth.sin(state.actionPhaseTick * 1.35F);
-        switch (state.actionName) {
-            case "rhcp_block" -> {
-                rotate(left_arm_xrot,
-                        -1.25F * weight, 0.15F * weight, -0.8F * weight);
-                rotate(right_arm_xrot,
-                        -1.25F * weight, -0.15F * weight, 0.8F * weight);
-                rotate(left_arm_bend, -1.0F * weight, 0.0F, 0.0F);
-                rotate(right_arm_bend, -1.0F * weight, 0.0F, 0.0F);
-            }
-            case "rhcp_recharge" -> {
-                rotate(body_rot, 0.22F * weight, 0.0F, 0.0F);
-                rotate(left_arm_xrot,
-                        -0.45F * weight, 0.0F, -1.15F * weight);
-                rotate(right_arm_xrot,
-                        -0.45F * weight, 0.0F, 1.15F * weight);
-                rotate(left_arm_bend, -0.55F * weight, 0.0F, 0.0F);
-                rotate(right_arm_bend, -0.55F * weight, 0.0F, 0.0F);
-            }
-            case "rhcp_dodge" -> {
-                rotate(torso_bend,
-                        -0.08F * weight, wave * 0.08F * weight, 0.0F);
-                rotate(left_arm_xrot,
-                        -1.05F * weight, 0.0F, -1.1F * weight);
-                rotate(right_arm_xrot,
-                        -1.05F * weight, 0.0F, 1.1F * weight);
-                rotate(left_arm_bend, -0.9F * weight, 0.0F, 0.0F);
-                rotate(right_arm_bend, -0.9F * weight, 0.0F, 0.0F);
-            }
-            case "rhcp_electric_dash" -> {
-                rotate(body_rot, 0.55F * weight, 0.0F, 0.0F);
-                rotate(left_arm_xrot,
-                        0.45F * weight, 0.0F, -0.35F * weight);
-                rotate(right_arm_xrot,
-                        0.45F * weight, 0.0F, 0.35F * weight);
-                rotate(left_leg_xrot, -0.75F * weight, 0.0F, 0.0F);
-                rotate(right_leg_xrot, 0.55F * weight, 0.0F, 0.0F);
-            }
-            default -> {
-            }
+        if (state.actionPhase == ActionPhase.PERFORM) {
+            float loop = state.ageInTicks / BARRAGE_LOOP_TICKS;
+            transition(BARRAGE_IMPACT, true, BARRAGE_IMPACT, false,
+                    barrageHitEasing(loop - Mth.floor(loop)));
+        }
+        else if (state.actionPhase == ActionPhase.RECOVERY) {
+            timeline(BARRAGE_RECOVERY_FRAMES, null, BARRAGE_RECOVERY_MARKS,
+                    state.actionPhaseRatio, false);
         }
     }
 
-    private static float phaseWeight(RhcpRenderState state) {
-        float progress = Mth.clamp(state.actionPhaseRatio, 0.0F, 1.0F);
-        if (state.actionPhase == ActionPhase.WINDUP) {
-            return smooth(progress);
+    // 1.16 StandTwoHandedBarrageAnimation.animateSwing and beforeSwingAfterimageRender: an
+    // afterimage arm takes the same loop at its own completion, rolled out by its offset,
+    // then the arms' look pitch is turned on top of that roll (applyXRotation).
+    void poseBarrageAfterimage(float loopCompletion, HumanoidArm side, float xRotDeg, float zRotOffset) {
+        armPitch = xRotDeg * Mth.DEG_TO_RAD;
+        boolean left = side == HumanoidArm.LEFT;
+        float swing = barrageHitEasing(loopCompletion);
+        applyTransition(actionParts, BARRAGE_IMPACT, !left, BARRAGE_IMPACT, left,
+                BARRAGE_IMPACT.eased(swing));
+        ModelPart arm = left ? left_arm_xrot : right_arm_xrot;
+        if (arm != null) {
+            Vector3f angles = ArmsFollowPitch.rotateAngles(
+                    new Vector3f(0.0F, 0.0F, swing * zRotOffset), armPitch);
+            arm.xRot = angles.x;
+            arm.yRot = angles.y;
+            arm.zRot = angles.z;
         }
+    }
+
+    // HumanoidStandModel.barrageHitEasing
+    private static float barrageHitEasing(float loopProgress) {
+        if (loopProgress < 0.5F) {
+            return loopProgress * loopProgress * loopProgress * 8.0F;
+        }
+        if (loopProgress < 1.0F) {
+            float halfSwing = 2.0F * loopProgress - 1.0F;
+            return 1.0F - halfSwing * halfSwing * halfSwing;
+        }
+        return 0.0F;
+    }
+
+    // 1.16 HumanoidStandModel BLOCK, held from the button hold on and eased to idle in the recovery.
+    private void applyBlock(RhcpRenderState state) {
+        Frame block = blockFrame();
         if (state.actionPhase == ActionPhase.RECOVERY) {
-            return 1.0F - smooth(progress);
+            transition(block, false, EMPTY, false, state.actionPhaseRatio);
         }
-        return 1.0F;
+        else {
+            transition(block, false, block, false, 1.0F);
+        }
     }
 
-    private void applyTimeline(
+    private Frame blockFrame() {
+        float blockXRot = Mth.clamp(armPitch, -60.0F * Mth.DEG_TO_RAD, 60.0F * Mth.DEG_TO_RAD) / 2.0F;
+        float rightZ = -Math.abs(blockXRot) / 2.0F + 0.7854F;
+        return blockScratch.copyFrom(BLOCK)
+                .radians(RIGHT_ARM, -1.5708F + blockXRot, -blockXRot / 2.0F, rightZ)
+                .radians(LEFT_ARM, -1.5708F + blockXRot, blockXRot / 2.0F, -rightZ);
+    }
+
+    // RHCP donor StandPoseAnimation (recharge, dodge): the off-hand side's loop while
+    // the button is held, eased to idle in the recovery.
+    private void applyLoopPose(RhcpRenderState state, Frame first, Frame second, float loopTicks) {
+        boolean mirror = state.mainArmLeft;
+        if (state.actionPhase == ActionPhase.PERFORM) {
+            float loop = state.ageInTicks / loopTicks;
+            transition(first, mirror, second, mirror, loopSwing(loop - Mth.floor(loop)));
+        }
+        else if (state.actionPhase == ActionPhase.RECOVERY) {
+            transition(first, mirror, EMPTY, false, state.actionPhaseRatio);
+        }
+    }
+
+    private static float loopSwing(float swing) {
+        float halfSwing = swing < 0.4F ? swing * 20.0F / 8.0F
+                : swing > 0.6F ? (1.0F - swing) * 20.0F / 8.0F : 1.0F;
+        return halfSwing * halfSwing * halfSwing;
+    }
+
+    // A 1.16 ModelPoseTransitionMultiple; otherHand marks the frames of the other hand's side.
+    private void timeline(
             Frame[] frames,
+            boolean[] otherHand,
             float[] marks,
             float progress,
             boolean mirror) {
-        applyTimeline(actionParts, frames, marks, progress, mirror, mirror);
+        float clamped = Mth.clamp(progress, 0.0F, 1.0F);
+        for (int index = 1; index < marks.length; index++) {
+            if (clamped <= marks[index]) {
+                transition(
+                        frames[index - 1], mirror ^ otherHand(otherHand, index - 1),
+                        frames[index], mirror ^ otherHand(otherHand, index),
+                        normalize(clamped, marks[index - 1], marks[index]));
+                return;
+            }
+        }
+        int last = frames.length - 1;
+        boolean lastMirror = mirror ^ otherHand(otherHand, last);
+        transition(frames[last], lastMirror, frames[last], lastMirror, 1.0F);
+    }
+
+    private static boolean otherHand(boolean[] otherHand, int index) {
+        return otherHand != null && otherHand[index];
     }
 
     // mirrorFirst: a 1.16 ModelPoseSided start pose (the dodge taunt) is the
@@ -1068,11 +1237,12 @@ public final class RhcpModel extends StandEntityModel<
         float clamped = Mth.clamp(progress, 0.0F, 1.0F);
         for (int index = 1; index < marks.length; index++) {
             if (clamped <= marks[index]) {
+                Frame to = frames[index];
                 applyTransition(
                         parts,
                         frames[index - 1], index == 1 ? mirrorFirst : mirror,
-                        frames[index], mirror,
-                        normalize(clamped, marks[index - 1], marks[index]));
+                        to, mirror,
+                        to.eased(normalize(clamped, marks[index - 1], marks[index])));
                 return;
             }
         }
@@ -1081,16 +1251,38 @@ public final class RhcpModel extends StandEntityModel<
     }
 
     private void applyFrame(Frame frame, boolean mirror) {
-        applyTransition(frame, mirror, frame, mirror, 1.0F);
+        transition(frame, mirror, frame, mirror, 1.0F);
     }
 
-    private void applyTransition(
+    // 1.16 ModelPoseTransition: the first pose in full, then the second by its
+    // eased progress, with the arms' look pitch of whichever pose sets one.
+    private void transition(
             Frame from,
             boolean mirrorFrom,
             Frame to,
             boolean mirrorTo,
             float progress) {
-        applyTransition(actionParts, from, mirrorFrom, to, mirrorTo, progress);
+        float eased = to.eased(Mth.clamp(progress, 0.0F, 1.0F));
+        applyTransition(actionParts, from, mirrorFrom, to, mirrorTo, eased);
+        applyArmPitch(from, to, eased);
+    }
+
+    private void applyArmPitch(Frame from, Frame to, float amount) {
+        boolean ownPitch = to.pitch != PITCH_NONE;
+        int mode = ownPitch ? to.pitch : from.pitch;
+        float weight = ownPitch ? amount : 1.0F;
+        float pitch = switch (mode) {
+            case PITCH_TURN -> armPitch * weight;
+            case PITCH_FULL -> armPitch;
+            case PITCH_BACK -> armPitch * (1.0F - weight);
+            default -> 0.0F;
+        };
+        if (left_arm_xrot != null) {
+            left_arm_xrot.xRot = pitch;
+        }
+        if (right_arm_xrot != null) {
+            right_arm_xrot.xRot = pitch;
+        }
     }
 
     // 1.16 ModelPoseTransition: the first pose in full, then the second by
@@ -1127,10 +1319,23 @@ public final class RhcpModel extends StandEntityModel<
                     ? to.angle(partIndex, 1, mirrorTo) : toIdle ? part.yRot : fromY;
             float toZ = toDefined
                     ? to.angle(partIndex, 2, mirrorTo) : toIdle ? part.zRot : fromZ;
-            part.xRot = Mth.lerp(clamped, fromX, toX);
-            part.yRot = Mth.lerp(clamped, fromY, toY);
-            part.zRot = Mth.lerp(clamped, fromZ, toZ);
+            part.xRot = rotLerp(clamped, fromX, toX);
+            part.yRot = rotLerp(clamped, fromY, toY);
+            part.zRot = rotLerp(clamped, fromZ, toZ);
         }
+    }
+
+    // 1.16 RotationAngle.applyRotation (MathUtil.rotLerpRad): the shorter way round.
+    private static float rotLerp(float progress, float from, float to) {
+        float difference = to - from;
+        float fullTurn = (float) (Math.PI * 2.0D);
+        while (difference < -Math.PI) {
+            difference += fullTurn;
+        }
+        while (difference >= Math.PI) {
+            difference -= fullTurn;
+        }
+        return from + progress * difference;
     }
 
     private static float normalize(
@@ -1138,11 +1343,6 @@ public final class RhcpModel extends StandEntityModel<
         return end > start
                 ? Mth.clamp((value - start) / (end - start), 0.0F, 1.0F)
                 : 1.0F;
-    }
-
-    private static float smooth(float value) {
-        float clamped = Mth.clamp(value, 0.0F, 1.0F);
-        return clamped * clamped * (3.0F - 2.0F * clamped);
     }
 
     private static void arm(
@@ -1233,6 +1433,8 @@ public final class RhcpModel extends StandEntityModel<
                 (float) Math.PI / 180.0F;
         private final float[][] rotations = new float[PART_COUNT][3];
         private final boolean[] defined = new boolean[PART_COUNT];
+        private int easing = LINEAR;
+        private int pitch = PITCH_NONE;
 
         private Frame body(float x, float y, float z) {
             return part(BODY, x, y, z);
@@ -1287,13 +1489,46 @@ public final class RhcpModel extends StandEntityModel<
             return part(TAIL + segment, x, y, z);
         }
 
+        private Frame ease(int easing) {
+            this.easing = easing;
+            return this;
+        }
+
+        private Frame pitch(int pitch) {
+            this.pitch = pitch;
+            return this;
+        }
+
         private Frame part(
                 int index, float x, float y, float z) {
+            return radians(index, x * TO_RADIANS, y * TO_RADIANS, z * TO_RADIANS);
+        }
+
+        private Frame radians(
+                int index, float x, float y, float z) {
             defined[index] = true;
-            rotations[index][0] = x * TO_RADIANS;
-            rotations[index][1] = y * TO_RADIANS;
-            rotations[index][2] = z * TO_RADIANS;
+            rotations[index][0] = x;
+            rotations[index][1] = y;
+            rotations[index][2] = z;
             return this;
+        }
+
+        private Frame copyFrom(Frame other) {
+            for (int index = 0; index < PART_COUNT; index++) {
+                defined[index] = other.defined[index];
+                System.arraycopy(other.rotations[index], 0, rotations[index], 0, 3);
+            }
+            easing = other.easing;
+            pitch = other.pitch;
+            return this;
+        }
+
+        private float eased(float progress) {
+            return switch (easing) {
+                case SQUARE -> progress * progress;
+                case CUBE -> progress * progress * progress;
+                default -> progress;
+            };
         }
 
         private boolean defined(

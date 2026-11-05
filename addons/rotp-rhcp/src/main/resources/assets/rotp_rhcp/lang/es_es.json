@@ -37,10 +37,15 @@
   "rotp_rhcp.ability.rhcp_counterattack": "Contraataque",
   "action.rotp_rhcp.rhcp_blitz_attack": "Ataque Relámpago",
   "rotp_rhcp.ability.rhcp_blitz_attack": "Ataque Relámpago",
-  "action.rotp_rhcp.rhcp_drag_into_line": "Arrastrar a la Línea",
-  "rotp_rhcp.ability.rhcp_drag_into_line": "Arrastrar a la Línea",
+  "action.rotp_rhcp.rhcp_self_destruct": "Autodestrucción",
+  "rotp_rhcp.ability.rhcp_self_destruct": "Autodestrucción",
   "jojo.message.action_condition.full_block_rhcp": "Esta habilidad está disponible cuando estás en estado de defensa total",
   "rotp_rhcp.subtitle.rhcp_name": "\"Pimiento Rojo Picante\"",
   "rotp_rhcp.subtitle.rhcp_this_is_the_end": "\"Este es el final\"",
-  "rotp_rhcp.subtitle.rhcp_electricity": "Electricidad"
+  "rotp_rhcp.subtitle.rhcp_electricity": "Electricidad",
+  "rotp_rhcp.configuration.title": "Configuración de Pimiento Rojo Picante",
+  "rotp_rhcp.configuration.section.rotp.rhcp.common.toml": "Ajustes comunes",
+  "rotp_rhcp.configuration.section.rotp.rhcp.common.toml.title": "Configuración común de Pimiento Rojo Picante",
+  "rotp_rhcp.configuration.SaveRHCPData": "Guardar energía y potencia",
+  "rotp_rhcp.configuration.SaveRHCPData.tooltip": "Conserva la energía y la potencia de RHCP al retirarlo. Desactivado: cada invocación empieza con 0 de energía y potencia."
 }

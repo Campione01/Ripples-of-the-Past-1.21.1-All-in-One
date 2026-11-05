@@ -55,8 +55,13 @@ public final class TuskTaskTargetGameTests {
 
     private TuskTaskTargetGameTests() {}
 
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void openSpaceTurnsTheStandToTheBlockItWasPressedAt(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> openSpaceTurnsTheStandToTheBlockItWasPressedAtBody(h));
+    }
+
+    private static void openSpaceTurnsTheStandToTheBlockItWasPressedAtBody(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Player user = new Player(level, BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "tusk-task-target")) {
             @Override
@@ -149,8 +154,13 @@ public final class TuskTaskTargetGameTests {
     // every target but a block; a refused one left the action without a target (core K5-26 C:
     // EntityActionInstance.captureActionTargetFromAim asks takesPressedTarget). TuskInfiniteRotation.checkStandTarget
     // (056 :175-177) refused every one, but the owner kept the port's transfer to the pressed mob: the core default rule.
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void pressedTargetsFollowTheDonorsTargetChecks(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> pressedTargetsFollowTheDonorsTargetChecksBody(h));
+    }
+
+    private static void pressedTargetsFollowTheDonorsTargetChecksBody(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Player user = new Player(level, BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "tusk-pressed-target")) {
             @Override
@@ -239,8 +249,13 @@ public final class TuskTaskTargetGameTests {
     // behind it only for an action that takes an entity: TuskInfiniteRotation (no requirement) took the cow behind a
     // torch, TuskOpenSpace (TargetRequirement BLOCK) kept the torch, which its task held and its Stand turned to. The
     // Stand's eyes are level with its user's, just south of the user's box, looking south as the user does.
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void openSpacePressedAtATorchKeepsTheTorchAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> openSpacePressedAtATorchKeepsTheTorchAsIn116Body(h));
+    }
+
+    private static void openSpacePressedAtATorchKeepsTheTorchAsIn116Body(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Player user = new Player(level, BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "tusk-open-space-torch")) {
             @Override
@@ -334,8 +349,13 @@ public final class TuskTaskTargetGameTests {
     // the client's press (PowerBaseImpl.checkRequirements) checked it at the client's mouse target. While local the user
     // stands in for its own client's copy: isLocalPlayer, no stored aim, the aim it sends in
     // LivingComponentAction.CLIENT_PLAYER_AIM.
-    @GameTest(template = "empty", timeoutTicks = 100)
+    @GameTest(template = "empty", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void nailScratchOnTheUsersOwnClientSeesTheAimItSendsAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> nailScratchOnTheUsersOwnClientSeesTheAimItSendsAsIn116Body(h));
+    }
+
+    private static void nailScratchOnTheUsersOwnClientSeesTheAimItSendsAsIn116Body(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         boolean[] local = {false};
         Player user = new Player(level, BlockPos.ZERO, 0.0F, new GameProfile(UUID.randomUUID(), "tusk-own-client-aim")) {

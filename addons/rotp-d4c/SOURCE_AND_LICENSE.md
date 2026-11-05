@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-d4c`, mod id `rotp_d4c`, version `0.8.65-port.30`.
+- Module: `rotp-d4c`, mod id `rotp_d4c`, version `0.8.65-port.31`.
 - Original 1.16.5 add-on: `RotP-d4c-0.8.65-Alpha.jar` (RotP D4C - 恶行易施, mod id `rotp_d4c`), by Core:LL,浪浪,ResSupport:Denis; declared license: LGPL3.0-only; SHA-256 `76F58BF70F15262697992DB25E9A60D5AC4FED690827A0683FCC7E84A770063C`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-05); it is a modified version of the original add-on, not the original.
 - License of this module: LGPL-3.0-only (see `LICENSE` and `LICENSE-GPL-3.0.txt`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

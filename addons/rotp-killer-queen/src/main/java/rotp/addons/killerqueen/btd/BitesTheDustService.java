@@ -19,6 +19,8 @@ import rotp.core.api.rollback.AtomicRollbackJournal;
 import rotp.core.api.rollback.AtomicRollbackJournal.Outcome;
 import rotp.core.api.rollback.AtomicRollbackJournal.Status;
 import rotp.core.api.stand.StandSkillWalls;
+import rotp.core.api.time.event.BitesTheDustDetonateEvent;
+import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.client.ClientProxy;
 import rotp.core.client.input.ClientsideAim;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
@@ -31,6 +33,7 @@ import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTargetAim;
 import rotp.core.subsystems.target.ActionTargetRange;
 import rotp.core.subsystems.target.StandPrecisionRay;
+import rotp.core.subsystems.timestop.TimeStopState;
 import com.mojang.logging.LogUtils;
 
 import rotp.addons.killerqueen.KillerQueenAddon;
@@ -50,6 +53,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import org.slf4j.Logger;
@@ -505,6 +509,10 @@ public final class BitesTheDustService {
             scheduleTrigger(owner, victim, player);
             return;
         }
+        // owner Q3: a summoned Gold Experience Requiem returns it to zero; the blow stays stopped
+        if (!BitesTheDustDetonateEvent.post(owner, attacker, attacker)) {
+            return;
+        }
         spawnDetonationParticles(attacker);
         attacker.hurt(
                 attacker.damageSources().genericKill(),
@@ -526,8 +534,8 @@ public final class BitesTheDustService {
                                 trigger ->
                                         trigger.attackerUuid().toString()))
                         .toList();
-        for (PendingTrigger trigger : ordered) {
-            int age = now - trigger.startTick();
+        for (PendingTrigger scheduled : ordered) {
+            PendingTrigger trigger = scheduled;
             ServerPlayer attacker =
                     server.getPlayerList().getPlayer(
                             trigger.attackerUuid());
@@ -545,11 +553,20 @@ public final class BitesTheDustService {
                         server, trigger.attackerUuid());
                 continue;
             }
+            // rule T3-07: the bomb is part of the world a time stop holds, so the countdown of an attacker frozen
+            // in one waits until the stop ends; a stopper in his own stop is not frozen and counts on
+            boolean advanced = trigger.startTick() != now
+                    && !TimeStopState.shouldFreezeOnServer(attacker);
+            if (advanced) {
+                trigger = trigger.advanced();
+                pending.put(trigger.attackerUuid(), trigger);
+            }
+            int age = trigger.elapsedTicks();
             syncTriggerPresentation(
                     attacker,
                     trigger,
                     Math.min(age, TRIGGER_DELAY_TICKS));
-            if (age == USER_VOICE_TICK) {
+            if (advanced && age == USER_VOICE_TICK) {
                 attacker.serverLevel().playSound(
                         null,
                         attacker.blockPosition(),
@@ -558,7 +575,7 @@ public final class BitesTheDustService {
                         1.0F,
                         1.0F);
             }
-            if (age == STAND_VOICE_TICK) {
+            if (advanced && age == STAND_VOICE_TICK) {
                 attacker.serverLevel().playSound(
                         null,
                         attacker.blockPosition(),
@@ -568,6 +585,13 @@ public final class BitesTheDustService {
                         1.0F);
             }
             if (age >= TRIGGER_DELAY_TICKS) {
+                if (!BitesTheDustDetonateEvent.post(
+                        owner, attacker, attacker)) {
+                    pending.remove(trigger.attackerUuid());
+                    clearTriggerPresentation(
+                            server, trigger.attackerUuid());
+                    continue;
+                }
                 spawnDetonationParticles(attacker);
                 ResetResult result = rewind(
                         owner,
@@ -895,7 +919,8 @@ public final class BitesTheDustService {
                         owner.getUUID(),
                         victim.getUUID(),
                         attacker.getUUID(),
-                        owner.getServer().getTickCount()));
+                        owner.getServer().getTickCount(),
+                        0));
         syncTriggerPresentation(
                 attacker, pending.get(attacker.getUUID()), 0);
     }
@@ -1070,16 +1095,24 @@ public final class BitesTheDustService {
             return ResetResult.HISTORY_NOT_READY;
         }
 
-        return commit(
+        if (!commit(
                 owner,
                 sourceLevel,
                 state,
                 state.bitesTheDustMarkerTime(),
                 mutations,
                 condemned,
-                automaticTrigger)
-                        ? ResetResult.SUCCESS
-                        : ResetResult.COMMIT_FAILED;
+                automaticTrigger)) {
+            return ResetResult.COMMIT_FAILED;
+        }
+        // rule G1: the time stops and erases begun after the marker in the rewound area end
+        RewindAppliedEvent.post(
+                owner,
+                sourceLevel,
+                state.bitesTheDustMarkerGameTime(),
+                new AABB(origin, origin).inflate(radius),
+                KillerQueenAddon.id("bites_the_dust"));
+        return ResetResult.SUCCESS;
     }
 
     private static boolean commit(
@@ -1620,7 +1653,7 @@ public final class BitesTheDustService {
                     ? pending.get(attackerUuid)
                     : null;
             return trigger != null
-                    ? server.getTickCount() - trigger.startTick()
+                    ? trigger.elapsedTicks()
                     : -1;
         }
     }
@@ -1629,7 +1662,7 @@ public final class BitesTheDustService {
             ServerPlayer player,
             ServerLevel level,
             BitesTheDustPlayerSnapshot snapshot) {
-        return player.teleportTo(
+        boolean moved = player.teleportTo(
                 level,
                 snapshot.x(),
                 snapshot.y(),
@@ -1637,6 +1670,11 @@ public final class BitesTheDustService {
                 Set.of(),
                 snapshot.yRot(),
                 snapshot.xRot());
+        // rule G2: a player frozen in a time stop stays where the rewind put him (the freeze pinned him back)
+        if (moved) {
+            TimeStopState.repinOrReleaseOnServer(player);
+        }
+        return moved;
     }
 
     private static boolean loadedDestination(
@@ -1859,7 +1897,13 @@ public final class BitesTheDustService {
             UUID ownerUuid,
             UUID victimUuid,
             UUID attackerUuid,
-            int startTick) {}
+            int startTick,
+            int elapsedTicks) {
+        PendingTrigger advanced() {
+            return new PendingTrigger(ownerUuid, victimUuid,
+                    attackerUuid, startTick, elapsedTicks + 1);
+        }
+    }
 
     private record PlayerMutation(
             ServerPlayer player,

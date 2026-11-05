@@ -10,6 +10,7 @@ import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTargetRange;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
@@ -31,6 +32,9 @@ public final class OvaSmashAbility
     public static final class OvaSmashAction
             extends StandEntityHeavyPunch {
         private float blockChance;
+        // Owner T2: the core weakens only the main target past the base
+        // reach; the sweep around it falls with the same factor.
+        private float sweepReach = 1.0F;
 
         private OvaSmashAction(EntityActionType ability) {
             super(ability);
@@ -52,7 +56,8 @@ public final class OvaSmashAbility
         protected void addKnockback(DamageSource damageSource) {
             DamageSourceModified modified =
                     (DamageSourceModified) damageSource;
-            modified.jojo_ripples$modifyKnockback(3.5F, 1.0F);
+            modified.jojo_ripples$modifyKnockback(
+                    3.5F * sweepReach, sweepReach);
             modified.jojo_ripples$knockbackYRot(0.0F);
             modified.jojo_ripples$knockbackXRot(-10.0F);
         }
@@ -73,8 +78,11 @@ public final class OvaSmashAbility
             // 1.16 punchEntity takes the chance from the bounding box of
             // any main target (getProximityRatio(Entity)), so a boat's
             // sweep rolls it too.
+            float reach = primaryEntity != null
+                    ? StandMeleeReach.strikeFactor(stand, primaryEntity)
+                    : 1.0F;
             blockChance = primaryEntity != null
-                    ? disableBlockingChance(stand, primaryEntity)
+                    ? disableBlockingChance(stand, primaryEntity) * reach
                     : 0.0F;
             disableStandBlocking(stand, primary, blockChance);
             super.hitEntity(
@@ -88,12 +96,18 @@ public final class OvaSmashAbility
             // attempt, a refused or blocked one too, around any entity;
             // isSweepingAttack only needs a sweeping damage above 0.
             if (primaryEntity != null && damage > 0.0F) {
-                sweepTargets(
-                        level,
-                        stand,
-                        primaryEntity,
-                        damage * SWEEP_DAMAGE_FACTOR,
-                        blockChance);
+                sweepReach = reach;
+                try {
+                    sweepTargets(
+                            level,
+                            stand,
+                            primaryEntity,
+                            damage * SWEEP_DAMAGE_FACTOR * reach,
+                            blockChance);
+                }
+                finally {
+                    sweepReach = 1.0F;
+                }
             }
         }
 

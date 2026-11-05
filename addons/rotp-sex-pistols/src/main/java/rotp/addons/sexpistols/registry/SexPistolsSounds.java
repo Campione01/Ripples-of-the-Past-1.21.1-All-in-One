@@ -75,6 +75,8 @@ public final class SexPistolsSounds {
             REVOLVER_SPEEDLOADER =
                     sound("revolver_speedloader");
     public static final DeferredHolder<SoundEvent, SoundEvent>
+            REVOLVER_SHOT = sound("revolver_shot");
+    public static final DeferredHolder<SoundEvent, SoundEvent>
             FIRE = sound("fire");
     public static final DeferredHolder<SoundEvent, SoundEvent>
             DRY_FIRE = sound("dry_fire");

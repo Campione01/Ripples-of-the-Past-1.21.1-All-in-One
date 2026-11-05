@@ -1,8 +1,8 @@
 {
   "entity.rotp_lovers.lovers": "Lovers",
   "stand.rotp_lovers.lovers": "Lovers",
-  "rotp_lovers.ability.into_entity": "Enter Creature",
-  "rotp_lovers.ability.retract": "Retract Stand",
+  "rotp_lovers.ability.into_entity": "Into Entity",
+  "rotp_lovers.ability.retract": "Retract From Entity",
   "rotp_lovers.message.attached": "Lovers entered %1$s.",
   "rotp_lovers.message.retracted": "Lovers retracted from its target.",
   "rotp_lovers.message.target_occupied": "That target already contains Lovers.",

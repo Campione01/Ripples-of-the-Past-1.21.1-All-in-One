@@ -20,6 +20,7 @@ import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import rotp.addons.killerqueenlion.KillerQueenChunkTickets;
 import rotp.addons.killerqueenlion.KillerQueenLionAddon;
 
 @GameTestHolder(KillerQueenLionAddon.MOD_ID)
@@ -36,6 +37,7 @@ public final class ItemBombMultiplicityGameTests {
         Cow outside = EntityType.COW.create(level);
         helper.assertTrue(carrier != null && outside != null, "Missing item carriers");
         owner.setPos(helper.absoluteVec(new Vec3(1, 2, 1)));
+        new KillerQueenChunkTickets(helper).hold(owner.position(), owner.position().add(20, 0, 3));
         AtomicInteger blasts = new AtomicInteger();
         Consumer<ExplosionEvent.Detonate> listener = event -> {
             if (event.getLevel() == level && event.getExplosion().getDirectSourceEntity() == owner) {

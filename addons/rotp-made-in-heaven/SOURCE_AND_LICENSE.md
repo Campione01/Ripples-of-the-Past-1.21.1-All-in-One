@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-made-in-heaven`, mod id `rotp_mih`, version `1.0.0-port.17`.
+- Module: `rotp-made-in-heaven`, mod id `rotp_mih`, version `1.0.0-port.18`.
 - Original 1.16.5 add-on: `RotP-天堂制造-1.2.5-1.jar` (RotP 天堂制造, mod id `rotp_mih`), by Weever; declared license: GNU GPL v3.0; SHA-256 `B4FCD7C0CAF8680225CB21D3717DEFA6CD7895C5B539BF596BF62891A14F4A4D`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

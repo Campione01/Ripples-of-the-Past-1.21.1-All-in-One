@@ -35,7 +35,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.HolderOwner;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -43,7 +42,6 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.tags.FluidTags;
@@ -206,7 +204,6 @@ public final class AquaNecklaceEntity extends StandEntity {
                         getSoundSource(),
                         1.0F,
                         1.0F);
-                sendExtinguishSmoke(serverLevel);
             }
         }
 
@@ -263,20 +260,6 @@ public final class AquaNecklaceEntity extends StandEntity {
         return action != null
                 && action.ability
                         instanceof AquaNecklaceAbilities.EnterEntityAbility;
-    }
-
-    // 1.16 tick: the fizz also puffs 8 large smoke for Stand viewers
-    private void sendExtinguishSmoke(ServerLevel serverLevel) {
-        double halfWidth = getBbWidth() / 2.0D;
-        double halfHeight = getBbHeight() / 2.0D;
-        for (ServerPlayer viewer : serverLevel.players()) {
-            if (StandUtil.entityCanSeeStands(viewer)) {
-                serverLevel.sendParticles(
-                        viewer, ParticleTypes.LARGE_SMOKE, false,
-                        getX(), getY(), getZ(), 8,
-                        halfWidth, halfHeight, halfWidth, 0.0D);
-            }
-        }
     }
 
     @Override

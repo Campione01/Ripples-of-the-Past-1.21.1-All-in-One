@@ -19,6 +19,7 @@ import rotp.core.subsystems.target.ActionTarget.TargetType;
 import rotp.core.subsystems.timestop.TimeStopState;
 import rotp.core.util.functions.DamageUtil;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import rotp.addons.ovatheworld.OvaTheWorldAddon;
 import net.minecraft.core.Holder;
@@ -180,10 +181,14 @@ public final class OvaUltraPunchAbility
             blockChance = 0.0F;
             if (target.getMainEntity()
                     instanceof LivingEntity livingTarget) {
+                // Owner T2: past the base reach the guard break's
+                // chance falls with the punch's damage.
                 blockChance =
                         OvaSmashAbility.OvaSmashAction
                                 .disableBlockingChance(
-                                        stand, livingTarget);
+                                        stand, livingTarget)
+                        * StandMeleeReach.strikeFactor(
+                                stand, livingTarget);
                 OvaSmashAbility.OvaSmashAction
                         .disableStandBlocking(
                                 stand,

@@ -4,6 +4,7 @@ import java.util.function.Supplier;
 
 import rotp.addons.echoes.RotpEchoes;
 import rotp.addons.echoes.state.EchoesFreezeState;
+import rotp.addons.echoes.state.EchoesOnomatopoeiaMark;
 import rotp.addons.echoes.state.EchoesUserState;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -33,6 +34,12 @@ public final class EchoesAttachments {
                                             ? new EchoesFreezeState()
                                             : null)
                             .build());
+
+    // R772 F11: not serialized, as the master kept its words in memory
+    public static final Supplier<AttachmentType<EchoesOnomatopoeiaMark>>
+            ONOMATOPOEIA_MARK = ATTACHMENT_TYPES.register(
+                    "onomatopoeia_mark",
+                    () -> AttachmentType.builder(EchoesOnomatopoeiaMark::new).build());
 
     private EchoesAttachments() {}
 }

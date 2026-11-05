@@ -6,11 +6,17 @@ import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
+import rotp.core.subsystems.target.HitResultUtil;
 import rotp.core.util.functions.DamageUtil;
 
+import javax.annotation.Nullable;
+
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.TamableAnimal;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 
 final class AquaNecklaceTargeting {
@@ -40,6 +46,37 @@ final class AquaNecklaceTargeting {
                     : ActionTarget.EMPTY;
         }
         return aimOf(user, level);
+    }
+
+    // Extra Stands 1.1.0d getHoldDurationToFire: JojoModUtil.rayTrace from the
+    // user's eyes, or the Stand's under manual control, as far as the user's
+    // reach; an entity on it counts through blocks, as 1.16's entity rays did
+    @Nullable
+    static Entity reachRayEntity(LivingEntity user, @Nullable StandEntity stand) {
+        LivingEntity aiming = stand != null && stand.isManuallyControlled()
+                ? stand
+                : user;
+        double reach = user.getAttributes()
+                        .hasAttribute(Attributes.BLOCK_INTERACTION_RANGE)
+                ? user.getAttributeValue(Attributes.BLOCK_INTERACTION_RANGE)
+                : Attributes.BLOCK_INTERACTION_RANGE.value().getDefaultValue();
+        ActionTarget hit = HitResultUtil.clip(
+                aiming.getEyePosition(),
+                aiming.getLookAngle(),
+                reach,
+                reach,
+                aiming.level(),
+                entity -> !entity.isSpectator()
+                        && entity.isPickable()
+                        && !entity.is(user),
+                aiming,
+                0.0D,
+                false,
+                0.0D,
+                ClipContext.Block.OUTLINE);
+        return hit.getType() == ActionTarget.TargetType.ENTITY
+                ? hit.getMainEntity()
+                : null;
     }
 
     // StandEntity.canAttack read of the user, as a Stand summoned for the

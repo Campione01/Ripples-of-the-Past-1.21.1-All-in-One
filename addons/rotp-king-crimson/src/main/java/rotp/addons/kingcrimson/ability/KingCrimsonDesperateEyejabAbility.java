@@ -75,8 +75,8 @@ public final class KingCrimsonDesperateEyejabAbility
     // 1.16 KingcrimsonEyejabInstance: EffectInstance(effect, ticks, amplifier, false, false) also hides the icon
     @Override
     protected void applyHitEffects(
-            StandEntity stand, LivingEntity target) {
-        target.addEffect(new MobEffectInstance(
+            StandEntity stand, LivingEntity target, float strikeFactor) {
+        addStrikeEffect(target, strikeFactor, new MobEffectInstance(
                 stand.getRandom().nextBoolean()
                         ? KingCrimsonAddon.HALF_BLINDNESS_LEFT
                         : KingCrimsonAddon.HALF_BLINDNESS_RIGHT,
@@ -85,14 +85,14 @@ public final class KingCrimsonDesperateEyejabAbility
                 false,
                 false,
                 false));
-        target.addEffect(new MobEffectInstance(
+        addStrikeEffect(target, strikeFactor, new MobEffectInstance(
                 MobEffects.MOVEMENT_SLOWDOWN,
                 KingCrimsonPhase4Spec.EYEJAB_SLOWNESS_TICKS,
                 0,
                 false,
                 false,
                 false));
-        target.addEffect(new MobEffectInstance(
+        addStrikeEffect(target, strikeFactor, new MobEffectInstance(
                 MobEffects.BLINDNESS,
                 KingCrimsonPhase4Spec.EYEJAB_BLINDNESS_TICKS,
                 KingCrimsonPhase4Spec.EYEJAB_BLINDNESS_AMPLIFIER,

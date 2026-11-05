@@ -29,6 +29,7 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.playerpower.PlayerPower;
+import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
@@ -38,7 +39,9 @@ import rotp.core.subsystems.timestop.TimeStopState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -54,7 +57,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
+import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.stand_bearing_creatures.MobsWithPowersAddon;
@@ -83,7 +86,7 @@ public final class MobPressConditionGameTests {
                 "Missing mob fixtures");
         StandPower power = null;
         try {
-            Vec3 pos = helper.absoluteVec(new Vec3(2.5D, 2.0D, 2.5D));
+            Vec3 pos = TemplateChunkLayout.absolute(helper, new Vec3(2.5D, 2.0D, 2.5D), -1.5D, 6.5D, 0.5D, 4.5D);
             mob.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
             mob.setNoAi(true);
             mob.setNoGravity(true);
@@ -364,9 +367,11 @@ public final class MobPressConditionGameTests {
         var level = helper.getLevel();
         Mob mob = EntityType.HUSK.create(level);
         Cow cow = EntityType.COW.create(level);
-        Player player = FakePlayerFactory.get(level, new GameProfile(UUID.randomUUID(), "MobMisshapeTarget"));
+        Player player = new FakePlayer(level, new GameProfile(UUID.randomUUID(), "MobMisshapeTarget"));
         helper.assertTrue(mob != null && cow != null, "Missing mob fixtures");
-        Vec3 pos = helper.absoluteVec(new Vec3(2.5D, 2.0D, 2.5D));
+        // the struck player and the cow stand 2 blocks south of the husk: all of them in the template's chunk, where
+        // the player is found by the husk's look and the Stand acts
+        Vec3 pos = TemplateChunkLayout.absolute(helper, new Vec3(2.5D, 2.0D, 2.5D), 1.0D, 5.0D, 1.0D, 5.5D);
         mob.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
         mob.setNoAi(true);
         mob.setNoGravity(true);
@@ -415,6 +420,14 @@ public final class MobPressConditionGameTests {
                     LivingComponentAction.getComponent(stand).setAction(null, mob, SyncType.NO_SYNC);
                     cow.discard();
                     helper.assertTrue(level.addFreshEntity(player), "Could not add the player.");
+                    // the struck player has no Stand of its own, whatever a spawn-with-stand roll gave it
+                    StandPower targetPower = StandPower.get(player);
+                    if (targetPower != null && targetPower.hasPower()) {
+                        StandPowerTransitions.fullReset(targetPower, new StandPowerTransitions.TransitionContext(
+                                MobsWithPowersAddon.id("gametest_standless_target"), null));
+                    }
+                    helper.assertTrue(targetPower != null && !targetPower.hasPower(),
+                            "Setup: the struck player keeps a Stand.");
                     power.setStamina(power.getMaxStamina());
                     mob.setTarget(player);
                     startFinisher(helper, mob, power, stand, power.getAbility("finisher"), player);
@@ -1363,6 +1376,7 @@ public final class MobPressConditionGameTests {
             LivingComponentAction.getComponent(mob).setAction(null, mob, SyncType.NO_SYNC);
             MobPowerUtil.releaseInputsAndGrabs(mob);
             level.getEntitiesOfClass(HamonSendoOverdriveEntity.class, wallArea.inflate(4.0D)).forEach(Entity::discard);
+            wavesOf(level, mob).forEach(Entity::discard);
             mob.discard();
             cow.discard();
             level.setBlockAndUpdate(wall, wallWas);
@@ -1477,8 +1491,20 @@ public final class MobPressConditionGameTests {
                     helper.assertTrue(!waves.isEmpty() && spent > 0.0F,
                             "1.16 sent the wave of UseRandomAction's held Sendo Overdrive at the wall it kept; "
                                     + waves.size() + " waves at the wall, energy spent " + spent + ".");
+                    // the 31-tick wave must not outlive the test into the next batch's cells
+                    wavesOf(level, mob).forEach(Entity::discard);
+                    helper.assertTrue(wavesOf(level, mob).isEmpty(), "The husk's Sendo Overdrive waves are left.");
                     return true;
                 });
+    }
+
+    // the waves a user sent, wherever they have flown (HamonSendoOverdriveEntity keeps its user private)
+    private static List<HamonSendoOverdriveEntity> wavesOf(ServerLevel level, Entity user) {
+        return level.getEntitiesOfClass(HamonSendoOverdriveEntity.class, user.getBoundingBox().inflate(64.0D), wave -> {
+            CompoundTag saved = new CompoundTag();
+            wave.saveWithoutId(saved);
+            return !wave.isRemoved() && saved.hasUUID("Owner") && saved.getUUID("Owner").equals(user.getUUID());
+        });
     }
 
     // a fresh goal presses Sendo Overdrive, aimed at what the husk's look meets
@@ -1610,7 +1636,7 @@ public final class MobPressConditionGameTests {
         helper.assertTrue(mob != null, "Missing mob fixture");
         StandPower power = null;
         try {
-            Vec3 pos = helper.absoluteVec(new Vec3(2.5D, 2.0D, 2.5D));
+            Vec3 pos = TemplateChunkLayout.absolute(helper, new Vec3(2.5D, 2.0D, 2.5D), -1.0D, 6.0D, -1.0D, 6.0D);
             mob.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
             mob.setNoAi(true);
             mob.setNoGravity(true);

@@ -13,6 +13,7 @@ import rotp.addons.ger.GoldExperienceRequiemAddon;
 import rotp.addons.ger.entity.GerFieldEntity;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.texture.OverlayTexture;
@@ -31,6 +32,11 @@ public final class GerFieldRenderer
             GoldExperienceRequiemAddon.id(
                     "textures/action/ger_evolution.png");
     private static final int EVOLUTION_SEGMENTS = 24;
+    private static final int DOMAIN_LAT = 24;
+    private static final int DOMAIN_LON = 36;
+    private static final int DISABLER_EXPAND_TICKS = 8;
+    private static final float DISABLER_FADE_IN_TICKS = 8.0F;
+    private static final float DISABLER_FADE_OUT_TICKS = 4.0F;
     private static UUID lastEvolutionEntityUuid;
     private static long evolutionRenderSequence;
     private static long lastEvolutionGameTime = Long.MIN_VALUE;
@@ -66,16 +72,12 @@ public final class GerFieldRenderer
         float now = entity.level().getGameTime() + partialTick;
         float age = now - entity.getCreatedAt();
         float remaining = entity.getExpiresAt() - now;
-        float fadeOutTicks =
-                entity.getKind() == GerFieldEntity.DISABLER
-                        ? 4.0F
-                        : 8.0F;
-        float ownAlpha = Math.min(
-                Mth.clamp(age / 8.0F, 0.0F, 1.0F),
-                Mth.clamp(
-                        remaining / fadeOutTicks,
-                        0.0F,
-                        1.0F));
+        boolean disabler = entity.getKind() == GerFieldEntity.DISABLER;
+        float ownAlpha = disabler
+                ? 1.0F
+                : Math.min(
+                        Mth.clamp(age / 8.0F, 0.0F, 1.0F),
+                        Mth.clamp(remaining / 8.0F, 0.0F, 1.0F));
         if (visualContext == null
                 || visualContext.effectiveAlpha() <= 0.0F
                 || ownAlpha <= 0.0F) {
@@ -87,29 +89,41 @@ public final class GerFieldRenderer
                         buffer,
                         visualContext.effectiveAlpha()
                                 * ownAlpha);
-        float growth = Mth.clamp(age / 8.0F, 0.1F, 1.0F);
-        float radius = entity.getRadius() * growth;
-        drawPlane(
-                poseStack,
-                standBuffer.getBuffer(
-                        ModRenderTypes.standTranslucent(
-                                getTextureLocation(entity))),
-                radius,
-                0.03F);
-        if (entity.getKind() == GerFieldEntity.DISABLER) {
-            float innerGrowth =
-                    Mth.clamp(age / 6.0F, 0.1F, 1.0F);
+        if (disabler) {
+            // 1.16 Disabler.drawDisablerVfx: two DomainUtil layers,
+            // (radius, texture, uv speed, alpha, expand ticks); DomainRenderer
+            // drew them with depthMask(false), so they blend, never hide.
+            drawDisablerDomain(
+                    poseStack,
+                    standBuffer.getBuffer(
+                            ModRenderTypes.standTranslucentNoDepthWrite(
+                                    DISABLER_OUTER)),
+                    entity.getRadius(),
+                    0.0039999997F,
+                    0.7F,
+                    DISABLER_EXPAND_TICKS,
+                    age);
+            drawDisablerDomain(
+                    poseStack,
+                    standBuffer.getBuffer(
+                            ModRenderTypes.standTranslucentNoDepthWrite(
+                                    DISABLER_INNER)),
+                    entity.getRadius() * 0.8F,
+                    0.005F,
+                    0.5F,
+                    (int) (DISABLER_EXPAND_TICKS * 0.8F),
+                    age);
+        }
+        else {
+            float growth = Mth.clamp(age / 8.0F, 0.1F, 1.0F);
+            float radius = entity.getRadius() * growth;
             drawPlane(
                     poseStack,
                     standBuffer.getBuffer(
                             ModRenderTypes.standTranslucent(
-                                    DISABLER_INNER)),
-                    entity.getRadius()
-                            * 0.8F
-                            * innerGrowth,
-                    0.06F);
-        }
-        else {
+                                    getTextureLocation(entity))),
+                    radius,
+                    0.03F);
             int primitives = drawEvolutionPresentation(
                     poseStack,
                     standBuffer.getBuffer(RenderType.lightning()),
@@ -124,6 +138,95 @@ public final class GerFieldRenderer
                 poseStack,
                 standBuffer,
                 ClientUtil.MAX_LIGHT);
+    }
+
+    // The field entity is 0.1 wide: vanilla would cull its 20-block
+    // domain by that box and stop drawing it 6.4 blocks away.
+    @Override
+    public boolean shouldRender(
+            GerFieldEntity entity,
+            Frustum frustum,
+            double cameraX,
+            double cameraY,
+            double cameraZ) {
+        return frustum.isVisible(entity.getBoundingBox()
+                .inflate(entity.getRadius() * 2.0F));
+    }
+
+    // 1.16 DomainInstance (no keep, no close, fade in 8, fade out 4) drawn
+    // as DomainRenderer.renderTexturedSphere: a double-sided 24 x 36
+    // sphere around the cast position whose texture scrolls along u.
+    private static void drawDisablerDomain(
+            PoseStack poseStack,
+            VertexConsumer vertices,
+            float maxRadius,
+            float uvSpeed,
+            float baseAlpha,
+            int expandTicks,
+            float age) {
+        float elapsed = Math.max(0.0F, age);
+        float radius = elapsed < expandTicks
+                ? maxRadius * (1.0F - (float) Math.pow(
+                        1.0F - elapsed / expandTicks, 3.0D))
+                : maxRadius;
+        float fadeIn = Mth.clamp(
+                elapsed / DISABLER_FADE_IN_TICKS, 0.0F, 1.0F);
+        float fadeOut = 1.0F - Mth.clamp(
+                (elapsed - expandTicks) / DISABLER_FADE_OUT_TICKS,
+                0.0F, 1.0F);
+        int alpha = Mth.clamp(
+                Math.round(255.0F * baseAlpha * fadeIn * fadeOut),
+                0, 255);
+        if (radius <= 0.001F || alpha <= 0) {
+            return;
+        }
+        float uScroll = -elapsed * uvSpeed;
+        PoseStack.Pose pose = poseStack.last();
+        for (int i = 0; i < DOMAIN_LAT; i++) {
+            float v0 = i / (float) DOMAIN_LAT;
+            float v1 = (i + 1) / (float) DOMAIN_LAT;
+            double phi0 = (v0 - 0.5D) * Math.PI;
+            double phi1 = (v1 - 0.5D) * Math.PI;
+            float y0 = (float) Math.sin(phi0) * radius;
+            float y1 = (float) Math.sin(phi1) * radius;
+            float c0 = (float) Math.cos(phi0) * radius;
+            float c1 = (float) Math.cos(phi1) * radius;
+            for (int j = 0; j < DOMAIN_LON; j++) {
+                float u0 = j / (float) DOMAIN_LON;
+                float u1 = (j + 1) / (float) DOMAIN_LON;
+                double theta0 = u0 * Math.PI * 2.0D;
+                double theta1 = u1 * Math.PI * 2.0D;
+                float cos0 = (float) Math.cos(theta0);
+                float sin0 = (float) Math.sin(theta0);
+                float cos1 = (float) Math.cos(theta1);
+                float sin1 = (float) Math.sin(theta1);
+                domainVertex(pose, vertices, c0 * cos0, y0, c0 * sin0,
+                        u0 + uScroll, v0, alpha);
+                domainVertex(pose, vertices, c1 * cos0, y1, c1 * sin0,
+                        u0 + uScroll, v1, alpha);
+                domainVertex(pose, vertices, c1 * cos1, y1, c1 * sin1,
+                        u1 + uScroll, v1, alpha);
+                domainVertex(pose, vertices, c0 * cos1, y0, c0 * sin1,
+                        u1 + uScroll, v0, alpha);
+            }
+        }
+    }
+
+    private static void domainVertex(
+            PoseStack.Pose pose,
+            VertexConsumer vertices,
+            float x,
+            float y,
+            float z,
+            float u,
+            float v,
+            int alpha) {
+        vertices.addVertex(pose.pose(), x, y, z)
+                .setColor(255, 255, 255, alpha)
+                .setUv(u, v)
+                .setOverlay(OverlayTexture.NO_OVERLAY)
+                .setLight(ClientUtil.MAX_LIGHT)
+                .setNormal(pose, 0.0F, 1.0F, 0.0F);
     }
 
     public static synchronized EvolutionRenderReceipt evolutionReceipt() {

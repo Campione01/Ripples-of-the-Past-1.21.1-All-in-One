@@ -112,7 +112,7 @@
     ]
   },
   "controls": {
-    "input_profile": "remote-environment-special-wheel-plus-manual-control",
+    "input_profile": "remote-environment-mouse-melee-special-wheel-plus-manual-control",
     "visual_topology": "H4",
     "manual_control": true,
     "special_wheel": [
@@ -121,15 +121,17 @@
       "enter_entity HOLD",
       "leave_entity CLICK",
       "drown_host HOLD",
-      "host_pressure CLICK",
-      "host_crush CLICK",
-      "brain_attack CLICK",
-      "fluid_guard HOLD"
+      "brain_attack CLICK"
     ],
-    "direct_bindings": [],
+    "direct_bindings": [
+      "host_pressure CLICK LMB",
+      "host_crush CLICK RMB",
+      "fluid_guard HOLD RMB"
+    ],
+    "direct_bindings_source": "1.16 leftClickHotbar [punch (Shift: heavy punch, finisher brain attack), get into the lungs], rightClickHotbar [block, change to liquid (Shift: gaseous), get into the entity]; the punch, heavy punch and block take the mouse buttons of the other Stands",
     "contextual_light_melee": "host_pressure delegates to the core light punch outside possession",
     "forbidden_absent": [
-      "direct H1 bindings",
+      "shared H1 punch, barrage or guard bindings",
       "barrage",
       "shared ordinary heavy punch",
       "shared-context charged heavy",

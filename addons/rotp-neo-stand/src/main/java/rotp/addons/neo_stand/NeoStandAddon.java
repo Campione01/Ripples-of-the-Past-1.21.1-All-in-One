@@ -14,6 +14,7 @@ import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.addons.neo_stand.ability.AutoStringsAbility;
 import rotp.addons.neo_stand.ability.BulletTimeAbility;
 import rotp.addons.neo_stand.ability.BulletTimeCancelAbility;
+import rotp.addons.neo_stand.ability.BulletTimeService;
 import rotp.addons.neo_stand.ability.CircleKnivesAbility;
 import rotp.addons.neo_stand.ability.DevolutionAbility;
 import rotp.addons.neo_stand.ability.FingerSweepAbility;
@@ -66,6 +67,9 @@ public final class NeoStandAddon {
     public static final ResourceLocation SHADOW_THE_WORLD =
             ResourceLocation.fromNamespaceAndPath(
                     "rotp_shadowtheworld", "shadowtheworld");
+    public static final ResourceLocation MADE_IN_HEAVEN =
+            ResourceLocation.fromNamespaceAndPath(
+                    "rotp_mih", "made_in_heaven");
 
     public static final DeferredRegister<AbilityType<?>> ABILITY_TYPES =
             DeferredRegister.create(
@@ -142,6 +146,7 @@ public final class NeoStandAddon {
 
     private void commonSetup(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
+            BulletTimeService.registerTimeRates();
             StandMovesetExtensions.register(
                     StandMovesetExtensions.builder(
                                     STAR_PLATINUM,

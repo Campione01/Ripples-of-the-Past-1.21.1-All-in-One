@@ -7,6 +7,7 @@ public final class SexPistolsIds {
 
     public static final String FOUR_ATTACK_ICON_PATH = "four_attack_icon";
     public static final String REVOLVER_PATH = "revolver";
+    public static final String HEAVY_REVOLVER_PATH = "heavy_revolver";
     public static final String REVOLVER_AMMO_PATH = "revolver_ammo";
     public static final String REVOLVER_CASING_PATH = "revolver_casing";
     public static final String REVOLVER_BULLET_PATH = "revolver_bullet";
@@ -33,6 +34,8 @@ public final class SexPistolsIds {
             "sex_pistols_target_mode";
     public static final String SEX_PISTOLS_TRANSFER_ORDER_PATH =
             "sex_pistols_transfer_order";
+    public static final String SEX_PISTOLS_FORCED_TARGET_PATH =
+            "sex_pistols_forced_target";
     public static final String SEX_PISTOLS_MOVE_SELECTED_PATH =
             "sex_pistols_move_selected";
     public static final String SEX_PISTOLS_STAND_RELOAD_PATH =

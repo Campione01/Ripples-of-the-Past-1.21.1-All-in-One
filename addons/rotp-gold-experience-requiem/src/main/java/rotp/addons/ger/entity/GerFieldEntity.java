@@ -127,7 +127,11 @@ public final class GerFieldEntity extends Entity {
             discard();
             return;
         }
-        setPos(owner.position());
+        // 1.16 sent the Disabler domain with the cast position as its
+        // fixed center
+        if (getKind() != DISABLER) {
+            setPos(owner.position());
+        }
     }
 
     private boolean hasExpectedPower(ServerPlayer owner) {

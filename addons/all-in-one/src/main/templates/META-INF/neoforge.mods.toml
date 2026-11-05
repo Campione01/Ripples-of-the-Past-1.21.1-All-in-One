@@ -7,7 +7,7 @@ modId="${aio_mod_id}"
 version="${aio_version}"
 displayName="RotP All-in-One (open source)"
 authors="Campione01 (container); the core's authors are listed in its META-INF/NOTICE-ROTP.md, those of each add-on in META-INF/NOTICE.md"
-description='''The ROTP 1.21.1 core and the 73 open-source RotP 1.21.1 add-ons in one jar. Each nested jar is its own mod, with its own mod id, version, license, configs and screens; NeoForge loads them through Jar-in-Jar. This container has no code of its own and is GPL-3.0-only; each nested mod keeps its own license (the core: META-INF/LICENSE-ROTP.txt, NOTICE-ROTP.md and THIRD_PARTY_NOTICES.md in its jar; each add-on: META-INF/LICENSE and META-INF/SOURCE_AND_LICENSE.md in its jar). Curios API, GeckoLib, Pehkui and Caelus API are not included and must be installed as separate mods.'''
+description='''The ROTP 1.21.1 core and the 79 open-source RotP 1.21.1 add-ons in one jar. Each nested jar is its own mod, with its own mod id, version, license, configs and screens; NeoForge loads them through Jar-in-Jar. This container has no code of its own and is GPL-3.0-only; each nested mod keeps its own license (the core: META-INF/LICENSE-ROTP.txt, NOTICE-ROTP.md and THIRD_PARTY_NOTICES.md in its jar; each add-on: META-INF/LICENSE and META-INF/SOURCE_AND_LICENSE.md in its jar). Curios API, GeckoLib, Pehkui and Caelus API are not included and must be installed as separate mods.'''
 
 [[dependencies.${aio_mod_id}]]
 modId="neoforge"

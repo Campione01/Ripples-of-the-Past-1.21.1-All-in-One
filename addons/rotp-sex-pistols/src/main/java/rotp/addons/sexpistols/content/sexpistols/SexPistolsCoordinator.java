@@ -22,7 +22,10 @@ import rotp.addons.sexpistols.registry.SexPistolsAttachments;
 import rotp.addons.sexpistols.registry.SexPistolsEntities;
 import rotp.addons.sexpistols.registry.SexPistolsStands;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
@@ -43,6 +46,9 @@ public final class SexPistolsCoordinator
             SexPistolsIds.SEX_PISTOLS_NUMBERS.length;
     public static final int RECALL_TICKS = 12;
     public static final int MAX_TRACKED_SPLITTING_KILLS = 4;
+    // 0.1.13 SexPistolsForcedTargetAction.getMaxForcedTargets:
+    // min(5, 1 + resolve level).
+    public static final int MAX_FORCED_TARGETS = 5;
 
     public static final StreamCodec<
             RegistryFriendlyByteBuf, SexPistolsCoordinator> STREAM_CODEC =
@@ -103,6 +109,17 @@ public final class SexPistolsCoordinator
                         state.childEntityIds[i] = buffer.readVarInt();
                         state.reviveTicks[i] = buffer.readVarInt();
                     }
+                    int forcedCount = buffer.readVarInt();
+                    if (forcedCount < 0
+                            || forcedCount > MAX_FORCED_TARGETS) {
+                        throw new IllegalArgumentException(
+                                "Invalid forced target count: "
+                                        + forcedCount);
+                    }
+                    for (int i = 0; i < forcedCount; i++) {
+                        state.forcedTargets.add(
+                                SexPistolsForcedTarget.read(buffer));
+                    }
                     return state;
                 }
 
@@ -151,6 +168,11 @@ public final class SexPistolsCoordinator
                         buffer.writeVarInt(state.childEntityIds[i]);
                         buffer.writeVarInt(state.reviveTicks[i]);
                     }
+                    buffer.writeVarInt(state.forcedTargets.size());
+                    for (SexPistolsForcedTarget target :
+                            state.forcedTargets) {
+                        target.write(buffer);
+                    }
                 }
             };
 
@@ -190,6 +212,8 @@ public final class SexPistolsCoordinator
     private final Set<UUID> splittingKilledTargets =
             new LinkedHashSet<>();
     private Optional<ResourceLocation> skin = Optional.empty();
+    private final List<SexPistolsForcedTarget> forcedTargets =
+            new ArrayList<>();
 
     public SexPistolsCoordinator() {
         Arrays.fill(childEntityIds, -1);
@@ -395,6 +419,89 @@ public final class SexPistolsCoordinator
         sync(owner);
     }
 
+    public List<SexPistolsForcedTarget> forcedTargets() {
+        return List.copyOf(forcedTargets);
+    }
+
+    public static int maxForcedTargets(@Nullable StandPower standPower) {
+        int level = standPower != null
+                ? standPower.getResolveLevel()
+                : 0;
+        return Math.min(
+                MAX_FORCED_TARGETS, 1 + Math.max(0, level));
+    }
+
+    public enum ForcedToggle {
+        ADDED,
+        REMOVED,
+        FULL,
+        INVALID
+    }
+
+    // 0.1.13 SexPistolsEntities.toggleForcedTarget: marking a target again
+    // removes it; a full list refuses new ones.
+    public ForcedToggle toggleForcedTarget(
+            LivingEntity owner,
+            @Nullable Entity entity,
+            @Nullable BlockPos block,
+            int max) {
+        for (int i = 0; i < forcedTargets.size(); i++) {
+            SexPistolsForcedTarget existing = forcedTargets.get(i);
+            if (entity != null
+                    ? existing.matchesEntity(entity)
+                    : existing.matchesBlock(block)) {
+                forcedTargets.remove(i);
+                sync(owner);
+                return ForcedToggle.REMOVED;
+            }
+        }
+        SexPistolsForcedTarget next =
+                entity instanceof LivingEntity living
+                        ? SexPistolsForcedTarget.entity(living)
+                        : entity == null && block != null
+                                ? SexPistolsForcedTarget.block(block)
+                                : null;
+        if (next == null) {
+            return ForcedToggle.INVALID;
+        }
+        if (forcedTargets.size()
+                >= Math.min(MAX_FORCED_TARGETS, max)) {
+            return ForcedToggle.FULL;
+        }
+        forcedTargets.add(next);
+        sync(owner);
+        return ForcedToggle.ADDED;
+    }
+
+    public boolean clearForcedTargets(LivingEntity owner) {
+        if (forcedTargets.isEmpty()) {
+            return false;
+        }
+        forcedTargets.clear();
+        sync(owner);
+        return true;
+    }
+
+    // Drops dead or broken targets and refreshes network ids after a load.
+    private boolean tickForcedTargets(ServerLevel level) {
+        boolean changed = false;
+        for (int i = forcedTargets.size() - 1; i >= 0; i--) {
+            SexPistolsForcedTarget target = forcedTargets.get(i);
+            if (!target.isValid(level)) {
+                forcedTargets.remove(i);
+                changed = true;
+                continue;
+            }
+            LivingEntity living = target.living(level);
+            if (living != null && living.getId() != target.entityId()) {
+                forcedTargets.set(
+                        i, SexPistolsForcedTarget.entity(living));
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
     public void toggleTrajectoryVision(LivingEntity owner) {
         trajectoryVision = !trajectoryVision;
         sync(owner);
@@ -490,6 +597,7 @@ public final class SexPistolsCoordinator
         transferOrder = SexPistolsTransferOrder.NONE;
         selectedNumber = SexPistolsIds.SEX_PISTOLS_NUMBERS[0];
         trajectoryVision = false;
+        forcedTargets.clear();
         clearSplittingVolley();
         summoned = false;
         swarmEstablished = false;
@@ -524,6 +632,7 @@ public final class SexPistolsCoordinator
             ServerLevel level,
             LivingEntity owner) {
         boolean syncNeeded = tickReviveTimers();
+        syncNeeded |= tickForcedTargets(level);
         boolean configuredHungerEnabled =
                 SexPistolsConfig.hungerEnabled();
         if (hungerEnabled != configuredHungerEnabled) {
@@ -1270,6 +1379,8 @@ public final class SexPistolsCoordinator
         inFlightMemberMask = 0;
         encirclementReturnMask = 0;
         trajectoryVision = other.trajectoryVision;
+        forcedTargets.clear();
+        forcedTargets.addAll(other.forcedTargets);
         hungerTicks = other.hungerTicks;
         hungry = other.hungry;
         clearSplittingVolley();
@@ -1320,6 +1431,11 @@ public final class SexPistolsCoordinator
                     killed);
         }
         tag.putIntArray("ReviveTicks", reviveTicks);
+        ListTag forced = new ListTag();
+        for (SexPistolsForcedTarget target : forcedTargets) {
+            forced.add(target.save());
+        }
+        tag.put("ForcedTargets", forced);
         skin.ifPresent(value ->
                 tag.putString("Skin", value.toString()));
         for (int slot = 0; slot < MEMBER_COUNT; slot++) {
@@ -1410,6 +1526,18 @@ public final class SexPistolsCoordinator
         }
         if (!summoned && trackedMemberCount() > 0) {
             recallTicks = RECALL_TICKS;
+        }
+        forcedTargets.clear();
+        ListTag forced = tag.getList("ForcedTargets", Tag.TAG_COMPOUND);
+        for (int i = 0;
+                i < forced.size()
+                        && forcedTargets.size() < MAX_FORCED_TARGETS;
+                i++) {
+            SexPistolsForcedTarget target =
+                    SexPistolsForcedTarget.load(forced.getCompound(i));
+            if (target != null) {
+                forcedTargets.add(target);
+            }
         }
         ResourceLocation savedSkin = tag.contains("Skin")
                 ? ResourceLocation.tryParse(tag.getString("Skin"))

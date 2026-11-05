@@ -11,6 +11,10 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.type.StandTypePersistentData;
 import com.google.gson.JsonElement;
 
+import java.util.function.Consumer;
+
+import rotp.addons.rhcp.RhcpAddon;
+import rotp.addons.rhcp.RhcpConfig;
 import rotp.addons.rhcp.RhcpEvents;
 import rotp.addons.rhcp.RhcpService;
 import net.minecraft.resources.ResourceLocation;
@@ -49,8 +53,25 @@ public final class RhcpStandType extends EntityStandType {
         super.forceUnsummon(user, power);
     }
 
+    // Beta2 RHCPEntity.onAddedToWorld: without SaveRHCPData every summon is a
+    // fresh RHCP at 0 energy and potency; with it the user's values carry over.
+    @Override
+    public boolean summon(LivingEntity user, StandPower standPower,
+            Consumer<StandEntity> beforeTheSummon, boolean addToWorld) {
+        if (!user.level().isClientSide()
+                && standPower.canUsePower()
+                && standPower.getSummonedStandEntity() == null
+                && !RhcpConfig.saveRhcpData(false)
+                && RhcpAddon.state(user).setEnergy(0.0F)
+                && user instanceof ServerPlayer player) {
+            RhcpService.sync(player);
+        }
+        return super.summon(user, standPower, beforeTheSummon, addToWorld);
+    }
+
     // 1.16 kept energy and potency on the Stand entity, so removing or
-    // replacing the Stand started the next RHCP at 0/0. Unsummon keeps them.
+    // replacing the Stand started the next RHCP at 0/0. With SaveRHCPData
+    // an unsummon keeps them.
     @Override
     public StandTypePersistentData newDataInstance() {
         return new RhcpStandData(this);

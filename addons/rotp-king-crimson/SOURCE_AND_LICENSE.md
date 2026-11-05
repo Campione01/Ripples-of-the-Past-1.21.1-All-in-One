@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-king-crimson`, mod id `rotp_kingcrimson`, version `1.0.3-port.30`.
+- Module: `rotp-king-crimson`, mod id `rotp_kingcrimson`, version `1.0.3-port.31`.
 - Original 1.16.5 add-on: `RotP-绯红之王-1.0.3.jar` (RotP 绯红之王, mod id `rotp_kingcrimson`), by HelloThere, DeezQuartz, StandoByte; declared license: GNU GPL v3.0; SHA-256 `72528112AC68750B0499414626AFEBDF5695F4C554F185FDFE19B5845B60E2F0`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

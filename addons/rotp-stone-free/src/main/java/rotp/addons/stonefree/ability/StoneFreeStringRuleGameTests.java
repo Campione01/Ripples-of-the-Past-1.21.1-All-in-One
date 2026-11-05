@@ -1048,8 +1048,14 @@ public final class StoneFreeStringRuleGameTests {
         runSwing(helper, StoneFreeAddon.USER_STRING_SWEEP_NAME, Kind.USER_SWEEP, 1.5F, 10, 0);
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
+            timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void userWhipSwingsOutSevenAndAHalfBlocksAndBackAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> userWhipSwingsOutSevenAndAHalfBlocksAndBackAsIn116Body(h));
+    }
+
+    private static void userWhipSwingsOutSevenAndAHalfBlocksAndBackAsIn116Body(GameTestHelper helper) {
         runSwing(helper, StoneFreeAddon.USER_STRING_WHIP_NAME, Kind.USER_WHIP, 1.5F, 10, 0);
     }
 
@@ -1058,8 +1064,14 @@ public final class StoneFreeStringRuleGameTests {
      * nothing more for the rest of that throw. A bear early in the swing (2.5 blocks out along its age-2 pitch) is hit
      * first; a second bear 5 blocks out along its age-5 pitch, which the swing passes later, is left unhurt.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
+            timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void userWhipHurtsOnlyTheFirstMobItMeetsAsIn116(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> userWhipHurtsOnlyTheFirstMobItMeetsAsIn116Body(h));
+    }
+
+    private static void userWhipHurtsOnlyTheFirstMobItMeetsAsIn116Body(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
         StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             LivingEntity user = fixture.owner;

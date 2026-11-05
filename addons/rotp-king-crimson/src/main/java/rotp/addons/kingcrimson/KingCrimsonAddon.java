@@ -6,6 +6,7 @@ import static rotp.core.init.power.ModStands.USE_SPECIAL;
 import java.util.function.Supplier;
 
 import rotp.core.api.RotpAddonApi;
+import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.MovesetBuilder;
@@ -426,6 +427,11 @@ public final class KingCrimsonAddon {
                 KingCrimsonAddon::registerPayloads);
         modEventBus.addListener(
                 KingCrimsonGameEvents::registerAttributes);
+        // A2-UNSEEN: the core's rays, aims, Stand picks and blinks, and other add-ons' targeting, ask this rule.
+        PerceptionBlockers.register(
+                id("time_erase"),
+                (viewer, target, sight) -> KingCrimsonTimeEraseDecoyEntity
+                        .blocksPerception(viewer, target, sight));
         // 1.16 KCConfig: COMMON, rotp_kingcrimson.toml
         modContainer.registerConfig(
                 ModConfig.Type.COMMON,
@@ -498,7 +504,8 @@ public final class KingCrimsonAddon {
                 EpitaphForesightPayload.TYPE,
                 EpitaphForesightPayload.STREAM_CODEC,
                 EpitaphForesightPayload::handle);
-        event.registrar("1").playToClient(
+        // "2" since R772 added the time-stop pause flag: an older client is refused at login.
+        event.registrar("2").playToClient(
                 TemporalStateSyncPayload.TYPE,
                 TemporalStateSyncPayload.STREAM_CODEC,
                 TemporalStateSyncPayload::handle);

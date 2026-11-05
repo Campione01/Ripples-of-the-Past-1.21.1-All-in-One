@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-purple-haze`, mod id `rotp_ph`, version `1.0.4-port.17`.
+- Module: `rotp-purple-haze`, mod id `rotp_ph`, version `1.0.4-port.18`.
 - Original 1.16.5 add-on: `RotP-紫烟-1.0.4.jar` (RotP 紫烟, mod id `rotp_ph`), by Parmezannchik; declared license: GNU GPL v3.0; SHA-256 `2972A968A484F0F785EC78D8C9C6D7E15EE7FC23578E8F4043FD758DA2D3BE11`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-21); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -37,6 +37,16 @@ particles, virus clouds and aura, viral finisher, madness targeting and
 barrage, and the legacy summon and secondary idle poses. State, damage,
 targeting, and cleanup are server authoritative. Stand-visible secondary
 visuals inherit the effect owner's current core Stand visibility matrix.
+
+The gameplay rules follow the author's later main-branch build
+(`PurpleHazeRotp--main`, built 2024-07-08, shipped as `RotP-紫烟-1.0.4.jar`,
+548734 bytes, SHA-256
+`BC561F7B7FC140FA06C5DBA66568FB31572CCA9C18D97F8A47E0089FA9A9C676`): Capsule
+Shot unlocks at resolve level 3 and Madness at level 1, a Stand in the
+arms-only mode or with its user's stamina spent does not go mad by itself,
+and a mad Stand starts no new retraction over a running one or over the
+unsummon. Its resources are those of 1.0.4 except a Chinese `en_us.json`,
+which is not taken.
 
 Bounded compatibility repairs and the two missing source audio assets are
 recorded in `migration/manifests/full-closure.json`; no replacement audio is

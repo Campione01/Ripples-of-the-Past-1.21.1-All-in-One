@@ -1,0 +1,8 @@
+{
+  "november_rain_summon": {
+    "subtitle": "jojo_ripples.subtitle.stand_summon",
+    "sounds": [
+      "rotp_november_rain:november_rain_summon"
+    ]
+  }
+}

@@ -591,6 +591,8 @@ public final class CreamMeleeGameTests {
         ServerPlayer owner = makeCompatibleMockPlayer(helper, "cream-chomp-turn");
         Vec3 ownerPos = Vec3.atBottomCenterOf(
                 helper.absolutePos(new BlockPos(1, 12, 1)));
+        // the cow stands 3 blocks east, past the one-block template's chunk when it lies at a border
+        new CreamChunkTickets(helper).hold(ownerPos, ownerPos.add(3.0D, 1.0D, 0.0D));
         owner.setPos(ownerPos.x, ownerPos.y, ownerPos.z);
         owner.setNoGravity(true);
         owner.setXRot(0.0F);
@@ -2482,7 +2484,8 @@ public final class CreamMeleeGameTests {
 
     // 1.16 038 InitStands :74 cream_block is a CreamBlock (a StandEntityBlock, StandPose.BLOCK) and CreamModel puts no
     // BLOCK pose, so Cream drew HumanoidStandModel's guard (:590-607): crossed forearms, arms following the look pitch up
-    // to 60 degrees. The core's stand_default block is that guard; Star Platinum's static one is its own clip. 1.16
+    // to 60 degrees. The core keeps that guard's arms in Magician's Red's block (since R772 A1-OFFICIAL stand_default's
+    // block is the official port's static one, which has no Cream to follow); every other bone is stand_default's. 1.16
     // LegacyStandAnimator.poseStand :73 posed Cream's whole idle (CreamModel.initIdlePose :126) first and the BLOCK pose
     // names no leg and no torso2, so the guard kept Cream's idle legs and lower torso, not stand_default's leg stance.
     @GameTest(
@@ -2496,11 +2499,19 @@ public final class CreamMeleeGameTests {
         JsonObject star = animationClip(helper, "jojo_ripples",
                 "assets/jojo_ripples/stand_skins/star_platinum/assets/jojo_ripples/animations/"
                         + "star_platinum.animation.json", "block");
-        JsonObject coreBones = core.getAsJsonObject("bones");
-        helper.assertTrue(coreBones.has("right_arm")
-                        && coreBones.get("right_arm").toString().contains("math.min(60, query.head_x_rotation)")
+        JsonObject humanoid = animationClip(helper, "jojo_ripples",
+                "assets/jojo_ripples/stand_skins/magicians_red/assets/jojo_ripples/animations/"
+                        + "magicians_red.animation.json", "block").getAsJsonObject("bones");
+        List<String> armBones = List.of("left_arm", "right_arm", "left_arm_bend", "right_arm_bend");
+        JsonObject coreBones = core.getAsJsonObject("bones").deepCopy();
+        for (String arm : armBones) {
+            helper.assertTrue(coreBones.has(arm) && humanoid.has(arm),
+                    "setup: the core guards no longer key " + arm);
+            coreBones.add(arm, humanoid.get(arm));
+        }
+        helper.assertTrue(coreBones.get("right_arm").toString().contains("math.min(60, query.head_x_rotation)")
                         && !coreBones.equals(star.getAsJsonObject("bones")),
-                "setup: the core default block is no longer the pitch-following humanoid guard: " + coreBones);
+                "setup: Magician's Red's block no longer holds the pitch-following humanoid guard: " + humanoid);
         List<String> idleBones = List.of("left_leg", "right_leg", "left_leg_bend", "right_leg_bend", "torso_lower");
         for (String skin : List.of("cream", "skina", "skinb", "skinc", "skind", "skine")) {
             String file = "assets/rotp_cream/stand_skins/" + skin + "/assets/rotp_cream/animations/cream.animation.json";

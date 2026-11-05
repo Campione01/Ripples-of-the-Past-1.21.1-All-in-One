@@ -21,6 +21,7 @@ import rotp.addons.d4c.D4CAddon;
 import rotp.addons.d4c.travel.D4CDimensionTravelService;
 import rotp.addons.d4c.travel.D4CDimensionTravelService.TravelPlan;
 import rotp.addons.d4c.travel.D4CDimensionTravelService.TravelPlanResult;
+import rotp.addons.d4c.travel.D4CParallelTerrainMirror;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -93,6 +94,15 @@ public final class D4CParallelWorldTravelAbility
 
         public TravelAction(EntityActionType ability) {
             super(ability);
+        }
+
+        @Override
+        public void onSetPhase(ActionPhase newPhase) {
+            if (newPhase == ActionPhase.BUTTON_CHARGE
+                    && !level().isClientSide()
+                    && getPowerUser() instanceof ServerPlayer player) {
+                D4CParallelTerrainMirror.prewarm(player);
+            }
         }
 
         @Override

@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-grateful-dead`, mod id `rotp_grateful_dead`, version `0.1.11-port.13`.
+- Module: `rotp-grateful-dead`, mod id `rotp_grateful_dead`, version `0.1.13-port.14`.
 - Original 1.16.5 add-on: `RotP-Next-Album-0.1.11.jar` (RotP:NextAlbum, mod id `rotp_nextalbum`), by Babelmoth; declared license: GNU GPL v3.0; SHA-256 `749AF3B9F710490534BDA502BCE4A2A734921FF2A1C84CB1007EF892EF2FB19D`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-21); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -54,8 +54,13 @@ AI image-generation edit supplied material and color reference, after
 which a deterministic local post-process preserved the canonical alpha and UV
 silhouette and rebuilt material regions. The migrated model retains the donor
 cube inventory and doubled donor UVs while using current core bone names; the
-head and body remain independent at their donor action pivots. The nine 32x32 ability icons are
-module-local pixel-art derivatives using that same palette. Geometry and
+head and body remain independent at their donor action pivots. The 32x32 ability icons are
+Babelmoth's own `textures/action` icons from `RotP-Next-Album-0.1.13.jar`
+(SHA-256 `C5F70C6852D7C2D5781CF13756F0EE857AF3A41405E61F7AF6F02AB6DDC45175`), enlarged
+2x nearest-neighbour; its put-down icon serves the core grab release. Only `heavy_charged`
+and `manual_control`, which 0.1.13 does not have, stay module-local pixel-art derivatives
+using that same palette. The Stand's summon and unsummon sounds and Prosciutto's shouts are
+that jar's exact files. Geometry and
 animation JSON were structurally converted to the current Stand skin skeleton
 and current action animation names.
 

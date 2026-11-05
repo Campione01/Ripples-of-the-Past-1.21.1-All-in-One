@@ -36,6 +36,9 @@ import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.GameTestInfo;
+import net.minecraft.gametest.framework.GameTestListener;
+import net.minecraft.gametest.framework.GameTestRunner;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
@@ -53,7 +56,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
+import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.event.PlayLevelSoundEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -310,7 +313,7 @@ public final class HeartInversionGameTests {
     /** 1.16 IPunch.playImpactSound: the punch sound plays at the target only when the hit landed. */
     @GameTest(template = "inversion_fixture", timeoutTicks = 100)
     public static void punchImpactSoundPlaysOnlyForALandedHit(GameTestHelper helper) {
-        Fixture f = new Fixture(helper, "c0de0001-0000-4000-8000-00000000c305", "CMoonPunchImpact");
+        Fixture f = new Fixture(helper, "c0de0001-0000-4000-8000-00000000c306", "CMoonPunchImpact");
         Mob[] refusing = {null};
         List<Played> played = new ArrayList<>();
         Consumer<PlayLevelSoundEvent.AtPosition> listener = event -> {
@@ -419,6 +422,33 @@ public final class HeartInversionGameTests {
         return Mth.clamp((float) ratio - 0.25F, 0, 1);
     }
 
+    // a failed setup or test leaves no user behind, which would keep its UUID from joining again
+    private static final class UserCleanup implements GameTestListener {
+        private final Entity user;
+
+        UserCleanup(Entity user) {
+            this.user = user;
+        }
+
+        @Override
+        public void testStructureLoaded(GameTestInfo test) {}
+
+        @Override
+        public void testPassed(GameTestInfo test, GameTestRunner runner) {
+            user.discard();
+        }
+
+        @Override
+        public void testFailed(GameTestInfo test, GameTestRunner runner) {
+            user.discard();
+        }
+
+        @Override
+        public void testAddedForRerun(GameTestInfo oldTest, GameTestInfo newTest, GameTestRunner runner) {
+            user.discard();
+        }
+    }
+
     private static final class Fixture {
         final GameTestHelper helper;
         final EntityStandType type;
@@ -432,9 +462,17 @@ public final class HeartInversionGameTests {
         Fixture(GameTestHelper helper, String uuid, String name) {
             this.helper = helper;
             type = CMoonAddon.C_MOON.get();
-            user = FakePlayerFactory.get(helper.getLevel(), new GameProfile(UUID.fromString(uuid), name));
+            // FakePlayerFactory hands back one removed instance per profile, which cannot join a level again
+            Entity lingering = helper.getLevel().getEntity(UUID.fromString(uuid));
+            if (lingering != null) {
+                lingering.discard();
+            }
+            user = new FakePlayer(helper.getLevel(), new GameProfile(UUID.fromString(uuid), name));
             user.getAbilities().instabuild = false;
             userPos = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 2, 1)));
+            // the targets stand up to 5 blocks east or south of the user, past the 4x4x4 template's chunks when it
+            // lies at a border
+            new CMoonChunkTickets(helper).hold(userPos, userPos.add(5.0D, 2.0D, 5.0D));
             // The user's aim picks what a hit strikes (1.16 clientHitResult, StandEntity.aimWithThisOrUser) and, as walls
             // block a Stand's bodily attack (owner, 2026-10-14 and 2026-10-15), stops at the barrier; the targets stand
             // beyond it, so the user gets a clear line to them.
@@ -444,6 +482,7 @@ public final class HeartInversionGameTests {
             user.moveTo(userPos.x, userPos.y, userPos.z, 0.0F, 0.0F);
             user.setYHeadRot(0.0F);
             helper.assertTrue(helper.getLevel().addFreshEntity(user), "Could not add the C-Moon user");
+            helper.testInfo.addListener(new UserCleanup(user));
             power = PowerClass.STAND.attachGet(user);
             helper.assertTrue(StandPowerTransitions.insert(power, new StandInstance(type)).status()
                     == StandPowerTransitions.Status.APPLIED, "Could not grant C-Moon");

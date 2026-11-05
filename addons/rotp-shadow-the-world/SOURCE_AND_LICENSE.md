@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-shadow-the-world`, mod id `rotp_shadowtheworld`, version `1.2.1-mc1.21.1-phase22`.
+- Module: `rotp-shadow-the-world`, mod id `rotp_shadowtheworld`, version `1.2.1-mc1.21.1-phase23`.
 - Original 1.16.5 add-on: `RotP-影世界-1.2.0.jar` (RotP 影世界, mod id `rotp_shadowtheworld`), by LL,浪浪; declared license: GNU GPL v3.0; SHA-256 `F0ED011CB4D69010DE3FC33BA92A7ACD2C0CD9818B7175343448ED4385088886`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -41,6 +41,14 @@ rescaled. Geometry changes are structural only: the source cubes and UV
 contract are retained while the bone hierarchy is adapted to the
 current semantic Stand model. The 21 source animation clips are retained
 and supplemented with current-name aliases.
+
+Many source clips were copied from The World's and still start or end in The
+World's idle stance (its body lean, arms, legs, right knee and heart tilt), and
+the heavy, stun, finisher and time stop clips leave the torso twist, the knees
+or the joints off the idle at their end. In the default skin's clip file those
+keys hold Shadow The World's own idle values, so each move returns to its idle
+without a twist and snap back. The root animation file, which the Stand does
+not draw from, is unchanged.
 
 The source sound map references files that do not exist in the canonical
 JAR. Missing variants are filtered, the

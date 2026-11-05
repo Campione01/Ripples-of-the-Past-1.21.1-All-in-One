@@ -40,6 +40,18 @@ public final class D4CAnnihilationCloneEffects {
                 (int) (size * size * height * 15.0D)));
     }
 
+    // ag/ab.java:270-280 and ah/aa.java:239-248: a box burst every 10 ticks
+    // up to tick 100, then ag/ab.java:307-361 and ah/aa.java:300-349 every
+    // tick from the box faces, growing from 1x to 3x the budget until 160
+    public static final int SECOND_PHASE_TICK = 100;
+    public static final int SECOND_PHASE_TICKS = 60;
+
+    public static int faceBurstCount(int base, int secondPhaseTick) {
+        float growth = 1.0F
+                + (float) secondPhaseTick / SECOND_PHASE_TICKS * 2.0F;
+        return (int) (base * growth);
+    }
+
     // ag/ab.java:369-373: double budget over 1.5x the padded box
     public static int finalBurstCount(
             double width, double depth, double height) {

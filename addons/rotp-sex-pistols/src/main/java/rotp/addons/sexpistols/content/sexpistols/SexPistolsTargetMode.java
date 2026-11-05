@@ -10,7 +10,10 @@ public enum SexPistolsTargetMode {
     PLAYERS,
     HOSTILE,
     FRIENDLY,
-    ALL;
+    ALL,
+    // 0.1.13: the target the user (or the lowest fixed member) looks at;
+    // without one it searches like ALL.
+    AIM;
 
     public static SexPistolsTargetMode byId(int id) {
         SexPistolsTargetMode[] values = values();
@@ -40,7 +43,7 @@ public enum SexPistolsTargetMode {
             case HOSTILE -> target instanceof Monster;
             case FRIENDLY -> !(target instanceof Player)
                     && !(target instanceof Monster);
-            case ALL -> !(target instanceof Player player)
+            case ALL, AIM -> !(target instanceof Player player)
                     || !(owner instanceof Player ownerPlayer)
                     || ownerPlayer.canHarmPlayer(player);
         };

@@ -225,6 +225,8 @@ public final class UltimateResidualRulesGameTests {
             batch = "ulf_teleport_ray")
     public static void endermanTeleportRayIsThe116OutlineRayWithNoMargin(
             GameTestHelper helper) {
+        // the cow behind the wall stands on block (2, 2, 9)
+        UltimateLifeformChunkTickets.holdScene(helper);
         Holder holder = holder(helper, "UltimateResidualBlinkRay",
                 "b2d1f3a5-1c2e-4d3f-9a4b-6c7d8e9f0a08", GameType.SURVIVAL,
                 false);
@@ -283,6 +285,16 @@ public final class UltimateResidualRulesGameTests {
         behind.discard();
         holder.close((short) 32_408);
         helper.succeed();
+    }
+
+    // the same scene with the cow behind the wall in the chunk next to the
+    // template's
+    @GameTest(template = "empty", timeoutTicks = 20,
+            batch = "ulf_teleport_ray_across_a_chunk_border")
+    public static void endermanTeleportRayIsThe116OutlineRayWithNoMarginAcrossAChunkBorder(
+            GameTestHelper helper) {
+        endermanTeleportRayIsThe116OutlineRayWithNoMargin(
+                new UltimateLifeformAwayHelper(helper, 3));
     }
 
     private static Vec3 blink(Holder holder, Vec3 from) {
@@ -595,6 +607,7 @@ public final class UltimateResidualRulesGameTests {
                         exception);
             }
         }
+        UltimateLifeformFixtures.claim(helper, player);
         player.setPos(Vec3.atBottomCenterOf(
                 helper.absolutePos(new BlockPos(2, 2, 2))));
         player.setGameMode(gameType);

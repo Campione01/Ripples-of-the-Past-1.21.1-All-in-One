@@ -716,6 +716,7 @@ public final class UltimateHeldRecheckGameTests {
                 }
             }
         };
+        UltimateLifeformFixtures.claim(helper, player);
         player.setPos(Vec3.atBottomCenterOf(
                 helper.absolutePos(new net.minecraft.core.BlockPos(2, 2, 2))));
         player.setGameMode(GameType.SURVIVAL);

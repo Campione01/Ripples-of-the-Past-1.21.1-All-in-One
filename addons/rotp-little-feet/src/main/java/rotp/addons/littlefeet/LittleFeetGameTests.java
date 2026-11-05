@@ -687,6 +687,11 @@ public final class LittleFeetGameTests {
             this.helper = helper;
             origin = Vec3.atBottomCenterOf(
                     helper.absolutePos(new BlockPos(1, 2, 1)));
+            // the user, its Stand and the cows ahead of it may stand in the
+            // next chunks; held before they join, released at the end
+            new LittleFeetChunkTickets(helper).hold(
+                    helper.absoluteVec(new Vec3(-2.0D, 0.0D, -2.0D)),
+                    helper.absoluteVec(new Vec3(5.0D, 0.0D, 5.0D)));
             user = new FakePlayer(helper.getLevel(),
                     new GameProfile(UUID.randomUUID(), name));
             user.moveTo(origin.x, origin.y, origin.z, 0.0F, 0.0F);
@@ -1012,9 +1017,11 @@ public final class LittleFeetGameTests {
 
         private void tickCooldowns() {
             try {
-                Method method = StandPower.class.getDeclaredMethod("tickAbilityCooldowns");
+                // R772 A2-TIMESCALE: the core counts cooldowns down by the
+                // steps of the user's time rate, one a tick at the normal rate.
+                Method method = StandPower.class.getDeclaredMethod("tickAbilityCooldowns", int.class);
                 method.setAccessible(true);
-                method.invoke(power);
+                method.invoke(power, 1);
             }
             catch (ReflectiveOperationException e) {
                 throw new IllegalStateException(

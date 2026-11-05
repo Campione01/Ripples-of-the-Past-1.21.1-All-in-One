@@ -18,6 +18,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
@@ -35,7 +36,11 @@ public final class EmperorStandType extends EntityStandType {
     public boolean onTrySummon(
             LivingEntity user, StandPower standPower) {
         if (!(user instanceof Player player)) {
-            return false;
+            // 1.3: a Stand-bearing mob summons it too and gets the gun
+            // in its main hand (EmperorStandEntity.onAddedToLevel)
+            return user instanceof Mob
+                    && !armsUnzipped(user)
+                    && super.onTrySummon(user, standPower);
         }
         if (!player.level().isClientSide()) {
             EmperorItem.purgeAll(player);
@@ -60,8 +65,11 @@ public final class EmperorStandType extends EntityStandType {
     @Override
     public boolean summon(
             LivingEntity user, StandPower standPower) {
-        if (!(user instanceof Player player)
-                || !super.summon(user, standPower)) {
+        if (!(user instanceof Player player)) {
+            return user instanceof Mob
+                    && super.summon(user, standPower);
+        }
+        if (!super.summon(user, standPower)) {
             return false;
         }
         if (!player.level().isClientSide()) {

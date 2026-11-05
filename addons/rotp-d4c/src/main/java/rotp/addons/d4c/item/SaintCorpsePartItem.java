@@ -18,6 +18,12 @@ public final class SaintCorpsePartItem extends Item {
         super(properties);
     }
 
+    // 1.16 ab.hasEffect: every corpse part always shines
+    @Override
+    public boolean isFoil(ItemStack stack) {
+        return true;
+    }
+
     @Override
     public void appendHoverText(
             ItemStack stack,

@@ -3,6 +3,7 @@ package rotp.addons.kingcrimson;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.init.ModParticles;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.StandUtil;
@@ -35,6 +36,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 @EventBusSubscriber(modid = KingCrimsonAddon.MOD_ID)
 public final class KingCrimsonGameEvents {
@@ -228,6 +230,26 @@ public final class KingCrimsonGameEvents {
                 KingCrimsonTemporalStateService.tick(player);
             }
         }
+    }
+
+    // A user frozen in a time stop gets no PlayerTickEvent, so the erase's and Epitaph's pauses are counted here.
+    @SubscribeEvent
+    public static void onServerTick(ServerTickEvent.Post event) {
+        for (ServerPlayer player
+                : event.getServer().getPlayerList().getPlayers()) {
+            if (player.hasData(KingCrimsonAddon.TEMPORAL_STATE)) {
+                KingCrimsonTemporalStateService.tickTimeStopPause(player);
+            }
+            if (player.hasData(KingCrimsonAddon.EPITAPH_STATE)) {
+                EpitaphStateService.tickTimeStopPause(player);
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public static void onRewindApplied(RewindAppliedEvent event) {
+        KingCrimsonTemporalStateService.endErasesBegunAfter(
+                event.getLevel(), event.getRewindPoint(), event.getRegion());
     }
 
     @SubscribeEvent

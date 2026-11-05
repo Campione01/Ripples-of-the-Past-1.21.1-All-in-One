@@ -1,5 +1,7 @@
 package rotp.addons.killerqueen;
 
+import java.util.function.Consumer;
+
 import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerType;
@@ -9,6 +11,7 @@ import rotp.core.powersystem.standpower.entity.EntityStandType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.type.StandTypePersistentData;
 
+import rotp.addons.killerqueen.btd.BiteTheDustManager;
 import rotp.addons.killerqueen.state.KillerQueenStateService;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
@@ -29,6 +32,24 @@ public class KillerQueenStandType extends EntityStandType {
             EntityType<? extends StandEntity> entityType,
             ResourceLocation id) {
         super(stats, moveset, entityType, id);
+    }
+
+    // 1.6.10 of 2026-10-20 KQStandType: no summon while its Bite the Dust is
+    // inside a carrier
+    @Override
+    public void onUserSummonCommand(LivingEntity user, StandPower standPower) {
+        if (!standPower.isSummoned()
+                && BiteTheDustManager.isStandLocked(user)) {
+            return;
+        }
+        super.onUserSummonCommand(user, standPower);
+    }
+
+    @Override
+    public boolean summon(LivingEntity user, StandPower standPower,
+            Consumer<StandEntity> beforeTheSummon, boolean addToWorld) {
+        return !BiteTheDustManager.isStandLocked(user)
+                && super.summon(user, standPower, beforeTheSummon, addToWorld);
     }
 
     // 1.16 kept the block bomb on the Stand entity, and every unsummon

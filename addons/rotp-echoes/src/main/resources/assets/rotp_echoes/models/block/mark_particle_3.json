@@ -1,0 +1,7 @@
+{
+  "ambientocclusion": false,
+  "textures": {
+    "particle": "rotp_echoes:block/sound_mark_3"
+  },
+  "elements": []
+}

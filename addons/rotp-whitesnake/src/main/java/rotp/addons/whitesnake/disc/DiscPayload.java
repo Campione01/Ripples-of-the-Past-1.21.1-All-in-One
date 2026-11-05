@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import rotp.core.mechanics.standdisc.StandDiscItem;
 
+import rotp.addons.whitesnake.buffdisc.DiscItem;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
@@ -98,13 +99,22 @@ public record DiscPayload(
                             carrier,
                             payload));
         }
+        // PATCH1 WhitesnakeThrowDisc: any Buff disc, a blank one too
+        if (DiscItem.isDisc(carrier)) {
+            return Optional.of(new DiscPayload(
+                    Type.EFFECT_DISC,
+                    hand,
+                    carrier,
+                    new CompoundTag()));
+        }
         return Optional.empty();
     }
 
     public enum Type {
         NONE(""),
         STAND_DISC("stand_disc"),
-        MEMORY_DISC("memory_disc");
+        MEMORY_DISC("memory_disc"),
+        EFFECT_DISC("effect_disc");
 
         private final String serializedName;
 

@@ -5,6 +5,7 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import rotp.addons.madeinheaven.MadeInHeavenAddon;
+import rotp.addons.madeinheaven.state.TimeAccelerationMode;
 import rotp.addons.madeinheaven.state.TimeAccelerationState;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -14,7 +15,8 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 public record TimeAccelerationStatePayload(
         @Nullable UUID ownerUuid,
         boolean active,
-        int phase) implements CustomPacketPayload {
+        int phase,
+        TimeAccelerationMode mode) implements CustomPacketPayload {
     public static final Type<TimeAccelerationStatePayload> TYPE =
             new Type<>(MadeInHeavenAddon.id(
                     "time_acceleration_state"));
@@ -31,7 +33,9 @@ public record TimeAccelerationStatePayload(
                     return new TimeAccelerationStatePayload(
                             owner,
                             buffer.readBoolean(),
-                            buffer.readVarInt());
+                            buffer.readVarInt(),
+                            TimeAccelerationMode.byId(
+                                    buffer.readVarInt()));
                 }
 
                 @Override
@@ -45,6 +49,7 @@ public record TimeAccelerationStatePayload(
                     }
                     buffer.writeBoolean(payload.active());
                     buffer.writeVarInt(payload.phase());
+                    buffer.writeVarInt(payload.mode().ordinal());
                 }
             };
 
@@ -53,7 +58,8 @@ public record TimeAccelerationStatePayload(
         return new TimeAccelerationStatePayload(
                 state.ownerUuid(),
                 state.active(),
-                state.phase());
+                state.phase(),
+                state.mode());
     }
 
     public static void handle(
@@ -64,7 +70,8 @@ public record TimeAccelerationStatePayload(
                 .applyClientSnapshot(
                         payload.ownerUuid(),
                         payload.active(),
-                        payload.phase());
+                        payload.phase(),
+                        payload.mode());
     }
 
     @Override

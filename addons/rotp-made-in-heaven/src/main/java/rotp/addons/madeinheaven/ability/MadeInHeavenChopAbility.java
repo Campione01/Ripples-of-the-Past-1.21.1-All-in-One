@@ -17,6 +17,7 @@ import rotp.core.subsystems.target.ActionTarget.TargetType;
 import rotp.core.subsystems.target.AimingEntity;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import rotp.addons.madeinheaven.MadeInHeavenAddon;
 import net.minecraft.core.Holder;
@@ -196,12 +197,16 @@ public final class MadeInHeavenChopAbility
                 MobEffectInstance existing =
                         living.getEffect(
                                 ModStatusEffects.BLEEDING);
-                int duration = BLEEDING_TICKS;
-                int amplifier = 1;
+                // Owner T2: past the base reach the bleeding falls with the
+                // damage, its time and its one stack alike.
+                float reach = StandMeleeReach.strikeFactor(stand, living);
+                int duration = Math.max(1, Math.round(BLEEDING_TICKS * reach));
+                int stack = Math.round(reach);
+                int amplifier = stack;
                 if (existing != null) {
                     duration += existing.getDuration();
                     amplifier = Math.min(
-                            existing.getAmplifier() + 1,
+                            existing.getAmplifier() + stack,
                             MAX_BLEEDING_AMPLIFIER);
                 }
                 living.addEffect(new MobEffectInstance(
@@ -277,8 +282,11 @@ public final class MadeInHeavenChopAbility
                 float rawDamage,
                 boolean mainTarget) {
             float previousChance = shieldDisableChance;
+            // Owner T2: a guard break past the base reach is as much less
+            // likely as the strike is weaker.
+            float reach = StandMeleeReach.strikeFactor(stand, target);
             shieldDisableChance = target instanceof Player player
-                    ? guardBreakChance(stand, player) : 0.0F;
+                    ? guardBreakChance(stand, player) * reach : 0.0F;
             try {
                 // Read admission here; only the shared hurt helper updates RAW history.
                 if (target instanceof StandEntity targetStand
@@ -286,7 +294,8 @@ public final class MadeInHeavenChopAbility
                         && stand.canAttackEntity(targetStand)
                         && !StandEntity.isStandAttackInvulnerable(
                                 targetStand)) {
-                    float chance = guardBreakChance(stand, targetStand);
+                    float chance = guardBreakChance(stand, targetStand)
+                            * reach;
                     if (chance > 0.0F
                             && stand.getRandom().nextFloat() < chance) {
                         ((DamageSourceModified) damageSource)

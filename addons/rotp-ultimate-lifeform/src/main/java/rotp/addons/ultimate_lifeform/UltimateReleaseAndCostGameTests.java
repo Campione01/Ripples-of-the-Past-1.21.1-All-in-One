@@ -783,6 +783,7 @@ public final class UltimateReleaseAndCostGameTests {
                         + " got " + (coreWave.isPositive() ? "admitted"
                                 : String.valueOf(coreWave.getWarning())));
         core.discard();
+        UltimateLifeformFixtures.discardSent(helper, holder.player);
         holder.close((short) 32_136);
         helper.succeed();
     }
@@ -1354,6 +1355,7 @@ public final class UltimateReleaseAndCostGameTests {
             throw new IllegalStateException(
                     "Premise: no ServerPlayer.spawnInvulnerableTime", exception);
         }
+        UltimateLifeformFixtures.claim(helper, player);
         player.setPos(Vec3.atBottomCenterOf(
                 helper.absolutePos(new net.minecraft.core.BlockPos(2, 2, 2))));
         player.setGameMode(GameType.SURVIVAL);
@@ -2350,6 +2352,7 @@ public final class UltimateReleaseAndCostGameTests {
                                     .inflate(12.0D),
                             area -> area.getOwner() == holder.player)
                     .forEach(Entity::discard);
+            UltimateLifeformFixtures.discardSent(helper, holder.player);
             holder.close((short) 32_147);
             helper.succeed();
         });
@@ -2401,6 +2404,7 @@ public final class UltimateReleaseAndCostGameTests {
                                     .inflate(12.0D),
                             area -> area.getOwner() == holder.player)
                     .forEach(Entity::discard);
+            UltimateLifeformFixtures.discardSent(helper, holder.player);
             holder.close((short) 32_148);
             helper.succeed();
         });
@@ -2515,6 +2519,7 @@ public final class UltimateReleaseAndCostGameTests {
                 return super.hurt(source, amount);
             }
         };
+        UltimateLifeformFixtures.claim(helper, player);
         player.setPos(Vec3.atBottomCenterOf(
                 helper.absolutePos(new net.minecraft.core.BlockPos(2, 2, 2))));
         player.setGameMode(gameType);

@@ -598,10 +598,7 @@ abstract class AbstractPowerMobGoal<P extends Power<P>> extends Goal {
 
     private void releaseGrabIfTargetChanged(
             @Nullable LivingEntity target) {
-        LivingEntity grabbed =
-                rotp.core.subsystems.entity_grab
-                        .LivingComponentGrab
-                        .getEntityGrabbedBy(mob);
+        LivingEntity grabbed = MobPowerUtil.getGrabbedEntity(mob);
         if (grabbed != null && grabbed != target) {
             // No forceUnsummon: onTargetLost unsummons the Stand gently.
             MobPowerUtil.releaseInputsAndGrabs(mob);

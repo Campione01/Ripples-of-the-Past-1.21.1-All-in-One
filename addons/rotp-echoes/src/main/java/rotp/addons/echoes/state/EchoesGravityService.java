@@ -19,17 +19,18 @@ import rotp.addons.echoes.state.EchoesUserState.ActiveSkill;
 import rotp.addons.echoes.state.EchoesFreezeState.Kind;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -71,6 +72,10 @@ public final class EchoesGravityService {
     // 1.16 LivingEntity.jumpFromGround: 0.1 per Jump level
     private static final double CARRIER_JUMP_PER_LEVEL = 0.1D;
     private static final double FROZEN_SINK_SPEED = -0.5D;
+    // master GravityFreezeAction / HandFreezeAction: a frozen target is pressed down 4.5 blocks a tick
+    public static final double FREEZE_FALL_SPEED = 4.5D;
+    public static final ResourceLocation SELF_HAND_FREEZE_SPEED_MODIFIER =
+            RotpEchoes.id("hand_freeze_self_speed");
     // 092 HandFreezeHandler: Slowness, Mining Fatigue and Weakness come off
     // once 20 of its 600 ticks are left.
     private static final long HAND_FREEZE_EASING_TICKS = 20L;
@@ -84,7 +89,70 @@ public final class EchoesGravityService {
             case HAND_FREEZE -> toggleHandFreeze(player);
             case FREEZE_SELF -> toggleSelfFreeze(player);
             case INFUSE -> toggleInfuse(player);
+            case HAND_FREEZE_SELF -> toggleSelfHandFreeze(player);
+            case FREEZE_CANCEL -> cancelTargetFreeze(player, ActiveSkill.FREEZE_TARGET);
+            case HAND_FREEZE_CANCEL -> cancelTargetFreeze(player, ActiveSkill.HAND_FREEZE);
+            case FREEZE_SELF_CANCEL -> cancelSelfSkill(player, ActiveSkill.FREEZE_SELF);
+            case HAND_FREEZE_SELF_CANCEL -> cancelSelfSkill(player, ActiveSkill.HAND_FREEZE_SELF);
+            case INFUSE_CANCEL -> cancelHeldInfusion(player);
         }
+    }
+
+    /**
+     * Whether a target or hand freeze started now would catch someone: a living entity in the user's aim within
+     * the freeze range. The master's freeze needs one (TargetRequirement.ENTITY), so a miss costs no cooldown.
+     */
+    public static boolean hasFreezeTarget(LivingEntity user) {
+        StandPower power = StandPower.get(user);
+        StandEntity performer = power != null ? power.getSummonedStandEntity() : null;
+        ActionTarget aimed = HitResultUtil.clip(
+                user.getEyePosition(),
+                user.getLookAngle(),
+                TARGET_FREEZE_RANGE,
+                TARGET_FREEZE_RANGE,
+                user.level(),
+                entity -> entity.isAlive()
+                        && entity != user
+                        && entity != performer
+                        && entity instanceof LivingEntity,
+                user,
+                0.0D);
+        return aimed.getMainEntity() instanceof LivingEntity;
+    }
+
+    // master GravityFreezeCancelAction / HandFreezeCancelAction (the author's 1.21.1 cancel needs no aim)
+    private static void cancelTargetFreeze(ServerPlayer player, ActiveSkill skill) {
+        EchoesUserState state = RotpEchoes.userState(player);
+        if (state.activeSkill() == skill) {
+            releaseTargetOwnedBy(player, state.frozenTarget());
+            state.clearActiveSkill();
+        }
+    }
+
+    // master GravityFreezeSelfCancelAction / HandFreezeSelfCancelAction
+    private static void cancelSelfSkill(ServerPlayer player, ActiveSkill skill) {
+        EchoesUserState state = RotpEchoes.userState(player);
+        if (state.activeSkill() == skill) {
+            state.clearActiveSkill();
+            clearSelfEffects(player);
+        }
+    }
+
+    // master GravityInfuseCancelAction: the infused item in the main hand, else the off hand, loses its gravity
+    private static void cancelHeldInfusion(ServerPlayer player) {
+        long gameTime = player.level().getGameTime();
+        ItemStack held = isInfused(player.getMainHandItem(), gameTime, true)
+                ? player.getMainHandItem()
+                : player.getOffhandItem();
+        if (isInfused(held, gameTime, true)) {
+            clearInfusion(held);
+        }
+    }
+
+    public static boolean holdsInfusedItem(Player player) {
+        long gameTime = player.level().getGameTime();
+        return isInfused(player.getMainHandItem(), gameTime, false)
+                || isInfused(player.getOffhandItem(), gameTime, false);
     }
 
     public static boolean hasInfusedItem(
@@ -338,13 +406,28 @@ public final class EchoesGravityService {
             target.setDeltaMovement(0.0D, FROZEN_SINK_SPEED, 0.0D);
             state.moveAnchor(target.position());
         } else {
+            target.setPos(state.anchor().x, target.getY(), state.anchor().z);
+            target.move(MoverType.SELF, new Vec3(0.0D, -FREEZE_FALL_SPEED, 0.0D));
             target.setDeltaMovement(Vec3.ZERO);
-            target.setPos(
-                    state.anchor().x,
-                    state.anchor().y,
-                    state.anchor().z);
+            state.moveAnchor(target.position());
         }
         target.setNoGravity(true);
+        // master GravityFreezeAction.tickActiveTargets: enchantment glyphs sink around the frozen target
+        if (state.kind() == Kind.TARGET && level.getGameTime() % 5L == 0L) {
+            int count = 2 + level.getRandom().nextInt(3);
+            for (int i = 0; i < count; i++) {
+                level.sendParticles(
+                        ParticleTypes.ENCHANT,
+                        target.getX() + (level.getRandom().nextDouble() - 0.5D),
+                        target.getY() + 0.5D + level.getRandom().nextDouble() * 2.0D,
+                        target.getZ() + (level.getRandom().nextDouble() - 0.5D),
+                        1,
+                        0.0D,
+                        -(0.02D + level.getRandom().nextDouble() * 0.04D),
+                        0.0D,
+                        0.01D);
+            }
+        }
         target.fallDistance = 0.0F;
         if (target instanceof Mob mob) {
             mob.getNavigation().stop();
@@ -385,7 +468,8 @@ public final class EchoesGravityService {
             cleanupManifestationState(player);
             return;
         }
-        if (state.activeSkill() == ActiveSkill.FREEZE_SELF) {
+        if (state.activeSkill() == ActiveSkill.FREEZE_SELF
+                || state.activeSkill() == ActiveSkill.HAND_FREEZE_SELF) {
             if (player.tickCount % SELF_DRAIN_INTERVAL == 0
                     && !power.isStaminaInfinite()) {
                 float next = power.getStamina() - SELF_STAMINA_DRAIN;
@@ -396,7 +480,11 @@ public final class EchoesGravityService {
                 }
                 power.setStamina(next);
             }
-            applySelfEffects(player);
+            if (state.activeSkill() == ActiveSkill.FREEZE_SELF) {
+                applySelfEffects(player);
+            } else {
+                applySelfHandEffects(player);
+            }
         } else if ((state.activeSkill() == ActiveSkill.FREEZE_TARGET
                         || state.activeSkill() == ActiveSkill.HAND_FREEZE)
                 && findEntity(
@@ -414,7 +502,8 @@ public final class EchoesGravityService {
                 || state.activeSkill() == ActiveSkill.HAND_FREEZE) {
             releaseTargetOwnedBy(player, state.frozenTarget());
         }
-        else if (state.activeSkill() == ActiveSkill.FREEZE_SELF) {
+        else if (state.activeSkill() == ActiveSkill.FREEZE_SELF
+                || state.activeSkill() == ActiveSkill.HAND_FREEZE_SELF) {
             clearSelfEffects(player);
         }
         if (state.activeSkill() != ActiveSkill.GRAVITY_INFUSE) {
@@ -429,7 +518,8 @@ public final class EchoesGravityService {
                 || state.activeSkill() == ActiveSkill.HAND_FREEZE) {
             releaseTargetOwnedBy(player, state.frozenTarget());
         }
-        if (state.activeSkill() == ActiveSkill.FREEZE_SELF) {
+        if (state.activeSkill() == ActiveSkill.FREEZE_SELF
+                || state.activeSkill() == ActiveSkill.HAND_FREEZE_SELF) {
             clearSelfEffects(player);
         }
         if (state.activeSkill() == ActiveSkill.GRAVITY_INFUSE) {
@@ -465,6 +555,12 @@ public final class EchoesGravityService {
     }
 
     public static boolean isHandFrozen(LivingEntity target) {
+        // master HandFreezeSelfAction freezes the user's own hands
+        if (target instanceof Player player
+                && player.hasData(rotp.addons.echoes.init.EchoesAttachments.USER_STATE)
+                && RotpEchoes.userState(player).activeSkill() == ActiveSkill.HAND_FREEZE_SELF) {
+            return true;
+        }
         return target.hasData(
                         rotp.addons.echoes.init
                                 .EchoesAttachments.FREEZE_STATE)
@@ -560,21 +656,7 @@ public final class EchoesGravityService {
         }
         // 092: skill switch only after the target and Stand-range checks
         clearConflictingSkill(player);
-        EchoesFreezeState targetState = RotpEchoes.freezeState(target);
-        if (targetState.active()) {
-            releaseFrozenTarget(target);
-        }
-        int amplifier = distanceAmplifier(player.distanceTo(target));
-        targetState.activate(
-                target,
-                player.getUUID(),
-                amplifier,
-                Kind.TARGET,
-                EchoesFreezeTiming.deadlineAfter(player.level().getGameTime()));
-        state.activateTargetFreeze(target.getUUID());
-        applyTargetEffects(
-                target, (int) EchoesFreezeTiming.DURATION_TICKS);
-        restrainFrozen(target, Kind.TARGET);
+        startTargetFreeze(player, target);
         EchoesChatService.playSkillSound(player);
     }
 
@@ -623,14 +705,6 @@ public final class EchoesGravityService {
                 target, (int) EchoesFreezeTiming.DURATION_TICKS);
         restrainFrozen(target, Kind.HAND);
         EchoesChatService.playSkillSound(player);
-        player.level().playSound(
-                null,
-                player.blockPosition(),
-                rotp.addons.echoes.init.EchoesSounds
-                        .SKILL_BGM.get(),
-                SoundSource.PLAYERS,
-                1.0F,
-                1.0F);
     }
 
     private static void toggleSelfFreeze(ServerPlayer player) {
@@ -643,6 +717,20 @@ public final class EchoesGravityService {
         clearConflictingSkill(player);
         state.activateSelfFreeze();
         applySelfEffects(player);
+        EchoesChatService.playSkillSound(player);
+    }
+
+    // master HandFreezeSelfAction: the user's own hands and feet are frozen, toggled, draining stamina like Self Freeze
+    private static void toggleSelfHandFreeze(ServerPlayer player) {
+        EchoesUserState state = RotpEchoes.userState(player);
+        if (state.activeSkill() == ActiveSkill.HAND_FREEZE_SELF) {
+            state.clearActiveSkill();
+            clearSelfEffects(player);
+            return;
+        }
+        clearConflictingSkill(player);
+        state.activateSelfHandFreeze();
+        applySelfHandEffects(player);
         EchoesChatService.playSkillSound(player);
     }
 
@@ -718,11 +806,42 @@ public final class EchoesGravityService {
         EchoesChatService.playSkillSound(player);
     }
 
+    private static void startTargetFreeze(ServerPlayer player, LivingEntity target) {
+        EchoesFreezeState targetState = RotpEchoes.freezeState(target);
+        if (targetState.active()) {
+            releaseFrozenTarget(target);
+        }
+        int amplifier = distanceAmplifier(player.distanceTo(target));
+        targetState.activate(
+                target,
+                player.getUUID(),
+                amplifier,
+                Kind.TARGET,
+                EchoesFreezeTiming.deadlineAfter(player.level().getGameTime()));
+        RotpEchoes.userState(player).activateTargetFreeze(target.getUUID());
+        applyTargetEffects(
+                target, (int) EchoesFreezeTiming.DURATION_TICKS);
+        restrainFrozen(target, Kind.TARGET);
+    }
+
+    /**
+     * R772 F11, master FinisherAction and GravityFreezeAction.startFreeze: the target the ACT3 finisher hit is frozen
+     * as the freeze freezes, without the freeze's sounds, when the Stand is within the freeze range of it; the user's
+     * own target or hand freeze ends first.
+     */
+    public static void freezeFinisherTarget(ServerPlayer player, LivingEntity target) {
+        if (!target.isAlive() || !standInFreezeRange(player, target, Kind.TARGET)) {
+            return;
+        }
+        clearConflictingSkill(player);
+        startTargetFreeze(player, target);
+    }
+
     // 092 FinisherAction: an ACT3 finisher hit ends self-freeze or infuse
     public static void onAct3FinisherHit(ServerPlayer player) {
         EchoesUserState state = RotpEchoes.userState(player);
         ActiveSkill ended = state.activeSkill();
-        if (ended == ActiveSkill.FREEZE_SELF) {
+        if (ended == ActiveSkill.FREEZE_SELF || ended == ActiveSkill.HAND_FREEZE_SELF) {
             clearSelfEffects(player); // slowness, held jump, weakness
         } else if (ended == ActiveSkill.GRAVITY_INFUSE) {
             clearInfusedInventory(player); // un-infuse held items
@@ -739,7 +858,8 @@ public final class EchoesGravityService {
         if (state.activeSkill() == ActiveSkill.FREEZE_TARGET
                 || state.activeSkill() == ActiveSkill.HAND_FREEZE) {
             releaseTargetOwnedBy(player, state.frozenTarget());
-        } else if (state.activeSkill() == ActiveSkill.FREEZE_SELF) {
+        } else if (state.activeSkill() == ActiveSkill.FREEZE_SELF
+                || state.activeSkill() == ActiveSkill.HAND_FREEZE_SELF) {
             clearSelfEffects(player);
         } else if (state.activeSkill() == ActiveSkill.GRAVITY_INFUSE) {
             clearInfusedInventory(player);
@@ -932,6 +1052,30 @@ public final class EchoesGravityService {
                 false));
     }
 
+    // master HandFreezeHandler.freezeEntity on the user and HandFreezeSelfAction.lockMovement: Slowness IV, Mining
+    // Fatigue and Weakness 255, no jump, and no walking (a synced speed hold, as the player moves itself)
+    private static void applySelfHandEffects(ServerPlayer player) {
+        player.addEffect(new MobEffectInstance(
+                MobEffects.MOVEMENT_SLOWDOWN, 40, 3, false, false, false));
+        player.addEffect(new MobEffectInstance(
+                MobEffects.DIG_SLOWDOWN, 40, FREEZE_EFFECT_AMPLIFIER, false, false, false));
+        player.addEffect(new MobEffectInstance(
+                MobEffects.WEAKNESS, 40, FREEZE_EFFECT_AMPLIFIER, false, false, false));
+        holdJump(player, SELF_FREEZE_JUMP_MODIFIER);
+        AttributeInstance speed = player.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed != null && !speed.hasModifier(SELF_HAND_FREEZE_SPEED_MODIFIER)) {
+            speed.addTransientModifier(new AttributeModifier(
+                    SELF_HAND_FREEZE_SPEED_MODIFIER,
+                    -1.0D,
+                    AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+        }
+        player.setSprinting(false);
+        player.setSwimming(false);
+        if (player.isUsingItem()) {
+            player.stopUsingItem();
+        }
+    }
+
     private static void clearTargetEffects(LivingEntity target) {
         target.removeEffect(MobEffects.MOVEMENT_SLOWDOWN);
         target.removeEffect(MobEffects.DIG_SLOWDOWN);
@@ -944,6 +1088,12 @@ public final class EchoesGravityService {
         player.removeEffect(MobEffects.MOVEMENT_SLOWDOWN);
         player.removeEffect(MobEffects.WEAKNESS);
         releaseJump(player, SELF_FREEZE_JUMP_MODIFIER);
+        AttributeInstance speed = player.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed != null && speed.hasModifier(SELF_HAND_FREEZE_SPEED_MODIFIER)) {
+            // only the self hand freeze adds the speed hold and Mining Fatigue
+            player.removeEffect(MobEffects.DIG_SLOWDOWN);
+            speed.removeModifier(SELF_HAND_FREEZE_SPEED_MODIFIER);
+        }
     }
 
     private static void holdJump(

@@ -4,6 +4,7 @@ import javax.annotation.Nullable;
 
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.subsystems.timestop.TimeStopState;
 
 import rotp.addons.kingcrimson.KingCrimsonAddon;
 import rotp.addons.kingcrimson.KingCrimsonDonorGameplaySpec;
@@ -77,7 +78,9 @@ public final class EpitaphStateService {
         EpitaphState state =
                 KingCrimsonAddon.epitaphState(player);
         long gameTime = player.level().getGameTime();
+        // RS-T3 D4 (extends T1): a user frozen in a time stop has no future to foresee, so the hit lands.
         if (!state.isArmed(gameTime)
+                || TimeStopState.shouldFreezeOnServer(player)
                 || !matchesPrediction(
                         state.predictionKind(), source)) {
             return false;
@@ -114,6 +117,29 @@ public final class EpitaphStateService {
                                 .DODGE_FEEDBACK_TICKS);
         KingCrimsonAddon.syncEpitaphState(player);
         return true;
+    }
+
+    /**
+     * Runs once per server tick, also while the user is frozen and so does not tick: Epitaph's window does not run
+     * while its user is frozen in someone's time stop and goes on with what was left. The clients get the moved end
+     * every tick of the pause, since they have no pause of their own.
+     */
+    public static void tickTimeStopPause(ServerPlayer player) {
+        EpitaphState state =
+                KingCrimsonAddon.epitaphState(player);
+        if (state.stage() == EpitaphState.Stage.IDLE) {
+            state.resume();
+            return;
+        }
+        if (player.isAlive()
+                && TimeStopState.shouldFreezeOnServer(player)) {
+            state.pauseTick();
+            KingCrimsonAddon.syncEpitaphState(player);
+            return;
+        }
+        if (state.resume()) {
+            KingCrimsonAddon.syncEpitaphState(player);
+        }
     }
 
     public static void terminate(ServerPlayer player) {
@@ -271,6 +297,8 @@ public final class EpitaphStateService {
                             candidate.x,
                             candidate.y,
                             candidate.z);
+                    // a dash into stopped time freezes the user where he lands (A2-REPIN)
+                    TimeStopState.repinOrReleaseOnServer(player);
                     return;
                 }
             }

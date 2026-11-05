@@ -95,7 +95,9 @@ public final class LittleFeetShrinkSlashAbility
                 LittleFeetCombatSemantics.tryDisableShield(
                         stand, targetLiving);
                 LivingEntity owner = getPowerUser();
-                if (owner != null) {
+                if (owner != null
+                        && LittleFeetCombatSemantics.landsPastBaseReach(
+                                stand, targetLiving)) {
                     LittleFeetScaleService.shrinkAfterHit(
                             owner, targetLiving);
                 }

@@ -98,10 +98,10 @@ public final class SexPistolsGameTests {
     private static final short MOVE_KEY = 78;
     private static final short OTHER_KEY = 79;
     private static final short VISION_KEY = 80;
-    // 1.16 SexPistolsMoveSelectedAction MOVE_SPEED and MOVE_MAX_DISTANCE and
-    // InitStands :104 cooldown(4), as the test's own numbers.
+    // 1.16 SexPistolsMoveSelectedAction MOVE_SPEED, 0.1.13 MOVE_MAX_DISTANCE
+    // and InitStands :104 cooldown(4), as the test's own numbers.
     private static final double DONOR_MOVE_STEP = 0.36D;
-    private static final double DONOR_MOVE_MAX_DISTANCE = 10.0D;
+    private static final double DONOR_MOVE_MAX_DISTANCE = 30.0D;
     private static final int DONOR_MOVE_COOLDOWN = 4;
     private static final int MOVE_FIXTURE_REACH = 16;
     // 1.16 InitStands :130 range(40, 40); the user walks this far off.
@@ -536,9 +536,11 @@ public final class SexPistolsGameTests {
 
     // 1.16 InitEntities: revolver_bullet is 0.25 x 0.25;
     // RevolverItem.shootBulletWithMask spawns it at eye + direction * 0.45.
+    // Every test that fires has a batch of its own: a shot leaves the plot.
     @GameTest(
             templateNamespace = "rotp_addon_api_smoke",
             template = "empty",
+            batch = "sexPistolsShotSpawn",
             timeoutTicks = 20 + GameTestChunkTickets.WAIT_TICKS)
     public static void revolverBulletKeepsDonorSizeAndSpawnPoint(
             GameTestHelper helper) {
@@ -705,19 +707,19 @@ public final class SexPistolsGameTests {
         });
     }
 
-    // 1.16: the SexPistolsEntities effect only exists after a summon, and
-    // reloadSelected without it ends in the 0.45 click after the cylinder opened.
+    // 1.16 had no SexPistolsEntities effect before a summon and ended in the
+    // 0.45 click; 0.1.13 SexPistolsStandReloadAction summons the Stand first.
     @GameTest(
             templateNamespace = "rotp_addon_api_smoke",
             template = "empty",
             timeoutTicks = 60 + GameTestChunkTickets.WAIT_TICKS)
-    public static void standReloadBeforeTheFirstSummonOnlyClicks(
+    public static void standReloadBeforeTheFirstSummonSummonsTheStand(
             GameTestHelper helper) {
         GameTestChunkTickets.aroundOrigin(helper)
-                .whenTicking(() -> {}, h -> standReloadBeforeTheFirstSummonOnlyClicksBody(h));
+                .whenTicking(() -> {}, h -> standReloadBeforeTheFirstSummonSummonsTheStandBody(h));
     }
 
-    private static void standReloadBeforeTheFirstSummonOnlyClicksBody(GameTestHelper helper) {
+    private static void standReloadBeforeTheFirstSummonSummonsTheStandBody(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         ServerPlayer owner = makeCompatibleMockPlayer(
                 helper, "sex-pistols-reload-never-summoned");
@@ -753,25 +755,24 @@ public final class SexPistolsGameTests {
                         STAND_RELOAD_KEY,
                         "Stand Reload before the first summon");
                 List<String> heard = reloadSoundsAt(owner);
-                List<String> donor = List.of(
-                        "rotp_sex_pistols:revolver_open@0.85/1.0",
-                        "minecraft:block.dispenser.fail@0.45/1.0");
                 helper.assertTrue(
-                        heard.equals(donor)
-                                && coordinator.loadedMemberMask() == 0
+                        !heard.contains(
+                                        "minecraft:block.dispenser.fail@0.45/1.0")
+                                && coordinator.loadedMemberMask() == 1
                                 && RevolverMemberAttachments
-                                        .attachedMemberMask(revolver) == 0
+                                        .attachedMemberMask(revolver) == 1
                                 && RevolverItem.state(revolver)
                                         .reloadMode()
-                                && !coordinator.isSummoned(),
-                        "Stand Reload before the first summon differs "
-                                + "from the donor (open the cylinder, then "
-                                + "the 0.45 fail click, no member): heard="
-                                + heard + ", expected=" + donor
+                                && power.isSummoned()
+                                && coordinator.isSummoned(),
+                        "0.1.13 Stand Reload before the first summon "
+                                + "summons Sex Pistols and loads No.1: "
+                                + "heard=" + heard
                                 + ", loadedMask="
                                 + coordinator.loadedMemberMask()
                                 + ", open="
                                 + RevolverItem.state(revolver).reloadMode()
+                                + ", summoned=" + power.isSummoned()
                                 + ".");
                 cleanupOwner(level, owner, coordinator);
                 helper.succeed();
@@ -788,6 +789,7 @@ public final class SexPistolsGameTests {
     @GameTest(
             templateNamespace = "rotp_addon_api_smoke",
             template = "empty",
+            batch = "sexPistolsShotReloadSounds",
             timeoutTicks = 60 + GameTestChunkTickets.WAIT_TICKS)
     public static void standReloadFeedbackUsesDonorSounds(
             GameTestHelper helper) {
@@ -1048,6 +1050,7 @@ public final class SexPistolsGameTests {
     @GameTest(
             templateNamespace = "rotp_addon_api_smoke",
             template = "empty",
+            batch = "sexPistolsShotGuided",
             timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void loadedMemberShotStaysGuidedWithTheStandPutAway(
             GameTestHelper helper) {
@@ -1613,6 +1616,7 @@ public final class SexPistolsGameTests {
     @GameTest(
             templateNamespace = "rotp_addon_api_smoke",
             template = "empty",
+            batch = "sexPistolsShotCasings",
             timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void specialShotLeavesSpentCasingsInTheCylinder(
             GameTestHelper helper) {
@@ -1914,6 +1918,7 @@ public final class SexPistolsGameTests {
     @GameTest(
             templateNamespace = "rotp_addon_api_smoke",
             template = "empty",
+            batch = "sexPistolsShotManualSounds",
             timeoutTicks = 400 + GameTestChunkTickets.WAIT_TICKS)
     public static void manualRevolverActionsUseDonorSounds(
             GameTestHelper helper) {
@@ -2777,15 +2782,15 @@ public final class SexPistolsGameTests {
                                         + coordinator.selectedNumber()
                                         + ", the hold in " + hold.getPhase());
                     }
-                    if (heldTicks == 34) {
+                    if (heldTicks == 90) {
                         helper.assertTrue(
                                 along == DONOR_MOVE_MAX_DISTANCE
                                         && hold.getPhase() == ActionPhase.PERFORM
                                         && AbilityInput.isHeldByKey(owner, hold),
-                                "1.16 stopped the flight at 10 blocks and "
+                                "0.1.13 stopped the flight at 30 blocks and "
                                         + "held the move until its release: "
                                         + "the hold in " + hold.getPhase());
-                        assertOthersRefused("after the flight reached 10 blocks");
+                        assertOthersRefused("after the flight reached 30 blocks");
                         release();
                         next(6);
                     }
@@ -2854,7 +2859,7 @@ public final class SexPistolsGameTests {
             helper.assertTrue(
                     member.position().distanceTo(expected) < 1.0E-6D,
                     "1.16 moved the member 0.36 a held tick along the "
-                            + "user's look from its own position, up to 10: "
+                            + "user's look from its own position, up to 30: "
                             + "after " + heldTicks + " held ticks it is "
                             + member.position().subtract(origin)
                             + " from its start, expected "
@@ -3480,6 +3485,7 @@ public final class SexPistolsGameTests {
                 .getServer()
                 .getPlayerList()
                 .placeNewPlayer(connection, player, cookie);
+        GameTestBullets.discardAtEnd(helper, player);
         return player;
     }
 

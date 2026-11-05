@@ -5,11 +5,19 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
+import rotp.core.impl.stands._entitybase.StandEntityBlockAbility;
+import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchChargedAbility;
+import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.impl.powers.hamon.HamonUtil;
 
 import rotp.addons.gratefuldead.GratefulDeadAddon;
+import rotp.addons.gratefuldead.item.IceCubeItem;
 import rotp.addons.gratefuldead.state.AgingRemovalData;
 import rotp.addons.gratefuldead.state.BlockAgingData;
 import rotp.addons.gratefuldead.state.ItemAgingState;
@@ -18,7 +26,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.BiomeTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -35,6 +42,8 @@ import net.minecraft.world.phys.AABB;
 
 public final class AgingService {
     public static final double AURA_RADIUS = 100.0D;
+    // 0.1.13 TheGratefulDeadAgingAuraEffect.EXPAND_BLOCKS_PER_TICK
+    public static final double AURA_EXPAND_PER_TICK = 0.05D;
     public static final int AURA_DIAMETER_CHUNKS = 13;
     public static final int AURA_CHUNK_COUNT =
             AURA_DIAMETER_CHUNKS * AURA_DIAMETER_CHUNKS;
@@ -42,12 +51,18 @@ public final class AgingService {
     public static final int MAX_AURA_PLAYER_CANDIDATES = 32;
     public static final int MAX_AURA_BLOCK_COLUMNS = 24;
     public static final int MAX_PLAYER_ITEM_SLOTS_PER_TICK = 4;
-    public static final float TIME_STOP_DISABLE_PROGRESS = 0.85F;
+    public static final float TIME_STOP_DISABLE_PROGRESS = 0.8F;
+    // 0.1.13 getSkillStaminaCostMultiplier and getHamonEfficiency: both
+    // reach their end at 80% aging
+    public static final float SKILL_STAMINA_FULL_PROGRESS = 0.8F;
+    public static final float HAMON_ZERO_PROGRESS = 0.8F;
     public static final float TOUCH_BLOCK_DELTA = 1.0F / 60.0F;
-    public static final float TOUCH_LIVING_DELTA = 1.0F / 80.0F;
+    // 0.1.13 contact 0.0125 and aura speed / 4800 a tick on its 0..2 scale
+    public static final float TOUCH_LIVING_DELTA = 1.0F / 160.0F;
+    public static final float SELF_LIVING_DELTA = 1.0F / 160.0F;
     public static final float TOUCH_ITEM_DELTA = 1.0F / 25.0F;
     public static final float AURA_LIVING_DELTA =
-            (float) AURA_CHUNK_COUNT / 2400.0F;
+            (float) AURA_CHUNK_COUNT / 9600.0F;
     public static final float AURA_ITEM_DELTA =
             (float) AURA_CHUNK_COUNT / 750.0F;
     public static final float AURA_BLOCK_DELTA =
@@ -70,34 +85,25 @@ public final class AgingService {
         AgingRemovalData.get(server).advance(owner);
     }
 
+    /** 0.1.13: only where the aging rate bottoms out (frozen biomes) is it cold. */
     public static boolean isCold(
             Level level, BlockPos position) {
-        var biome = level.getBiome(position);
-        if (level.dimensionType().ultraWarm()
-                || biome.is(BiomeTags.IS_NETHER)) {
-            return false;
-        }
-        return biome.value().getBaseTemperature()
-                        <= 0.2F
-                || biome.is(BiomeTags.IS_TAIGA)
-                || biome.is(BiomeTags.IS_MOUNTAIN)
-                || biome.is(BiomeTags.IS_HILL);
+        return AgingRate.isCold(level, position);
     }
 
+    /**
+     * 0.1.13 getTotalAgingSpeedMultiplier at a place: the signed aging
+     * speed (1 on the plains), 0 where aging recedes.
+     */
     public static float biomeAgingMultiplier(
             ServerLevel level, BlockPos position) {
-        if (isCold(level, position)) {
-            return 0.0F;
-        }
-        var biome = level.getBiome(position);
-        return level.dimensionType().ultraWarm()
-                        || biome.is(BiomeTags.IS_NETHER)
-                        || biome.is(BiomeTags.IS_SAVANNA)
-                        || biome.is(BiomeTags.IS_BADLANDS)
-                        || biome.value().getBaseTemperature()
-                                >= 0.95F
-                ? 1.6F
-                : 1.0F;
+        return Math.max(0.0F, AgingRate.speed(level, position));
+    }
+
+    /** The aging speed of a living target, its own heat and ice included. */
+    public static float livingAgingMultiplier(
+            LivingEntity target) {
+        return Math.max(0.0F, AgingRate.speed(target));
     }
 
     public static boolean isAgeableBlock(
@@ -171,6 +177,15 @@ public final class AgingService {
             UUID owner,
             long ownerGeneration,
             float amount) {
+        ageLiving(target, owner, ownerGeneration, amount, false);
+    }
+
+    public static void ageLiving(
+            LivingEntity target,
+            UUID owner,
+            long ownerGeneration,
+            float amount,
+            boolean contact) {
         LivingEntity canonical =
                 canonicalLivingTarget(target);
         if (!isAgeableLiving(canonical)) {
@@ -180,7 +195,68 @@ public final class AgingService {
                 canonical,
                 owner,
                 ownerGeneration,
-                amount);
+                amount,
+                contact);
+    }
+
+    /**
+     * 0.1.13 StandActionStaminaAgingMixin / getSkillStaminaCostMultiplier: an
+     * aged user's skills cost up to three times their stamina (x1 + 2 x
+     * easeOutQuad from 0 to 80%); punches, barrages, heavy punches and the
+     * guard keep their cost, as does a self-aged user. A stamina check without
+     * its ability (null) keeps the base cost, so melee is never refused.
+     */
+    public static float skillStaminaCostFactor(
+            Ability ability, LivingEntity user) {
+        if (ability == null
+                || isMeleeStaminaAbility(ability)
+                || user == null
+                || !user.hasData(GratefulDeadAddon.LIVING_AGING)) {
+            return 1.0F;
+        }
+        LivingAgingState state = LivingAgingState.get(user);
+        if (state.selfInflicted(user)) {
+            return 1.0F;
+        }
+        float t = LivingAgingState.rangeT(
+                state.progress(), 0.0F, SKILL_STAMINA_FULL_PROGRESS);
+        return t <= 0.0F
+                ? 1.0F
+                : 1.0F + (float) LivingAgingState.easeOutQuad(t) * 2.0F;
+    }
+
+    // 0.1.13 isMeleeStaminaAction: StandEntityMeleeBarrage, LightAttack,
+    // HeavyAttack and Block
+    private static boolean isMeleeStaminaAbility(Ability ability) {
+        return ability instanceof StandEntityPunchAbility
+                || ability instanceof StandEntityBarrageAbility
+                || ability instanceof StandEntityHeavyPunchAbility
+                || ability instanceof StandEntityHeavyPunchChargedAbility
+                || ability instanceof StandEntityBlockAbility;
+    }
+
+    /**
+     * 0.1.13 HamonDataAgingMixin / getHamonEfficiency: the bloodstream
+     * efficiency falls to 0 at 80% aging (1 - easeInCirc), self-aging
+     * included; at 0 the user neither breathes nor uses Hamon.
+     */
+    public static float hamonEfficiency(LivingEntity user) {
+        if (user == null
+                || !user.hasData(GratefulDeadAddon.LIVING_AGING)) {
+            return 1.0F;
+        }
+        return (float) (1.0D - LivingAgingState.easeInCirc(
+                LivingAgingState.rangeT(
+                        LivingAgingState.get(user).progress(),
+                        0.0F,
+                        HAMON_ZERO_PROGRESS)));
+    }
+
+    /** 0.1.13 cannotUseStand, for the ability refusal. */
+    public static boolean cannotUseStand(LivingEntity user) {
+        return user != null
+                && user.hasData(GratefulDeadAddon.LIVING_AGING)
+                && LivingAgingState.get(user).cannotUseStand(user);
     }
 
     public static boolean isAgeableLiving(
@@ -202,8 +278,11 @@ public final class AgingService {
                         GratefulDeadAddon.LIVING_AGING)) {
             return ticks;
         }
-        float progress =
-                LivingAgingState.get(user).progress();
+        LivingAgingState state = LivingAgingState.get(user);
+        if (state.selfInflicted(user)) {
+            return ticks;
+        }
+        float progress = state.progress();
         return progress > 0.0F
                 ? agedActiveTimeStopTicks(ticks, progress)
                 : ticks;
@@ -324,7 +403,28 @@ public final class AgingService {
         return ItemStack.EMPTY;
     }
 
-    public static void tickAura(LivingEntity owner) {
+    /** 0.1.13 getAuraCenter: the summoned Stand, else its user. */
+    public static LivingEntity auraCenter(LivingEntity owner) {
+        StandEntity stand = StandUtil.getSummonedStand(owner);
+        return stand != null && stand.isAlive() ? stand : owner;
+    }
+
+    /** 0.1.13 getExpandedRadius: grows from 0 with the aura's ticks up to its range. */
+    public static double auraRadius(int auraTicks) {
+        return Math.min(
+                AURA_RADIUS,
+                Math.max(0.0D, auraTicks * AURA_EXPAND_PER_TICK));
+    }
+
+    /** The chunk cells around the centre's chunk that a radius reaches, at most the full schedule's. */
+    public static int auraChunkReach(double radius) {
+        return Mth.clamp(
+                Mth.ceil(radius / 16.0D),
+                1,
+                AURA_DIAMETER_CHUNKS / 2);
+    }
+
+    public static void tickAura(LivingEntity owner, int auraTicks) {
         if (!(owner.level()
                 instanceof ServerLevel level)) {
             return;
@@ -332,22 +432,32 @@ public final class AgingService {
         if (isCold(level, owner.blockPosition())) {
             return;
         }
+        double radius = auraRadius(auraTicks);
+        if (radius <= 0.0D) {
+            return;
+        }
+        LivingEntity center = auraCenter(owner);
         UUID ownerId = owner.getUUID();
         long ownerGeneration =
                 generation(level.getServer(), ownerId);
         tickAuraPlayerInventories(
-                level, owner, ownerId, ownerGeneration);
+                level, owner, center, radius, ownerId, ownerGeneration);
+        // A smaller aura cycles through fewer cells, visiting each more often
+        // for a share of the full cycle's per-visit amounts: the same rate.
+        int diameter = 2 * auraChunkReach(radius) + 1;
+        int cells = diameter * diameter;
+        float cycleShare = (float) cells / AURA_CHUNK_COUNT;
         int cell = Math.floorMod(
                 (int) level.getGameTime(),
-                AURA_CHUNK_COUNT);
+                cells);
         int offsetX =
-                cell % AURA_DIAMETER_CHUNKS
-                        - AURA_DIAMETER_CHUNKS / 2;
+                cell % diameter
+                        - diameter / 2;
         int offsetZ =
-                cell / AURA_DIAMETER_CHUNKS
-                        - AURA_DIAMETER_CHUNKS / 2;
-        int chunkX = owner.chunkPosition().x + offsetX;
-        int chunkZ = owner.chunkPosition().z + offsetZ;
+                cell / diameter
+                        - diameter / 2;
+        int chunkX = center.chunkPosition().x + offsetX;
+        int chunkZ = center.chunkPosition().z + offsetZ;
         if (!level.hasChunk(chunkX, chunkZ)) {
             return;
         }
@@ -368,7 +478,7 @@ public final class AgingService {
                         entity instanceof LivingEntity
                                 || entity
                                         instanceof ItemEntity);
-        double radiusSqr = AURA_RADIUS * AURA_RADIUS;
+        double radiusSqr = radius * radius;
         int candidateCount = candidates.size();
         int examined = Math.min(
                 candidateCount,
@@ -386,7 +496,7 @@ public final class AgingService {
             Entity candidate = candidates.get(
                     (candidateStart + offset)
                             % candidateCount);
-            if (candidate.distanceToSqr(owner) > radiusSqr) {
+            if (candidate.distanceToSqr(center) > radiusSqr) {
                 continue;
             }
             if (candidate instanceof LivingEntity living) {
@@ -399,9 +509,7 @@ public final class AgingService {
                     continue;
                 }
                 float speedMultiplier =
-                        biomeAgingMultiplier(
-                                level,
-                                canonical.blockPosition());
+                        livingAgingMultiplier(canonical);
                 if (speedMultiplier <= 0.0F) {
                     continue;
                 }
@@ -410,6 +518,7 @@ public final class AgingService {
                         ownerId,
                         ownerGeneration,
                         AURA_LIVING_DELTA
+                                * cycleShare
                                 * speedMultiplier);
             }
             else if (candidate instanceof ItemEntity item) {
@@ -425,6 +534,7 @@ public final class AgingService {
                         ownerId,
                         ownerGeneration,
                         AURA_ITEM_DELTA
+                                * cycleShare
                                 * speedMultiplier);
                 if (aged.isEmpty()) {
                     item.discard();
@@ -461,12 +571,12 @@ public final class AgingService {
                     continue;
                 }
                 double dx =
-                        x + 0.5D - owner.getX();
+                        x + 0.5D - center.getX();
                 double dy =
                         position.getY() + 0.5D
-                                - owner.getY();
+                                - center.getY();
                 double dz =
-                        z + 0.5D - owner.getZ();
+                        z + 0.5D - center.getZ();
                 if (dx * dx + dy * dy + dz * dz
                         > radiusSqr) {
                     continue;
@@ -480,6 +590,7 @@ public final class AgingService {
                             ownerId,
                             ownerGeneration,
                             AURA_BLOCK_DELTA
+                                    * cycleShare
                                     * biomeAgingMultiplier(
                                             level, position));
                     break;
@@ -491,6 +602,8 @@ public final class AgingService {
     private static void tickAuraPlayerInventories(
             ServerLevel level,
             LivingEntity owner,
+            LivingEntity center,
+            double radius,
             UUID ownerId,
             long ownerGeneration) {
         List<ServerPlayer> players = level.players();
@@ -504,14 +617,15 @@ public final class AgingService {
                 playerCount);
         int examined = Math.min(
                 playerCount, MAX_AURA_PLAYER_CANDIDATES);
-        double radiusSqr = AURA_RADIUS * AURA_RADIUS;
+        double radiusSqr = radius * radius;
         for (int offset = 0; offset < examined; offset++) {
             ServerPlayer player = players.get(
                     (start + offset) % playerCount);
             if (player == owner
                     || !player.isAlive()
-                    || player.distanceToSqr(owner) > radiusSqr
-                    || isCold(level, player.blockPosition())) {
+                    || player.distanceToSqr(center) > radiusSqr
+                    || IceCubeItem.protectsInventory(player)
+                    || livingAgingMultiplier(player) <= 0.0F) {
                 continue;
             }
             agePlayerInventory(
@@ -529,9 +643,7 @@ public final class AgingService {
         float delta = (float) virtualSize
                 / (MAX_PLAYER_ITEM_SLOTS_PER_TICK
                         * 750.0F)
-                * biomeAgingMultiplier(
-                        (ServerLevel) player.level(),
-                        player.blockPosition());
+                * livingAgingMultiplier(player);
         int start = Math.floorMod(
                 player.tickCount
                         * MAX_PLAYER_ITEM_SLOTS_PER_TICK,

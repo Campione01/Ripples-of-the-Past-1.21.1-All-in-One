@@ -59,9 +59,13 @@ final class D4CGameTestScene implements AutoCloseable {
     }
 
     D4CGameTestScene(GameTestHelper helper, String name, boolean withConnection) {
+        this(helper, name, withConnection, Vec3.ZERO);
+    }
+
+    D4CGameTestScene(GameTestHelper helper, String name, boolean withConnection, Vec3 shift) {
         this.helper = helper;
         ServerLevel level = helper.getLevel();
-        Vec3 pos = helper.absoluteVec(new Vec3(4.5D, 4.0D, 1.5D));
+        Vec3 pos = helper.absoluteVec(new Vec3(4.5D, 4.0D, 1.5D)).add(shift);
         if (withConnection) {
             connected = new D4CRecordingServerPlayer(helper, name, pos);
             owner = connected.player;

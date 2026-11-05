@@ -1,0 +1,14 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "barrage": {
+      "loop": "hold_on_last_frame",
+      "animation_length": 2.9,
+      "timeline": {
+        "0.0": "phase = WINDUP;",
+        "0.3": ["phase = PERFORM;", "phase.loopBack = 0.3;", "barrage = RHCP_TWO_HANDED;"],
+        "2.3": ["phase = RECOVERY;", "barrage = null;"]
+      }
+    }
+  }
+}
