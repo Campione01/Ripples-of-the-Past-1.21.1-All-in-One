@@ -2413,6 +2413,10 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	
 	@Override
 	public boolean isInvulnerableTo(/*ServerLevel level, */DamageSource damageSource) {
+		// 1.16 let OUT_OF_WORLD through before anything else; 1.21 split it into the kill command and the void
+		if (damageSource.is(DamageTypes.GENERIC_KILL) || damageSource.is(DamageTypes.FELL_OUT_OF_WORLD)) {
+			return isRemoved();
+		}
 		LivingEntity user = getUser();
 		return user != null && (
 					user.isInvulnerableTo(/*level, */damageSource)
@@ -2669,6 +2673,12 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	public void setHealth(float health) {
 		if (healthLinkedWithUser) {
 			redirectDamageToUser(health);
+			// 1.16's linked Stand passed its hits on and kept its health: a hit its user survives (the kill command on a
+			// creative player's Stand) does not put it in its death
+			LivingEntity user = getUser();
+			if (health <= 0 && !level().isClientSide() && user != null && user.isAlive()) {
+				health = user.getHealth();
+			}
 		}
 		super.setHealth(health);
 	}
