@@ -6,6 +6,7 @@
   "minVersion": "0.8.5",
   "plugin": "rotp.core.core.RipplesMixinConfigPlugin",
   "mixins": [
+    "EntitySectionWalkCopy",
     "damage.DamageSourceMixin",
 	"damage.LivingEntityMixin",
 	"damage.WitchMagicResistanceMixin",
