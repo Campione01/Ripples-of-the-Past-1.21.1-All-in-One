@@ -23,7 +23,6 @@ import org.lwjgl.glfw.GLFW;
 import rotp.core.client.ClientGlobals;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.client.ClientTickHandler;
-import rotp.core.client.ClientTimeStopHandler;
 import rotp.core.client.input.clickhold.AmbiguousKeyPress;
 import rotp.core.client.input.controlscheme.AllControlSchemes;
 import rotp.core.client.input.controlscheme.ClientControlScheme;
@@ -62,7 +61,7 @@ import rotp.core.powersystem.playerpower.PlayerPower;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
-import rotp.core.subsystems.timestop.TimeStopClientAwareness;
+import rotp.core.subsystems.timestop.TimeStopState;
 import rotp.core.util.enums.Direction2D;
 import rotp.core.util.mod.IPlayerLeap;
 import rotp.core.impl.powers.hamon.ClHamonDoubleShiftPressPacket;
@@ -70,7 +69,6 @@ import rotp.core.impl.powers.hamon.ClHamonMeditationPacket;
 import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.ModHamonSkills;
 import rotp.core.impl.powers.hamon.entity.LeavesGliderEntity;
-import rotp.core.impl.stands._entitybase.StandEntityBlockAbility;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.InputConstants.Key;
 
@@ -369,6 +367,20 @@ public class InputHandler {
 	private boolean isStandSummonedForDefaultControls(StandPower standPower) {
 		return standPower.hasPower() && standPower.canUsePower() && standPower.isSummoned()
 				&& !ClientGlobals.isPlayerStandFullBodyUnsummoning();
+	}
+
+	/**
+	 * The server unsummons the Stand otherwise than by its user (a skill, a rule; StandType#keepUsersStandHud): 1.16 kept
+	 * the HUD in the Stand mode, so the bar the summoned Stand showed by itself stays as the Stand toggle, which the next
+	 * summon key press clears again.
+	 */
+	public void keepStandHudAfterForcedUnsummon() {
+		if (curPowerClassToggle == null && mc.player != null) {
+			StandPower standPower = ClientPowerCache.getPower(PowerClass.STAND);
+			if (standPower != null && isStandSummonedForDefaultControls(standPower)) {
+				curPowerClassToggle = PowerClass.STAND;
+			}
+		}
 	}
 
 	private ClientControlScheme getActiveControlSchemeForInput(ClientKey key, KeyModifier keyModifier) {
@@ -755,8 +767,7 @@ public class InputHandler {
 		// A guard in any slot counts: 1.16 keyed the guard on StandPose.BLOCK, not on a slot name.
 		return heldAbility != null && clickAbility != null
 				&& heldAbility.baseAbility != null
-				&& ("guard".equals(heldAbility.baseAbility.name())
-						|| heldAbility.baseAbility instanceof StandEntityBlockAbility);
+				&& heldAbility.baseAbility.isGuard();
 	}
 	
 	// 1.16 InputHandler (:343-349) posed only for both buttons clicked in the same client tick, not for a press while the
@@ -1486,12 +1497,13 @@ public class InputHandler {
 
 
 	// 1.16 shouldVanillaInputStun: vanilla attack and use clicks do nothing while stunned or stopped in someone else's time
-	// (!mc.player.canUpdate(); Ability.isUserStoppedInTime asks the same on the client).
+	// (!mc.player.canUpdate(): whether the player's own client holds it still, so the LAN host too, whom the server lets
+	// move in a guest's stop while his client freezes him; TimeStopState.shouldFreezeClientEntity is the port's analogue).
 	// Ability clicks are handled earlier and still reach the server's own stun checks.
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public void cancelVanillaClickInStun(InteractionKeyMappingTriggered event) {
 		cancelVanillaClickWhileStunned(event, mc.player != null && ModStatusEffects.isStunned(mc.player),
-				mc.player != null && ClientTimeStopHandler.isTimeStoppedStatic() && !TimeStopClientAwareness.canMove());
+				mc.player != null && TimeStopState.shouldFreezeClientEntity(mc.player));
 	}
 
 	@ApiStatus.Internal

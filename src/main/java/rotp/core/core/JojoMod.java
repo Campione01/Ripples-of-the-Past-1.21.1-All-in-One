@@ -1,5 +1,8 @@
 package rotp.core.core;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.slf4j.Logger;
 
 import rotp.core.JojoModConfig;
@@ -34,6 +37,7 @@ import rotp.core.init.power.ModStandAbilities;
 import rotp.core.init.power.ModStands;
 import rotp.core.mechanics.TempleMapTradeHandler;
 import rotp.core.impl.powers.hamon.ModHamonSkills;
+import rotp.core.powersystem.standpower.type.StandType;
 import com.mojang.logging.LogUtils;
 
 import net.minecraft.resources.ResourceLocation;
@@ -43,6 +47,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
@@ -106,11 +111,55 @@ public class JojoMod {
 	
 	@SubscribeEvent
 	private void commonSetup(FMLCommonSetupEvent event) {
+		checkStandControlPolicies();
 		event.enqueueWork(() -> {
 			ModGamerules.load();
 			TempleMapTradeHandler
 					.registerContextualTrades();
 		});
+	}
+	
+	/**
+	 * Checks the control policy of every registered Stand (core and add-ons) as the load ends, see
+	 * {@link #checkStandControlPolicies(Iterable, boolean)}.
+	 */
+	public static void checkStandControlPolicies() {
+		checkStandControlPolicies(JojoRegistries.DEFAULT_STANDS_REG, standControlPolicyProblemsStopTheLoad());
+	}
+
+	/**
+	 * Whether a Stand whose control policy lacks a field stops the load: in a development environment and on a game test
+	 * server, where our modules' game test servers and the boot check see it. In a player's game one faulty add-on must
+	 * not keep the game from starting.
+	 */
+	public static boolean standControlPolicyProblemsStopTheLoad() {
+		return !FMLEnvironment.production || Boolean.getBoolean("neoforge.gameTestServer")
+				|| Boolean.getBoolean("neoforge.enableGameTest");
+	}
+
+	/**
+	 * A Stand whose control policy lacks a field (or breaks its type's rules), named with the field. With stopTheLoad
+	 * each is logged and one IllegalStateException lists them all; otherwise each is logged once, with the core's
+	 * defaults its Stand then uses in play (StandType#reportStandControlPolicyProblem), and the load goes on.
+	 * @return the problems found
+	 */
+	public static List<String> checkStandControlPolicies(Iterable<? extends StandType> stands, boolean stopTheLoad) {
+		List<String> problems = new ArrayList<>();
+		for (StandType stand : stands) {
+			String problem = stand.standControlPolicyProblem();
+			if (problem != null) {
+				problems.add(problem);
+				if (!stopTheLoad) {
+					stand.reportStandControlPolicyProblem();
+				}
+			}
+		}
+		if (stopTheLoad && !problems.isEmpty()) {
+			problems.forEach(LOGGER::error);
+			throw new IllegalStateException(problems.size() + " registered Stand(s) with an incomplete control policy: "
+					+ String.join("; ", problems));
+		}
+		return problems;
 	}
 	
 	@SubscribeEvent

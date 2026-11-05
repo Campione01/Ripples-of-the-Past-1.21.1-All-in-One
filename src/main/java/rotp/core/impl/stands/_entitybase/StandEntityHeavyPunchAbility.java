@@ -507,7 +507,8 @@ public class StandEntityHeavyPunchAbility extends StandEntityAbility {
 					// motion, with the subclass's additional knockback and angles, before the wall impact is armed
 					addKnockback(dmgSource);
 					DamageSourceModified knockback = (DamageSourceModified) dmgSource;
-					float halfAdditional = Math.max(knockback.jojo_ripples$addKnockback(), 0) * 0.5F;
+					float halfAdditional = Math.max(knockback.jojo_ripples$addKnockback(), 0) * 0.5F
+							* StandMeleeReach.strikeFactor(stand, targetEntity);
 					float xRot = knockback.jojo_ripples$knockbackXRotDeg();
 					float yRot = knockback.jojo_ripples$knockbackYRotDeg();
 					boolean admitted = dmgAmount > 0 && stand.canAttackEntity(targetEntity);
@@ -548,7 +549,8 @@ public class StandEntityHeavyPunchAbility extends StandEntityAbility {
 				return standEntityAttack(stand, target, source, rawDamage, mainTarget);
 			}
 			DamageSourceModified modified = (DamageSourceModified) source;
-			float halfAdditional = Math.max(modified.jojo_ripples$addKnockback(), 0) * 0.5F;
+			float halfAdditional = Math.max(modified.jojo_ripples$addKnockback(), 0) * 0.5F
+					* (mainTarget ? StandMeleeReach.strikeFactor(stand, target) : 1F);
 			float xRot = modified.jojo_ripples$knockbackXRotDeg();
 			float yRot = modified.jojo_ripples$knockbackYRotDeg();
 			modified.jojo_ripples$modifyKnockback(0, modified.jojo_ripples$knockbackMultiplier());

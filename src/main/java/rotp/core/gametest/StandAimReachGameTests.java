@@ -62,7 +62,10 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * at the user's 5-block reach with the Stand's precision ray (precisionRayTrace) and keeps what the Stand, moved
  * forward, can reach. The owner restored that aim assist for the first punch and the default barrage (2026-10-14) and
  * kept walls blocking it. The heavy punch's Stand keeps its distance from its target through the windup. Own batch:
- * the rays reach several blocks and must not meet a neighbouring test's mobs.
+ * the rays reach several blocks and must not meet a neighbouring test's mobs. The scenes of the shared batch that aim
+ * stand off the grid, each in a lane of its own: in the grid a user's precision ray, 5 blocks long through boxes grown
+ * by Star Platinum's precision (1.26 blocks each way for a Stand or a player), reaches the Stand idling behind the user
+ * of the next row's test, 7 blocks ahead, at 4.99 blocks, and takes it before any mob (a Stand comes first).
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -74,7 +77,9 @@ public final class StandAimReachGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void firstPunchFromIdleReachesTheDonorDistance(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.SURVIVAL, false, 16);
+		// At the cell the cow 4.2 blocks ahead would end within a block of the next row's cell, 7 blocks south, where that
+		// test's end (GameTestInfo.succeed) removes every entity but players: the scene stands off the grid.
+		Scene scene = Scene.offGrid(helper, GameType.SURVIVAL, false, 16, 4, 4.2);
 		Cow cow = scene.cow(0, 4.2);
 		scene.user.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, cow.getBoundingBox().getCenter());
 		helper.assertTrue(cow.getBoundingBox().distanceToSqr(scene.user.getEyePosition()) > 3.5 * 3.5,
@@ -90,7 +95,8 @@ public final class StandAimReachGameTests {
 				return true;
 			}
 			else if (tick > 25) {
-				helper.fail("The first punch from idle whiffed at a cow 4.2 blocks away, which 1.16 reached");
+				helper.fail("The first punch from idle whiffed at a cow 4.2 blocks away, which 1.16 reached"
+						+ (cow.isRemoved() ? "; the cow was removed (" + cow.getRemovalReason() + ")" : ""));
 			}
 			return false;
 		});
@@ -98,7 +104,7 @@ public final class StandAimReachGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void heavyWindupFollowsARetreatingTarget(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.CREATIVE, true, 8);
+		Scene scene = Scene.offGrid(helper, GameType.CREATIVE, true, 8, 5);
 		Cow cow = scene.cow(0, 2.6);
 		EntityActionInstance[] action = new EntityActionInstance[1];
 		scene.run(tick -> {
@@ -123,7 +129,7 @@ public final class StandAimReachGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void defaultBarrageAimsWithTheUserReach(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.CREATIVE, false, 16);
+		Scene scene = Scene.offGrid(helper, GameType.CREATIVE, false, 16, 6);
 		// on the crosshair, past the old 2.5-block eye ray, inside the moved Stand's reach
 		Cow cow = scene.cow(0, 3.4);
 		scene.user.lookAt(EntityAnchorArgument.Anchor.EYES, cow.getBoundingBox().getCenter());
@@ -149,7 +155,7 @@ public final class StandAimReachGameTests {
 	// Platinum's precision boxes (about 1.9 blocks each side) take a mob this close whichever way the user looks
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void defaultBarrageHitsAMobBesideTheCrosshair(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.CREATIVE, false, 16);
+		Scene scene = Scene.offGrid(helper, GameType.CREATIVE, false, 16, 7);
 		Cow cow = scene.besideTheCrosshair();
 		float health = cow.getHealth();
 		scene.run(tick -> {
@@ -173,7 +179,7 @@ public final class StandAimReachGameTests {
 	// 1.16 StandEntityLightAttack hit through the same StandEntity.punch -> aimWithThisOrUser -> precisionRayTrace
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void firstPunchHitsAMobBesideTheCrosshair(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.SURVIVAL, false, 16);
+		Scene scene = Scene.offGrid(helper, GameType.SURVIVAL, false, 16, 8);
 		Cow cow = scene.besideTheCrosshair();
 		float health = cow.getHealth();
 		scene.run(tick -> {
@@ -196,7 +202,7 @@ public final class StandAimReachGameTests {
 	// the owner kept walls blocking the aim (2026-10-14): bedrock right ahead hides the cow the precision boxes reach
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void defaultBarrageDoesNotHitAMobBesideTheCrosshairBehindAWall(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.CREATIVE, false, 16);
+		Scene scene = Scene.offGrid(helper, GameType.CREATIVE, false, 16, 9);
 		Cow cow = scene.besideTheCrosshair();
 		scene.wallAhead();
 		float health = cow.getHealth();
@@ -221,7 +227,7 @@ public final class StandAimReachGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void firstPunchDoesNotHitAMobBesideTheCrosshairBehindAWall(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.SURVIVAL, false, 16);
+		Scene scene = Scene.offGrid(helper, GameType.SURVIVAL, false, 16, 10);
 		Cow cow = scene.besideTheCrosshair();
 		scene.wallAhead();
 		float health = cow.getHealth();
@@ -268,7 +274,7 @@ public final class StandAimReachGameTests {
 	// precision box holds the user's eyes
 	@GameTest(template = "empty", timeoutTicks = 20, batch = BATCH)
 	public static void precisionAimDoesNotPickAMobBehindAWall(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.SURVIVAL, false, 16);
+		Scene scene = Scene.offGrid(helper, GameType.SURVIVAL, false, 16, 11);
 		BlockPos wall = BlockPos.containing(scene.origin.add(0, 1, 1));
 		BlockState oldWall = helper.getLevel().getBlockState(wall);
 		try {
@@ -291,7 +297,7 @@ public final class StandAimReachGameTests {
 	// with the precision ray
 	@GameTest(template = "empty", timeoutTicks = 20, batch = BATCH)
 	public static void punchAndNonPunchActionAimWithThePrecisionRay(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.SURVIVAL, false, 16);
+		Scene scene = Scene.offGrid(helper, GameType.SURVIVAL, false, 16, 12);
 		LivingComponentAction component = LivingComponentAction.getComponent(scene.stand);
 		try {
 			Cow cow = scene.besideTheCrosshair();
@@ -318,34 +324,35 @@ public final class StandAimReachGameTests {
 	// while the Stand could reach it. A client also sends its Stand aim, a precision clip that takes the nearer cow.
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void firstPunchTakesTheCrosshairMobOverTheStandAim(GameTestHelper helper) {
-		crosshairOverStandAim(helper, "punch", InputMethod.CLICK, false);
+		crosshairOverStandAim(helper, 13, "punch", InputMethod.CLICK, false);
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void heavyPunchTakesTheCrosshairMobOverTheStandAim(GameTestHelper helper) {
-		crosshairOverStandAim(helper, "heavy_punch", InputMethod.CLICK, false);
+		crosshairOverStandAim(helper, 14, "heavy_punch", InputMethod.CLICK, false);
 	}
 
 	// 1.16 StandEntityMeleeBarrage.checkStandTarget refused every pressed target, so each hit (standTickPerform ->
 	// StandEntity.punch -> aimWithThisOrUser) took the precision ray's pick, the nearer cow whose grown box holds the eyes
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void defaultBarrageAimsEveryHitWithThePrecisionRayOverTheCrosshairMob(GameTestHelper helper) {
-		crosshairOverStandAim(helper, "barrage", InputMethod.HOLD, false, true);
+		crosshairOverStandAim(helper, 15, "barrage", InputMethod.HOLD, false, true);
 	}
 
 	// the target lock keeps the target of the press, which 1.16 took from the crosshair too
 	@GameTest(template = "empty", timeoutTicks = 60, batch = BATCH)
 	public static void lockedBarrageKeepsTheCrosshairMobOverTheStandAim(GameTestHelper helper) {
-		crosshairOverStandAim(helper, "barrage", InputMethod.HOLD, true);
+		crosshairOverStandAim(helper, 16, "barrage", InputMethod.HOLD, true);
 	}
 
-	private static void crosshairOverStandAim(GameTestHelper helper, String name, InputMethod method, boolean locked) {
-		crosshairOverStandAim(helper, name, method, locked, false);
+	private static void crosshairOverStandAim(GameTestHelper helper, int lane, String name, InputMethod method,
+			boolean locked) {
+		crosshairOverStandAim(helper, lane, name, method, locked, false);
 	}
 
-	private static void crosshairOverStandAim(GameTestHelper helper, String name, InputMethod method, boolean locked,
-			boolean precisionHits) {
-		Scene scene = new Scene(helper, GameType.SURVIVAL, locked, 16);
+	private static void crosshairOverStandAim(GameTestHelper helper, int lane, String name, InputMethod method,
+			boolean locked, boolean precisionHits) {
+		Scene scene = Scene.offGrid(helper, GameType.SURVIVAL, locked, 16, lane);
 		Cow beside = scene.besideTheCrosshair();
 		Cow crosshair = scene.cow(0, 2.0);
 		scene.user.lookAt(EntityAnchorArgument.Anchor.EYES, crosshair.getBoundingBox().getCenter());
@@ -393,7 +400,7 @@ public final class StandAimReachGameTests {
 	// precision ray from its eyes; the owner's walls block that one too
 	@GameTest(template = "empty", timeoutTicks = 20, batch = BATCH)
 	public static void punchFallsBackToTheStandsOwnPrecisionRayWhenTheUsersMeetsNothing(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.SURVIVAL, false, 16);
+		Scene scene = Scene.offGrid(helper, GameType.SURVIVAL, false, 16, 17);
 		LivingComponentAction component = LivingComponentAction.getComponent(scene.stand);
 		try {
 			Cow cow = scene.cow(0, 2.0);
@@ -425,7 +432,7 @@ public final class StandAimReachGameTests {
 	// entity before it, the lowest at first, so a boat behind a cow on the ray comes first
 	@GameTest(template = "empty", timeoutTicks = 20, batch = BATCH)
 	public static void precisionAimTakesABoatBeforeACowInFrontOfIt(GameTestHelper helper) {
-		Scene scene = new Scene(helper, GameType.SURVIVAL, false, 16);
+		Scene scene = Scene.offGrid(helper, GameType.SURVIVAL, false, 16, 18);
 		try {
 			Cow cow = scene.cow(0, 1.5);
 			Boat boat = EntityType.BOAT.create(helper.getLevel());
@@ -795,8 +802,25 @@ public final class StandAimReachGameTests {
 		boolean finished;
 
 		Scene(GameTestHelper helper, GameType gameType, boolean locked, double speed) {
+			this(helper, gameType, locked, speed, Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 2, 1))));
+		}
+
+		// as below, holding its chunks as far ahead as the user's 5-block aim reaches
+		static Scene offGrid(GameTestHelper helper, GameType gameType, boolean locked, double speed, int lane) {
+			return offGrid(helper, gameType, locked, speed, lane, 5.0D);
+		}
+
+		// off the grid in a lane of its own (GameTestChunkTickets.offGridCell), holding the chunks from a block behind its
+		// user to a block past `ahead` along its look before anyone joins
+		static Scene offGrid(GameTestHelper helper, GameType gameType, boolean locked, double speed, int lane, double ahead) {
+			Vec3 origin = Vec3.atBottomCenterOf(GameTestChunkTickets.offGridCell(helper, lane).offset(1, 2, 1));
+			new GameTestChunkTickets(helper).hold(origin.add(-1.0D, 0.0D, -1.0D), origin.add(1.0D, 0.0D, ahead + 1.0D));
+			return new Scene(helper, gameType, locked, speed, origin);
+		}
+
+		private Scene(GameTestHelper helper, GameType gameType, boolean locked, double speed, Vec3 origin) {
 			this.helper = helper;
-			origin = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 2, 1)));
+			this.origin = origin;
 			user = GameTestPlayers.makeServerMockPlayer(helper, gameType);
 			user.getAbilities().instabuild = gameType == GameType.CREATIVE;
 			user.setNoGravity(true);
@@ -886,9 +910,21 @@ public final class StandAimReachGameTests {
 			helper.assertTrue(cow.getBoundingBox().clip(user.getEyePosition(),
 					user.getEyePosition().add(user.getViewVector(1).scale(5))).isEmpty(),
 					"Fixture: the cow is on the crosshair");
-			helper.assertTrue(StandEntityPunchAbility.userPrecisionRayTarget(stand, user).getMainEntity() == cow,
-					"Fixture: the precision ray does not take the cow beside the crosshair");
+			ActionTarget ray = StandEntityPunchAbility.userPrecisionRayTarget(stand, user);
+			helper.assertTrue(ray.getMainEntity() == cow,
+					"Fixture: the precision ray does not take the cow beside the crosshair; it took " + described(ray));
 			return cow;
+		}
+
+		// a ray's target for a fixture message, with where it stands and whether it is of another scene
+		String described(ActionTarget target) {
+			Entity entity = target.getMainEntity();
+			if (entity == null) {
+				return target.toString();
+			}
+			Vec3 offset = entity.position().subtract(user.position());
+			return String.format("%s%s %.2f, %.2f, %.2f from the user", target,
+					entity == stand || entities.contains(entity) ? "" : " of another scene", offset.x, offset.y, offset.z);
 		}
 
 		// the user's own tame wolf at eye level, on the level crosshair, in the Stand's reach; the Stand cannot attack it

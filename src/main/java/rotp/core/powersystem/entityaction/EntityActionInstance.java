@@ -14,6 +14,7 @@ import rotp.core.client.entityanim.PreFrameEntityAnimCalc.LivingAnimState;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.customobjects.entity_projectile.DamagingEntity;
 import rotp.core.entityattachment.syncheddata.SynchedDataHelper;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.init.ModDamageTypes;
 import rotp.core.network.NetworkPayloadValidation;
 import rotp.core.powersystem.Power;
@@ -33,6 +34,7 @@ import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.AimingEntity;
 import rotp.core.subsystems.target.HitResultUtil;
+import rotp.core.subsystems.time.RateStepper;
 import rotp.core.util.functions.DamageUtil;
 import rotp.core.util.functions.MathUtil;
 import rotp.core.util.functions_network.NetworkUtil;
@@ -102,6 +104,11 @@ public class EntityActionInstance implements HeldInput {
 	@Nullable private Vec3 standOffsetSync;
 	@Nullable private StandOffsetFromUser.Rotations standOffsetSyncRotations;
 	private boolean standOffsetSyncCanInvertSide = true;
+	// A reaching attack (StandMeleeReach) is placed by the server alone: what it flies out to is the server's pick, so a
+	// client keeps the offsets the server sends, with the action and after it, instead of working out its own.
+	private boolean decodedFromServer;
+	private boolean keepsServerStandOffset;
+	private boolean sendsStandOffsetChanges;
 	
 	/** Stores the target of the punch action, to be able to communicate with other internal systems, like Stand effects */
 	@Nullable public ActionTarget punchedTarget;
@@ -504,13 +511,26 @@ public class EntityActionInstance implements HeldInput {
 	
 	public void _setStandOffset(StandEntity standEntity, Vec3 relativeOffset, StandOffsetFromUser.Rotations rotations, boolean armsOnlyMode, boolean canInvertSide) {
 		LivingEntity user = standEntity.getUser();
-		if (user != null && standEntity.isArmsOnlyMode() == armsOnlyMode) {
+		if (user != null && standEntity.isArmsOnlyMode() == armsOnlyMode && !keepsServerStandOffset) {
+			boolean changed = !relativeOffset.equals(standOffsetSync) || rotations != standOffsetSyncRotations
+					|| canInvertSide != standOffsetSyncCanInvertSide;
 			standEntity.offsetFromUser.setOffset(relativeOffset, rotations, canInvertSide);
 			standEntity.offsetFromUser.standAbility = this.ability;
 			standOffsetSync = relativeOffset;
 			standOffsetSyncRotations = rotations;
 			standOffsetSyncCanInvertSide = canInvertSide;
+			if (changed && sendsStandOffsetChanges) {
+				standEntity.offsetFromUser.syncToTracking();
+			}
 		}
+	}
+
+	/**
+	 * Server: whether this action sends its clients each change of its Stand's offset itself, as a reaching attack does
+	 * once it has started (its clients keep the server's placement).
+	 */
+	public boolean sendsStandOffsetChanges() {
+		return sendsStandOffsetChanges;
 	}
 
 	// The offset this action sends to clients with itself, null when it leaves the Stand where it is.
@@ -545,14 +565,16 @@ public class EntityActionInstance implements HeldInput {
 		Vec3 targetPos = target != null && !target.isEmpty(level) ? target.getCenterPos() : null;
 		if (targetPos != null) {
 			double backAway = 1.5;
-			if (target.getType() == ActionTarget.TargetType.ENTITY) {
-				Entity targetEntity = target.getMainEntity();
-				if (targetEntity != null) {
-					backAway = 1.0 + targetEntity.getBoundingBox().getXsize() / 2.0;
-				}
+			Entity targetEntity = target.getType() == ActionTarget.TargetType.ENTITY ? target.getMainEntity() : null;
+			if (targetEntity != null) {
+				backAway = 1.0 + targetEntity.getBoundingBox().getXsize() / 2.0;
 			}
 			double offsetToTarget = targetPos.subtract(user.position()).multiply(1, 0, 1).length() - backAway;
 			frontOffset = Mth.clamp(offsetToTarget, minOffset, maxOffset);
+			// a close-range Stand's attack flies out to an entity past its user's reach
+			if (targetEntity != null) {
+				frontOffset = StandMeleeReach.flyOutOffset(standEntity, targetEntity, offsetToTarget, frontOffset);
+			}
 		}
 		_setStandOffset(standEntity, new Vec3(0, 0, frontOffset), StandOffsetFromUser.Rotations.HEAD_XY, false);
 		return true;
@@ -881,6 +903,9 @@ public class EntityActionInstance implements HeldInput {
 	public static boolean standEntityAttack(StandEntity stand, Entity target, DamageSource dmgSource, float dmgAmount,
 			boolean mainTarget) {
 		ServerLevel level = (ServerLevel) target.level();
+		if (mainTarget) {
+			dmgAmount = weakenPastBaseReach(stand, target, dmgSource, dmgAmount);
+		}
 		// 1.16 StandEntity.attackEntity: a main target the Stand cannot harm is not hit, a grabbed one included
 		boolean hurt = (!mainTarget || stand.canAttackEntity(target)) && stand.hurtWithStandAttack(target, dmgSource, dmgAmount);
 		if (hurt && mainTarget && !stand.isManuallyControlled()) {
@@ -911,6 +936,23 @@ public class EntityActionInstance implements HeldInput {
 			wearBlockingShield(level, target, dmgAmount);
 		}
 		return hurt;
+	}
+
+	// a close-range Stand's attack that reached past its base reach deals less damage and knockback (StandMeleeReach)
+	private static float weakenPastBaseReach(StandEntity stand, Entity target, DamageSource dmgSource, float dmgAmount) {
+		float factor = StandMeleeReach.strikeFactor(stand, target);
+		if (factor >= 1) {
+			return dmgAmount;
+		}
+		if (dmgSource instanceof DamageSourceModified modified) {
+			modified.jojo_ripples$modifyKnockback(modified.jojo_ripples$addKnockback(),
+					modified.jojo_ripples$knockbackMultiplier() * factor);
+			float vertical = modified.jojo_ripples$verticalKnockbackStrength();
+			if (vertical != 0) {
+				modified.jojo_ripples$verticalKnockback(vertical * factor, modified.jojo_ripples$verticalKnockbackAngleRatio());
+			}
+		}
+		return dmgAmount * factor;
 	}
 
 	// 1.16 StandEntityPunch.doHit: a blocked Stand hit under 3 (vanilla wears none) still wears a player's shield
@@ -1077,10 +1119,25 @@ public class EntityActionInstance implements HeldInput {
 	 *   (the windup animation will start at tick 0/16).
 	 */
 
+	@Nullable private RateStepper clock;
+
+	/** The clock of the slot that ticks this action by its user's time rate (EntityTimeRates), null at rate 1. */
+	@ApiStatus.Internal
+	public void setClockProgress(@Nullable RateStepper clock) {
+		this.clock = clock;
+	}
+
+	// a frame's partial tick in this action's own ticks: an action slowed or sped up animates at its own pace
+	private float actionPartialTick(float partialTick) {
+		RateStepper current = clock;
+		return current != null ? current.partialSteps(partialTick) : partialTick;
+	}
+
 	ActionPhase prevFramePhase = null;
 	float subtractFramePartialTick;
 	@ApiStatus.NonExtendable
 	public float getAnimPhaseTick(float partialTick) {
+		partialTick = actionPartialTick(partialTick);
 		// it just works
 		if (prevFramePhase != this.phase) {
 			if (prevFramePhase == null && this.phase != null)	subtractFramePartialTick = this.phasePartialTick;
@@ -1117,6 +1174,7 @@ public class EntityActionInstance implements HeldInput {
 	}
 	
 	public float getAnimFullTicksPassed(float partialTick) {
+		partialTick = actionPartialTick(partialTick);
 		float ticks = getFullTicksPassed();
 		if (skippedWindupPhase != null) {
 			for (ActionPhase phase : ActionPhase.values()) {
@@ -1250,10 +1308,14 @@ public class EntityActionInstance implements HeldInput {
 	@ApiStatus.Internal
 	public void _onActionStarted(@Nullable EntityActionInstance prevAction) {
 		applyStandUserWalkSpeed(phase);
+		boolean clientSide = performer != null && performer.level().isClientSide();
+		keepsServerStandOffset = clientSide && decodedFromServer && StandMeleeReach.isReachingAttack(this);
 		onActionSet(prevAction);
 		onSetPhase(phase);
 		initTaskTarget(prevAction);
 		applySyncedStandOffset();
+		// the offset set so far goes to the clients with the action; later changes go by themselves
+		sendsStandOffsetChanges = performer != null && !clientSide && StandMeleeReach.isReachingAttack(this);
 	}
 
 	// 1.16 StandEntityAction.getUserWalkSpeed: a Stand's action sets its user's walk speed from its registration in every
@@ -1850,6 +1912,7 @@ public class EntityActionInstance implements HeldInput {
 				}
 				action.taskTarget = NetworkUtil.readOptional(buffer, ActionTarget.STREAM_CODEC_UNRESOLVED_ENTITY_ID).orElse(null);
 				action.fromBuf(buffer);
+				action.decodedFromServer = true;
 				return action;
 			}
 		}

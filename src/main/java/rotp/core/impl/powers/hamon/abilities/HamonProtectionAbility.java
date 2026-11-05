@@ -73,7 +73,8 @@ public class HamonProtectionAbility extends Ability {
 	}
 
 	public static float reduceDamageAmount(Power<?> power, LivingEntity user, DamageSource dmgSource, float dmgAmount) {
-		if (!isProtectionEnabled(power)) {
+		// 1.16 blockDamage: a Hamon Master always protects itself, whether or not Protection is on
+		if (!isProtectionEnabled(power) && !(user instanceof HamonMasterEntity)) {
 			return dmgAmount;
 		}
 		return protectionCut(power, user, dmgSource, dmgAmount);
@@ -84,6 +85,11 @@ public class HamonProtectionAbility extends Ability {
 		HamonData hamon = getHamonData(power);
 		if (hamon == null || user == null || dmgAmount <= 0.0F) {
 			return dmgAmount;
+		}
+		// 1.16 HamonProtection.reduceDamageAmount: a Hamon Master's cut is the whole hit, for no energy
+		if (user instanceof HamonMasterEntity) {
+			HamonUtil.emitHamonSparkParticles(user.level(), null, damageSparkPosition(user, dmgSource), dmgAmount * 0.25F);
+			return 0.0F;
 		}
 
 		float energyCost = dmgAmount * 75.0F;

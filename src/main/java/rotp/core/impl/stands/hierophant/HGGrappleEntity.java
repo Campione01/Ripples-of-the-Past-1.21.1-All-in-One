@@ -86,6 +86,11 @@ public class HGGrappleEntity extends OwnerBoundProjectileEntity {
 	}
 
 	@Override
+	protected boolean runsInOwnerTime() {
+		return true;
+	}
+
+	@Override
 	protected Vec3 getOwnerRelativeOffset() {
 		return new Vec3(-0.3D, -0.2D, 0.55D);
 	}
@@ -160,7 +165,7 @@ public class HGGrappleEntity extends OwnerBoundProjectileEntity {
 			return;
 		}
 		setRot(owner.getYRot(), owner.getXRot());
-		distance += movementSpeed() * speedFactor;
+		distance += movementSpeed() * speedFactor * ownerTimeStep();
 		Vec3 origin = ownerPosition(1.0F, false);
 		Vec3 next = origin.add(Vec3.directionFromRotation(owner.getXRot(), owner.getYRot()).scale(distance));
 		Vec3 pos = position();

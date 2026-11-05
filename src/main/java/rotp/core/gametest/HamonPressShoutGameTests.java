@@ -84,10 +84,10 @@ public final class HamonPressShoutGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 80, batch = GameTestBatches.NO_TIME_STOP)
 	public static void sendoReleaseWithNoEnergyStillSendsTheWave(GameTestHelper helper) {
+		AABB area = sendoWall(helper);
+		int wavesBefore = waves(helper, area);
 		try (Fixture f = new Fixture(helper, ModHamonSkills.SENDO_OVERDRIVE.get())) {
-			AABB area = sendoWall(helper);
 			f.sendCrosshairAim();
-			int wavesBefore = waves(helper, area);
 			EntityActionInstance action = f.start("sendo_overdrive", true);
 			f.tick(35);
 			helper.assertTrue(action.getPhase() == ActionPhase.WINDUP, "Sendo Overdrive is not held: " + action.getPhase());
@@ -101,8 +101,9 @@ public final class HamonPressShoutGameTests {
 					"1.16 stoppedHolding sent the wave on a release that failed its energy check");
 			helper.assertTrue(f.user.getAirSupply() == 0,
 					"1.16 still asked for the cost, which leaves an empty user out of breath: air=" + f.user.getAirSupply());
-			helper.succeed();
 		}
+		assertNoWaveLeft(helper, area, wavesBefore);
+		helper.succeed();
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 80, batch = GameTestBatches.NO_TIME_STOP)
@@ -150,6 +151,12 @@ public final class HamonPressShoutGameTests {
 		return helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area).size();
 	}
 
+	// a wave outlives the test that sent it and, its user gone, hurts whatever stands in it, a neighbouring test's mobs too
+	private static void assertNoWaveLeft(GameTestHelper helper, AABB area, int wavesBefore) {
+		int left = waves(helper, area) - wavesBefore;
+		helper.assertTrue(left <= 0, "Fixture: the test left " + left + " Sendo Overdrive wave(s) in the level");
+	}
+
 	// voice lines a player says (JojoModUtil.sayVoiceLine posts them at the player's position)
 	private static final class VoiceLines implements AutoCloseable {
 		private final List<SoundEvent> said = new ArrayList<>();
@@ -188,6 +195,8 @@ public final class HamonPressShoutGameTests {
 		private final PlayerPower power;
 		private final HamonData hamon;
 		private final LivingComponentAction component;
+		private final AABB area;
+		private final List<HamonSendoOverdriveEntity> wavesBefore;
 
 		private Fixture(GameTestHelper helper, @Nullable HamonSkill skill) {
 			this.helper = helper;
@@ -197,6 +206,9 @@ public final class HamonPressShoutGameTests {
 			user.setYHeadRot(0.0F);
 			user.setNoGravity(true);
 			helper.assertTrue(helper.getLevel().addFreshEntity(user), "Could not add the Hamon test player");
+			// the waves this user's Sendo Overdrive sends at a block within its reach go with it
+			area = new AABB(user.blockPosition()).inflate(12.0D);
+			wavesBefore = helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area);
 			power = PowerClass.PLAYER_POWER.attachGet(user);
 			power.setPowerType(ModPlayerPowers.HAMON.get());
 			hamon = PlayerPower.getPowerData(user, ModPlayerPowers.HAMON).orElseThrow();
@@ -259,6 +271,11 @@ public final class HamonPressShoutGameTests {
 		public void close() {
 			stop();
 			user.removeAllEffects();
+			for (HamonSendoOverdriveEntity wave : helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area)) {
+				if (!wavesBefore.contains(wave)) {
+					wave.discard();
+				}
+			}
 			user.discard();
 		}
 	}

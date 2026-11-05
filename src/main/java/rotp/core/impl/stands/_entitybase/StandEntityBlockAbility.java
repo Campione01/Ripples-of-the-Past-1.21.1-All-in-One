@@ -72,6 +72,11 @@ public class StandEntityBlockAbility extends StandEntityAbility {
 	}
 
 	@Override
+	public boolean isGuard() {
+		return true;
+	}
+
+	@Override
 	public AbilityInputState cl_abilityInputState(Power<?> context) {
 		AbilityInputState state = super.cl_abilityInputState(context);
 		state.setFlag(AbilityInputState.HIGH_PRIORITY, true);

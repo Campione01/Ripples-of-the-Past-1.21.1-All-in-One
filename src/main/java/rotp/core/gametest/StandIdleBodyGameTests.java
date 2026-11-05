@@ -119,16 +119,16 @@ public final class StandIdleBodyGameTests {
 	}
 
 	/*
-	 * The idle Stand's look at the entity its aim holds (a port addition kept with its 75-degree limit) turns it only while
-	 * that entity lies within 75 degrees of its user's body, as when the idle Stand took its user's body yaw. Measured from
-	 * the Stand's own body, which trails the yaw that look gave it, the Stand went on staring at a cow behind its user.
+	 * 1.16 StandEntity.defaultRotation gave an idle Stand its user's yaw, pitch and head on every tick, whatever entity its
+	 * user aimed at: an idle Stand never looked at the entity its aim holds (the port's idle look did, within 75 degrees).
 	 * Both bodies a Stand can have: on its yaw in the summon pose (the server before the first action), trailing it after
 	 * (a client once the summon animation is over, the server after an action).
 	 */
 	@GameTest(template = "empty", timeoutTicks = 100)
-	public static void theIdleStandsLookAtItsAimedEntityIsLimitedByItsUsersBody(GameTestHelper helper) {
-		// the user's view and body yaw once turned, and whether the Stand still looks at the cow
-		float[][] rows = { { 180.0F, 180.0F, 0.0F }, { 150.0F, 100.0F, 1.0F } };
+	public static void anIdleStandLooksWhereItsUserLooksWhateverItsAimHoldsAsIn116(GameTestHelper helper) {
+		// the user's view yaw, body yaw and pitch: at the cow, beside it, and turned away from it with the cow within 75
+		// degrees of the body
+		float[][] rows = { { 40.0F, 40.0F, 10.0F }, { VIEW_YAW, VIEW_YAW, 0.0F }, { 150.0F, 100.0F, -20.0F } };
 		for (boolean summonPose : new boolean[] { true, false }) {
 			for (float[] row : rows) {
 				StandTaskTargetOffsetGameTests.withStand(helper, "star_platinum", scene -> {
@@ -137,35 +137,25 @@ public final class StandIdleBodyGameTests {
 						endSummonPoseWithATask(helper, scene);
 					}
 					String what = "an idle star_platinum " + (summonPose ? "in its summon pose" : "past its summon pose")
-							+ " whose aim holds a cow, its user turned from the cow to view " + row[0] + " and body " + row[1];
+							+ " whose aim holds a cow, its user at view " + row[0] + ", body " + row[1] + " and pitch " + row[2];
 					float off = 40.0F * Mth.DEG_TO_RAD;
 					Cow cow = scene.cow(new Vec3(-3.0F * Mth.sin(off), 0.0D, 3.0F * Mth.cos(off)));
-					LivingComponentAction.getComponent(stand).entityAim.setTarget(new ActionTarget(cow));
-					StandTaskTargetOffsetGameTests.turn(scene.user(), VIEW_YAW, VIEW_YAW);
+					LivingComponentAction actions = LivingComponentAction.getComponent(stand);
+					actions.entityAim.setTarget(new ActionTarget(cow));
+					StandTaskTargetOffsetGameTests.turn(scene.user(), row[0], row[1]);
+					scene.user().setXRot(row[2]);
+					scene.user().xRotO = row[2];
 					restAt(stand, VIEW_YAW, VIEW_YAW);
 					stand.tick();
 					float atCow = yawTo(stand, cow);
-					helper.assertTrue(stand.getCurStandAction() == null && Math.abs(Mth.degreesDifference(stand.getYRot(), atCow)) < EPS
-							&& Math.abs(Mth.degreesDifference(stand.getYRot(), VIEW_YAW)) > 10.0F, "setup: the idle star_platinum"
-									+ " looks at the cow its user faces: yaw " + stand.getYRot() + ", the cow at " + atCow);
-					StandTaskTargetOffsetGameTests.turn(scene.user(), row[0], row[1]);
-					stand.setOldPosAndRot();
-					stand.tick();
-					atCow = yawTo(stand, cow);
-					boolean withinBody = Math.abs(Mth.degreesDifference(row[1], atCow)) < 75.0F;
-					if (row[2] > 0.0F) {
-						helper.assertTrue(withinBody && Math.abs(Mth.degreesDifference(row[0], atCow)) > 75.0F, "setup: the cow"
-								+ " at " + atCow + " is within 75 degrees of the user's body and not of the view");
-						helper.assertTrue(Math.abs(Mth.degreesDifference(stand.getYRot(), atCow)) < EPS, what + " still looks at"
-								+ " it, within 75 degrees of its user's body: yaw " + stand.getYRot() + ", the cow at " + atCow);
-					}
-					else {
-						helper.assertTrue(!withinBody, "setup: the cow at " + atCow + " is within 75 degrees of the user's body");
-						helper.assertTrue(Math.abs(Mth.degreesDifference(stand.getYRot(), row[0])) < EPS
-								&& Math.abs(Mth.degreesDifference(stand.getYHeadRot(), row[0])) < EPS, what + " lets the cow"
-										+ " go, more than 75 degrees from its user's body, and looks along its user's view: yaw "
-										+ stand.getYRot() + ", head " + stand.getYHeadRot() + ", the cow at " + atCow);
-					}
+					helper.assertTrue(stand.getCurStandAction() == null && actions.entityAim.getTarget().getEntity() == cow
+							&& Math.abs(Mth.degreesDifference(atCow, row[0])) > 1.0F, "setup: " + what + ": the aim holds "
+									+ actions.entityAim.getTarget() + ", the cow at yaw " + atCow + " from the Stand");
+					helper.assertTrue(Math.abs(Mth.degreesDifference(stand.getYRot(), row[0])) < EPS
+							&& Math.abs(Mth.degreesDifference(stand.getYHeadRot(), row[0])) < EPS
+							&& Math.abs(stand.getXRot() - row[2]) < EPS, what + " looks along its user's view, as 1.16's"
+									+ " defaultRotation turned it: yaw " + stand.getYRot() + ", head " + stand.getYHeadRot() + ", pitch "
+									+ stand.getXRot() + ", the cow at yaw " + atCow);
 				});
 			}
 		}

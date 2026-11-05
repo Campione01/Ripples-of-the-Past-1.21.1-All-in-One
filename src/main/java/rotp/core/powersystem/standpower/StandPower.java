@@ -19,6 +19,7 @@ import rotp.core.api.leap.LeapAccessPolicies;
 import rotp.core.api.leap.LeapSource;
 import rotp.core.api.stand.StandLeapUnlockProviders;
 import rotp.core.api.stand.StandStaminaModifiers;
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.command.commands.JojoControlsCommand;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.entityattachment.PostNbtReadEntityData;
@@ -57,6 +58,7 @@ import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.powersystem.standpower.type.StandTypePersistentData;
 import rotp.core.powersystem.standpower.type.SummonedStand;
 import rotp.core.subsystems.soul.SoulEntity;
+import rotp.core.subsystems.time.RateStepper;
 import rotp.core.subsystems.timestop.TimeStopState;
 import rotp.core.util.functions.MathUtil;
 import rotp.core.util.functions.NBTUtil;
@@ -115,8 +117,10 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		boolean paused = isPausedInStoppedTime();
 		if (!paused) {
 			tickStamina();
-			tickLeapCooldown();
-			tickAbilityCooldowns();
+			int cooldownSteps = cooldownSteps();
+			tickLeapCooldown(cooldownSteps);
+			tickAbilityCooldowns(cooldownSteps);
+			resyncScaledCooldowns();
 			tickResolve();
 			tickSoulCheck();
 			userStandEffects.tick();
@@ -330,6 +334,19 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	public boolean isSummoned() {
 		return summonedStand != null;
 	}
+
+	private boolean unsummonedByItsUser;
+
+	/** Server: the unsummon under way is its user's own (StandType#unsummon), not one a skill or a rule forces. */
+	@ApiStatus.Internal
+	public boolean isUnsummonedByItsUser() {
+		return unsummonedByItsUser;
+	}
+
+	@ApiStatus.Internal
+	public void setUnsummonedByItsUser(boolean byUser) {
+		this.unsummonedByItsUser = byUser;
+	}
 	
 	public void setSummonedStand(@Nullable SummonedStand summonedStand) {
 		this.summonedStand = summonedStand;
@@ -393,6 +410,25 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 
 	public boolean wasProgressionSkipped() {
 		return skippedProgression;
+	}
+
+	/**
+	 * The stand_skills reset command (the port's; 1.16 had none): undoes unlock_all (skipProgression) and what earlier
+	 * Resolve levels unlocked, so the Stand's skills and Resolve gates follow its current level again; its training and
+	 * EXP stay. 1.16's full reset is /stand clear (applyDestructiveTransition(true)).
+	 */
+	public void resetSkillProgression() {
+		StandTypePersistentData data = getCurTypeData();
+		if (data == null || user.level().isClientSide()) {
+			return;
+		}
+		if (skippedProgression) {
+			skippedProgression = false;
+			syncSkippedProgression();
+		}
+		data.resetHighestResolveLevel(this);
+		data.resetUnlockedSkills(this);
+		cachedMovesThisTick = false;
 	}
 
 	@ApiStatus.Internal
@@ -562,16 +598,55 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 				: 1.0F;
 	}
 
-	private void tickLeapCooldown() {
+	@Nullable private RateStepper cooldownClock;
+	private boolean cooldownsScaled;
+
+	// the cooldown ticks of this tick: 1, or by the user's EntityTimeRates STAND_ACTIONS rate
+	private int cooldownSteps() {
+		if (!EntityTimeRates.hasProviders()) {
+			cooldownClock = null;
+			return 1;
+		}
+		float rate = EntityTimeRates.rate(EntityTimeRates.Channel.STAND_ACTIONS, user);
+		if (rate == 1.0F && cooldownClock == null) {
+			return 1;
+		}
+		if (cooldownClock == null) {
+			cooldownClock = new RateStepper();
+		}
+		return cooldownClock.steps(rate);
+	}
+
+	// the user's client counts its cooldowns down by itself: while they run at another rate, and once when they are back
+	// to 1, the server sends what is left, so its HUD keeps up even where only the server knows the rate
+	private void resyncScaledCooldowns() {
+		boolean scaled = cooldownClock != null && cooldownClock.rate() != 1.0F;
+		if (user.level().isClientSide() || serverPlayerUser.isEmpty() || !scaled && !cooldownsScaled) {
+			return;
+		}
+		if (scaled != cooldownsScaled || user.tickCount % 10 == 0) {
+			for (Map.Entry<String, Integer> entry : abilityCooldowns.entrySet()) {
+				syncAbilityCooldown(entry.getKey(), entry.getValue(),
+						abilityCooldownTotals.getOrDefault(entry.getKey(), entry.getValue()));
+			}
+			serverPlayerUser.ifPresent(player -> PacketDistributor.sendToPlayer(player, new TrStandLeapCooldownPacket(user.getId(), leapCooldown)));
+		}
+		cooldownsScaled = scaled;
+	}
+
+	private void tickLeapCooldown(int steps) {
 		if (leapCooldown > 0) {
-			leapCooldown--;
+			leapCooldown = Math.max(leapCooldown - steps, 0);
 		}
 	}
 
-	private void tickAbilityCooldowns() {
+	private void tickAbilityCooldowns(int steps) {
+		if (steps == 0) {
+			return;
+		}
 		for (Iterator<Map.Entry<String, Integer>> iterator = abilityCooldowns.entrySet().iterator(); iterator.hasNext();) {
 			Map.Entry<String, Integer> entry = iterator.next();
-			int cooldown = entry.getValue() - 1;
+			int cooldown = entry.getValue() - steps;
 			if (cooldown > 0) {
 				entry.setValue(cooldown);
 			}
@@ -614,7 +689,9 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		if (totalCooldown <= 0) {
 			return 0.0F;
 		}
-		return Mth.clamp(((float) cooldown - partialTick) / (float) totalCooldown, 0.0F, 1.0F);
+		RateStepper clock = cooldownClock;
+		float progress = clock != null ? clock.partialSteps(partialTick) : partialTick;
+		return Mth.clamp(((float) cooldown - progress) / (float) totalCooldown, 0.0F, 1.0F);
 	}
 
 	public void setAbilityCooldown(String abilityName, int cooldown) {

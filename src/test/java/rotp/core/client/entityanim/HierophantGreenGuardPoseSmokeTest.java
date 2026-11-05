@@ -125,7 +125,8 @@ public final class HierophantGreenGuardPoseSmokeTest {
 		animation.calcAnimPose(AnimMolangVariables.set(-30, 0, 0), null, 0.25F, 1, pose, scratch);
 		rotation(pose, "left_arm", -105, -7.5F, -37.5F, "live pitch reversal");
 		List<AssertionError> failures = new ArrayList<>();
-		for (String stand : new String[] { "stand_default", "crazy_diamond", "magicians_red", "silver_chariot" }) {
+		// stand_default's block is the official 1.21.1 guard (the level-look reference above), not the donor's pitch-aware one
+		for (String stand : new String[] { "crazy_diamond", "magicians_red", "silver_chariot" }) {
 			try {
 				verifyLegacyGuard(stand);
 				System.out.println("Legacy guard composed pose passed: " + stand);
@@ -137,14 +138,13 @@ public final class HierophantGreenGuardPoseSmokeTest {
 		if (!failures.isEmpty()) {
 			throw new AssertionError(failures.size() + " legacy guard clips differ from the donor", failures.getFirst());
 		}
-		System.out.println("Legacy guard pose passed: HG reference plus four clips on their baked geometry, nine donor pitch samples, mirrored axes, clamp endpoints, composed forearm axis/roll/hand tip and live pitch reversal");
+		System.out.println("Legacy guard pose passed: HG reference plus three clips on their baked geometry, nine donor pitch samples, mirrored axes, clamp endpoints, composed forearm axis/roll/hand tip and live pitch reversal");
 	}
 
 	private static void verifyLegacyGuard(String stand) throws IOException {
-		boolean fallback = "stand_default".equals(stand);
-		String skin = fallback ? "hierophant_green" : stand;
+		String skin = stand;
 		String base = "/assets/jojo_ripples/stand_skins/" + skin + "/assets/jojo_ripples/";
-		String asset = fallback ? DEFAULT_ASSET : base + "animations/" + skin + ".animation.json";
+		String asset = base + "animations/" + skin + ".animation.json";
 		String clipName = "silver_chariot".equals(stand) ? "no_rapier_block" : "block";
 		RotpAnimDefinition animation;
 		try (InputStream in = HierophantGreenGuardPoseSmokeTest.class.getResourceAsStream(asset)) {

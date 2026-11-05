@@ -38,11 +38,11 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * precision ray from the camera entity, else a miss; no ray from the Stand's eyes. Only the server's strike aimed again
  * from the Stand's eyes when its user's precision ray met nothing (StandEntity.aimWithThisOrUser). The port's client Stand
  * aim (StandEntityPunchAbility.clientStandAim, what ClientsideAim keeps, the marker shows and a press carries) fell back
- * to the Stand's own ray, and the idle Stand turns its look to its aimed entity (the owner's D-core-94), so once the aim
- * had met a cow the Stand's look kept that cow as the aim at the sky and with a cow beyond the user's reach on the
- * crosshair (client item S12-1). Each core Stand, summoned for a Survival user, turned to a cow four blocks ahead by its
- * idle look; a second cow 12 blocks to the user's left, a third 4 blocks to its right. Own batch: the rays reach several
- * blocks and must not meet a neighbouring test's mobs.
+ * to the Stand's own ray, so once the Stand's look rested on a cow (the port's idle look at its aimed entity turned it there,
+ * an action's turn to its target still does) the Stand's look kept that cow as the aim at the sky and with a cow beyond
+ * the user's reach on the crosshair (client item S12-1). Each core Stand, summoned for a Survival user, turned to a cow
+ * four blocks ahead as an action turns it; a second cow 12 blocks to the user's left, a third 4 blocks to its right. Own
+ * batch: the rays reach several blocks and must not meet a neighbouring test's mobs.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -62,16 +62,16 @@ public final class ClientStandAimFromItsUser116GameTests {
 				Cow aside = scene.cow(-4.0D, 0.0D);
 
 				// the crosshair rests on the near cow: past the Survival vanilla pick, the user's precision ray takes it,
-				// the server stores that aim and the idle Stand turns its look to it
+				// the server stores that aim and the Stand turns its look to it, as an action's turn to its target does
 				scene.user.lookAt(EntityAnchorArgument.Anchor.EYES, near.getBoundingBox().getCenter());
 				ActionTarget first = scene.clientStandAim();
 				helper.assertTrue(first.getType() == TargetType.ENTITY && first.getEntity() == near, "Premise (" + standName
 						+ "): with the crosshair on the cow 4 blocks ahead the client's Stand aim is " + first);
 				LivingComponentAction.getComponent(scene.stand).entityAim.setTargetFromClient(first, helper.getLevel());
-				boolean looked = scene.stand.lookAtCurTarget(scene.stand.rotO);
+				boolean looked = scene.stand.lookAtTarget(first, true);
 				Vec3 standEyes = scene.stand.getEyePosition();
 				helper.assertTrue(looked && near.getBoundingBox().clip(standEyes, standEyes.add(scene.stand.getLookAngle().scale(5.0D)))
-						.isPresent(), "Premise (" + standName + "): the idle Stand did not turn its look to the aimed cow");
+						.isPresent(), "Premise (" + standName + "): the Stand did not turn its look to the aimed cow");
 
 				scene.user.setXRot(-90.0F);
 				scene.user.xRotO = -90.0F;

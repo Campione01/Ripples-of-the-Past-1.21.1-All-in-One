@@ -191,7 +191,9 @@ public final class BarrageFrontDistanceGameTests {
             user.getAttribute(ModEntityAttributes.STAND_SPEED).setBaseValue(14);
             user.getAttribute(ModEntityAttributes.STAND_DURABILITY).setBaseValue(12);
             user.getAttribute(ModEntityAttributes.STAND_EFFECTIVE_RANGE).setBaseValue(kind == Kind.LIMITED ? 0.8 : 3);
-            user.getAttribute(ModEntityAttributes.STAND_MAX_RANGE).setBaseValue(8);
+            // a max range under its user's reach, so that the barrage reaches out to 6.25 blocks from the user's eyes
+            // (StandMeleeReach), short of the cows moved out of reach at 7
+            user.getAttribute(ModEntityAttributes.STAND_MAX_RANGE).setBaseValue(4);
             StandEntity.updateStandStatAttributes(stand, user);
             power.setStamina(power.getMaxStamina());
             stand.updateStrengthMultipliers();
@@ -232,9 +234,14 @@ public final class BarrageFrontDistanceGameTests {
         void post() {
             if (done || closed) return;
             premise(stand.getCurStandAction() == action && (action.getPhase() == ActionPhase.PERFORM
-                    || recovery() && action.getPhase() == ActionPhase.RECOVERY),
+                    || (recovery() || kind == Kind.CLAMPS && nativeTicks >= 7) && action.getPhase() == ActionPhase.RECOVERY),
                     "same native action before its duration cap");
             nativeTicks++;
+            // owner 2026-11-01: a barrage stops once the target it aimed at leaves its reach (StandMeleeReach)
+            if (nativeTicks == 8 && kind == Kind.CLAMPS) {
+                suite.check(action.getPhase() == ActionPhase.RECOVERY, "the barrage stops once its target left its reach"
+                        + " phase=" + action.getPhase());
+            }
             if (nativeTicks == 1) {
                 if (specialPosition()) suite.check(Objects.equals(action.getSyncedStandOffset(), initialOffset), "initial specialized offset unchanged");
                 else assertOffset(0.5, "initial lower clamp");
@@ -282,7 +289,7 @@ public final class BarrageFrontDistanceGameTests {
                         // its target out of the Stand's reach and another on the aim: a recovery that aims again takes the new
                         // one, where the target its last hit was aimed at would hold the Stand at its farthest
                         outOfReach = target;
-                        outOfReach.moveTo(origin.x, origin.y + 0.4, origin.z + 6.5, 0, 0);
+                        outOfReach.moveTo(origin.x, origin.y + 0.4, origin.z + 7.0, 0, 0);
                         target = cow(1.2);
                         LivingComponentAction.getComponent(stand).entityAim.setTarget(new ActionTarget(target));
                         return;
@@ -325,7 +332,7 @@ public final class BarrageFrontDistanceGameTests {
                 else if (kind == Kind.CLAMPS) {
                     assertOffset(1.5, "upper clamp");
                     healthBeforeOutside = target.getHealth();
-                    target.moveTo(origin.x, origin.y + 0.4, origin.z + 6.5, 0, 0);
+                    target.moveTo(origin.x, origin.y + 0.4, origin.z + 7.0, 0, 0);
                     premise(target.chunkPosition().equals(user.chunkPosition()) && level.getEntity(target.getId()) == target,
                             "outside-range target remains present in the same loaded chunk");
                 }
@@ -342,7 +349,7 @@ public final class BarrageFrontDistanceGameTests {
                 }
                 else {
                     assertOffset(1.5, "out-of-range target falls back without extending reach");
-                    suite.check(action.punchedTarget != null && action.punchedTarget.isEmpty(level)
+                    suite.check((action.punchedTarget == null || action.punchedTarget.isEmpty(level))
                             && target.getHealth() == healthBeforeOutside, "outside target is neither retained nor hit");
                 }
                 done = true;

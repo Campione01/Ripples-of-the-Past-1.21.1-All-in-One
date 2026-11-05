@@ -5,9 +5,15 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.client.ClientProxy;
+import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.util.functions.DamageUtil;
 
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
@@ -34,6 +40,8 @@ import net.minecraft.world.phys.Vec3;
  * existing HG / SC projectiles is consumed by Slice 5b family follow-ups.</p>
  */
 public abstract class OwnerBoundProjectileEntity extends ModdedProjectileEntity {
+	private double ownerTicks;
+	private float ownerTimeStep = 1.0F;
 
 	protected OwnerBoundProjectileEntity(EntityType<? extends OwnerBoundProjectileEntity> type, LivingEntity shooter, Level level) {
 		super(type, shooter, level);
@@ -45,6 +53,8 @@ public abstract class OwnerBoundProjectileEntity extends ModdedProjectileEntity 
 
 	@Override
 	public void tick() {
+		ownerTimeStep = nextOwnerTimeStep();
+		ownerTicks += ownerTimeStep;
 		Entity owner = getOwner();
 		if (owner != null && shouldFollowOwner()) {
 			Vec3 offset = ownerOffset();
@@ -52,6 +62,80 @@ public abstract class OwnerBoundProjectileEntity extends ModdedProjectileEntity 
 			setDeltaMovement(Vec3.ZERO);
 		}
 		super.tick();
+	}
+
+	/**
+	 * Whether this body part flies, turns back and expires in its owner's time, the EntityTimeRates STAND_ACTIONS rate
+	 * of its owner (a Stand's user for a Stand). Such a part counts {@link #ownerTicks()} where it would count
+	 * tickCount and scales a distance it moves a tick by {@link #ownerTimeStep()}; at rate 1 both are the same.
+	 */
+	protected boolean runsInOwnerTime() {
+		return false;
+	}
+
+	/** This part's age in its owner's time; tickCount at rate 1. */
+	protected final double ownerTicks() {
+		return ownerTicks;
+	}
+
+	/** What this tick adds to {@link #ownerTicks()}. */
+	protected final float ownerTimeStep() {
+		return ownerTimeStep;
+	}
+
+	/** The server ticks until its lifespan ends at its owner's rate now, for an effect that lasts as long as this part. */
+	protected final int serverTicksLeftInLifespan() {
+		return (int) Math.ceil((ticksLifespan() - ownerTicks) / ownerActionRate());
+	}
+
+	private float ownerActionRate() {
+		if (!runsInOwnerTime() || !EntityTimeRates.hasProviders()) {
+			return 1.0F;
+		}
+		LivingEntity owner = getOwner();
+		LivingEntity user = owner instanceof StandEntity stand ? stand.getUser() : owner;
+		return user != null ? Math.min(EntityTimeRates.rate(EntityTimeRates.Channel.STAND_ACTIONS, user), EntityTimeRates.MAX_RATE) : 1.0F;
+	}
+
+	// ENTITY_TICK already changes how many times a server ticks this part (Made in Heaven's mode B): a tick there is
+	// a smaller share of its owner's time, or its owner's rate would count twice. Clients tick it once a tick.
+	private float nextOwnerTimeStep() {
+		float step = ownerActionRate();
+		if (runsInOwnerTime() && !level().isClientSide() && EntityTimeRates.hasProviders()) {
+			step /= Math.min(EntityTimeRates.rate(EntityTimeRates.Channel.ENTITY_TICK, this), EntityTimeRates.MAX_RATE);
+		}
+		return step;
+	}
+
+	@Override
+	protected boolean shouldExpire(@Nullable Entity owner) {
+		return runsInOwnerTime()
+				? ownerTicks > ticksLifespan() || owner != null && !owner.isAlive()
+				: super.shouldExpire(owner);
+	}
+
+	@Override
+	protected void addAdditionalSaveData(CompoundTag nbt) {
+		super.addAdditionalSaveData(nbt);
+		nbt.putDouble("OwnerTicks", ownerTicks);
+	}
+
+	@Override
+	protected void readAdditionalSaveData(CompoundTag nbt) {
+		super.readAdditionalSaveData(nbt);
+		ownerTicks = nbt.contains("OwnerTicks") ? nbt.getDouble("OwnerTicks") : tickCount;
+	}
+
+	@Override
+	public void writeSpawnData(RegistryFriendlyByteBuf buffer) {
+		super.writeSpawnData(buffer);
+		buffer.writeDouble(ownerTicks);
+	}
+
+	@Override
+	public void readSpawnData(RegistryFriendlyByteBuf additionalData) {
+		super.readSpawnData(additionalData);
+		ownerTicks = additionalData.readDouble();
 	}
 
 	/**

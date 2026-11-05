@@ -2,6 +2,7 @@ package rotp.core.core;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.JojoModConfig;
 import rotp.core.entityattachment.DataEventListeners;
 import rotp.core.init.ModDataAttachmentTypes;
@@ -843,6 +844,15 @@ public class EventHandler {
 	@SubscribeEvent
 	public static void onProjectileImpact(ProjectileImpactEvent event) {
 		ProjectileHamonChargeState.get(event.getProjectile()).onTargetHit(event.getRayTraceResult());
+	}
+
+	// rule G1: a rewind ends the time stops that began after its point inside its region
+	@SubscribeEvent
+	public static void onRewindApplied(RewindAppliedEvent event) {
+		var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+		if (event.getLevel().hasData(attachmentType)) {
+			event.getLevel().getData(attachmentType).endStopsBegunAfter(event.getRewindPoint(), event.getRegion());
+		}
 	}
 
 	@SubscribeEvent

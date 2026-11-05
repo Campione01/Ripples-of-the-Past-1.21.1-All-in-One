@@ -39,6 +39,7 @@ import rotp.core.powersystem.standpower.entity.StandControlType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.powersystem.standpower.type.SummonedStand.BlankSummonedStand;
+import rotp.core.util.constants.EntityEvents;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.util.functions.AttributeUtil;
 import rotp.core.util.sound.MultiSoundEventResolver;
@@ -50,7 +51,9 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -78,6 +81,7 @@ public class StandType extends PowerType {
 	private boolean nonEntityManualControl;
 	private boolean nonEntityDistanceStrengthDecay;
 	private boolean nonEntityStandControlPolicyConfigured;
+	private volatile boolean nonEntityStandControlPolicyLogged;
 	
 	public StandCreationSource createdIn = StandCreationSource.REGISTRY;
 	public List<Component> discExtraTooltip = new ArrayList<>();
@@ -135,27 +139,51 @@ public class StandType extends PowerType {
 		return cast;
 	}
 
-	private void validateNonEntityStandControlPolicy() {
-		if (!nonEntityStandControlPolicyConfigured
-				|| nonEntityStandControlType == null) {
-			throw new IllegalStateException(
-					"standControlType is required for " + getId());
+	/**
+	 * What this Stand's control policy lacks, naming the Stand and the field; null when it is complete. The core's
+	 * common setup refuses to load with any registered Stand that has one.
+	 */
+	@Nullable
+	public String standControlPolicyProblem() {
+		return !nonEntityStandControlPolicyConfigured || nonEntityStandControlType == null
+				? "Stand " + getId() + " (" + getClass().getName() + "): standControlType is required"
+						+ " (StandType.nonEntityStandControlPolicy)"
+				: null;
+	}
+
+	/**
+	 * Logs this Stand's control policy problem with the defaults the core uses for it in play, once: the core's common
+	 * setup in a player's game, then the policy getters, report it here. False when it has none or it was logged before.
+	 */
+	public boolean reportStandControlPolicyProblem() {
+		String problem = standControlPolicyProblem();
+		if (problem == null || nonEntityStandControlPolicyLogged) {
+			return false;
 		}
+		nonEntityStandControlPolicyLogged = true;
+		JojoMod.getLogger().error("{}; using standControlType AUTOMATIC without manual control or distance decay", problem);
+		return true;
+	}
+
+	// At run time a missing policy is logged once and the core's default stands in: an automatic Stand.
+	private boolean checkNonEntityStandControlPolicy() {
+		if (standControlPolicyProblem() == null) {
+			return true;
+		}
+		reportStandControlPolicyProblem();
+		return false;
 	}
 
 	public StandControlType getStandControlType() {
-		validateNonEntityStandControlPolicy();
-		return nonEntityStandControlType;
+		return checkNonEntityStandControlPolicy() ? nonEntityStandControlType : StandControlType.AUTOMATIC;
 	}
 
 	public boolean canBeManuallyControlled() {
-		validateNonEntityStandControlPolicy();
-		return nonEntityManualControl;
+		return checkNonEntityStandControlPolicy() && nonEntityManualControl;
 	}
 
 	public boolean usesDistanceStrengthDecay() {
-		validateNonEntityStandControlPolicy();
-		return nonEntityDistanceStrengthDecay;
+		return checkNonEntityStandControlPolicy() && nonEntityDistanceStrengthDecay;
 	}
 
 	public <T extends StandType> T summonShout(Supplier<? extends Holder<SoundEvent>> summonShoutSupplier) {
@@ -363,11 +391,21 @@ public class StandType extends PowerType {
 	}
 	
 	public void unsummon(LivingEntity user, StandPower standPower) {
-		forceUnsummon(user, standPower);
+		boolean wasByUser = standPower.isUnsummonedByItsUser();
+		standPower.setUnsummonedByItsUser(true);
+		try {
+			forceUnsummon(user, standPower);
+		}
+		finally {
+			standPower.setUnsummonedByItsUser(wasByUser);
+		}
 	}
-	
+
 	public void forceUnsummon(LivingEntity user, StandPower standPower) {
 		if (standPower.isSummoned()) {
+			if (user != null && !user.level().isClientSide() && !standPower.isUnsummonedByItsUser()) {
+				keepUsersStandHud(user);
+			}
 			standPower.setSummonedStand(null);
 			if (user != null && !user.level().isClientSide()) {
 				PacketDistributor.sendToPlayersTrackingEntityAndSelf(user, new TrNonEntityStandSummonPacket(user.getId(), false));
@@ -381,6 +419,18 @@ public class StandType extends PowerType {
 	}
 	
 	
+	/**
+	 * 1.16 left its user's HUD in the Stand mode through every unsummon but the user's own (ActionsOverlayGui.onStandUnsummon,
+	 * from the unsummon task only), so a skill or a rule that unsummons the Stand leaves the bar to use it with again; a
+	 * dimension change and a respawn reset the HUD (UpdateClientCapCachePacket), and a dead user keeps nothing. Tells the
+	 * user's client, before the Stand is gone, to keep the Stand HUD its summoned Stand showed (InputHandler).
+	 */
+	protected static void keepUsersStandHud(LivingEntity user) {
+		if (user instanceof ServerPlayer player && player.isAlive() && player.connection != null) {
+			player.connection.send(new ClientboundEntityEventPacket(player, EntityEvents.KEEP_STAND_HUD));
+		}
+	}
+
 	public boolean usesStamina(StandPower standPower) {
 		return true;
 	}

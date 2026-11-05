@@ -72,6 +72,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.phys.Vec3;
@@ -99,6 +100,9 @@ public class TimeStopState {
     private final Map<Integer, AbilityId> timeStopStarters = new HashMap<>();
     // Server-only: the stamina each instance's start actually took, and the part of it no early end gives back.
     private final Map<Integer, StartCharge> timeStopStartCharges = new HashMap<>();
+    // Server-only: the game time each instance began stopping time. A held stop's ticksPassed starts below 0 (the
+    // opening settle, already frozen), so it cannot give the start that rule G1 compares with a rewind's point.
+    private final Map<Integer, Long> timeStopStartTimes = new HashMap<>();
     private final Map<Integer, FrozenEntityState> frozenEntities = new HashMap<>();
     private final Map<Integer, List<Runnable>> onTimeResume = new HashMap<>();
     private final Set<UUID> playersVisionFrozen = new HashSet<>();
@@ -212,6 +216,10 @@ public class TimeStopState {
             freezeTimeStopGamerulesIfNeeded();
         }
         Instance replaced = instances.put(instance.id(), instance);
+        // a running stop put again (extended or cut by an add-on) keeps its first start
+        if (replaced == null || !replaced.isActive() || !timeStopStartTimes.containsKey(instance.id())) {
+            timeStopStartTimes.put(instance.id(), level.getGameTime());
+        }
         if (replaced != null) {
             reconcileFrozenEntities();
         }
@@ -437,6 +445,87 @@ public class TimeStopState {
     }
 
     /**
+     * For an add-on that moves an entity of this level on purpose while time may be stopped around it (a rewind, a
+     * dodge, a teleport): call it right after the move. While the entity stays frozen in stopped time, the freeze
+     * holds it where it now is (it put it back where it froze on every tick before); its motion, fall distance and AI
+     * state stay as they were frozen. An entity the move took out of stopped time (or out of every stop's reach) is
+     * released at once, as time resuming releases it. Server side; nothing happens to an entity no stop covers.
+     * @return whether the entity stays frozen
+     */
+    public boolean repinOrRelease(Entity entity) {
+        if (entity.level() != level) {
+            return false;
+        }
+        if (!shouldFreeze(entity)) {
+            unfreezeEntity(entity);
+            return false;
+        }
+        FrozenEntityState state = frozenEntities.get(entity.getId());
+        if (state == null) {
+            freezeEntity(entity);
+        }
+        else {
+            frozenEntities.put(entity.getId(), new FrozenEntityState(entity.position(), state.fallDistance(), state.wasNoAi()));
+        }
+        return frozenEntities.containsKey(entity.getId());
+    }
+
+    /**
+     * Rule G1, for a rewind (RewindAppliedEvent): ends every stop of this level that began after the rewind's point
+     * and whose chunks meet its region, as an interrupted stop ends; older stops go on.
+     * @return how many stops it ended
+     */
+    public int endStopsBegunAfter(long rewindPoint, AABB region) {
+        List<Integer> ended = new ArrayList<>();
+        for (Instance instance : instances.values()) {
+            if (endsOnRewind(instance, rewindPoint, region)) {
+                ended.add(instance.id());
+            }
+        }
+        for (int id : ended) {
+            removeInstance(id, RemovalReason.INTERRUPTED);
+        }
+        return ended.size();
+    }
+
+    /**
+     * Rule G1 for one stop of this level: whether a rewind to this point in this region ends it, as
+     * {@link #endStopsBegunAfter} decides. For a rewind that must know before it posts its RewindAppliedEvent which
+     * stops go on (what they hold stays as it is).
+     */
+    public boolean endsOnRewind(Instance instance, long rewindPoint, AABB region) {
+        return getStartGameTime(instance) > rewindPoint && meetsRegion(instance, region);
+    }
+
+    /**
+     * The level's game time the stop began stopping time: when it was first committed, a held stop's opening included
+     * (its ticksPassed starts below 0 there). Server side.
+     */
+    public long getStartGameTime(Instance instance) {
+        Long started = timeStopStartTimes.get(instance.id());
+        return started != null ? started : level.getGameTime() - Math.max(instance.ticksPassed(), 0);
+    }
+
+    private static boolean meetsRegion(Instance instance, AABB region) {
+        if (instance.chunkRange() <= 0) {
+            return true;
+        }
+        int reach = instance.chunkRange() - 1;
+        ChunkPos center = instance.centerPos();
+        return (center.x - reach) * 16.0 < region.maxX && (center.x + reach + 1) * 16.0 > region.minX
+                && (center.z - reach) * 16.0 < region.maxZ && (center.z + reach + 1) * 16.0 > region.minZ;
+    }
+
+    /** {@link #repinOrRelease} in the entity's own server level; false on the client and where time never stopped. */
+    public static boolean repinOrReleaseOnServer(Entity entity) {
+        if (!(entity.level() instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+        var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+        return serverLevel.hasData(attachmentType) && serverLevel.getData(attachmentType).repinOrRelease(entity);
+    }
+
+    /**
      * Knockback on a stopped entity adds up on its waiting motion instead of halving it (1.16 stackKnockbackInstead).
      * An angled hit keeps its angle: 1.16 punches knocked back by strength * cos(xRot) and added strength * -sin(xRot)
      * upwards on their own, which the port does after the vanilla knockback a stopped entity never reaches.
@@ -572,6 +661,7 @@ public class TimeStopState {
         }
         timeStopStarters.clear();
         timeStopStartCharges.clear();
+        timeStopStartTimes.clear();
         for (Instance removed : removedInstances) {
             removeTimeStopEffectIfNoActiveInstance(removed);
         }
@@ -932,6 +1022,7 @@ public class TimeStopState {
             if (!instances.containsKey(removed.id())) {
                 timeStopStarters.remove(removed.id());
                 timeStopStartCharges.remove(removed.id());
+                timeStopStartTimes.remove(removed.id());
             }
         }
         for (TimeStopSettlement settlement : settlements) {

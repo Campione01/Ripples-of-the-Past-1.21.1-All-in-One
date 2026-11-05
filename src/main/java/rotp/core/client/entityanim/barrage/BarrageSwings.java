@@ -70,6 +70,14 @@ public class BarrageSwings {
 		}
 	}
 
+	/** A frame without a clip: the swings age as on any frame, and none are added. */
+	public void frameWithoutClip(Minecraft mc, float ticks) {
+		if (this.lastTicks == ticks) return;
+		this.lastTicks = ticks;
+		frameUpdateSwings(mc);
+		frameUpdateBarrageType(null);
+	}
+
 	public void frameUpdateSwings(Minecraft mc) {
 		if (!mc.isPaused() && !barrageSwings.isEmpty()) {
 			float timeDelta = mc.getTimer().getGameTimeDeltaTicks();

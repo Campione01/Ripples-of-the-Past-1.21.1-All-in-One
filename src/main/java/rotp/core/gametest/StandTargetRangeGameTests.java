@@ -1037,7 +1037,7 @@ public final class StandTargetRangeGameTests {
 				}
 				else {
 					// its user steered it behind (north) as far as it goes, as the O key does through StandEntity.move, which holds
-					// its feet within its max range of its user's, and turned it north
+					// its feet within its movement range of its user's, and turned it north
 					StandEntity stand = fixture.stand;
 					stand.setManuallyControlled(true);
 					stand.move(net.minecraft.world.entity.MoverType.SELF,
@@ -1067,10 +1067,10 @@ public final class StandTargetRangeGameTests {
 					boolean layout = userLookOnly ? onUsersLook && !onStandsLook && fromUser < 5.0D
 							: !onUsersLook && (inAim ? !onStandsLook && inStandsPrecisionBox && fromStandEyes < standReach
 									: onStandsLook && (pastReach ? fromStandEyes > 3.0D && fromStandEyes < 5.0D : fromStandEyes < standReach));
-					helper.assertTrue(stand.isManuallyControlled() && standFromUser <= stand.getMaxRange() + 1.0E-6D && layout
+					helper.assertTrue(stand.isManuallyControlled() && standFromUser <= stand.getMaxRangeForMovement(fixture.user) + 1.0E-6D && layout
 							&& fixture.user.getOffhandItem().isEmpty(),
-							"STAND-RANGE premise: the manually controlled Stand's feet " + standFromUser + " blocks from its user's (max range "
-									+ stand.getMaxRange() + "), the golem " + fromStandEyes + " from the Stand's eyes (reach " + standReach
+							"STAND-RANGE premise: the manually controlled Stand's feet " + standFromUser + " blocks from its user's (movement range "
+									+ stand.getMaxRangeForMovement(fixture.user) + "), the golem " + fromStandEyes + " from the Stand's eyes (reach " + standReach
 									+ ", on its look " + onStandsLook + ", its precision box on it " + inStandsPrecisionBox + ") and "
 									+ fromUser + " from the user's (on its look " + onUsersLook + ")");
 					where = userLookOnly ? "on its user's look ray " + fromUser + " blocks away, the Stand looking aside"
@@ -1134,7 +1134,7 @@ public final class StandTargetRangeGameTests {
 				}
 				else {
 					// its user steered it behind (north) as far as it goes, as the O key does through StandEntity.move, which holds
-					// its feet within its max range of its user's, and turned it north
+					// its feet within its movement range of its user's, and turned it north
 					StandEntity stand = fixture.stand;
 					stand.setManuallyControlled(true);
 					stand.move(net.minecraft.world.entity.MoverType.SELF,
@@ -1163,9 +1163,9 @@ public final class StandTargetRangeGameTests {
 					boolean layout = userLookOnly ? onUsersLook && !onStandsLook && fromUser < 5.0D
 							: !onUsersLook && (inAim ? !onStandsLook && inStandsPrecisionBox && fromStandEyes < standReach
 									: onStandsLook && (pastReach ? fromStandEyes > 3.0D && fromStandEyes < 5.0D : fromStandEyes < standReach));
-					helper.assertTrue(stand.isManuallyControlled() && standFromUser <= stand.getMaxRange() + 1.0E-6D && layout,
-							"STAND-RANGE premise: the manually controlled Stand's feet " + standFromUser + " blocks from its user's (max range "
-									+ stand.getMaxRange() + "), the cow " + fromStandEyes + " from the Stand's eyes (reach " + standReach
+					helper.assertTrue(stand.isManuallyControlled() && standFromUser <= stand.getMaxRangeForMovement(fixture.user) + 1.0E-6D && layout,
+							"STAND-RANGE premise: the manually controlled Stand's feet " + standFromUser + " blocks from its user's (movement range "
+									+ stand.getMaxRangeForMovement(fixture.user) + "), the cow " + fromStandEyes + " from the Stand's eyes (reach " + standReach
 									+ ", on its look " + onStandsLook + ", its precision box on it " + inStandsPrecisionBox + ") and "
 									+ fromUser + " from the user's (on its look " + onUsersLook + ")");
 					where = userLookOnly ? "on its user's look ray " + fromUser + " blocks away, the Stand looking aside"
@@ -1231,9 +1231,9 @@ public final class StandTargetRangeGameTests {
 					double standFromUser = stand.distanceTo(fixture.user);
 					double cowEntry = entry(stand, cow.getBoundingBox());
 					double golemEntry = entry(stand, golem.getBoundingBox());
-					premise = standFromUser <= stand.getMaxRange() + 1.0E-6D && cowEntry > 0.0D && golemEntry > cowEntry
+					premise = standFromUser <= stand.getMaxRangeForMovement(fixture.user) + 1.0E-6D && cowEntry > 0.0D && golemEntry > cowEntry
 							&& golemEntry < reach && entry(fixture.user, golem.getBoundingBox()) < 0.0D;
-					layout = "the Stand's feet " + standFromUser + " blocks from its user's (max range " + stand.getMaxRange()
+					layout = "the Stand's feet " + standFromUser + " blocks from its user's (movement range " + stand.getMaxRangeForMovement(fixture.user)
 							+ "), on the Stand's look, the cow " + cowEntry + " and the golem " + golemEntry + " blocks from its eyes (reach "
 							+ reach + ")";
 					expected = ITEM_OFFHAND;
@@ -1686,7 +1686,7 @@ public final class StandTargetRangeGameTests {
 				boolean manual = row.startsWith("under manual control");
 				if (manual) {
 					stand.setManuallyControlled(true);
-					helper.assertTrue(steerBehind(fixture, stand), "DIRECTIONAL-BARRAGE premise: the manually controlled Stand is past its max range of its user");
+					helper.assertTrue(steerBehind(fixture, stand), "DIRECTIONAL-BARRAGE premise: the manually controlled Stand is past its movement range of its user");
 				}
 				else {
 					// beside its user, off the user's look, the cow within its reach
@@ -2106,7 +2106,7 @@ public final class StandTargetRangeGameTests {
 				if (manual) {
 					stand.setManuallyControlled(true);
 					helper.assertTrue(steerBehind(fixture, stand), "USER-AIM premise: the manually controlled Stand is past its"
-							+ " max range of its user");
+							+ " movement range of its user");
 					camera = stand;
 				}
 				else {
@@ -2154,12 +2154,13 @@ public final class StandTargetRangeGameTests {
 	 * entity the Stand may attack, StandEntity.canAttack :1932-1949, unless the action had friendly fire): a refused target
 	 * left the action without one, so its Stand faced its user's look. The port's synced Stand aim is that unfiltered target
 	 * again, and the actions that take it at their press (captureActionTargetFromAim, keepStandAimedAtTarget) turned to,
-	 * dashed at or homed on the user's own pet, as the idle Stand looked at it. The user's own tamed wolf on the look past
-	 * the vanilla pick's reach, which the precision ray of a client takes; a husk in its place is the control. Before
-	 * checkStandTarget, StandEntityAction.checkTarget refused any target of an action with no target requirement unless its
-	 * standKeepsTarget kept it: Silver Chariot's sweep (a heavy attack, which kept an entity) turns to the husk, its dash
-	 * (standKeepsTarget false) and Crossfire Hurricane (no standKeepsTarget) take no target, a husk or a block; the grab is
-	 * the port's own. A block as the synced aim is taken by none of them.
+	 * dashed at or homed on the user's own pet. The user's own tamed wolf on the look past the vanilla pick's reach, which
+	 * the precision ray of a client takes; a husk in its place is the control. Before checkStandTarget,
+	 * StandEntityAction.checkTarget refused any target of an action with no target requirement unless its standKeepsTarget
+	 * kept it: Silver Chariot's sweep (a heavy attack, which kept an entity) turns to the husk, its dash (standKeepsTarget
+	 * false) and Crossfire Hurricane (no standKeepsTarget) take no target, a husk or a block; the grab is the port's own. A
+	 * block as the synced aim is taken by none of them. The idle Stand looks at neither, as 1.16's StandEntity
+	 * .defaultRotation gave it its user's look.
 	 */
 	@GameTest(template = "empty", batch = BATCH)
 	public static void aStandActionPressedAtTheUsersOwnPetTakesNoTargetAsIn116(GameTestHelper helper) {
@@ -2189,10 +2190,9 @@ public final class StandTargetRangeGameTests {
 					LivingComponentAction.getComponent(fixture.user).entityAim.setTargetFromClient(vanillaPick, fixture.level);
 					if (kind == null) {
 						boolean looked = stand.lookAtCurTarget(stand.rotO);
-						if (looked == pet) {
-							wrong.add("OWN-PET " + row + ": the idle Stand " + (looked ? "looks at it" : "does not look at it")
-									+ "; " + (pet ? "the port's idle look kept off what the Stand may not attack"
-											: "the idle look turns to an aimed entity the Stand may attack"));
+						if (looked) {
+							wrong.add("OWN-PET " + row + ": the idle Stand looks at it; 1.16's idle Stand looked where its user"
+									+ " looks (StandEntity.defaultRotation), at no entity of its aim");
 						}
 						continue;
 					}
@@ -2499,14 +2499,14 @@ public final class StandTargetRangeGameTests {
 	}
 
 	// its user steers the manually controlled Stand behind (north) toward 2.4 blocks, as the O key does through
-	// StandEntity.move, which holds its feet within its max range of its user's, and turns it north
+	// StandEntity.move, which holds its feet within its movement range of its user's (StandEntity#getMaxRangeForMovement), and turns it north
 	private static boolean steerBehind(Fixture fixture, StandEntity stand) {
 		stand.move(net.minecraft.world.entity.MoverType.SELF,
 				new Vec3(fixture.origin.x, fixture.origin.y, fixture.origin.z - 2.4D).subtract(stand.position()));
 		stand.setYRot(180.0F);
 		stand.setXRot(0.0F);
 		stand.setYHeadRot(180.0F);
-		return stand.distanceTo(fixture.user) <= stand.getMaxRange() + 1.0E-6D;
+		return stand.distanceTo(fixture.user) <= stand.getMaxRangeForMovement(fixture.user) + 1.0E-6D;
 	}
 
 	// a held Revert running on the Stand, which takes the second entity for its aim (none if null) and not the first

@@ -7,12 +7,12 @@ import com.mojang.authlib.GameProfile;
 import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
-import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.util.functions.MathUtil;
 
@@ -34,30 +34,38 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * the Stand's feet within the max range of its user's, updateStrengthMultipliers decayed the strength by that distance,
  * and updatePosition put a following Stand at its user's feet plus its offset, however long. Crazy Diamond keeps the
  * port's effective range 1 and max range 2 (owner decision D-workspace-03) and decays only under manual control
- * (D-core-03).
+ * (D-core-03). Since the owner's reach rule of 2026-10-30 (StandMeleeReach) a close-range Stand goes as far as its base
+ * reach plus the remote control margin and decays only through that margin, both measured feet to feet as in 1.16.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class StandRangeMeasure116GameTests {
 	private StandRangeMeasure116GameTests() {}
 
-	// pushed 3 blocks east of its user's feet, or 3 above them, as the O key's movement moves it
+	/*
+	 * Pushed 9 blocks east of its user's feet, or 9 above them, as the O key's movement moves it: past its base reach (the
+	 * user's reach of 5, longer than its max range of 2) by the remote control margin of half of it (StandMeleeReach, owner
+	 * 2026-10-30), measured feet to feet as 1.16 held a Stand within its max range
+	 */
 	@GameTest(template = "empty")
-	public static void aManuallyControlledStandStopsAtItsMaxRangeFromItsUsersFeetAsIn116(GameTestHelper helper) {
+	public static void aManuallyControlledStandStopsPastItsBaseReachByTheRemoteMarginFromItsUsersFeet(GameTestHelper helper) {
 		for (String row : new String[] { "east", "up" }) {
 			try (Scene s = new Scene(helper)) {
 				boolean up = row.equals("up");
 				s.stand.setManuallyControlled(true);
 				Vec3 start = s.user.position().add(up ? 0.0D : 1.0D, up ? 1.0D : 0.0D, 0.0D);
 				s.stand.moveTo(start.x, start.y, start.z, 0.0F, 0.0F);
-				helper.assertTrue(s.stand.isManuallyControlled() && s.stand.getMaxRange() == 2.0D,
-						"STAND-RANGE premise: Crazy Diamond is not manually controlled with its max range of 2: " + s.stand.getMaxRange());
-				s.stand.move(MoverType.SELF, up ? new Vec3(0.0D, 2.0D, 0.0D) : new Vec3(2.0D, 0.0D, 0.0D));
+				double base = StandMeleeReach.baseReach(s.stand, s.user);
+				helper.assertTrue(s.stand.isManuallyControlled() && s.stand.getMaxRange() == 2.0D && Math.abs(base - 5.0D) < 1.0E-6,
+						"STAND-RANGE premise: Crazy Diamond is not manually controlled with its max range of 2 and the base reach"
+								+ " of its user's 5: " + s.stand.getMaxRange() + ", " + base);
+				s.stand.move(MoverType.SELF, up ? new Vec3(0.0D, 8.0D, 0.0D) : new Vec3(8.0D, 0.0D, 0.0D));
 				double distance = s.stand.distanceTo(s.user);
 				double gap = MathUtil.getAABBDistance(s.stand.getBoundingBox(), s.user.getBoundingBox());
-				helper.assertTrue(Math.abs(distance - s.stand.getMaxRange()) < 1.0E-6, "Crazy Diamond moved under manual control"
-						+ " 3 blocks " + row + " of its user's feet stopped " + distance + " blocks from them (" + gap + " between"
-						+ " the boxes); 1.16 held its feet within the max range " + s.stand.getMaxRange() + " of its user's");
+				helper.assertTrue(Math.abs(distance - 7.5D) < 1.0E-6 && Math.abs(s.stand.getMaxRangeForMovement(s.user) - 7.5D) < 1.0E-6,
+						"Crazy Diamond moved under manual control 9 blocks " + row + " of its user's feet stopped " + distance
+								+ " blocks from them (" + gap + " between the boxes); it goes as far as its base reach 5 and half of"
+								+ " it, 7.5, from its user's feet");
 			}
 		}
 		helper.succeed();
@@ -79,29 +87,38 @@ public final class StandRangeMeasure116GameTests {
 		helper.succeed();
 	}
 
-	// 1.5 blocks from the user's feet: past the effective range of 1 feet to feet, within it box to box
+	/*
+	 * Under remote control a close-range Stand keeps its full strength out to its base reach (5 for Crazy Diamond, its
+	 * user's reach) and past it falls in a line to a quarter at the end of the margin, 7.5 (StandMeleeReach, owner
+	 * 2026-10-30), where 1.16 decayed it from the effective range of 1; measured feet to feet as 1.16 did, so 5.5 above the
+	 * user's feet is past the base reach though the boxes are closer. Not manually controlled it stays whole (D-core-03).
+	 */
 	@GameTest(template = "empty")
-	public static void manualControlStrengthDecaysWithTheDistanceFromTheUsersFeetAsIn116(GameTestHelper helper) {
-		for (String row : new String[] { "beside", "above", "beside, not manually controlled" }) {
+	public static void aManuallyControlledStandWeakensOnlyPastItsBaseReachFromItsUsersFeet(GameTestHelper helper) {
+		Object[][] rows = { { "beside", 1.5D, false, 1.0D }, { "at the base reach", 5.0D, false, 1.0D },
+				{ "halfway through the margin", 6.25D, false, 0.625D }, { "at the end of the margin", 7.5D, false, 0.25D },
+				{ "above, halfway through the margin", 6.25D, true, 0.625D },
+				{ "halfway through the margin, not manually controlled", 6.25D, false, 1.0D } };
+		for (Object[] row : rows) {
 			try (Scene s = new Scene(helper)) {
-				boolean manual = !row.endsWith("not manually controlled");
-				boolean above = row.startsWith("above");
+				String name = (String) row[0];
+				double at = (Double) row[1];
+				boolean above = (Boolean) row[2];
+				double expected = (Double) row[3];
+				boolean manual = !name.endsWith("not manually controlled");
 				s.stand.setManuallyControlled(manual);
-				Vec3 at = s.user.position().add(above ? 0.0D : 1.5D, above ? 1.5D : 0.0D, 0.0D);
-				s.stand.moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
+				Vec3 pos = s.user.position().add(above ? 0.0D : at, above ? at : 0.0D, 0.0D);
+				s.stand.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
 				s.stand.updateStrengthMultipliers();
 				double feet = s.stand.distanceTo(s.user);
 				double gap = MathUtil.getAABBDistance(s.stand.getBoundingBox(), s.user.getBoundingBox());
-				float decayed = StandStatFormulas.rangeStrengthFactor(s.stand.getEffectiveRange(), s.stand.getMaxRange(), feet);
-				helper.assertTrue(s.stand.isManuallyControlled() == manual && Math.abs(feet - 1.5D) < 1.0E-6
-						&& gap < s.stand.getEffectiveRange() && decayed < 1.0F,
+				helper.assertTrue(s.stand.isManuallyControlled() == manual && Math.abs(feet - at) < 1.0E-6
+						&& Math.abs(StandMeleeReach.baseReach(s.stand, s.user) - 5.0D) < 1.0E-6,
 						"STAND-RANGE premise: Crazy Diamond " + feet + " blocks from its user's feet, " + gap + " between the boxes,"
-								+ " effective range " + s.stand.getEffectiveRange() + ", max range " + s.stand.getMaxRange());
-				double expected = manual ? decayed : 1.0D;
-				helper.assertTrue(Math.abs(s.stand.rangeEfficiency - expected) < 1.0E-6, "Crazy Diamond " + row + " its user,"
-						+ " 1.5 blocks from the feet (" + gap + " between the boxes): strength factor " + s.stand.rangeEfficiency
-						+ "; 1.16 measured feet to feet, " + expected + (manual ? "" : " (the port decays only under manual"
-								+ " control, D-core-03)"));
+								+ " base reach " + StandMeleeReach.baseReach(s.stand, s.user));
+				helper.assertTrue(Math.abs(s.stand.rangeEfficiency - expected) < 1.0E-6, "Crazy Diamond " + name + " of its"
+						+ " user, " + at + " blocks from the feet (" + gap + " between the boxes): strength factor "
+						+ s.stand.rangeEfficiency + " instead of " + expected);
 			}
 		}
 		helper.succeed();

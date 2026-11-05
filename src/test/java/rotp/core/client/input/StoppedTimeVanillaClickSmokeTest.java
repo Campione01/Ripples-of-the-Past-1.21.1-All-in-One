@@ -10,7 +10,8 @@ import net.neoforged.neoforge.client.event.InputEvent.InteractionKeyMappingTrigg
 /**
  * 1.16 InputHandler.shouldVanillaInputStun (:1031-1033): ModStatusEffects.isStunned(mc.player) || !mc.player.canUpdate(),
  * the player stopped in someone else's time; a vanilla attack or use click did nothing then. The port's listener
- * (cancelVanillaClickInStun) asks both: the stun and the client's stopped-time state (Ability.isUserStoppedInTime's).
+ * (cancelVanillaClickInStun) asks both: the stun and whether the player's own client freezes it in stopped time
+ * (TimeStopState.shouldFreezeClientEntity), which holds the LAN host in a guest's stop as canUpdate did.
  */
 public final class StoppedTimeVanillaClickSmokeTest {
 	private static final int ATTACK = 0;
@@ -44,9 +45,10 @@ public final class StoppedTimeVanillaClickSmokeTest {
 		String body = listener >= 0 && listenerEnd > listener ? inputHandler.substring(listener, listenerEnd) : "";
 		int rule = body.indexOf("cancelVanillaClickWhileStunned(event,");
 		int stun = body.indexOf("ModStatusEffects.isStunned(mc.player)", rule);
-		int time = body.indexOf("ClientTimeStopHandler.isTimeStoppedStatic() && !TimeStopClientAwareness.canMove()", stun);
-		check(rule >= 0 && stun > rule && time > stun,
-				"the stun click listener must feed the local player's stun and its stopped-time state to the cancel rule");
+		int time = body.indexOf("TimeStopState.shouldFreezeClientEntity(mc.player)", stun);
+		check(rule >= 0 && stun > rule && time > stun && !body.contains("TimeStopClientAwareness.canMove()"),
+				"the stun click listener must feed the local player's stun and whether its own client freezes it in stopped"
+						+ " time (1.16 !canUpdate, the LAN host too) to the cancel rule");
 
 		System.out.println("Stopped time vanilla click smoke test passed");
 	}

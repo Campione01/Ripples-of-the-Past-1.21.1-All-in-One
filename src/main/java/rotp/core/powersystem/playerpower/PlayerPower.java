@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 import org.jetbrains.annotations.ApiStatus;
 
 import rotp.core.api.playerpower.PlayerPowerDelegations;
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.command.commands.JojoControlsCommand;
 import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
@@ -25,6 +26,7 @@ import rotp.core.powersystem.PowerType;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.playerpower.packet.TrPlayerPowerLeapCooldownPacket;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.subsystems.time.RateStepper;
 import com.mojang.datafixers.util.Either;
 
 import net.minecraft.core.HolderLookup;
@@ -141,8 +143,79 @@ public class PlayerPower extends Power<PlayerPower> {
 			}
 		}
 		if (leapCooldown > 0) {
-			--leapCooldown;
+			leapCooldown = Math.max(leapCooldown - cooldownSteps, 0);
 		}
+		resyncScaledCooldowns(suspendedData);
+	}
+	
+	@Nullable private RateStepper cooldownClock;
+	private int cooldownSteps = 1;
+	private boolean cooldownsScaled;
+
+	@Override
+	protected void beforePowerDataTick() {
+		cooldownSteps = nextCooldownSteps();
+	}
+
+	// 1, or by the user's EntityTimeRates STAND_ACTIONS rate, the rate his Stand power's cooldowns take
+	private int nextCooldownSteps() {
+		if (!EntityTimeRates.hasProviders() || !hasPower()) {
+			cooldownClock = null;
+			return 1;
+		}
+		float rate = EntityTimeRates.rate(EntityTimeRates.Channel.STAND_ACTIONS, user);
+		if (rate == 1.0F && cooldownClock == null) {
+			return 1;
+		}
+		if (cooldownClock == null) {
+			cooldownClock = new RateStepper();
+		}
+		return cooldownClock.steps(rate);
+	}
+
+	/**
+	 * How many ticks this power's cooldowns count down in its current tick: 1, or as many as the user's
+	 * EntityTimeRates STAND_ACTIONS rate gives (0 on the ticks a slowed user's cooldowns wait, several for a sped-up
+	 * one), the rate his Stand's actions and cooldowns take. The leap cooldown counts down by it, and a
+	 * PlayerPowerData its ability cooldowns, in its tick and tickWhileTemporarilySuspended ({@link #cooldownSteps(Power)}).
+	 */
+	public int getCooldownSteps() {
+		return cooldownSteps;
+	}
+
+	/** {@link #getCooldownSteps()} of a PlayerPower, 1 for any other power. */
+	public static int cooldownSteps(@Nullable Power<?> power) {
+		return power instanceof PlayerPower playerPower ? playerPower.getCooldownSteps() : 1;
+	}
+
+	/**
+	 * A frame's partial tick on this power's cooldown clock, in cooldown ticks (the partial tick itself at rate 1): the
+	 * HUD draws a PlayerPowerData's cooldown fill (getAbilityCooldownRatio) with it, so a slowed cooldown empties smoothly.
+	 */
+	public float getCooldownPartialTick(float partialTick) {
+		RateStepper clock = cooldownClock;
+		return clock != null ? clock.partialSteps(partialTick) : partialTick;
+	}
+
+	// the user's client counts its cooldowns down by itself: while they run at another rate, and once when they are back
+	// to 1, the server sends what is left, so its HUD keeps up even where only the server knows the rate
+	private void resyncScaledCooldowns(@Nullable PlayerPowerData suspendedData) {
+		boolean scaled = cooldownClock != null && cooldownClock.rate() != 1.0F;
+		if (user.level().isClientSide() || serverPlayerUser.isEmpty() || !scaled && !cooldownsScaled) {
+			return;
+		}
+		if (scaled != cooldownsScaled || user.tickCount % 10 == 0) {
+			ServerPlayer player = serverPlayerUser.get();
+			PlayerPowerData curData = getCurTypeData() instanceof PlayerPowerData data ? data : null;
+			if (curData != null) {
+				curData.syncCooldownsAtRate(player);
+			}
+			if (suspendedData != null && suspendedData != curData) {
+				suspendedData.syncCooldownsAtRate(player);
+			}
+			syncLeapCooldown();
+		}
+		cooldownsScaled = scaled;
 	}
 	
 	public void setPowerType(@Nullable PlayerPowerType<?> type) {

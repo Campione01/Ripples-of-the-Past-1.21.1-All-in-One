@@ -1,14 +1,21 @@
 package rotp.core.powersystem.standpower.entity;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
 import rotp.core.client.ClientProxy;
+import rotp.core.core.JojoMod;
 import rotp.core.init.ModCriteriaTriggers;
 import rotp.core.init.ModEntityTypes;
+import rotp.core.init.ModSpecialActions;
 import rotp.core.network.s2c.TrSetStandEntityPacket;
 import rotp.core.powersystem.MovesetBuilder;
+import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.standpower.StandPower;
@@ -49,6 +56,8 @@ public class EntityStandType extends StandType {
 	protected final DefaultedValue.Bool distanceStrengthDecayEnabled = new DefaultedValue.Bool(false);
 	protected boolean distanceStrengthDecayConfigured;
 	protected boolean distanceStrengthDecayConfiguredDefault;
+	@Nullable
+	private volatile String loggedStandControlPolicyProblem;
 	
 	public EntityStandType(StandStats stats, MovesetBuilder moveset, 
 			ResourceLocation id) {
@@ -133,10 +142,15 @@ public class EntityStandType extends StandType {
 			double rangeMax,
 			boolean manualControl,
 			boolean distanceStrengthDecay) {
-		StandControlType.validate(
-				standControlType, effectiveRange, rangeMax,
-				manualControl, distanceStrengthDecay,
-				supportsColonyCoordinatorManualControl());
+		try {
+			StandControlType.validate(
+					standControlType, effectiveRange, rangeMax,
+					manualControl, distanceStrengthDecay,
+					supportsColonyCoordinatorManualControl());
+		}
+		catch (IllegalStateException e) {
+			throw new IllegalStateException("Stand " + getId() + " (" + getClass().getName() + "): " + e.getMessage(), e);
+		}
 		if (Double.compare(stats.rangeEffective(), effectiveRange) != 0
 				|| Double.compare(stats.rangeMax(), rangeMax) != 0) {
 			throw new IllegalStateException(
@@ -156,19 +170,82 @@ public class EntityStandType extends StandType {
 	}
 
 	private void validateStandControlPolicy() {
-		if (!manualControlConfigured) {
-			throw new IllegalStateException("manualControl is required");
+		String problem = standControlPolicyProblem();
+		if (problem != null) {
+			throw new IllegalStateException(problem);
 		}
-		if (!distanceStrengthDecayConfigured) {
-			throw new IllegalStateException(
-					"distanceStrengthDecay is required");
+	}
+
+	/**
+	 * What this Stand's control policy lacks or breaks, naming the Stand and the fields; null when it is complete and
+	 * valid. The core's common setup refuses to load with any registered Stand that has one.
+	 */
+	@Nullable
+	@Override
+	public String standControlPolicyProblem() {
+		String problem;
+		if (standControlType == null || !manualControlConfigured || !distanceStrengthDecayConfigured) {
+			List<String> missing = new ArrayList<>(3);
+			if (standControlType == null) {
+				missing.add("standControlType");
+			}
+			if (!manualControlConfigured) {
+				missing.add("manualControl");
+			}
+			if (!distanceStrengthDecayConfigured) {
+				missing.add("distanceStrengthDecay");
+			}
+			problem = String.join(", ", missing) + (missing.size() == 1 ? " is" : " are") + " required";
 		}
-		StandControlType.validate(
-				standControlType,
-				stats.rangeEffective(), stats.rangeMax(),
-				manualControlEnabled,
-				distanceStrengthDecayEnabled.value,
-				supportsColonyCoordinatorManualControl());
+		else {
+			problem = StandControlType.problem(
+					standControlType,
+					stats.rangeEffective(), stats.rangeMax(),
+					manualControlEnabled,
+					distanceStrengthDecayEnabled.value,
+					supportsColonyCoordinatorManualControl());
+		}
+		return problem != null ? "Stand " + getId() + " (" + getClass().getName() + "): " + problem : null;
+	}
+
+	// Logged again only if the problem changes (a data pack or config changed the policy).
+	@Override
+	public boolean reportStandControlPolicyProblem() {
+		String problem = standControlPolicyProblem();
+		if (problem == null || problem.equals(loggedStandControlPolicyProblem)) {
+			return false;
+		}
+		loggedStandControlPolicyProblem = problem;
+		JojoMod.getLogger().error("{}; using standControlType {}, manualControl {}, distanceStrengthDecay {}",
+				problem, effectiveStandControlType(), effectiveManualControl(), effectiveDistanceStrengthDecay());
+		return true;
+	}
+
+	// At run time a broken policy is logged once and the core's defaults stand in for the missing fields.
+	private void checkStandControlPolicyAtRunTime() {
+		reportStandControlPolicyProblem();
+	}
+
+	// A Stand that names no type: as 1.16's StandEntity, manual control and strength decaying with distance, unless it
+	// says otherwise.
+	private StandControlType effectiveStandControlType() {
+		if (standControlType != null) {
+			return standControlType;
+		}
+		boolean manual = !manualControlConfigured || manualControlEnabled;
+		boolean decay = distanceStrengthDecayConfigured ? distanceStrengthDecayEnabled.value : manual;
+		return !manual ? StandControlType.AUTOMATIC
+				: decay ? StandControlType.CLOSE_RANGE_DIRECT : StandControlType.LONG_DISTANCE_OPERATION;
+	}
+
+	private boolean effectiveManualControl() {
+		return manualControlConfigured ? manualControlEnabled : effectiveStandControlType().defaultManualControl();
+	}
+
+	private boolean effectiveDistanceStrengthDecay() {
+		return distanceStrengthDecayConfigured
+				? distanceStrengthDecayEnabled.value
+				: effectiveManualControl() && effectiveStandControlType().defaultDistanceStrengthDecay();
 	}
 
 	/** Dedicated colony coordinators must own their movement authorization and control cleanup. */
@@ -186,13 +263,13 @@ public class EntityStandType extends StandType {
 	
 	@Override
 	public JsonObject makeConfigTemplate() {
-		validateStandControlPolicy();
+		checkStandControlPolicyAtRunTime();
 		JsonObject json = super.makeConfigTemplate();
 		json.addProperty("entityType", EntityType.getKey(this.entityType.defaultValue).toString());
-		json.addProperty("standControlType", this.standControlType.name());
-		json.addProperty("manualControlEnabled", this.manualControlEnabled);
+		json.addProperty("standControlType", effectiveStandControlType().name());
+		json.addProperty("manualControlEnabled", effectiveManualControl());
 		json.addProperty("standLeapEnabled", this.standLeapEnabled);
-		json.addProperty("distanceStrengthDecayEnabled", this.distanceStrengthDecayEnabled.value);
+		json.addProperty("distanceStrengthDecayEnabled", effectiveDistanceStrengthDecay());
 		return json;
 	}
 	
@@ -226,7 +303,7 @@ public class EntityStandType extends StandType {
 					this.distanceStrengthDecayEnabled.value = value;
 					this.distanceStrengthDecayConfigured = true;
 				});
-		validateStandControlPolicy();
+		checkStandControlPolicyAtRunTime();
 	}
 
 	@Override
@@ -339,6 +416,9 @@ public class EntityStandType extends StandType {
 		if (!user.level().isClientSide()) {
 			StandEntity standEntity = standPower.getSummonedStandEntity();
 			if (standEntity != null) {
+				if (keepsUsersStandHud(user, standPower, standEntity)) {
+					keepUsersStandHud(user);
+				}
 				clearStandActionBeforeRemoval(standEntity);
 				settleStandBeforeForcedUnsummon(standEntity);
 				standPower.setSummonedStand(null);
@@ -352,6 +432,18 @@ public class EntityStandType extends StandType {
 				settleStandBeforeForcedUnsummon(standEntity);
 			}
 		}
+	}
+
+	/*
+	 * Every unsummon of a whole Stand in its user's level but the one its unsummon action ends with (the summon key, the
+	 * retraction after an auto-summon), as 1.16's StandEntityUnsummon.onTaskSet alone closed the HUD; a Stand that a press
+	 * made and never added was never shown, and the arms an action took out leave the HUD as it was before them.
+	 */
+	private static boolean keepsUsersStandHud(LivingEntity user, StandPower standPower, StandEntity standEntity) {
+		EntityActionInstance action = standEntity.getCurStandAction();
+		return standEntity.isAddedToLevel() && !standEntity.isArmsOnlyMode() && standEntity.level() == user.level()
+				&& !standPower.isUnsummonedByItsUser()
+				&& (action == null || action.ability != ModSpecialActions.STAND_UNSUMMON.get());
 	}
 
 	/**
@@ -383,24 +475,32 @@ public class EntityStandType extends StandType {
 
 	@Override
 	public boolean canBeManuallyControlled() {
-		validateStandControlPolicy();
-		return manualControlEnabled;
+		checkStandControlPolicyAtRunTime();
+		return effectiveManualControl();
 	}
 
 	@Override
 	public StandControlType getStandControlType() {
-		validateStandControlPolicy();
-		return standControlType;
+		checkStandControlPolicyAtRunTime();
+		return effectiveStandControlType();
 	}
 
 	public boolean canLeap() {
 		return standLeapEnabled;
 	}
 
+	/**
+	 * Client: whether the view of this type's Stand inside a view-blocking block is covered with that block's in-wall
+	 * texture (StandEntity#coversCameraInsideBlocks, which an entity class can override instead).
+	 */
+	public boolean coversCameraInsideBlocks(StandEntity standEntity) {
+		return true;
+	}
+
 	@Override
 	public boolean usesDistanceStrengthDecay() {
-		validateStandControlPolicy();
-		return distanceStrengthDecayEnabled.value;
+		checkStandControlPolicyAtRunTime();
+		return effectiveDistanceStrengthDecay();
 	}
 	
 	public EntityType<?> getEntityType() {

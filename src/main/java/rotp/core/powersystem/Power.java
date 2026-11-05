@@ -54,11 +54,15 @@ public abstract class Power<P extends Power<P>> implements SynchronizablePlayerD
 		if (pausedInStoppedTime) {
 			return;
 		}
+		beforePowerDataTick();
 		PowerData curPowerData = getCurTypeData();
 		if (curPowerData != null) {
 			curPowerData.tick(this);
 		}
 	}
+	
+	/** Each tick the power's timers run (not while the user is paused in stopped time), right before its data's tick. */
+	protected void beforePowerDataTick() {}
 	
 	private boolean pausedInStoppedTime;
 	

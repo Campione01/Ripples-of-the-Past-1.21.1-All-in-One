@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -34,6 +35,11 @@ import net.minecraft.world.phys.Vec3;
  */
 final class GameTestChunkTickets implements GameTestListener {
 	static final double MARGIN = 3.0D;
+	// Off the grid, west of it (it grows east and south from its first cell, 8 one-block cells 6 apart a row), each test
+	// in a lane of its own wider than the grid, so that no two scenes meet. Lanes in use: 0-3
+	// MagiciansRedKickSlide116GameTests, 4-18 StandAimReachGameTests.
+	private static final int OFF_GRID_BLOCKS = 256;
+	private static final int OFF_GRID_LANE_BLOCKS = 64;
 	// a region ticket of radius 2 has level 31, the entity-ticking level of a forced chunk
 	private static final int TICKET_RADIUS = 2;
 	private static final TicketType<UUID> TICKET = TicketType.create("rotp_gametest_fixture", Comparator.<UUID>naturalOrder());
@@ -47,6 +53,11 @@ final class GameTestChunkTickets implements GameTestListener {
 	GameTestChunkTickets(GameTestHelper helper) {
 		level = helper.getLevel();
 		helper.testInfo.addListener(this);
+	}
+
+	/** Where a lane's scene stands as if its test cell were there. */
+	static BlockPos offGridCell(GameTestHelper helper, int lane) {
+		return helper.absolutePos(BlockPos.ZERO).west(OFF_GRID_BLOCKS + OFF_GRID_LANE_BLOCKS * lane);
 	}
 
 	/** Every chunk within MARGIN blocks of the box between the two corners; returns once they all tick entities. */

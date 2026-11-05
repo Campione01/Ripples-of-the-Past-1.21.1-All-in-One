@@ -282,6 +282,8 @@ public class StandEntityBarrageAbility extends StandEntityAbility {
 		@Nullable protected Boolean impactSoundDue;
 		// server: what the barrage was pressed at, the user's crosshair (StandEntityPunchAbility.pressTarget)
 		@Nullable private ActionTarget pressedAt;
+		// server: the entity the barrage last aimed at, which it follows and stops for out of its reach (StandMeleeReach)
+		@Nullable private Entity reachTarget;
 
 		public StandEntityBarrage(EntityActionType ability) {
 			super(ability);
@@ -358,7 +360,11 @@ public class StandEntityBarrageAbility extends StandEntityAbility {
 				// the default barrage keeps no pressed target (1.16 checkStandTarget): it starts at what its first hit aims at
 				ActionTarget target = setActionTargetSnapshot(directional && !level.isClientSide()
 						? clipDirectionalBarrageTarget(stand, this, 1.0F) : pressedAt);
-				setStandFrontOffsetFromTarget(stand, placementTarget(stand, this, target, directional), minOffset, maxOffset);
+				if (!level.isClientSide() && target.getType() == ActionTarget.TargetType.ENTITY) {
+					reachTarget = target.resolveEntityId(level).getMainEntity();
+				}
+				setStandFrontOffsetFromTarget(stand, reachPlacement(stand, placementTarget(stand, this, target, directional)),
+						minOffset, maxOffset);
 				keepStandAimedAtTarget(target);
 				aimAs = AimingEntity.STAND;
 				StandEntityPunchAbility.releaseUnlockedPunchTarget(stand, this);
@@ -419,6 +425,13 @@ public class StandEntityBarrageAbility extends StandEntityAbility {
 				// default barrage's own aim at each hit was never one, and every client aims it from its user's look
 				HeldTargets held = !directional && !isGrabVariation() && !takesTargetsFromServer() ? heldTargets() : null;
 				ActionTarget target = getPunchTarget(stand);
+				if (!level.isClientSide() && reachStops(stand, target)) {
+					hitsThisTick = 0;
+					stand.setBarrageHitsThisTick(0);
+					setPunchedTarget(null, null);
+					startRecovery();
+					return;
+				}
 				if (target.isEmpty(level)) {
 					standRotationTarget = null;
 					aimAs = AimingEntity.CAMERA_ENTITY;
@@ -496,10 +509,45 @@ public class StandEntityBarrageAbility extends StandEntityAbility {
 			if (canRefreshFrontOffset(stand)) {
 				boolean directional = isDirectionalBarrage(stand, this);
 				// the port's locked barrage (standAttackTargetLock, D-core-50) aims again for its place in each recovery tick
-				refreshFrontOffset(stand, directional ? heldClashOpponent(stand, this)
+				refreshFrontOffset(stand, directional ? reachPlacement(stand, heldClashOpponent(stand, this))
 						: getPhase() == ActionPhase.RECOVERY ? placementTarget(stand, this, getPunchTarget(stand), false)
 						: getActionTargetSnapshot(stand.level()));
 			}
+		}
+
+		/*
+		 * Server: the default barrage places its Stand along its user's look (1.16 front3dOffset of no task target); one that
+		 * reaches out (StandMeleeReach) flies to the entity it aims at past its user's reach instead
+		 */
+		private ActionTarget reachPlacement(StandEntity stand, ActionTarget placement) {
+			if (!placement.isEmpty(stand.level()) || reachTarget == null || stand.level().isClientSide()) {
+				return placement;
+			}
+			return StandMeleeReach.fliesOutTo(stand, reachTarget, Math.min(1.5, stand.getEffectiveRange()))
+					? new ActionTarget(reachTarget) : placement;
+		}
+
+		/*
+		 * Server, owner 2026-11-01: a barrage that reaches out (StandMeleeReach) stops once the entity it aimed at last has
+		 * left its reach or its user's sight; turning away from it does not stop the barrage
+		 */
+		private boolean reachStops(StandEntity stand, ActionTarget target) {
+			if (isGrabVariation()) {
+				return false;
+			}
+			Entity aimed = target.getType() == ActionTarget.TargetType.ENTITY ? target.getMainEntity() : null;
+			if (aimed != null) {
+				reachTarget = aimed;
+				return false;
+			}
+			if (reachTarget != null && (reachTarget.isRemoved() || !reachTarget.isAlive())) {
+				reachTarget = null;
+			}
+			if (reachTarget != null && StandMeleeReach.leftReach(stand, reachTarget)) {
+				reachTarget = null;
+				return true;
+			}
+			return false;
 		}
 
 		private boolean canRefreshFrontOffset(StandEntity stand) {
@@ -762,7 +810,7 @@ public class StandEntityBarrageAbility extends StandEntityAbility {
 			offsetTarget = target.copy().resolveEntityId(stand.level()).withClipPos(Optional.empty());
 		}
 		action.setStandFrontOffsetFromTarget(stand, offsetTarget, minOffset, maxOffset);
-		if (!Objects.equals(previous, action.getSyncedStandOffset())) {
+		if (!Objects.equals(previous, action.getSyncedStandOffset()) && !action.sendsStandOffsetChanges()) {
 			stand.offsetFromUser.syncToTracking();
 		}
 	}

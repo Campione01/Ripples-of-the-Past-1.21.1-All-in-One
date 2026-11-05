@@ -207,18 +207,24 @@ public final class StandPowerActionSlot116GameTests {
 			recording = new RecordingConnection(user);
 			user.connection = recording;
 			helper.assertTrue(helper.getLevel().addFreshEntity(user), "Could not add the two-power player");
-			power = PowerClass.PLAYER_POWER.attachGet(user);
-			power.setPowerType(type);
-			StandType theWorld = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("the_world"));
-			helper.assertTrue(theWorld != null, "Missing Stand type the_world");
-			standPower = PowerClass.STAND.attachGet(user);
-			helper.assertTrue(StandPowerTransitions.insert(standPower, new StandInstance(theWorld)).status()
-					== StandPowerTransitions.Status.APPLIED, "Could not grant The World");
-			standPower.setResolveLevel(4);
-			standPower.getCurTypeData()._lockedAbilities.remove("time_stop");
-			standPower.setStamina(standPower.getMaxStamina());
-			helper.assertTrue(!standPower.isSummoned() && standPower.getAbility("time_stop").isAbilityUnlocked(standPower),
-					"setup: The World is out or its time stop is locked");
+			try {
+				power = PowerClass.PLAYER_POWER.attachGet(user);
+				power.setPowerType(type);
+				StandType theWorld = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("the_world"));
+				helper.assertTrue(theWorld != null, "Missing Stand type the_world");
+				standPower = PowerClass.STAND.attachGet(user);
+				helper.assertTrue(StandPowerTransitions.insert(standPower, new StandInstance(theWorld)).status()
+						== StandPowerTransitions.Status.APPLIED, "Could not grant The World");
+				standPower.setResolveLevel(4);
+				standPower.getCurTypeData()._lockedAbilities.remove("time_stop");
+				standPower.setStamina(standPower.getMaxStamina());
+				helper.assertTrue(!standPower.isSummoned() && standPower.getAbility("time_stop").isAbilityUnlocked(standPower),
+						"setup: The World is out or its time stop is locked");
+			}
+			catch (RuntimeException | Error setupFailure) {
+				GameTestPlayers.discardAfterFailedSetup(user);
+				throw setupFailure;
+			}
 		}
 
 		private void hamon() {

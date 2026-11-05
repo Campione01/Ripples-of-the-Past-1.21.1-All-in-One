@@ -106,6 +106,12 @@ public class SnakeMufflerEntity extends PillarmanExtendingBodyPartEntity {
 		}
 	}
 
+	// its leap sets its owner's velocity in the world's ticks (tick), which owner time alone would not slow
+	@Override
+	protected boolean runsInOwnerTime() {
+		return false;
+	}
+
 	@Override
 	protected Vec3 getNextOriginOffset() {
 		return Vec3.ZERO;

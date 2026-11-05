@@ -6,6 +6,7 @@ import java.util.function.Consumer;
 
 import rotp.core.api.power.PowerSkillUnlocks;
 import rotp.core.api.stand.StandPowerTransitions;
+import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.api.timestop.TimeStopBehaviorPolicies;
 import rotp.core.api.timestop.TimeStopBehaviorPolicy;
 import rotp.core.api.timestop.TimeStopLifecycleEvent;
@@ -32,11 +33,13 @@ import rotp.core.subsystems.timestop.TimeStopState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.neoforge.common.NeoForge;
@@ -142,6 +145,69 @@ public final class TimeStopLowStaminaGameTests {
 		}
 	}
 
+	private static final ChunkPos REWIND_AREA = new ChunkPos(50250, 50250);
+
+	/*
+	 * Rule G1 (RewindAppliedEvent ends the stops begun after the rewind's point): a held stop freezes the world from the
+	 * tick it is committed, its 35-tick opening included, so a point inside the opening is after the stop's start.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 60, batch = GameTestBatches.TIME_STOP)
+	public static void aRewindPointInsideTheStopsOpeningLeavesTheStopRunningAndAnEarlierPointEndsIt(GameTestHelper helper) {
+		Scene scene = new Scene(helper, REWIND_AREA);
+		try {
+			scene.setUp();
+			scene.power.setStamina(scene.power.getMaxStamina());
+			int holdTicks = scene.holdToFire();
+			long started = scene.level.getGameTime();
+			TimeStopState.Instance instance = scene.instance();
+			helper.assertTrue(instance != null && instance.isStartupSettling()
+							&& instance.ticksPassed() == -TimeStopAbility.TIME_STOP_OPENING_SETTLE_TICKS,
+					"REWIND-G1 premise: the held stop did not start in its opening: holdTicks=" + holdTicks
+							+ " instance=" + instance);
+			AABB region = new AABB(REWIND_AREA.getMinBlockX(), scene.level.getMinBuildHeight(), REWIND_AREA.getMinBlockZ(),
+					REWIND_AREA.getMaxBlockX() + 1, scene.level.getMaxBuildHeight(), REWIND_AREA.getMaxBlockZ() + 1);
+			ResourceLocation source = JojoMod.resLoc("gametest_rewind");
+			long[] point = new long[1];
+			helper.runAfterDelay(10, () -> point[0] = scene.level.getGameTime());
+			helper.runAfterDelay(15, () -> {
+				try {
+					TimeStopState state = scene.level.getData(ModDataAttachmentTypes.TIME_STOP.get());
+					TimeStopState.Instance running = scene.instance();
+					long reportedStart = running != null ? state.getStartGameTime(running) : Long.MIN_VALUE;
+					helper.assertTrue(running != null && reportedStart == started
+									&& !state.endsOnRewind(running, point[0], region)
+									&& state.endsOnRewind(running, started - 1, region),
+							"Asked before a rewind (rule G1), a stop begun at " + started + " must give that start and end"
+									+ " only for a point before it: start=" + reportedStart + " running=" + running);
+					RewindAppliedEvent.post(null, scene.level, point[0], region, source);
+					TimeStopState.Instance kept = scene.instance();
+					boolean effectKept = scene.player.hasEffect(ModStatusEffects.TIME_STOP);
+					helper.assertTrue(point[0] > started && kept != null && kept.isStartupSettling()
+									&& scene.removed.isEmpty() && effectKept,
+							"A rewind to game time " + point[0] + ", inside the opening of a stop begun at " + started
+									+ ", must leave the stop running (rule G1: it began before the point): kept=" + kept
+									+ " removed=" + scene.removed.size() + " reasons=" + scene.reasons + " effect=" + effectKept);
+					RewindAppliedEvent.post(null, scene.level, started - 1, region, source);
+					TimeStopState.Instance left = scene.instance();
+					boolean effectLeft = scene.player.hasEffect(ModStatusEffects.TIME_STOP);
+					helper.assertTrue(left == null && scene.removed.size() == 1
+									&& scene.reasons.get(0) == TimeStopLifecycleEvent.RemovalReason.INTERRUPTED && !effectLeft,
+							"A rewind to game time " + (started - 1) + ", before a stop begun at " + started
+									+ ", must end it as interrupted: left=" + left + " removed=" + scene.removed.size()
+									+ " reasons=" + scene.reasons + " effect=" + effectLeft);
+				}
+				finally {
+					scene.close();
+				}
+				helper.succeed();
+			});
+		}
+		catch (RuntimeException | Error error) {
+			scene.close();
+			throw error;
+		}
+	}
+
 	/*
 	 * A startup-cost policy (the add-on API) that denies the start is no stamina refusal: since R766 the bar gates no
 	 * time stop, as in 1.16. The 1.16 TimeStop refused a start it would not make with ActionConditionResult.NEGATIVE,
@@ -198,6 +264,7 @@ public final class TimeStopLowStaminaGameTests {
 	private static final class Scene {
 		private final GameTestHelper helper;
 		private final ServerLevel level;
+		private final ChunkPos area;
 		private final List<TimeStopState.Instance> removed = new ArrayList<>();
 		private final List<TimeStopLifecycleEvent.RemovalReason> reasons = new ArrayList<>();
 		private final List<Object> listeners = new ArrayList<>();
@@ -209,8 +276,13 @@ public final class TimeStopLowStaminaGameTests {
 		private boolean closed;
 
 		private Scene(GameTestHelper helper) {
+			this(helper, FAR_AWAY);
+		}
+
+		private Scene(GameTestHelper helper, ChunkPos area) {
 			this.helper = helper;
 			this.level = helper.getLevel();
+			this.area = area;
 		}
 
 		private void setUp() {
@@ -247,7 +319,7 @@ public final class TimeStopLowStaminaGameTests {
 			// keeps the stop away from every test cell
 			Consumer<TimeStopLifecycleEvent.PreStart> isolate = event -> {
 				if (!closed && event.getInstance().userId() == player.getId()) {
-					event.setInstance(event.getInstance().withArea(FAR_AWAY, 1));
+					event.setInstance(event.getInstance().withArea(area, 1));
 				}
 			};
 			Consumer<TimeStopLifecycleEvent.Removed> onRemoved = event -> {

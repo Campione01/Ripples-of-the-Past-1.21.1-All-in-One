@@ -583,20 +583,27 @@ public final class TimeStopPerformPose116GameTests {
 				}
 			};
 			NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, false, TimeStopLifecycleEvent.PreStart.class, isolate);
-			type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc(standId));
-			helper.assertTrue(type != null, "Missing Stand type " + standId);
-			power = PowerClass.STAND.attachGet(user);
-			helper.assertTrue(StandPowerTransitions.insert(power, new StandInstance(type)).status()
-					== StandPowerTransitions.Status.APPLIED, "Could not grant " + standId);
-			power.setResolveLevel(4);
-			power.getCurTypeData()._lockedAbilities.remove(TIME_STOP);
-			power.setStamina(power.getMaxStamina());
-			helper.assertTrue(type.summon(user, power), "Could not summon " + standId);
-			stand = power.getSummonedStandEntity();
-			helper.assertTrue(stand != null && power.getAbility(TIME_STOP).isAbilityUnlocked(power),
-					"setup: " + standId + " is not out or its time stop is locked");
-			stand.summonLockTicks = 0;
-			stand.gradualSummonWeaknessTicks = 0;
+			try {
+				type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc(standId));
+				helper.assertTrue(type != null, "Missing Stand type " + standId);
+				power = PowerClass.STAND.attachGet(user);
+				helper.assertTrue(StandPowerTransitions.insert(power, new StandInstance(type)).status()
+						== StandPowerTransitions.Status.APPLIED, "Could not grant " + standId);
+				power.setResolveLevel(4);
+				power.getCurTypeData()._lockedAbilities.remove(TIME_STOP);
+				power.setStamina(power.getMaxStamina());
+				helper.assertTrue(type.summon(user, power), "Could not summon " + standId);
+				stand = power.getSummonedStandEntity();
+				helper.assertTrue(stand != null && power.getAbility(TIME_STOP).isAbilityUnlocked(power),
+						"setup: " + standId + " is not out or its time stop is locked");
+				stand.summonLockTicks = 0;
+				stand.gradualSummonWeaknessTicks = 0;
+			}
+			catch (RuntimeException | Error setupFailure) {
+				NeoForge.EVENT_BUS.unregister(isolate);
+				GameTestPlayers.discardAfterFailedSetup(user);
+				throw setupFailure;
+			}
 		}
 
 		LivingComponentAction standSlot() {

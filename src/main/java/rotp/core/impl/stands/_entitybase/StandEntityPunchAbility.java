@@ -7,6 +7,7 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.api.stand.StandSkillWalls;
 import rotp.core.client.ClientGlobals;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
@@ -457,7 +458,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 					&& punch.detachedLightCounterKnockback) {
 				DamageSource source = makePunchDamageSource();
 				float damage = StandStatFormulas.getLightAttackDamage(stand.getAttackDamage());
-				float halfCounter = Math.max(stand.guardCounter(), 0) * 0.5F;
+				float halfCounter = Math.max(stand.guardCounter(), 0) * 0.5F * StandMeleeReach.strikeFactor(stand, targetEntity);
 				((DamageSourceModified) source).jojo_ripples$modifyKnockback(0, 1);
 				// Capture raw admission before the one virtual hurt mutates Stand immunity history.
 				boolean admitted = damage > 0 && stand.canAttackEntity(targetEntity)
@@ -711,9 +712,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		if (target.isEmpty(level)) {
 			return ActionTarget.EMPTY;
 		}
-		if (!HitResultUtil.isTargetWithinRange(target, stand, level,
-				stand.getAttributeValue(Attributes.BLOCK_INTERACTION_RANGE),
-				stand.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE))) {
+		if (!strikeReaches(stand, target)) {
 			return ActionTarget.EMPTY;
 		}
 		if (target.getType() == TargetType.ENTITY) {
@@ -722,6 +721,15 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 					&& StandEntityPunchAbility.canStandHit(stand, targetEntity) ? target : ActionTarget.EMPTY;
 		}
 		return target;
+	}
+
+	// 1.16 StandEntity.isTargetInReach, from the Stand's eyes at its own reach; an entity also as StandMeleeReach takes it
+	private static boolean strikeReaches(StandEntity stand, ActionTarget target) {
+		boolean standReaches = HitResultUtil.isTargetWithinRange(target, stand, stand.level(),
+				stand.getAttributeValue(Attributes.BLOCK_INTERACTION_RANGE),
+				stand.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE));
+		Entity entity = target.getType() == TargetType.ENTITY ? target.getMainEntity() : null;
+		return entity != null ? StandMeleeReach.strikeReaches(stand, entity, standReaches) : standReaches;
 	}
 
 	/**
@@ -740,7 +748,9 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		if (kept.getType() == TargetType.ENTITY && !keepsEntity(stand, kept.getEntity())) {
 			return false;
 		}
-		return ActionTargetRange.isTargetWithinRange(stand, kept, level);
+		boolean keptBy116Range = ActionTargetRange.isTargetWithinRange(stand, kept, level);
+		return kept.getType() == TargetType.ENTITY ? StandMeleeReach.keepsEntity(stand, kept.getEntity(), keptBy116Range)
+				: keptBy116Range;
 	}
 
 	/**
@@ -765,9 +775,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	private static ActionTarget keptInReach(StandEntity stand, @Nullable ActionTarget kept) {
 		Level level = stand.level();
 		ActionTarget target = kept != null ? kept.resolveEntityId(level) : ActionTarget.EMPTY;
-		if (target.isEmpty(level) || !HitResultUtil.isTargetWithinRange(target, stand, level,
-				stand.getAttributeValue(Attributes.BLOCK_INTERACTION_RANGE),
-				stand.getAttributeValue(Attributes.ENTITY_INTERACTION_RANGE))) {
+		if (target.isEmpty(level) || !strikeReaches(stand, target)) {
 			return ActionTarget.EMPTY;
 		}
 		if (target.getType() == TargetType.ENTITY) {
@@ -1095,8 +1103,14 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 					entity -> entity != stand && (canStandHit(stand, entity) || keepsEntity(stand, entity))));
 		}
 		var standAim = LivingComponentAction.getAim(stand);
-		return standAim != null ? pressedAt(stand, userAims ? user : null, standAim.getTarget().resolveEntityId(level), rule,
-				ability) : ActionTarget.EMPTY;
+		ActionTarget pressed = standAim != null ? pressedAt(stand, userAims ? user : null,
+				standAim.getTarget().resolveEntityId(level), rule, ability) : ActionTarget.EMPTY;
+		// the Stand's aim a client sends stops at its user's reach; past it an attack that reaches out aims on the server
+		if (userAims && pressed.isEmpty(level)) {
+			Predicate<Entity> canTarget = entity -> entity != stand && canStandHit(stand, entity);
+			pressed = pressedTarget(stand, farEntityAim(stand, user, ActionTarget.EMPTY, 1.0F, canTarget, true), rule);
+		}
+		return pressed;
 	}
 
 	private static ActionTarget pressedAt(StandEntity stand, @Nullable LivingEntity userAiming, ActionTarget aim,
@@ -1176,8 +1190,10 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 
 	private static ActionTarget userAimTarget(StandEntity stand, LivingEntity user, float partialTick,
 			Predicate<Entity> canTarget, boolean wallsHideEntities, CrosshairRule rule) {
-		if (!aimAssist(user)) {
-			return strictCrosshairTarget(stand, user, partialTick, canTarget, wallsHideEntities);
+		boolean assist = aimAssist(user);
+		if (!assist) {
+			return farEntityAim(stand, user, strictCrosshairTarget(stand, user, partialTick, canTarget, wallsHideEntities),
+					partialTick, canTarget, false);
 		}
 		if (rule != CrosshairRule.NONE) {
 			ActionTarget crosshair = crosshairPick(stand, user, partialTick,
@@ -1186,7 +1202,30 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 				return crosshair;
 			}
 		}
-		return userPrecisionRayTarget(stand, user, canTarget, wallsHideEntities);
+		return farEntityAim(stand, user, userPrecisionRayTarget(stand, user, canTarget, wallsHideEntities),
+				partialTick, canTarget, true);
+	}
+
+	/**
+	 * Server: when the user's own aim met no entity, an attack that reaches out (StandMeleeReach) takes the entity the
+	 * same aim meets past the user's reach, as far as the max reach: the precision ray with the aim assist, the crosshair
+	 * line without it. Walls always hide an entity there, a skill that goes through them included. Within the user's
+	 * reach the user's own aim stands, as a client sent it.
+	 */
+	private static ActionTarget farEntityAim(StandEntity stand, LivingEntity user, ActionTarget aim, float partialTick,
+			Predicate<Entity> canTarget, boolean precisionRay) {
+		if (aim.getType() == TargetType.ENTITY || stand.level().isClientSide() || !StandMeleeReach.reachesOut(stand)) {
+			return aim;
+		}
+		double userReach = userAimReach(user, stand);
+		double reach = StandMeleeReach.maxReach(stand, user, false);
+		Predicate<Entity> pastUserReach = canTarget.and(entity -> StandMeleeReach.userDistance(user, entity) > userReach);
+		ActionTarget far = precisionRay
+				? StandPrecisionRay.closestWithPriority(StandPrecisionRay.clipTargets(user, reach, pastUserReach, 0,
+						stand.getPrecision(), true))
+				: HitResultUtil.clip(user.getEyePosition(partialTick), user.getViewVector(partialTick), reach, reach,
+						stand.level(), pastUserReach, user, 0, true, 0, ClipContext.Block.OUTLINE);
+		return far.getType() == TargetType.ENTITY ? far : aim;
 	}
 
 	/**
@@ -1400,7 +1439,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	
 	// TODO make stand entities not pickable, add a separate OR predicate to CAN_BE_PICKED
 	public static boolean canStandPick(StandEntity stand, Entity target) {
-		return _EntitySelector.CAN_BE_PICKED.test(target);
+		return _EntitySelector.CAN_BE_PICKED.test(target) && !PerceptionBlockers.isBlocked(stand, target);
 	}
 	
 	public static boolean playHitSound(ActionTarget target, Level level) {

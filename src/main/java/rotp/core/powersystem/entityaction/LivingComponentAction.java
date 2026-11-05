@@ -7,6 +7,8 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import rotp.core.api.perception.PerceptionBlockers;
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.core.JojoMod;
 import rotp.core.client.entityanim.pose.AnimFramePose;
 import rotp.core.client.entityanim.pose.AnimatedEntity;
@@ -26,6 +28,7 @@ import rotp.core.powersystem.entityaction.syncdata.SyncActionInstanceData;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTargetAim;
+import rotp.core.subsystems.time.RateStepper;
 
 import net.minecraft.core.HolderLookup.Provider;
 import net.minecraft.nbt.CompoundTag;
@@ -450,15 +453,48 @@ public class LivingComponentAction implements SynchronizablePlayerData, TickingE
 				syncDirtyActionData();
 				return;
 			}
-			if (!isActionPausedInStoppedTime()) {
-				tickAction();
+			int steps = isActionPausedInStoppedTime() ? 0 : actionSteps();
+			if (steps == 0) {
+				if (action.isOver()) {
+					// Stopped from outside while paused or slowed (key release, damage): clear it as tickAction does.
+					setAction(null, null, SyncType.NO_SYNC);
+				}
 			}
-			else if (action.isOver()) {
-				// Stopped from outside while paused (key release, damage): clear it as tickAction does.
-				setAction(null, null, SyncType.NO_SYNC);
+			else {
+				for (int step = 0; step < steps && action != null; step++) {
+					tickAction();
+				}
+			}
+			if (action != null) {
+				action.setClockProgress(actionClock);
 			}
 			syncDirtyActionData();
 		}
+	}
+
+	@Nullable private RateStepper actionClock;
+
+	/**
+	 * The action ticks of this tick: 1, or by the user's EntityTimeRates STAND_ACTIONS rate, a Stand's actions by its
+	 * user's, and the user's own in both slots (his Stand power's and his non-Stand power's, Hamon, vampirism...).
+	 */
+	private int actionSteps() {
+		if (!EntityTimeRates.hasProviders()) {
+			actionClock = null;
+			return 1;
+		}
+		LivingEntity user = entity instanceof StandEntity stand ? stand.getUser() : entity;
+		if (user == null) {
+			return 1;
+		}
+		float rate = EntityTimeRates.rate(EntityTimeRates.Channel.STAND_ACTIONS, user);
+		if (rate == 1.0F && actionClock == null) {
+			return 1;
+		}
+		if (actionClock == null) {
+			actionClock = new RateStepper();
+		}
+		return actionClock.steps(rate);
 	}
 
 	// also while the action waits (a stunned or summon-locked Stand): a release flag set meanwhile reaches the clients
@@ -756,12 +792,13 @@ public class LivingComponentAction implements SynchronizablePlayerData, TickingE
 	/**
 	 * Server: stores the aim a player's client sent for the player itself (its camera's pick, ClientsideAim), as
 	 * {@link ActionTargetAim#setTargetFromClient} does, but never the player: 1.16 Action.checkTarget emptied a target that
-	 * was the user, which another camera's pick (a manually controlled Stand's, a member's view) may meet. The aim a press
-	 * packet carries is kept by the same rule ({@link #isUserItself}).
+	 * was the user, which another camera's pick (a manually controlled Stand's, a member's view) may meet. Nor an entity
+	 * the player cannot perceive ({@link #isUnperceived}). The aim a press packet carries is kept by the same rules
+	 * ({@link #isUserItself}).
 	 */
 	public void setUserAimFromClient(ActionTarget received) {
 		entityAim.setTargetFromClient(received, entity.level());
-		if (isUserItself(entityAim.getTarget())) {
+		if (isUserItself(entityAim.getTarget()) || isUnperceived(entityAim.getTarget())) {
 			entityAim.setTarget(ActionTarget.EMPTY);
 		}
 	}
@@ -770,6 +807,16 @@ public class LivingComponentAction implements SynchronizablePlayerData, TickingE
 	@ApiStatus.Internal
 	public boolean isUserItself(ActionTarget resolved) {
 		return resolved.getType() == ActionTarget.TargetType.ENTITY && resolved.getEntity() == entity;
+	}
+
+	/**
+	 * Whether a resolved aim of this entity (a player or its Stand) is an entity it cannot perceive
+	 * ({@link PerceptionBlockers}), which its aim never keeps: the client's pick does not know the rule.
+	 */
+	@ApiStatus.Internal
+	public boolean isUnperceived(ActionTarget resolved) {
+		return resolved.getType() == ActionTarget.TargetType.ENTITY && resolved.getEntity() != null
+				&& PerceptionBlockers.isBlocked(entity, resolved.getEntity());
 	}
 
 }

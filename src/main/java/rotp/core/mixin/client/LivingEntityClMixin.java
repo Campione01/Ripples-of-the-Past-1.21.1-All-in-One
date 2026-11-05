@@ -6,8 +6,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import rotp.core.JojoModLivingVariables;
+import rotp.core.client.input.InputHandler;
 import rotp.core.util.constants.EntityEvents;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -30,6 +32,12 @@ public abstract class LivingEntityClMixin extends Entity {
 			if (JojoModLivingVariables.get((LivingEntity) (Entity) this).isDyingBody()) {
 				ci.cancel();
 			}
+			break;
+		case EntityEvents.KEEP_STAND_HUD:
+			if ((Entity) this == Minecraft.getInstance().player) {
+				InputHandler.getInstance().keepStandHudAfterForcedUnsummon();
+			}
+			ci.cancel();
 			break;
 		default:
 			break;

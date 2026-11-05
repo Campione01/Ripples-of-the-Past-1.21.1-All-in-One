@@ -49,10 +49,10 @@ public final class HamonHoldReleaseGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 80)
 	public static void sendoHoldsFullChargeUntilRelease(GameTestHelper helper) {
+		AABB area = sendoWall(helper);
+		int wavesBefore = waves(helper, area);
 		try (Fixture f = new Fixture(helper, ModHamonSkills.SENDO_OVERDRIVE.get())) {
-			AABB area = sendoWall(helper);
 			f.sendCrosshairAim();
-			int wavesBefore = waves(helper, area);
 			EntityActionInstance action = f.start("sendo_overdrive", true);
 			f.tick(45);
 			helper.assertTrue(f.component.getAction() == action && action.getPhase() == ActionPhase.WINDUP,
@@ -67,16 +67,17 @@ public final class HamonHoldReleaseGameTests {
 			// 1.16 heldRatio = (ticks held - 1) / 30, clamped: 45 held ticks make a full circle of sparks.
 			helper.assertTrue(Math.abs(wave.sparksAngle - (float) Math.PI * 2.0F) < 0.001F,
 					"45 held ticks must give the full spark circle: sparksAngle=" + wave.sparksAngle);
-			helper.succeed();
 		}
+		assertNoWaveLeft(helper, area, wavesBefore);
+		helper.succeed();
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 80)
 	public static void sendoNoKeyFiresAtFullCharge(GameTestHelper helper) {
+		AABB area = sendoWall(helper);
+		int wavesBefore = waves(helper, area);
 		try (Fixture f = new Fixture(helper, ModHamonSkills.SENDO_OVERDRIVE.get())) {
-			AABB area = sendoWall(helper);
 			f.sendCrosshairAim();
-			int wavesBefore = waves(helper, area);
 			EntityActionInstance action = f.start("sendo_overdrive", false);
 			f.tick(30);
 			helper.assertTrue(waves(helper, area) == wavesBefore, "Sendo Overdrive fired before its full charge");
@@ -85,8 +86,9 @@ public final class HamonHoldReleaseGameTests {
 			helper.assertTrue(waves(helper, area) > wavesBefore, "the unheld Sendo Overdrive sent no wave");
 			helper.assertTrue(action.isOver(),
 					"a Sendo Overdrive no key holds must fire at its full charge and be over: phase=" + action.getPhase());
-			helper.succeed();
 		}
+		assertNoWaveLeft(helper, area, wavesBefore);
+		helper.succeed();
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 80)
@@ -202,6 +204,12 @@ public final class HamonHoldReleaseGameTests {
 		return helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area).size();
 	}
 
+	// a wave outlives the test that sent it and, its user gone, hurts whatever stands in it, a neighbouring test's mobs too
+	private static void assertNoWaveLeft(GameTestHelper helper, AABB area, int wavesBefore) {
+		int left = waves(helper, area) - wavesBefore;
+		helper.assertTrue(left <= 0, "Fixture: the test left " + left + " Sendo Overdrive wave(s) in the level");
+	}
+
 	private static HamonSendoOverdriveEntity newestWave(GameTestHelper helper, AABB area) {
 		HamonSendoOverdriveEntity newest = null;
 		for (HamonSendoOverdriveEntity wave : helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area)) {
@@ -218,6 +226,8 @@ public final class HamonHoldReleaseGameTests {
 		private final PlayerPower power;
 		private final HamonData hamon;
 		private final LivingComponentAction component;
+		private final AABB area;
+		private final List<HamonSendoOverdriveEntity> wavesBefore;
 
 		private Fixture(GameTestHelper helper, HamonSkill skill) {
 			this.helper = helper;
@@ -227,6 +237,9 @@ public final class HamonHoldReleaseGameTests {
 			user.setYHeadRot(0.0F);
 			user.setNoGravity(true);
 			helper.assertTrue(helper.getLevel().addFreshEntity(user), "Could not add the Hamon hold test player");
+			// the waves this user's Sendo Overdrive sends at a block within its reach go with it
+			area = new AABB(user.blockPosition()).inflate(12.0D);
+			wavesBefore = helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area);
 			power = PowerClass.PLAYER_POWER.attachGet(user);
 			power.setPowerType(ModPlayerPowers.HAMON.get());
 			hamon = PlayerPower.getPowerData(user, ModPlayerPowers.HAMON).orElseThrow();
@@ -271,6 +284,11 @@ public final class HamonHoldReleaseGameTests {
 			user.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get()).heldKeys.clear();
 			component.setAction(null, SyncType.NO_SYNC);
 			user.removeAllEffects();
+			for (HamonSendoOverdriveEntity wave : helper.getLevel().getEntitiesOfClass(HamonSendoOverdriveEntity.class, area)) {
+				if (!wavesBefore.contains(wave)) {
+					wave.discard();
+				}
+			}
 			user.discard();
 		}
 	}

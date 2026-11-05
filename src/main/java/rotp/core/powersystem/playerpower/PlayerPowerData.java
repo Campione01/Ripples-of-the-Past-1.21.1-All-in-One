@@ -3,6 +3,7 @@ package rotp.core.powersystem.playerpower;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.PowerData;
 
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 
 public abstract class PlayerPowerData extends PowerData {
@@ -25,6 +26,15 @@ public abstract class PlayerPowerData extends PowerData {
 	 * Add-ons may override this without @Override so they still load on cores without it.
 	 */
 	public void resetAbilityCooldowns(LivingEntity user) {}
+
+	/**
+	 * Server: sends the user's client what is left of this data's ability cooldowns. PlayerPower asks it every 10 ticks
+	 * while the user's cooldowns count down at another rate than 1 (PlayerPower#getCooldownSteps), and once when they
+	 * are back to 1, as the client counts them down by itself and may not know the rate. A data that counts its
+	 * cooldowns down by PlayerPower#cooldownSteps sends them here (syncToPlayer while one runs); by default nothing.
+	 * Add-ons may override this without @Override so they still load on cores without it.
+	 */
+	public void syncCooldownsAtRate(ServerPlayer user) {}
 
 	/**
 	 * Suspends passive state that cannot safely remain on the entity while a

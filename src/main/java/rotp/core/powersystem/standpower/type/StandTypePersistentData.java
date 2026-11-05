@@ -155,7 +155,8 @@ public class StandTypePersistentData extends PowerData {
 			if (!(skill instanceof StandUnlockableSkill standSkill)
 					|| !isUnlockedByResolveOrCreative(standSkill, creative)
 					|| isSkillUnlocked(skill.skillName)
-					|| !canUnlockByOriginalResolve(standPower, standSkill)) {
+					|| (creative ? findSkillAbility(standPower, standSkill) == null
+							: !canUnlockByOriginalResolve(standPower, standSkill))) {
 				continue;
 			}
 			if (_setSkillUnlocked(skill, true, false)) {
@@ -196,6 +197,16 @@ public class StandTypePersistentData extends PowerData {
 	}
 
 	private boolean canUnlockByOriginalResolve(StandPower standPower, StandUnlockableSkill skill) {
+		Ability ability = findSkillAbility(standPower, skill);
+		return ability != null && ability.getResolveUnlockConditionCheck(standPower).isPositive();
+	}
+
+	/**
+	 * The moveset's ability for this skill. In creative mode 1.16 StandAction.canBeUnlocked asked nothing more, so an
+	 * add-on's replacement whose Resolve check waits for the skill itself (Reworked's time stop) is unlocked there too.
+	 */
+	@Nullable
+	private static Ability findSkillAbility(StandPower standPower, StandUnlockableSkill skill) {
 		Ability ability = standPower.getMoveset().getAbility(skill.skillName);
 		if (ability == null) {
 			for (String abilityName : skill.unlocksAbilities) {
@@ -205,7 +216,7 @@ public class StandTypePersistentData extends PowerData {
 				}
 			}
 		}
-		return ability != null && ability.getResolveUnlockConditionCheck(standPower).isPositive();
+		return ability;
 	}
 	
 	public float getAbilityLearningProgressPoints(String abilityName) {
@@ -372,6 +383,17 @@ public class StandTypePersistentData extends PowerData {
 	 */
 	public int getHighestResolveLevel() {
 		return Mth.clamp(Math.max(highestResolveLevel, resolveLevel), 0, getMaxResolveLevel());
+	}
+
+	/** The levels reached before the current one no longer unlock anything (the stand_skills reset command). */
+	public void resetHighestResolveLevel(StandPower userPower) {
+		if (highestResolveLevel != resolveLevel) {
+			highestResolveLevel = resolveLevel;
+			LivingEntity user = userPower.getUser();
+			if (user != null && !user.level().isClientSide()) {
+				syncOnUpdate(user);
+			}
+		}
 	}
 
 	public boolean setResolveLevel(StandPower userPower, int level) {

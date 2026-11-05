@@ -59,6 +59,7 @@ import rotp.core.powersystem.standpower.type.SummonedStand;
 import rotp.core.subsystems.EntityHandItemsAsInventory;
 import rotp.core.subsystems.entity_externalcontainer.PlayerExternalContainers;
 import rotp.core.subsystems.entity_externalcontainer._stand.StandHandsContainerMenu;
+import rotp.core.subsystems.entity_grab.LivingComponentGrab;
 import rotp.core.subsystems.entity_puppetcontrol.client.ClientEntityController;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTarget.TargetType;
@@ -77,6 +78,7 @@ import rotp.core.util.sound.MultiSoundEventResolver;
 import rotp.core.impl.stands._entitybase.StandEntityAutoBlockAction;
 import rotp.core.impl.stands._entitybase.StandEntityManualControlToggle;
 import rotp.core.impl.stands._entitybase.StandEntityUnsummonAction;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.impl.stands.silverchariot.SCRapierEntity;
 import rotp.core.impl.stands.silverchariot.SilverChariotState;
 
@@ -144,6 +146,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.scores.PlayerTeam;
 import net.neoforged.neoforge.common.CommonHooks;
 import net.neoforged.neoforge.common.damagesource.DamageContainer;
 import net.neoforged.neoforge.common.util.TriState;
@@ -735,6 +738,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 				if (!isArmsOnlyMode()) {
 					pos = collideNextPos(pos);
 				}
+				pos = limitStrikeFlight(user, pos);
 				setPos(pos.x, pos.y, pos.z);
 				defaultRotation(user);
 				curAction = standAction.getAction();
@@ -766,6 +770,30 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		}
 	}
 	
+	/*
+	 * Server, owner 2026-11-01: a close-range Stand flies out to strike and back at its own speed (StandMeleeReach), so
+	 * while it is going to or coming from a place past its usual ones it moves that far a tick relative to its user; its
+	 * clients glide between offsets as before (StandOffsetFromUser.LERP_TIME)
+	 */
+	private Vec3 limitStrikeFlight(LivingEntity user, Vec3 pos) {
+		Vec3 current = _offsetFromUserVec;
+		if (level().isClientSide() || current == null || !StandMeleeReach.isCloseRange(this)) {
+			return pos;
+		}
+		Vec3 userPos = user.position();
+		Vec3 target = pos.subtract(userPos);
+		double away = StandMeleeReach.awayDistance(this);
+		if (target.lengthSqr() <= away * away && current.lengthSqr() <= away * away) {
+			return pos;
+		}
+		Vec3 step = target.subtract(current);
+		double speed = StandMeleeReach.flightSpeed(this);
+		if (step.lengthSqr() <= speed * speed) {
+			return pos;
+		}
+		return userPos.add(current.add(step.normalize().scale(speed)));
+	}
+
 	public Vec3 collideNextPos(Vec3 pos) {
 		if (noPhysics) {
 			return pos;
@@ -803,36 +831,38 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		if (lookAtTaskTarget()) {
 			return true;
 		}
-		ActionTarget lookTarget;
 		EntityActionInstance curAction = standAction.getAction();
-		boolean fullyRotateBody = curAction != null;
-		if (curAction != null) {
-			lookTarget = curAction.standRotationTarget;
-			if (lookTarget == null) {
-				lookTarget = ActionTarget.EMPTY;
-			}
-			else if (lookTarget.isEmpty(level())) {
-				curAction.standRotationTarget = null;
-				lookTarget = ActionTarget.EMPTY;
-			}
+		// 1.16 StandEntity.defaultRotation: without an action the Stand looks where its user looks, whatever entity the aim
+		// holds
+		if (curAction == null) {
+			return false;
 		}
-		else {
-			ActionTarget crosshairTarget = standAction.entityAim.getTarget();
-			// the synced aim may be the user's pet, mount or ally (1.16's mouse target); the idle look stays off them
-			if (crosshairTarget.getType() == TargetType.ENTITY && crosshairTarget.getEntity() != null
-					&& canAttackEntity(crosshairTarget.getEntity())) {
-				lookTarget = crosshairTarget;
-			}
-			else {
-				lookTarget = ActionTarget.EMPTY;
-			}
-			// the 75 degrees from where the user faces, as when the idle Stand took its user's body: the Stand's own body
-			// trails the yaw this look gives it, so the look would never let the entity go
-			LivingEntity user = getUser();
-			return lookAtPos(getPosToLookAt(lookTarget), false, user != null ? user.yBodyRot : yBodyRot);
+		ActionTarget lookTarget = curAction.standRotationTarget;
+		if (lookTarget == null) {
+			lookTarget = ActionTarget.EMPTY;
 		}
+		else if (lookTarget.isEmpty(level())) {
+			curAction.standRotationTarget = null;
+			lookTarget = ActionTarget.EMPTY;
+		}
+		else if (isHeldEntity(lookTarget)) {
+			lookTarget = ActionTarget.EMPTY;
+		}
+		return lookAtTarget(lookTarget, true);
+	}
 
-		return lookAtTarget(lookTarget, fullyRotateBody);
+	/**
+	 * Whether the target is the entity this Stand holds (LivingComponentGrab), which no look, task turn or strike turn faces:
+	 * the held entity hangs from the Stand's own hand and is placed every tick from the Stand's body yaw and pose
+	 * (LivingComponentGrab#setGrabbedPos), so each turn to it moved it again and the Stand chased its own hand, its head
+	 * twitching. The Stand keeps the rotation it copied from its user instead.
+	 */
+	public boolean isHeldEntity(@Nullable ActionTarget target) {
+		if (target == null || target.getType() != TargetType.ENTITY) {
+			return false;
+		}
+		LivingEntity held = LivingComponentGrab.getEntityGrabbedBy(this);
+		return held != null && (target.getMainEntity() == held || target.sameTarget(new ActionTarget(held)));
 	}
 
 	/**
@@ -840,7 +870,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	 * ({@link EntityActionInstance#getTaskTarget}) and the Stand is not manually controlled, the action turns the Stand to
 	 * it ({@link StandEntityAbility#rotateStandTowardsTarget}), whether the Stand follows its user or moves by itself. Each
 	 * side turns by the target it holds, a client by the one its server sent. The head stays where that turn left it for the
-	 * rest of the tick, as 1.16's MCUtil.rotateTowards set it, even if the Stand's yaw is turned elsewhere after it.
+	 * rest of the tick, as 1.16's MCUtil.rotateTowards set it, even if the Stand's yaw is turned elsewhere after it. A task
+	 * target that is the entity the Stand holds ({@link #isHeldEntity}) turns nothing and counts as none.
 	 * @return whether the task held a target
 	 */
 	public boolean lookAtTaskTarget() {
@@ -849,7 +880,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 			return false;
 		}
 		ActionTarget taskTarget = curAction.getTaskTarget(level());
-		if (taskTarget.getType() == TargetType.EMPTY) {
+		if (taskTarget.getType() == TargetType.EMPTY || isHeldEntity(taskTarget)) {
 			return false;
 		}
 		headTurnedToTaskTarget = true;
@@ -902,10 +933,6 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	}
 
 	public boolean lookAtPos(@Nullable Vec3 targetPos, boolean fullyRotateBody) {
-		return lookAtPos(targetPos, fullyRotateBody, yBodyRot);
-	}
-
-	private boolean lookAtPos(@Nullable Vec3 targetPos, boolean fullyRotateBody, float headTurnFromYaw) {
 		if (targetPos != null) {
 			Vec2 rotations = MathUtil.lookAnglesTowards(targetPos, this, EntityAnchorArgument.Anchor.EYES);
 			if (fullyRotateBody) {
@@ -918,7 +945,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 			}
 			else {
 				float maxHeadYRot = 75;
-				float f2 = Mth.wrapDegrees(headTurnFromYaw - rotations.y);
+				float f2 = Mth.wrapDegrees(yBodyRot - rotations.y);
 				if (Math.abs(f2) < maxHeadYRot) {
 					this.setXRot(rotations.x);
 					this.setYRot(rotations.y);
@@ -937,11 +964,12 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	/**
 	 * Server: 1.16 StandEntity.aimWithThisOrUser turned the Stand toward what a punch, a heavy punch or a barrage hit aimed
 	 * at, just before the hit (MCUtil.rotateTowards): its yaw and its pitch each by at most attackSpeed / 16 x 18 degrees,
-	 * toward an entity's eyes or a block's centre, and its head onto the new yaw; never toward the Stand itself. The Stand
-	 * keeps that rotation for the rest of the tick, until its next tick turns it as usual.
+	 * toward an entity's eyes or a block's centre, and its head onto the new yaw; never toward the Stand itself or the entity
+	 * it holds ({@link #isHeldEntity}). The Stand keeps that rotation for the rest of the tick, until its next tick turns it
+	 * as usual.
 	 */
 	public void turnTowardsStrike(ActionTarget aimed) {
-		if (aimed.getType() == TargetType.EMPTY || aimed.getEntity() == this) {
+		if (aimed.getType() == TargetType.EMPTY || aimed.getEntity() == this || isHeldEntity(aimed)) {
 			return;
 		}
 		Vec3 targetPos = StandOffsetFromUser.taskTargetPos(aimed);
@@ -1006,29 +1034,32 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		return jump;
 	}
 	
+	/**
+	 * 1.16 StandEntity.moveStandManually set the input's motion as the Stand's velocity, which LivingEntity.aiStep scaled
+	 * by 0.98 on the controlling client and travel then moved it by, once a tick.
+	 */
+	public static final double MANUAL_STEP_FACTOR = 0.98D;
+
+	/**
+	 * The controlling side moves the Stand by this tick's manual input (times {@link #MANUAL_STEP_FACTOR}) once. The step
+	 * is not left as the Stand's velocity: travel, which runs first in the next tick, would move it by it again.
+	 */
 	protected void moveStandManualControl() {
 		LivingEntity user = getUser();
 		if (user != null && isControlledByLocalInstance()) {
 			if (_offsetFromUserVec == null) {
 				updateUserOffset(user);
 			}
-			
+			Vec3 step = _manualControlInput.scale(MANUAL_STEP_FACTOR);
+			_manualControlInput = Vec3.ZERO;
+
 			if (_offsetFromUserVec != null) {
-				_offsetFromUserVec = _offsetFromUserVec.add(_manualControlInput);
-				_manualControlInput = Vec3.ZERO;
-				
-				Vec3 userPos = user.position();
-				Vec3 newPos = userPos.add(_offsetFromUserVec);
-				Vec3 move = newPos.subtract(this.position());
-				Vec3 oldPos = position();
-				move(MoverType.SELF, move);
-				setDeltaMovement(position().subtract(oldPos));
+				_offsetFromUserVec = _offsetFromUserVec.add(step);
+				Vec3 newPos = user.position().add(_offsetFromUserVec);
+				move(MoverType.SELF, newPos.subtract(this.position()));
 			}
 			else {
-				Vec3 oldPos = position();
-				move(MoverType.SELF, _manualControlInput);
-				setDeltaMovement(position().subtract(oldPos));
-				_manualControlInput = Vec3.ZERO;
+				move(MoverType.SELF, step);
 			}
 		}
 	}
@@ -1113,8 +1144,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		}
 	}
 
+	// owner 2026-10-30: a close-range Stand goes past its base reach by the remote control margin (StandMeleeReach)
 	public double getMaxRangeForMovement(LivingEntity user) {
-		return getMaxRange();
+		return StandMeleeReach.isCloseRange(this) ? StandMeleeReach.maxReach(this, user, true) : getMaxRange();
 	}
 
 	// 1.16 StandEntity.move: one-time warning when manual control goes past the server view distance
@@ -1391,13 +1423,25 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		return !isManuallyControlled()
 				&& followingUserIsEnabled()
 				&& !isBeingRetracted()
-				&& !curActionDisablesUserOffset();
+				&& (followCheckLeavesActionOffsetOut || !curActionDisablesUserOffset());
 	}
 
+	private boolean followCheckLeavesActionOffsetOut;
+
+	/**
+	 * 1.16 StandEntity.isFollowingUser as clearTask and retractStand asked it: this Stand's own {@link #isFollowingUser}
+	 * (an add-on's override included, with the action still current), without the current action's
+	 * noAdheringToUserOffset, which 1.16's had not, so that a Stand its action moved by itself is still called back.
+	 */
 	private boolean isFollowingUserForRetractionDecision() {
-		return !isManuallyControlled()
-				&& followingUserIsEnabled()
-				&& !isBeingRetracted();
+		boolean leftOut = followCheckLeavesActionOffsetOut;
+		followCheckLeavesActionOffsetOut = true;
+		try {
+			return isFollowingUser();
+		}
+		finally {
+			followCheckLeavesActionOffsetOut = leftOut;
+		}
 	}
 	
 	private boolean curActionDisablesUserOffset() {
@@ -1578,6 +1622,17 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		return false;
 	}
 
+	/**
+	 * Client: whether a view from this Stand (its camera under remote control) is covered with the in-wall texture of the
+	 * view-blocking block it is in (StandCameraInWall, a port addition: 1.16 drew none for a Stand camera). A Stand that
+	 * travels inside blocks on purpose opts out to keep 1.16's view, for good or while it does: its entity class overrides
+	 * this, or its type overrides EntityStandType#coversCameraInsideBlocks, which this asks by default.
+	 */
+	public boolean coversCameraInsideBlocks() {
+		return !(StandType.fromId(standId) instanceof EntityStandType entityStandType)
+				|| entityStandType.coversCameraInsideBlocks(this);
+	}
+
 	public void setNoPhysics(boolean noPhysics) {
 		if (noPhysics || standCanHaveNoPhysics) {
 			setStandFlag(StandFlag.NO_PHYSICS, noPhysics);
@@ -1688,7 +1743,13 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 				}
 			}
 			updateNoPhysics();
+			boolean leftOffIdle = !level().isClientSide() && curAction != null && !offsetFromUser.isIdle();
 			offsetFromUser.resetToIdle();
+			// Each client ends its own copy of the action by its own count: one that ended it before the action's last
+			// offset packet arrived has no action left to clear that offset.
+			if (leftOffIdle) {
+				offsetFromUser.syncToTracking();
+			}
 		}
 		return false;
 	}
@@ -1841,10 +1902,15 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	public void updateStrengthMultipliers() {
 		LivingEntity user = getUser();
 
-		// 1.16 measured it feet to feet (distanceTo(user)); the port decays only under manual control (D-core-03)
-		rangeEfficiency = user != null ? StandStatFormulas.rangeStrengthFactor(
-				distanceStrengthDecayEnabled && isManuallyControlled(),
-				getEffectiveRange(), getMaxRange(), distanceTo(user)) : 1;
+		// 1.16 measured it feet to feet (distanceTo(user)); the port decays only under manual control (D-core-03), and a
+		// close-range Stand only past its base reach (owner 2026-10-30, StandMeleeReach)
+		if (user == null || !distanceStrengthDecayEnabled || !isManuallyControlled()) {
+			rangeEfficiency = 1;
+		}
+		else {
+			rangeEfficiency = StandMeleeReach.isCloseRange(this) ? StandMeleeReach.remoteStrengthFactor(this, user)
+					: StandStatFormulas.rangeStrengthFactor(getEffectiveRange(), getMaxRange(), distanceTo(user));
+		}
 
 		if (user != null && userPower != null) {
 			staminaCondition = StandUtil.staminaCondition(userPower);
@@ -2310,6 +2376,23 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	@Override
 	public void pushEntities() {}
 
+	// 1.16 StandEntity: a Stand is in its user's team, and the ally of its user and of whoever its user is allied to
+	@Override
+	@Nullable
+	public PlayerTeam getTeam() {
+		LivingEntity user = getUser();
+		return user != null ? user.getTeam() : super.getTeam();
+	}
+
+	@Override
+	public boolean isAlliedTo(Entity entity) {
+		LivingEntity user = getUser();
+		if (user != null) {
+			return entity == user || user.isAlliedTo(entity);
+		}
+		return super.isAlliedTo(entity);
+	}
+
 	@Override
 	public boolean isPickable() {
 		if (level().isClientSide()) {
@@ -2330,6 +2413,10 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	
 	@Override
 	public boolean isInvulnerableTo(/*ServerLevel level, */DamageSource damageSource) {
+		// 1.16 let OUT_OF_WORLD through before anything else; 1.21 split it into the kill command and the void
+		if (damageSource.is(DamageTypes.GENERIC_KILL) || damageSource.is(DamageTypes.FELL_OUT_OF_WORLD)) {
+			return isRemoved();
+		}
 		LivingEntity user = getUser();
 		return user != null && (
 					user.isInvulnerableTo(/*level, */damageSource)
@@ -2586,6 +2673,12 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	public void setHealth(float health) {
 		if (healthLinkedWithUser) {
 			redirectDamageToUser(health);
+			// 1.16's linked Stand passed its hits on and kept its health: a hit its user survives (the kill command on a
+			// creative player's Stand) does not put it in its death
+			LivingEntity user = getUser();
+			if (health <= 0 && !level().isClientSide() && user != null && user.isAlive()) {
+				health = user.getHealth();
+			}
 		}
 		super.setHealth(health);
 	}
@@ -2763,8 +2856,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 						|| curAction.ability instanceof StandEntityAutoBlockAction);
 	}
 
+	// owner 2026-11-01: a Stand away from its user to strike cannot guard until it is back (StandMeleeReach)
 	public boolean canStartBlocking() {
-		return canBlockOrParryNow() && entityData.get(NO_BLOCKING_TICKS) <= 0;
+		return canBlockOrParryNow() && entityData.get(NO_BLOCKING_TICKS) <= 0 && !StandMeleeReach.isAwayToStrike(this);
 	}
 
 	public void breakStandBlocking(int lockTicks) {

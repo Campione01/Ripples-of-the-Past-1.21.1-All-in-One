@@ -55,4 +55,7 @@ public class EntityEvents {
 	public static final byte WARDEN_SONIC_BOOM_ANIMATION    = 62;
 	public static final byte ARMADILLO_PEEK_SOUND           = 64;
 	public static final byte BREAK_MOB_ARMOR_ITEM           = 65;
+
+	// the core's own, sent to a player only (StandType.keepUsersStandHud)
+	public static final byte KEEP_STAND_HUD                 = 101;
 }

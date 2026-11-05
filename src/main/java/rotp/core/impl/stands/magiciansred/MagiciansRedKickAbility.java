@@ -1,5 +1,7 @@
 package rotp.core.impl.stands.magiciansred;
 
+import javax.annotation.Nullable;
+
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.powersystem.Power;
@@ -14,12 +16,15 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.impl.stands._entitybase.StandMeleeReach;
 
 import net.minecraft.core.Holder;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
@@ -47,9 +52,11 @@ public class MagiciansRedKickAbility extends StandEntityHeavyPunchAbility {
 		return standMovesByItself(standEntity);
 	}
 
+	// 1.16 MagiciansRedKick: the Stand moves by itself from its slide to the end; a kick that flew out keeps following
+	// its user, so its strike reaches out and weakens past the base reach as the heavy punch's does (owner rule T2)
 	private static boolean standMovesByItself(StandEntity standEntity) {
 		EntityActionInstance action = standEntity.getCurStandAction();
-		if (action == null) {
+		if (action == null || action instanceof MagiciansRedKick kick && kick.fliesOut()) {
 			return false;
 		}
 		ActionPhase phase = action.getPhase();
@@ -72,9 +79,41 @@ public class MagiciansRedKickAbility extends StandEntityHeavyPunchAbility {
 	public static class MagiciansRedKick extends StandEntityHeavyPunchAbility.StandEntityHeavyPunch {
 		private static final double SLIDE_DISTANCE = 3;
 		private LivingEntity redBindTarget;
+		private boolean flyOutDecided;
+		private boolean fliesOut;
 
 		public MagiciansRedKick(EntityActionType ability) {
 			super(ability);
+		}
+
+		/** Whether the kick was pressed at an entity its Stand flies out to (StandMeleeReach), decided at the press. */
+		public boolean fliesOut() {
+			return fliesOut;
+		}
+
+		@Override
+		public void toBuf(FriendlyByteBuf buf) {
+			super.toBuf(buf);
+			buf.writeBoolean(fliesOut);
+		}
+
+		@Override
+		public void fromBuf(FriendlyByteBuf buf) {
+			super.fromBuf(buf);
+			fliesOut = buf.readBoolean();
+			flyOutDecided = true;
+		}
+
+		// the first placement is the press's (onActionSet), on the server before the action goes to the clients
+		@Override
+		public boolean setStandFrontOffsetFromTarget(StandEntity stand, @Nullable ActionTarget target, double minOffset,
+				double maxOffset) {
+			if (!flyOutDecided && !stand.level().isClientSide()) {
+				flyOutDecided = true;
+				Entity entity = target != null ? target.copy().resolveEntityId(stand.level()).getMainEntity() : null;
+				fliesOut = entity != null && StandMeleeReach.fliesOutTo(stand, entity, maxOffset);
+			}
+			return super.setStandFrontOffsetFromTarget(stand, target, minOffset, maxOffset);
 		}
 
 		@Override
@@ -107,7 +146,7 @@ public class MagiciansRedKickAbility extends StandEntityHeavyPunchAbility {
 			super.actionTick();
 			if (performer instanceof StandEntity stand && getPhase() == ActionPhase.WINDUP) {
 				float ticksLeft = getPhaseTicksLeft();
-				if (ticksLeft <= 2 && ticksLeft > 1) {
+				if (ticksLeft <= 2 && ticksLeft > 1 && !fliesOut) {
 					// 1.16 MagiciansRedKick.standTickWindup: toward the task target's eyes or block centre (Red Bind's
 					// victim, targetBeforePerform), else along the look
 					ActionTarget target = redBindTarget != null ? new ActionTarget(redBindTarget) : getTaskTarget(stand.level());

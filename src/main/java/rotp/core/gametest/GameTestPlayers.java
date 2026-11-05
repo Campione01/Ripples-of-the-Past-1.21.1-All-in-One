@@ -8,6 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
+import rotp.core.powersystem.standpower.StandPower;
 
 /**
  * Vanilla GameTestHelper.makeMockPlayer answers isLocalPlayer() true in the server level, which sends
@@ -29,5 +30,18 @@ final class GameTestPlayers {
 				return gameType.isCreative();
 			}
 		};
+	}
+
+	/**
+	 * Takes a player a fixture had added back out of the level, with the Stand it summoned, when the fixture's setup
+	 * fails: a server player left in the level makes Mob.checkDespawn discard every non-persistent monster more than
+	 * 128 blocks from it on its first tick, in every later test.
+	 */
+	static void discardAfterFailedSetup(Player user) {
+		StandPower power = StandPower.get(user);
+		if (power != null && power.hasPower() && power.isSummoned()) {
+			power.getPowerType().forceUnsummon(user, power);
+		}
+		user.discard();
 	}
 }

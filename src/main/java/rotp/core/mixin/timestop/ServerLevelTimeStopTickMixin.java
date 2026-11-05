@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.entityattachment.DataEventListeners;
+import rotp.core.subsystems.time.LevelTickRateState;
 import rotp.core.subsystems.timestop.TimeStopState;
 
 import net.minecraft.core.BlockPos;
@@ -46,6 +47,11 @@ public abstract class ServerLevelTimeStopTickMixin {
         TimeStopState state = jojo_ripples$getTimeStopState();
         if (state != null && !(entity instanceof ItemEntity) && state.interruptTickEarly(entity)) {
             jojo_ripples$tickFrozenEntityData(entity);
+            ci.cancel();
+            return;
+        }
+        // after stopped time, which a non-living entity's own time rate never overrides
+        if (!LevelTickRateState.beginEntityTick((ServerLevel) (Object) this, entity)) {
             ci.cancel();
         }
     }

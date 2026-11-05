@@ -11,10 +11,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import rotp.core.api.client.render.LivingEntityBaseModelTints;
 import rotp.core.api.client.render.LivingEntityMaterialTintPolicies;
+import rotp.core.api.client.time.ClientEntityClockRates;
 import rotp.core.client.entityanim.IHumanoidAnimModel;
 import rotp.core.compat.v1_21_4.renderstate.EntityRenderState;
 import rotp.core.compat.v1_21_4.renderstate.HumanoidRenderState;
 import rotp.core.compat.v1_21_4.renderstate.RenderStateCrutches;
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.blaze3d.vertex.PoseStack;
 
@@ -83,6 +85,13 @@ public class LivingEntityRendererMixin {
 			float partialTick) {
 		return LivingEntityBaseModelTints.apply(
 				entity, model, partialTick, originalColor);
+	}
+
+	// the age the base renderer hands its model (idle sways, bobbing, AnimationState clips) on the entity's own clock
+	@ModifyReturnValue(method = "getBob", at = @At("RETURN"))
+	private float jojo_ripples$entityClockAge(float ageInTicks,
+			@Local(argsOnly = true) LivingEntity entity) {
+		return ClientEntityClockRates.onClock(entity, ageInTicks);
 	}
 
 }

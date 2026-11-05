@@ -10,7 +10,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 
 import rotp.core.api.stand.StandManualMovementObservers.CloseDrainResult;
 import rotp.core.api.stand.StandManualMovementObservers.DrainResult;
@@ -264,13 +263,22 @@ public final class StandManualMovementObserversSmokeTest {
 
 		AtomicReference<CloseDrainResult> closeResult =
 				new AtomicReference<>();
+		// Closing lasts only the close's 10 ms producer grace, which a poll
+		// from this thread misses when it is off the CPU for as long, so the
+		// closing thread reports what it sees there.
+		AtomicBoolean closingWithReservation = new AtomicBoolean();
 		Thread closer = thread(
 				"stand-observer-race-closer", threadFailure,
-				() -> closeResult.set(registration.closeAndFreeze()));
+				() -> closeResult.set(registration.closeAndFreezeForTest(
+						() -> closingWithReservation.set(
+								registration.isClosing()
+										&& registration.pendingCount() == 1))));
 		closer.start();
-		waitUntil(registration::isClosing, "registration closing");
 		join(closer);
 		rethrowThreadFailure(threadFailure);
+		check(closingWithReservation.get(),
+				"close must pass through closing while a reserved producer "
+						+ "is in flight");
 		CloseDrainResult frozen = closeResult.get();
 		check(frozen != null
 				&& frozen.closed()
@@ -297,10 +305,12 @@ public final class StandManualMovementObserversSmokeTest {
 	private static void testBoundedCloseDoesNotInvokeObserver() {
 		AtomicBoolean callbackEntered = new AtomicBoolean();
 		CountDownLatch releaseCallback = new CountDownLatch(1);
+		CountDownLatch closedOrCallbackEntered = new CountDownLatch(1);
 		StandManualMovementObservers.Registration registration =
 				StandManualMovementObservers.register(
 						id("bounded_close"), envelope -> {
 							callbackEntered.set(true);
+							closedOrCallbackEntered.countDown();
 							awaitUnbounded(releaseCallback);
 						});
 		publishBinding(6L, true, LogicalSide.CLIENT);
@@ -309,11 +319,20 @@ public final class StandManualMovementObserversSmokeTest {
 		AtomicReference<Throwable> threadFailure = new AtomicReference<>();
 		Thread closer = thread(
 				"stand-observer-bounded-closer", threadFailure,
-				() -> closeResult.set(registration.closeAndFreeze()));
+				() -> {
+					try {
+						closeResult.set(registration.closeAndFreeze());
+					}
+					finally {
+						closedOrCallbackEntered.countDown();
+					}
+				});
 		closer.start();
 		boolean returnedBoundedly;
 		try {
-			returnedBoundedly = joinWithin(closer, 2L);
+			await(closedOrCallbackEntered,
+					"the close or its blocking observer");
+			returnedBoundedly = closeResult.get() != null;
 		}
 		finally {
 			releaseCallback.countDown();
@@ -447,19 +466,6 @@ public final class StandManualMovementObserversSmokeTest {
 		}
 	}
 
-	private static boolean joinWithin(Thread thread, long seconds) {
-		try {
-			thread.join(TimeUnit.SECONDS.toMillis(seconds));
-		}
-		catch (InterruptedException interrupted) {
-			Thread.currentThread().interrupt();
-			throw new AssertionError(
-					"interrupted joining " + thread.getName(),
-					interrupted);
-		}
-		return !thread.isAlive();
-	}
-
 	private static void join(Thread thread) {
 		try {
 			thread.join(TimeUnit.SECONDS.toMillis(WAIT_SECONDS));
@@ -472,18 +478,6 @@ public final class StandManualMovementObserversSmokeTest {
 		}
 		check(!thread.isAlive(),
 				"timed out joining " + thread.getName());
-	}
-
-	private static void waitUntil(
-			BooleanSupplier condition, String description) {
-		long deadline = System.nanoTime()
-				+ TimeUnit.SECONDS.toNanos(WAIT_SECONDS);
-		while (!condition.getAsBoolean()
-				&& System.nanoTime() < deadline) {
-			Thread.onSpinWait();
-		}
-		check(condition.getAsBoolean(),
-				"timed out waiting for " + description);
 	}
 
 	private static void rethrowThreadFailure(

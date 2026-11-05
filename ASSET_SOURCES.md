@@ -28,6 +28,14 @@ of the GPLv3 StandAuraFx shader by KINnaoinza, fixed at revision
 The adaptation retains the upstream SDF/noise/color algorithm and moves
 framebuffer ownership into ROTP's existing exact-entity mask compositor.
 
+## Grab ability icons
+
+The grab icons of Star Platinum, The World and Crazy Diamond
+(`stand_skins/<stand>/assets/jojo_ripples/textures/ability/grab.png`) adapt
+the grab icon of the GPLv3 RotP Echoes add-on for 1.21.1 by Grasshopper and
+Day_GeE: its zombie is kept, and the gripping arm is redrawn with each Stand's
+arm from its own punch icon.
+
 ## Deliberately excluded assets
 
 The Git snapshot excludes:

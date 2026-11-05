@@ -2,6 +2,7 @@ package rotp.core.impl.stands._entitybase;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.stand.StandStaminaCostFactors;
 import rotp.core.mechanics.resolve.ResolveModeEffect;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.ability.Ability;
@@ -36,7 +37,7 @@ public final class StandAbilityStamina {
 	}
 
 	public static float effectiveCost(@Nullable StandPower standPower, float amount) {
-		return amount;
+		return standPower != null ? StandStaminaCostFactors.apply(null, standPower, amount, false) : amount;
 	}
 
 	/** Also what the ability reports as its cost from now on, if it does not report its own (Ability#getStaminaCost). */
@@ -44,7 +45,7 @@ public final class StandAbilityStamina {
 		if (ability != null) {
 			ability.rememberStaminaCostAsked(amount, ticking);
 		}
-		return standPower != null && standPower.consumeStamina(effectiveCost(standPower, amount), ticking);
+		return standPower != null && standPower.consumeStamina(StandStaminaCostFactors.apply(ability, standPower, amount, ticking), ticking);
 	}
 
 	public static boolean consume(@Nullable EntityActionType ability, @Nullable StandPower standPower, float amount, boolean ticking) {

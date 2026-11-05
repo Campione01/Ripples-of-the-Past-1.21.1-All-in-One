@@ -854,9 +854,13 @@ public final class StandTaskTargetOffsetGameTests {
 		helper.succeed();
 	}
 
-	// the grab (a port move): its punch keeps the cow it was pressed at as its task target, but strikes and faces the held one
+	/*
+	 * The grab (a port move): its punch keeps the cow it was pressed at as its task target and strikes the held one, but
+	 * faces neither. The held cow hangs from the Stand's hand and is placed from its body yaw every tick, so a turn to it moved
+	 * it again and the Stand's head twitched (player report 13.png); the Stand keeps its user's look.
+	 */
 	@GameTest(template = "empty", timeoutTicks = 100)
-	public static void aGrabPunchFacesTheEntityItHoldsNotWhatItWasPressedAt(GameTestHelper helper) {
+	public static void aGrabPunchKeepsItsUsersLookNotTheEntityItHoldsNorWhatItWasPressedAt(GameTestHelper helper) {
 		withStand(helper, "star_platinum", scene -> {
 			Cow pressedAt = scene.cow(new Vec3(1.5D, 0.0D, 0.5D));
 			Cow held = scene.cow(new Vec3(-1.5D, 0.0D, 0.5D));
@@ -869,7 +873,18 @@ public final class StandTaskTargetOffsetGameTests {
 					"setup: the grab punch keeps " + punch.getTaskTarget(helper.getLevel()) + " and struck "
 							+ punch.standRotationTarget + ", not the pressed cow and the held one");
 			scene.stand.updatePosition(scene.user);
-			assertFaces(helper, scene.stand, held, "A star_platinum whose grab punch struck the cow it holds faced it");
+			StandEntity stand = scene.stand;
+			helper.assertTrue(Math.abs(Mth.degreesDifference(stand.getYRot(), VIEW_YAW)) < 1.0E-3F
+					&& Math.abs(Mth.degreesDifference(stand.getYHeadRot(), VIEW_YAW)) < 1.0E-3F && Math.abs(stand.getXRot()) < 1.0E-3F,
+					"A star_platinum whose grab punch struck the cow it holds keeps its user's look (yaw " + VIEW_YAW + ", pitch 0),"
+							+ " turned neither to the held cow nor to the pressed one: yaw " + stand.getYRot() + ", head "
+							+ stand.getYHeadRot() + ", pitch " + stand.getXRot());
+			stand.turnTowardsStrike(new ActionTarget(held));
+			helper.assertTrue(Math.abs(Mth.degreesDifference(stand.getYRot(), VIEW_YAW)) < 1.0E-3F, "A strike at the cow the"
+					+ " star_platinum holds turned it to yaw " + stand.getYRot());
+			stand.turnTowardsStrike(new ActionTarget(pressedAt));
+			helper.assertTrue(Math.abs(Mth.degreesDifference(stand.getYRot(), VIEW_YAW)) > 1.0F, "setup: a strike at the other"
+					+ " cow left the star_platinum at yaw " + stand.getYRot());
 		});
 		helper.succeed();
 	}
