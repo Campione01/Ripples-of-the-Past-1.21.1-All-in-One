@@ -4,6 +4,8 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.gravity.DirectionalGravityApi;
+import rotp.core.api.gravity.DirectionalGravityTransforms;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.network.s2c.TrSyncStandOffsetPacket;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
@@ -12,6 +14,7 @@ import rotp.core.subsystems.entity_grab.LivingComponentGrab;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.util.functions.MathUtil;
 
+import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
@@ -156,6 +159,11 @@ public class StandOffsetFromUser {
 		EntityDimensions defaultSize = userEntity.getType().getDimensions();
 		offset = scaleOffsetForUser(offset, userEntity.getBbWidth(), userEntity.getBbHeight(),
 				defaultSize.width(), defaultSize.height());
+		// the Stand keeps its place beside a user whose floor is a wall or a ceiling
+		Direction gravity = DirectionalGravityApi.getEffectiveDirection(userEntity);
+		if (gravity != Direction.DOWN) {
+			offset = DirectionalGravityTransforms.toWorld(gravity, offset);
+		}
 
 		// 1.16 StandEntity.updatePosition measured every offset from the user's feet and did not shorten one longer than
 		// the max range: only StandEntity.move held the Stand within it
