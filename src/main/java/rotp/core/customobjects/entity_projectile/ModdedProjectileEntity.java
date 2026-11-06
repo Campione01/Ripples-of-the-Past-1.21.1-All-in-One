@@ -107,7 +107,13 @@ public abstract class ModdedProjectileEntity extends DamagingEntity implements I
 	}
 
 	protected boolean shouldExpire(@Nullable Entity owner) {
-		return tickCount > ticksLifespan() || owner != null && !owner.isAlive() && !goesOnAfterItsStand(owner);
+		return tickCount > ticksLifespan()
+				|| (owner != null ? !owner.isAlive() && !goesOnAfterItsStand(owner) : outlivedItsOwner());
+	}
+
+	// a Stand is not saved: after a reload nothing would end a projectile that counted on its Stand to end it
+	private boolean outlivedItsOwner() {
+		return ticksLifespan() == Integer.MAX_VALUE && ++ticksWithoutStand > MAX_TICKS_WITHOUT_STAND;
 	}
 
 	/**
