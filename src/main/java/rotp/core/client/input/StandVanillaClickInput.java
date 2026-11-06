@@ -1,18 +1,34 @@
 package rotp.core.client.input;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import rotp.core.client.ClientGlobals;
+import rotp.core.client.ClientPowerCache;
+import rotp.core.client.input.controlscheme.AllControlSchemes;
+import rotp.core.client.input.controlscheme.ClientControlScheme;
+import rotp.core.client.input.controlscheme.ClientControlScheme.AbilityControlsEntry;
+import rotp.core.client.input.controlscheme.ClientControlScheme.InputsByKeyModifier;
 import rotp.core.client.input.controlscheme.ClientKey;
 import rotp.core.core.JojoMod;
+import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
+import rotp.core.powersystem.ability.condition.AvailableAbilities;
+import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.ability.input.AbilityInput;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.entity_useitem.ClStandClickPacket;
 import rotp.core.subsystems.entity_useitem.ServerSideLivingClick;
+import rotp.core.subsystems.entity_useitem.StandItemUse;
 import com.mojang.blaze3d.platform.InputConstants;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -49,11 +65,8 @@ public class StandVanillaClickInput {
 		StandEntity stand = ClientGlobals.playerStandEntity;
 		if (inputHandler == null || stand == null
 				|| keyCode != InputConstants.MOUSE_BUTTON_RIGHT
-				|| !standCanRightClickItems
 				|| ClStandClickPacket.isUnsummoning(stand)
-				|| (!stand.isManuallyControlled()
-						&& (InputHandler.inputsDisabled
-								|| !ServerSideLivingClick.isEntityHoldingAnItem(stand)))) {
+				|| !clickGoesToStand(stand)) {
 			return false;
 		}
 		Minecraft mc = Minecraft.getInstance();
@@ -63,13 +76,14 @@ public class StandVanillaClickInput {
 		ClientKey key = ClientKey.make(
 				InputConstants.Type.MOUSE, keyCode);
 		HeldKeyTimer existingHeldKey = inputHandler.getHeldKeyTimer(key);
-		if (existingHeldKey != null) {
+		boolean rawPressAlreadyReleased = existingHeldKey == null;
+		if (!rawPressAlreadyReleased) {
+			// a timer that lets vanilla through is the raw press of a button whose abilities stepped aside or refused: that press is ours
 			if (existingHeldKey.cancelVanilla) {
 				event.setCanceled(true);
 				event.setSwingHand(false);
 				return true;
 			}
-			return false;
 		}
 		long inputGeneration = AbilityInput.nextInputGeneration(
 				mc.player, key.keyId());
@@ -78,6 +92,10 @@ public class StandVanillaClickInput {
 		inputHandler.putHeldKeyTimer(
 				key, new HeldKeyTimer(
 						key, true, KeyModifier.NONE));
+		if (rawPressAlreadyReleased) {
+			KeyMapping mapping = event.getKeyMapping();
+			inputHandler.rawMouseClicks.replayed(key, mapping::isDown);
+		}
 
 		HitResult target = mc.hitResult;
 		PacketDistributor.sendToServer(new ClStandClickPacket(
@@ -128,6 +146,44 @@ public class StandVanillaClickInput {
 		}
 		return !inputHandler.hotbarsSelection.isEmpty();
 	}
-	
-	private static boolean standCanRightClickItems = true;
+
+	// The Shift key itself, whatever the variation key is: it leaves the button to grab and charged heavy and to the user's own hand
+	private static boolean clickGoesToStand(StandEntity stand) {
+		return !Screen.hasShiftDown()
+				&& (stand.isManuallyControlled() || !InputHandler.inputsDisabled && ServerSideLivingClick.isEntityHoldingAnItem(stand))
+				&& StandItemUse.takesRightClick(ClientPowerCache.getPower(PowerClass.STAND), stand);
+	}
+
+	/**
+	 * A fresh list of moves: with an item in the Stand's hands and the click going to it, the moves on the bare button have to
+	 * wait (StandItemUse.inputStateBesideTheItem), so neither the press nor the HUD finds them.
+	 */
+	public static void movesGiveWayToTheItem(Power<?> power, AvailableAbilities moves) {
+		StandEntity stand = ClientGlobals.playerStandEntity;
+		if (!(power instanceof StandPower) || !power.hasPower() || stand == null
+				|| !ServerSideLivingClick.isEntityHoldingAnItem(stand)
+				|| ClStandClickPacket.isUnsummoning(stand) || !clickGoesToStand(stand)) {
+			return;
+		}
+		ClientControlScheme scheme = AllControlSchemes.getForPowerType(power.getPowerType());
+		InputsByKeyModifier onTheButton = scheme != null
+				? scheme.getCurGroup().getBinds(scheme.isHudActive()).get(InputHandler.RMB) : null;
+		Map<InputMethod, List<AbilityControlsEntry>> bare = onTheButton != null ? onTheButton.movesByModifier.get(KeyModifier.NONE) : null;
+		if (bare != null) {
+			bare.values().stream().flatMap(List::stream)
+					.map(move -> moves.getContextVariationContainer(move.abilityName()))
+					.filter(Objects::nonNull)
+					.forEach(move -> move.clientInputState = StandItemUse.inputStateBesideTheItem(move.clientInputState));
+		}
+	}
+
+	/** The item the HUD shows on the right mouse button's row when the Stand's click goes to it. */
+	public static ItemStack itemOnRightClick(ClientControlScheme controlScheme, ClientKey key) {
+		StandEntity stand = ClientGlobals.playerStandEntity;
+		if (controlScheme.powerClassCosmetic != PowerClass.STAND || !InputHandler.RMB.equals(key)
+				|| stand == null || ClStandClickPacket.isUnsummoning(stand) || !clickGoesToStand(stand)) {
+			return ItemStack.EMPTY;
+		}
+		return !stand.getMainHandItem().isEmpty() ? stand.getMainHandItem() : stand.getOffhandItem();
+	}
 }

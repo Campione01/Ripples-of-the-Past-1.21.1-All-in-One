@@ -7,6 +7,7 @@ import rotp.core.client.entityrender.entities.AfterimageRenderer;
 import rotp.core.client.entityrender.entities.BladeHatEntityModel;
 import rotp.core.client.entityrender.entities.BladeHatRenderer;
 import rotp.core.client.entityrender.entities.BlockShardRenderer;
+import rotp.core.client.entityrender.entities.ThrownBlockRenderer;
 import rotp.core.client.entityrender.entities.ClackersModel;
 import rotp.core.client.entityrender.entities.ClackersRenderer;
 import rotp.core.client.entityrender.entities.KnifeRenderer;
@@ -123,6 +124,7 @@ public class ModEntityTypeRenderers {
 		event.registerEntityRenderer(ModEntityTypes.GOLD_EXPERIENCE_STAND.get(), StandEntityRenderer::new);
 		event.registerEntityRenderer(ModEntityTypes.MANNEQUIN.get(), MannequinRenderer::new);
 		event.registerEntityRenderer(ModEntityTypes.BLOCK_SHARD.get(), BlockShardRenderer::new);
+		event.registerEntityRenderer(ModEntityTypes.THROWN_BLOCK.get(), ThrownBlockRenderer::new);
 		event.registerEntityRenderer(ModEntityTypes.OBJECT.get(), ctx -> new HamonSpriteRenderer<>(ctx,
 				JojoMod.resLoc("textures/particle/tooth.png"), 0.1F));
 		event.registerEntityRenderer(ModEntityTypes.NUGGET_BEARING.get(), ctx -> new ThrownItemRenderer<>(ctx, 0.5f, false));

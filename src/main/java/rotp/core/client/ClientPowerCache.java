@@ -3,6 +3,7 @@ package rotp.core.client;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.ApiStatus;
 
+import rotp.core.client.input.StandVanillaClickInput;
 import rotp.core.core.JojoMod;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
@@ -45,6 +46,7 @@ public class ClientPowerCache {
 				Power<?> power = powersCache[i];
 				if (power != null) {
 					availableAbilitiesCache[i] = power.updateAvailableMoves();
+					StandVanillaClickInput.movesGiveWayToTheItem(power, availableAbilitiesCache[i]);
 				}
 			}
 		}
