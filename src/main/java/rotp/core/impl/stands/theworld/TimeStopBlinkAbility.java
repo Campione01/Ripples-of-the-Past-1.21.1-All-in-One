@@ -73,7 +73,7 @@ public class TimeStopBlinkAbility extends Ability {
 	public TimeStopBlinkAbility(AbilityType<?> abilityType, AbilityId abilityId) {
 		super(abilityType, abilityId);
 		isSubAbility = true;
-		// own wheel slot: the 1.16 ts_blink icon (falls back to time_stop)
+		// the 1.16 ts_blink icon, drawn with Shift held (falls back to time_stop)
 		spriteName = "time_stop_blink";
 		partsRequired(StandPart.MAIN_BODY);
 	}
@@ -160,9 +160,11 @@ public class TimeStopBlinkAbility extends Ability {
 				? timeStop.getUnlockConditionCheck(context) : ConditionCheck.createNegative("not_unlocked");
 	}
 
+	// 1.16 TimeResume held the slot's Shift in the user's own stop: gone here, Shift + the key resumes it as the key does
 	@Override
 	public boolean isAbilityAvailable(Power<?> context) {
-		return isAbilityUnlocked(context);
+		LivingEntity user = context != null ? context.getUser() : null;
+		return isAbilityUnlocked(context) && (user == null || !TimeResumeAbility.hasOwnTimeStop(user.level(), user));
 	}
 
 	@Override

@@ -85,7 +85,7 @@ public class TimeResumeAbility extends Ability {
 		return false;
 	}
 
-	private static boolean hasOwnTimeStop(Level level, LivingEntity user) {
+	static boolean hasOwnTimeStop(Level level, LivingEntity user) {
 		if (level.isClientSide()) {
 			return TimeStopState.getClientInstance(user.getId()).filter(TimeStopState.Instance::isActive).isPresent();
 		}

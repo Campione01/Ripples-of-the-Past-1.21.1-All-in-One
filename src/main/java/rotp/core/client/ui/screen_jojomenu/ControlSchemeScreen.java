@@ -697,12 +697,8 @@ public class ControlSchemeScreen extends Screen implements IJojoMenuScreen {
 		if (hovered != null) {
 			// 1.16: scrolling over a slot moves the HUD selection of its hotbar
 			Hotbar hotbar = hovered.hotbar;
-			boolean[] shown = new boolean[hotbar.slots.size()];
-			for (int i = 0; i < shown.length; i++) {
-				shown[i] = hotbar.slots.get(i).showAbility() != null;
-			}
-			int index = ControlSchemeEditorInput.cycleSlot(hotbar.slotIndex, shown, scrollY > 0);
-			if (index >= 0) hotbar.slotIndex = index;
+			int index = ControlSchemeEditorInput.cycleSlot(hotbar.slotIndex, hotbar.selectableSlots(), scrollY > 0);
+			if (index >= 0) hotbar.pickSlot(index);
 			return true;
 		}
 		double relY = mouseY - getWindowY(this);

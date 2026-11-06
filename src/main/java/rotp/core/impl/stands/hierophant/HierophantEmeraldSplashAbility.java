@@ -105,7 +105,6 @@ public class HierophantEmeraldSplashAbility extends StandEntityAbility implement
 		return super.isAbilityAvailable(context);
 	}
 
-	// no replaceWithSubAbility: the concentrated splash has its own wheel slot, LMB stays the normal splash
 	public static boolean isEmeraldSplashFullyTrained(Power<?> context) {
 		if (context instanceof StandPower standPower) {
 			if (standPower.isUserCreative()) {

@@ -136,12 +136,12 @@ public class StandInitCrazyDiamond {
 					.addToHotbar("blood_cutter", 0, InputMethod.CLICK)
 					.addToHotbar("bearing_shot", 0, InputMethod.HOLD)
 					.addToHotbar("repair_item", 0, InputMethod.HOLD)
-					.addToHotbar("revert_state", 0, InputMethod.HOLD)
+					.addHotbarSlotVariation("revert_state", "repair_item", InputKey.Modifier.SHIFT, InputMethod.HOLD)
 					.addToHotbar("uncraft", 0, InputMethod.HOLD)
 					.addToHotbar("heal", 0, InputMethod.HOLD)
 					.addToHotbar("restore_terrain", 0, InputMethod.HOLD)
 					.addToHotbar("block_anchor", 0, InputMethod.HOLD)
-					.addToHotbar("block_anchor_make", 0, InputMethod.CLICK)
+					.addHotbarSlotVariation("block_anchor_make", "block_anchor", InputKey.Modifier.SHIFT, InputMethod.CLICK)
 				.finalizeControlScheme()
 
 

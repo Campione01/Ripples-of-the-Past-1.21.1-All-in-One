@@ -111,12 +111,12 @@ public final class TimeStopProgressionGameTests {
 	}
 
 	/**
-	 * The 1.16 blink (TimeResume's SHIFT variation of the time stop slot) is its own special-wheel slot
-	 * (owner boundary: Stand variants are direct wheel entries). It shows exactly when the time stop does,
-	 * is refused in stopped time (TimeStopInstant), and the time stop key still resumes the user's own stop.
+	 * The 1.16 blink (TimeResume's SHIFT variation of the time stop slot) is that slot's Shift variation again.
+	 * It shows exactly when the time stop does, is refused in stopped time (TimeStopInstant),
+	 * and the time stop key still resumes the user's own stop.
 	 */
 	@GameTest(template = "empty", timeoutTicks = 80, batch = GameTestBatches.TIME_STOP)
-	public static void timeStopBlinkHasItsOwnWheelSlot(GameTestHelper helper) {
+	public static void timeStopBlinkIsTheShiftVariationOfTheTimeStop(GameTestHelper helper) {
 		assertBlinkSlot(helper, JojoMod.resLoc("the_world"));
 		assertBlinkSlot(helper, JojoMod.resLoc("star_platinum"));
 		helper.succeed();
@@ -143,10 +143,11 @@ public final class TimeStopProgressionGameTests {
 					standId + " still registers the retired SHIFT time resume");
 			ControlSchemeTemplate template = power.getPowerType().makeDefaultControlSchemeTemplate();
 			helper.assertTrue(countSlots(template, TimeStopLearning.TIME_STOP, InputMethod.HOLD) == 1
-					&& countSlots(template, "time_stop_blink", InputMethod.CLICK) == 1,
-					standId + " wheel needs one held time stop slot and one blink slot");
-			helper.assertTrue(!hasModifierVariation(template),
-					standId + " wheel still carries a SHIFT/CTRL slot variation");
+					&& countSlots(template, "time_stop_blink", InputMethod.CLICK) == 0,
+					standId + " bar needs one held time stop slot and no slot of the blink's own");
+			helper.assertTrue(shiftVariationOf(template, TimeStopLearning.TIME_STOP, InputMethod.CLICK).equals("time_stop_blink"),
+					standId + " blink is not the time stop's Shift variation: "
+							+ shiftVariationOf(template, TimeStopLearning.TIME_STOP, InputMethod.CLICK));
 
 			// time stop learned, Resolve 0: the time stop is locked, so is the blink
 			helper.assertTrue(available(power, "time_stop_blink") == null
@@ -185,6 +186,9 @@ public final class TimeStopProgressionGameTests {
 					standId + " blink must be refused in the user's own stopped time");
 			helper.assertTrue(available(power, TimeStopLearning.TIME_STOP) == timeStop,
 					standId + " time stop slot must keep the time stop in the user's own stopped time");
+			// 1.16 TimeResume: the slot's Shift resumed, so here it must fall through to the time stop's press below
+			helper.assertTrue(available(power, "time_stop_blink") == null,
+					standId + " blink must leave the slot's Shift to the time stop in the user's own stopped time");
 			// 1.16 TimeResume: the first press leaves 11 ticks, the second resumes at once
 			BufferingState buffering = BufferingState.clickOnly();
 			timeStop.onKeyPress(helper.getLevel(), player, null, InputMethod.HOLD, 0.0F, buffering);
@@ -295,19 +299,19 @@ public final class TimeStopProgressionGameTests {
 		return count;
 	}
 
-	private static boolean hasModifierVariation(ControlSchemeTemplate template) {
+	private static String shiftVariationOf(ControlSchemeTemplate template, String base, InputMethod inputMethod) {
 		for (ControlSchemeTemplate.GroupTemplate group : template.groups.values()) {
 			for (ControlSchemeTemplate.AbilitiesHotbar hotbar : group.hotbars) {
 				for (Map<InputKey.Modifier, Map<InputMethod, String>> slot : hotbar.slots) {
-					for (InputKey.Modifier modifier : slot.keySet()) {
-						if (modifier != null) {
-							return true;
-						}
+					Map<InputMethod, String> baseMethods = slot.get(null);
+					Map<InputMethod, String> shift = slot.get(InputKey.Modifier.SHIFT);
+					if (baseMethods != null && baseMethods.containsValue(base) && shift != null && shift.containsKey(inputMethod)) {
+						return shift.get(inputMethod);
 					}
 				}
 			}
 		}
-		return false;
+		return "nothing";
 	}
 
 	/** 1.16 TheWorldTSHeavyAttack trained (int) (0.1 * ticks); Reworked's blink punch kept fractions. */
