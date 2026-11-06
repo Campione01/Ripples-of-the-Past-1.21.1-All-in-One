@@ -2,6 +2,7 @@ package rotp.core.client.ui.text;
 
 import javax.annotation.Nullable;
 
+import rotp.core.client.input.controlscheme.VariationKeyName;
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.client.standskin.StandSkinsLoader;
 import rotp.core.powersystem.Moveset;
@@ -28,14 +29,14 @@ public final class StandSkillText {
 	}
 	
 	public static Component desc(@Nullable StandPower standPower, @Nullable StandSkin standSkin, UnlockableSkill skill) {
-		return text(standPower, standSkin, skill, ".desc");
+		return text(standPower, standSkin, skill, ".desc", VariationKeyName.get());
 	}
 	
 	public static Component controls(@Nullable StandPower standPower, @Nullable StandSkin standSkin, UnlockableSkill skill) {
 		if ("grab".equals(skill.skillName) || "heavy_charged".equals(skill.skillName)) {
 			return text(standPower, standSkin, skill, ".controls", grabChargedHeavyKeyName());
 		}
-		return text(standPower, standSkin, skill, ".controls");
+		return text(standPower, standSkin, skill, ".controls", VariationKeyName.get());
 	}
 	
 	public static Component text(@Nullable StandPower standPower, @Nullable StandSkin standSkin, UnlockableSkill skill, String suffix) {

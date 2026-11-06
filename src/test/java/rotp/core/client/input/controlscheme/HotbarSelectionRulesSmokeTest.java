@@ -76,20 +76,20 @@ public final class HotbarSelectionRulesSmokeTest {
 	private static void verifyLockedVariationOnASeparateKey() {
 		InputsByKeyModifier marked = new InputsByKeyModifier();
 		bind(marked, KeyModifier.NONE, InputMethod.HOLD, BASE);
-		bind(marked, KeyModifier.SHIFT, InputMethod.HOLD, VARIATION);
+		bind(marked, VariationKey.DEFAULT_MODIFIER, InputMethod.HOLD, VARIATION);
 		marked.markLockedShiftUsesBase(InputMethod.HOLD);
-		check(marked.getAll(KeyModifier.SHIFT, InputMethod.HOLD, VARIATION_AVAILABLE).equals(List.of(VARIATION)),
-				"an unlocked variation takes Shift + its key");
-		check(marked.getAll(KeyModifier.SHIFT, InputMethod.HOLD, LOCKED).equals(List.of(BASE)),
-				"a locked variation leaves Shift + its key on the base");
+		check(marked.getAll(VariationKey.DEFAULT_MODIFIER, InputMethod.HOLD, VARIATION_AVAILABLE).equals(List.of(VARIATION)),
+				"an unlocked variation takes the variation key + its key");
+		check(marked.getAll(VariationKey.DEFAULT_MODIFIER, InputMethod.HOLD, LOCKED).equals(List.of(BASE)),
+				"a locked variation leaves the variation key + its key on the base");
 		check(marked.getAll(KeyModifier.NONE, InputMethod.HOLD, VARIATION_AVAILABLE).equals(List.of(BASE)),
 				"the plain key stays the base");
 
 		InputsByKeyModifier grabKey = new InputsByKeyModifier();
 		bind(grabKey, KeyModifier.NONE, InputMethod.CLICK, BASE);
-		bind(grabKey, KeyModifier.SHIFT, InputMethod.CLICK, VARIATION);
-		check(grabKey.getAll(KeyModifier.SHIFT, InputMethod.CLICK, LOCKED).equals(List.of(VARIATION)),
-				"a grabbing Stand's Shift + RMB must not turn into its heavy punch");
+		bind(grabKey, VariationKey.DEFAULT_MODIFIER, InputMethod.CLICK, VARIATION);
+		check(grabKey.getAll(VariationKey.DEFAULT_MODIFIER, InputMethod.CLICK, LOCKED).equals(List.of(VARIATION)),
+				"a grabbing Stand's key must not turn into its heavy punch");
 	}
 
 	private static void verifySourceWiring() {

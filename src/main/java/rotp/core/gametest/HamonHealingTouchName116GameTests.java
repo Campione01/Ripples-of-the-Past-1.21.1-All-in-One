@@ -21,6 +21,7 @@ import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.playerpower.PlayerPower;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.subsystems.target.ActionTarget;
 
 import net.minecraft.core.BlockPos;
@@ -109,6 +110,13 @@ public final class HamonHealingTouchName116GameTests {
 					"sneaking with Healing Touch at a block");
 			user.setShiftKeyDown(false);
 			assertName(helper, healing, power, user, atCow, KEY, null, "not sneaking, at a cow");
+			StandManualInput.setServerVariationKey(user, true);
+			assertName(helper, healing, power, user, atCow, TOUCH_KEY, cow, "the variation key with Healing Touch at a cow");
+			StandManualInput.setServerVariationKey(user, false);
+			user.setShiftKeyDown(true);
+			assertName(helper, healing, power, user, atCow, KEY, null, "sneaking is not the variation key of a player's client");
+			user.setShiftKeyDown(false);
+			StandManualInput.clear(user);
 		}
 		finally {
 			LivingComponentAction.CLIENT_PLAYER_AIM.setTarget(ActionTarget.EMPTY);

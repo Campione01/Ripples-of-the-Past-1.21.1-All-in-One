@@ -61,6 +61,7 @@ import rotp.core.impl.stands.crazydiamond.brokenblocks.CDBlocksRestoredPacket;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.EntityMadeFromBlock;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.EntityMadeFromBlock.EntityReference;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.PrevBlockInfo;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.ints.IntSet;
@@ -132,7 +133,7 @@ public class CrazyDRestoreTerrainAbility extends NoPoseStandEntityAbility {
 			Entity cameraEntity = restorationCenterEntity(user, standPower);
 			Vec3i eyePosI = eyePos(cameraEntity);
 			boolean hasResolveEffect = ResolveModeEffect.getResolveEffectLvl(user) >= 0;
-			boolean onlyAimedAt = user.isShiftKeyDown();
+			boolean onlyAimedAt = StandManualInput.isShiftHeld(user);
 			if (getFixableBlocksInRange(level, user, eyePosI, restorationDistManhattan(hasResolveEffect), 
 					block -> blockPosSelectedForRestoration(block, cameraEntity, cameraEntity.getLookAngle(), 
 							cameraEntity.getEyePosition(1.0F), eyePosI, restorationDistManhattan(hasResolveEffect), 
@@ -254,8 +255,8 @@ public class CrazyDRestoreTerrainAbility extends NoPoseStandEntityAbility {
 				// formula, cost per block times stamina); an empty bar restores nothing but the hold goes on
 				int blocksToRestore = resolveEffect ? 64
 						: Math.min(blocksPerTick((StandEntity) standEntity), (int) (staminaPerBlock * userPower.getStamina()));
-				boolean onlyAimedAt = user.isShiftKeyDown();
-				
+				boolean onlyAimedAt = StandManualInput.isShiftHeld(user);
+
 				Collection<BlockToFix<?>> blocks = getFixableBlocksInRange(serverLevel, user, eyePos, manhattanRange,
 						blockPos -> blockPosSelectedForRestoration(blockPos, cameraEntity,
 								lookVec, eyePosD, eyePos, manhattanRange,

@@ -24,6 +24,7 @@ import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.HitResultUtil;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
@@ -100,7 +101,7 @@ public class MagiciansRedCrossfireHurricaneAbility extends StandEntityAbility im
 			return this;
 		}
 		LivingEntity user = context.getUser();
-		if (user != null && user.isShiftKeyDown()) {
+		if (StandManualInput.isShiftHeld(user)) {
 			Ability special = abilities.getContextVariation(SPECIAL_ABILITY);
 			if (special != null) {
 				return special;

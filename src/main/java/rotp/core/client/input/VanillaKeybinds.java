@@ -4,12 +4,15 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.jetbrains.annotations.ApiStatus;
 import org.lwjgl.glfw.GLFW;
 
 import rotp.core.client.ClientPowerCache;
+import rotp.core.client.input.controlscheme.VariationKey;
+import rotp.core.client.input.controlscheme.VariationKeyName;
 import rotp.core.client.ui.screen_jojomenu.IJojoMenuScreen;
 import rotp.core.client.ui.screen_jojomenu.JojoMenuTabs;
 import rotp.core.client.ui.screen_jojomenu.Tab;
@@ -68,6 +71,26 @@ public class VanillaKeybinds {
 				}
 			};
 
+	/**
+	 * Active only while the open HUD has a bind on the mapping: with a modifier the player gave it, KeyMappingLookup
+	 * would otherwise take the vanilla click on that key from everybody, Stand or no Stand.
+	 */
+	private static IKeyConflictContext whileBound(Supplier<KeyMapping> keyMapping) {
+		return new IKeyConflictContext() {
+			@Override
+			public boolean isActive() {
+				InputHandler inputHandler = InputHandler.getInstance();
+				return KeyConflictContext.IN_GAME.isActive() && inputHandler != null
+						&& inputHandler.hasActiveBinding(keyMapping.get());
+			}
+
+			@Override
+			public boolean conflicts(IKeyConflictContext other) {
+				return KeyConflictContext.IN_GAME.conflicts(other == this ? KeyConflictContext.IN_GAME : other);
+			}
+		};
+	}
+
 	@ApiStatus.Internal
 	public static boolean shouldActivateGrabChargedHeavyConflictContext(
 			boolean inGameContextActive,
@@ -89,6 +112,10 @@ public class VanillaKeybinds {
 	public KeyMapping playerPowerHUD;
 	public KeyMapping hamonBreath;
 	public KeyMapping grabChargedHeavy;
+	public KeyMapping grabThrow;
+	public KeyMapping grabRelease;
+	public KeyMapping swapItems;
+	public KeyMapping variationKey;
 	public KeyMapping useAbility;
 	public KeyMapping switchSpecial;
 	public KeyMapping disableHUDControls;
@@ -115,9 +142,26 @@ public class VanillaKeybinds {
 				GRAB_CHARGED_HEAVY_CONFLICT_CONTEXT, KeyModifier.SHIFT,
 				InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_RIGHT, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
+		event.register(binds.grabThrow = new Jokerge(
+				MovesetBuilder.GRAB_THROW_KEY_MAPPING_NAME, whileBound(() -> binds.grabThrow),
+				InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_RIGHT, MAIN_CATEGORY)
+				.inInitOrder().withDescTooltip());
+		event.register(binds.grabRelease = new Jokerge(
+				MovesetBuilder.GRAB_RELEASE_KEY_MAPPING_NAME, whileBound(() -> binds.grabRelease),
+				InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Q, MAIN_CATEGORY)
+				.inInitOrder().withDescTooltip());
+		event.register(binds.swapItems = new Jokerge(
+				MovesetBuilder.SWAP_ITEMS_KEY_MAPPING_NAME, KeyConflictContext.IN_GAME, KeyModifier.CONTROL,
+				InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F, MAIN_CATEGORY)
+				.inInitOrder().withDescTooltip());
 		event.register(binds.useAbility = new Jokerge(
 				JojoMod.MOD_ID + ".key.use_special_ability", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_X, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
+		event.register(binds.variationKey = new SingleKeyMapping(
+				VariationKey.mappingName(), KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, MAIN_CATEGORY)
+				.inInitOrder().withDescTooltip());
+		VariationKey.useMapping(binds.variationKey);
+		VariationKeyName.use(() -> binds.variationKey.getKey().getDisplayName());
 		event.register(binds.switchSpecial = new Jokerge(
 				JojoMod.MOD_ID + ".key.ability_hotbar", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
@@ -161,7 +205,8 @@ public class VanillaKeybinds {
 			PacketDistributor.sendToServer(ClNoParamsPacket.of(PacketType.SUMMON_STAND));
 		}
 		
-		if (ClientModSettings.getSettingsReadOnly().toggleDisableHotbars && disableHUDControls.consumeClick()) {
+		if (ClientModSettings.getSettingsReadOnly().toggleDisableHotbars && disableHUDControls.consumeClick()
+				&& !disableHUDControls.getKey().equals(variationKey.getKey())) {
 			InputHandler.inputsDisabled = !InputHandler.inputsDisabled;
 		}
 		
@@ -276,6 +321,18 @@ public class VanillaKeybinds {
 		}
 	}
 	
+	/** One key and nothing else: the variation key is itself what the other keys are pressed with. */
+	public static class SingleKeyMapping extends Jokerge {
+		public SingleKeyMapping(String description, IKeyConflictContext keyConflictContext, InputConstants.Type inputType, int keyCode, String category) {
+			super(description, keyConflictContext, inputType, keyCode, category);
+		}
+
+		@Override
+		public void setKeyModifierAndCode(KeyModifier keyModifier, InputConstants.Key keyCode) {
+			super.setKeyModifierAndCode(KeyModifier.NONE, keyCode);
+		}
+	}
+
 	public static class LmbRmbKeyMapping extends Jokerge {
 		public LmbRmbKeyMapping(String description, IKeyConflictContext keyConflictContext, InputConstants.Type inputType, int keyCode, String category) {
 			super(description, keyConflictContext, inputType, keyCode, category);

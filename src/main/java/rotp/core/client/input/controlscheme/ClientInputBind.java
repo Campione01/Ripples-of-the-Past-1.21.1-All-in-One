@@ -17,6 +17,8 @@ public class ClientInputBind {
 	protected KeyMapping vanillaMapping;
 	protected ClientKey immutableKey;
 	@Nonnull protected KeyModifier immutableKeyModifier;
+	/** Declared with Modifier.SHIFT: on the variation key, whichever key that is now. */
+	protected boolean followsVariationKey;
 	
 	public ClientInputBind(KeyMapping vanillaMapping) {
 		this(vanillaMapping, null, null);
@@ -42,7 +44,11 @@ public class ClientInputBind {
 	public static ClientInputBind toClientInput(InputBindTemplate commonInput) {
 		if (commonInput == null) return null;
 		return switch (commonInput) {
-			case InputKey hardcodedKey -> new ClientInputBind(toClientKey(hardcodedKey), toClientModifier(hardcodedKey.modifier));
+			case InputKey hardcodedKey -> {
+				ClientInputBind bind = new ClientInputBind(toClientKey(hardcodedKey), toClientModifier(hardcodedKey.modifier));
+				bind.followsVariationKey = hardcodedKey.modifier == InputKey.Modifier.SHIFT;
+				yield bind;
+			}
 			case InputUseVanillaMapping keyMapping -> {
 				KeyMapping vanillaKeyMapping = keyMapping.toClientKeybind();
 				yield vanillaKeyMapping != null ? new ClientInputBind(vanillaKeyMapping) : null;
@@ -61,7 +67,7 @@ public class ClientInputBind {
     public static KeyModifier toClientModifier(InputKey.Modifier commonModifier) {
     	if (commonModifier == null) return KeyModifier.NONE;
     	return switch (commonModifier) {
-    		case SHIFT -> KeyModifier.SHIFT;
+    		case SHIFT -> VariationKey.modifier();
     		case CONTROL -> KeyModifier.CONTROL;
     	};
     }
@@ -95,6 +101,9 @@ public class ClientInputBind {
 	
 	@Nonnull
 	public KeyModifier getKeyModifier() {
+		if (followsVariationKey) {
+			return VariationKey.modifier();
+		}
 		if (vanillaMapping != null && !vanillaMapping.isUnbound()) {
 			return vanillaMapping.getKeyModifier();
 		}

@@ -25,6 +25,7 @@ import rotp.core.client.input.InputHandler;
 import rotp.core.client.input.InputHandler.BaseAndActiveAbility;
 import rotp.core.client.ui.hud_power.PowerHud;
 import rotp.core.config.client.ClientModSettings;
+import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.PowerType;
@@ -204,7 +205,7 @@ public class ClientControlScheme {
 		public boolean visibleInHud = true;
 		/** Template bind on the mouse attack/use button (1.16 attack/ability hotbar keys). */
 		public boolean attackOrUseButton;
-		/** A Stand's template bind fixed to Shift + a key: a variation, which leaves Shift on the base while it is locked. */
+		/** A Stand's template bind declared with Modifier.SHIFT: a variation, which leaves the variation key on the base while it is locked. */
 		public boolean standShiftVariation;
 
 		public Bind(ClientInputBind input, InputMethod inputMethod, AbilityControlsEntry ability) {
@@ -239,7 +240,8 @@ public class ClientControlScheme {
 				return key.device == InputKey.InputType.MOUSE && (key.keyCode == 0 || key.keyCode == 1);
 			}
 			if (template instanceof InputUseVanillaMapping mapping) {
-				return "key.attack".equals(mapping.keyMappingName) || "key.use".equals(mapping.keyMappingName);
+				return "key.attack".equals(mapping.keyMappingName) || "key.use".equals(mapping.keyMappingName)
+						|| MovesetBuilder.GRAB_THROW_KEY_MAPPING_NAME.equals(mapping.keyMappingName);
 			}
 			return false;
 		}
@@ -408,14 +410,17 @@ public class ClientControlScheme {
 		public final Map<KeyModifier, Map<InputMethod, List<AbilityControlsEntry>>> movesByModifier = new EnumMap<>(KeyModifier.class);
 		private final boolean lockedShiftUsesBase;
 		private final Set<InputMethod> lockedShiftUsesBaseFor = EnumSet.noneOf(InputMethod.class);
+		private final List<DeclaredMove> declaredMoves = new ArrayList<>();
+
+		private record DeclaredMove(@Nullable InputKey.Modifier modifier, InputMethod inputMethod, AbilityControlsEntry entry) {}
 
 		public InputsByKeyModifier() {
 			this(false);
 		}
 		
 		/**
-		 * @param lockedShiftUsesBase hotbar slots: a SHIFT variation that isn't available leaves
-		 * SHIFT on the slot's base ability. 1.16 (ActionsOverlayGui#resolveVisibleActionInSlot)
+		 * @param lockedShiftUsesBase hotbar slots: a variation that isn't available leaves the
+		 * variation key on the slot's base ability. 1.16 (ActionsOverlayGui#resolveVisibleActionInSlot)
 		 * only switched to the shift variation once it was unlocked, and then for the whole slot,
 		 * so a modifier with its own variation never falls back to the base per input method.
 		 */
@@ -424,12 +429,33 @@ public class ClientControlScheme {
 		}
 
 		/**
-		 * The same 1.16 rule for one input method of a separate key, as a Stand's Shift + LMB variation (Concentrated
-		 * Emerald Splash under the splash). Shift + RMB's grab and charged heavy do not ask it: they are no variations, and
+		 * The same 1.16 rule for one input method of a separate key, as a Stand's variation on LMB (Concentrated
+		 * Emerald Splash under the splash). Grab and charged heavy do not ask it: they are no variations, and
 		 * while a target is grabbed that key must not turn into a heavy punch.
 		 */
 		public void markLockedShiftUsesBase(InputMethod inputMethod) {
 			lockedShiftUsesBaseFor.add(inputMethod);
+		}
+
+		/** A move of the moveset's template, kept as declared so that the slot can follow the variation key. */
+		public void declare(@Nullable InputKey.Modifier modifier, InputMethod inputMethod, AbilityControlsEntry entry) {
+			declaredMoves.add(new DeclaredMove(modifier, inputMethod, entry));
+		}
+
+		/** A declared Ctrl stays Ctrl; on the same key a variation takes its place, so it goes in last. */
+		public void applyDeclaredMoves() {
+			movesByModifier.clear();
+			for (DeclaredMove move : declaredMoves) {
+				if (move.modifier() != InputKey.Modifier.SHIFT) putDeclared(move);
+			}
+			for (DeclaredMove move : declaredMoves) {
+				if (move.modifier() == InputKey.Modifier.SHIFT) putDeclared(move);
+			}
+		}
+
+		private void putDeclared(DeclaredMove move) {
+			movesByModifier.computeIfAbsent(ClientInputBind.toClientModifier(move.modifier()), __ -> new EnumMap<>(InputMethod.class))
+					.put(move.inputMethod(), Collections.singletonList(move.entry()));
 		}
 
 		public List<AbilityControlsEntry> getAll(@Nonnull KeyModifier curModifier, InputMethod inputMethod) {
@@ -438,13 +464,14 @@ public class ClientControlScheme {
 		
 		List<AbilityControlsEntry> getAll(@Nonnull KeyModifier curModifier, InputMethod inputMethod,
 				Predicate<AbilityControlsEntry> isAvailable) {
+			KeyModifier variation = VariationKey.modifier();
 			List<AbilityControlsEntry> list = null;
 			Map<InputMethod, List<AbilityControlsEntry>> modifiedBinds = movesByModifier.get(curModifier);
 			if (modifiedBinds != null) {
 				list = modifiedBinds.get(inputMethod);
 			}
 			if (curModifier == KeyModifier.NONE && baseGaveWayToShift(isAvailable)) {
-				list = movesByModifier.get(KeyModifier.SHIFT).get(inputMethod);
+				list = movesByModifier.get(variation).get(inputMethod);
 			}
 			else if ((list == null || list.isEmpty()) && curModifier != KeyModifier.NONE) {
 				// 1.16 swapped the whole hotbar slot to its shift variation: a variation bound only as a click
@@ -453,7 +480,7 @@ public class ClientControlScheme {
 					list = getAll(KeyModifier.NONE, inputMethod, isAvailable);
 				}
 			}
-			else if ((lockedShiftUsesBase || lockedShiftUsesBaseFor.contains(inputMethod)) && curModifier == KeyModifier.SHIFT
+			else if ((lockedShiftUsesBase || lockedShiftUsesBaseFor.contains(inputMethod)) && curModifier == variation
 					&& list.stream().noneMatch(isAvailable)) {
 				Map<InputMethod, List<AbilityControlsEntry>> baseBinds = movesByModifier.get(KeyModifier.NONE);
 				List<AbilityControlsEntry> baseList = baseBinds != null ? baseBinds.get(inputMethod) : null;
@@ -482,16 +509,16 @@ public class ClientControlScheme {
 					return false;
 				}
 			}
-			return modifierOwnsSlot(KeyModifier.SHIFT, isAvailable);
+			return modifierOwnsSlot(VariationKey.modifier(), isAvailable);
 		}
 
-		/** The modifier has its own variation on this slot (SHIFT: one that is available) under any input method. */
+		/** The modifier has its own variation on this slot (the variation key's: one that is available) under any input method. */
 		private boolean modifierOwnsSlot(KeyModifier modifier, Predicate<AbilityControlsEntry> isAvailable) {
 			Map<InputMethod, List<AbilityControlsEntry>> binds = movesByModifier.get(modifier);
 			if (binds != null) {
 				for (List<AbilityControlsEntry> entries : binds.values()) {
 					if (entries != null && !entries.isEmpty()
-							&& (modifier != KeyModifier.SHIFT || entries.stream().anyMatch(isAvailable))) {
+							&& (modifier != VariationKey.modifier() || entries.stream().anyMatch(isAvailable))) {
 						return true;
 					}
 				}
@@ -770,14 +797,10 @@ public class ClientControlScheme {
 					for (var slotVariation : slotTemplate.entrySet()) {
 						InputKey.Modifier modifier = slotVariation.getKey();
 						for (var abilityEntry : slotVariation.getValue().entrySet()) {
-							InputMethod inputMethod = abilityEntry.getKey();
-							String ability = abilityEntry.getValue();
-							Map<InputMethod, List<AbilityControlsEntry>> byModifier = slot.binds.movesByModifier.computeIfAbsent(ClientInputBind.toClientModifier(modifier), 
-									__ -> new EnumMap<>(InputMethod.class));
-							byModifier.put(inputMethod, 
-									Collections.singletonList(new AbilityControlsEntry(powerClass, ability)));
+							slot.binds.declare(modifier, abilityEntry.getKey(), new AbilityControlsEntry(powerClass, abilityEntry.getValue()));
 						}
 					}
+					slot.binds.applyDeclaredMoves();
 					clientHotbar.slots.add(slot);
 					clientHotbar.layout.add(slot);
 				}

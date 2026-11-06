@@ -28,6 +28,7 @@ import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -201,7 +202,7 @@ public class CrazyDBlockBulletAbility extends StandEntityAbility {
 
 	
 	public static boolean disableHoming(LivingEntity user) {
-		return user.isShiftKeyDown();
+		return StandManualInput.isShiftHeld(user);
 	}
 
 	public static boolean isHoming(LivingEntity user, StandPower userPower) {

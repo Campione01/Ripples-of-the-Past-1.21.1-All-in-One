@@ -18,9 +18,9 @@ import rotp.core.powersystem.standpower.entity.EntityStandType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntity.StandFlag;
 import rotp.core.subsystems.entity_puppetcontrol.EntityComponentController;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.subsystems.entity_puppetcontrol.client.ClientEntityController;
 import rotp.core.subsystems.entity_puppetcontrol.client.stand.ClientStandController;
-import com.mojang.blaze3d.platform.InputConstants;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.LivingEntity;
@@ -36,8 +36,7 @@ public class StandEntityManualControlToggle extends Ability {
 	@Override
 	public void writeExtraInput(FriendlyByteBuf serverboundBuf, LivingEntity user, boolean isClientPlayer) {
 		if (isClientPlayer) {
-			boolean shift = InputHandler.getInstance().isKeyHeld(InputConstants.KEY_LSHIFT);
-			serverboundBuf.writeBoolean(shift);
+			serverboundBuf.writeBoolean(InputHandler.getInstance().isVariationKeyHeld());
 		}
 	}
 
@@ -99,7 +98,7 @@ public class StandEntityManualControlToggle extends Ability {
 
 	private static boolean readKeepPositionInput(FriendlyByteBuf extraClientInput, LivingEntity user) {
 		if (extraClientInput == null || extraClientInput.readableBytes() <= 0) {
-			return user.isShiftKeyDown();
+			return StandManualInput.isShiftHeld(user);
 		}
 		try {
 			return extraClientInput.readBoolean();
@@ -107,7 +106,7 @@ public class StandEntityManualControlToggle extends Ability {
 		catch (RuntimeException e) {
 			JojoMod.getLogger().warn("Ignoring malformed stand manual control input from {}.",
 					user.getName().getString(), e);
-			return user.isShiftKeyDown();
+			return StandManualInput.isShiftHeld(user);
 		}
 	}
 	

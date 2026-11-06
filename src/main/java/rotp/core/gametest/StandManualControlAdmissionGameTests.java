@@ -25,6 +25,7 @@ import rotp.core.subsystems.entity_puppetcontrol.EntityComponentController;
 import rotp.core.subsystems.entity_useitem.ClStandClickPacket;
 import rotp.core.subsystems.entity_useitem.HitResultSync;
 import rotp.core.impl.stands._entitybase.StandEntityManualControlToggle;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import com.mojang.authlib.GameProfile;
 
 import net.minecraft.core.BlockPos;
@@ -64,10 +65,11 @@ public final class StandManualControlAdmissionGameTests {
 
 			fixture.toggle.onClick(helper.getLevel(), fixture.user, null);
 			assertControlPair(helper, fixture, true);
-			fixture.user.setShiftKeyDown(true);
+			StandManualInput.setServerVariationKey(fixture.user, true);
 			fixture.toggle.onClick(helper.getLevel(), fixture.user, null);
+			StandManualInput.clear(fixture.user);
 			assertControlPair(helper, fixture, false);
-			helper.assertTrue(!fixture.stand.followingUserIsEnabled(), "Shift exit must retain the Stand's position");
+			helper.assertTrue(!fixture.stand.followingUserIsEnabled(), "An exit on the variation key must retain the Stand's position");
 		}
 		helper.succeed();
 	}

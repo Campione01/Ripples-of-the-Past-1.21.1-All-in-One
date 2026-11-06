@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import rotp.core.client.ClientGlobals;
 import rotp.core.client.ClientProxy;
+import rotp.core.client.input.InputHandler;
 import rotp.core.client.ui.hud_misc.OverlayMessage;
 import rotp.core.client.ui.hud_power.PowerHud;
 import rotp.core.client.ui.hud_power.PowerHudControlsElement;
@@ -17,7 +18,6 @@ import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.entity_externalcontainer.ModdedContainerClickType;
 import rotp.core.subsystems.entity_externalcontainer.PlayerExternalContainers;
-import rotp.core.subsystems.entity_externalcontainer._stand.input.ClientStandItemInputs;
 import rotp.core.subsystems.entity_externalcontainer._stand.input.StandItemInput;
 import rotp.core.subsystems.entity_externalcontainer.client.ClientExternalContainerUI;
 import rotp.core.subsystems.entity_opencontainer.OpenContainerAsNonPlayer.ContainerOpenedAsNonPlayer;
@@ -133,7 +133,7 @@ public class ClientStandHeldItemsUI extends ClientExternalContainerUI {
 					slotTooltip.add(Component.translatable("stand_hand_slot.hint2").withStyle(ChatFormatting.GRAY));
 					slotTooltip.add(Component.translatable("stand_hand_slot.hint3").withStyle(ChatFormatting.GRAY));
 					slotTooltip.add(Component.translatable("stand_hand_slot.hint4", 
-							PowerHudControlsElement.getKeybindNoSpaceAtModifierPlus(ClientStandItemInputs.keyDrop))
+							PowerHudControlsElement.getKeybindNoSpaceAtModifierPlus(InputHandler.getInstance().vanillaKeybinds.swapItems))
 							.withStyle(ChatFormatting.GRAY));
 				}
 				else {

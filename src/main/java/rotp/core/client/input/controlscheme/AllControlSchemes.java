@@ -46,6 +46,7 @@ import net.neoforged.neoforge.client.settings.KeyModifier;
 public class AllControlSchemes {
 	public static Map<ResourceLocation, ClientControlScheme> controls = new HashMap<>();
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+	private static KeyModifier variationKeyFollowed = VariationKey.DEFAULT_MODIFIER;
 
 	public static ClientControlScheme getForPowerType(PowerType powerType) {
 		return controls.get(powerType.getId());
@@ -53,6 +54,7 @@ public class AllControlSchemes {
 
 	@SubscribeEvent(priority = EventPriority.LOW)
 	public static void createPowerControlSchemes(FMLClientSetupEvent event) {
+		variationKeyFollowed = VariationKey.modifier();
 		for (var playerPowerEntry : JojoRegistries.PLAYER_POWER_TYPES_REG.entrySet()) {
 			add(playerPowerEntry.getValue());
 		}
@@ -60,6 +62,25 @@ public class AllControlSchemes {
 		// XXX (data-driven stands) load controls for data-driven stands
 		for (var playerPowerEntry : JojoRegistries.DEFAULT_STANDS_REG.entrySet()) {
 			add(playerPowerEntry.getValue());
+		}
+	}
+
+	/** The key binds screen changes the key at any time, a saved one is read after the schemes exist: no restart needed. */
+	public static void followVariationKey() {
+		KeyModifier modifier = VariationKey.modifier();
+		if (modifier != variationKeyFollowed) {
+			variationKeyFollowed = modifier;
+			controls.values().forEach(AllControlSchemes::applyVariationKey);
+		}
+	}
+
+	static void applyVariationKey(ClientControlScheme scheme) {
+		for (MoveGroup group : scheme.moveGroups.values()) {
+			for (Hotbar hotbar : group.hotbars) {
+				for (HotbarSlot slot : hotbar.layout) {
+					slot.binds.applyDeclaredMoves();
+				}
+			}
 		}
 	}
 
