@@ -25,6 +25,7 @@ public final class HotbarShiftFallbackSmokeTest {
 	private static final AbilityControlsEntry CONTROL_VARIANT = new AbilityControlsEntry(null, "control_variant");
 	private static final Predicate<AbilityControlsEntry> SHIFT_AVAILABLE = entry -> entry == SHIFT_VARIANT;
 	private static final Predicate<AbilityControlsEntry> NONE_AVAILABLE = entry -> false;
+	private static final Predicate<AbilityControlsEntry> EVERYTHING_AVAILABLE = entry -> true;
 
 	private HotbarShiftFallbackSmokeTest() {}
 
@@ -47,9 +48,12 @@ public final class HotbarShiftFallbackSmokeTest {
 				"an available SHIFT variation takes the whole slot: no base click under SHIFT");
 		check(slot.getAll(KeyModifier.SHIFT, InputMethod.CLICK, NONE_AVAILABLE).equals(List.of(BASE_CLICK)),
 				"a locked SHIFT variation leaves every input method on the base");
-		check(slot.getAll(KeyModifier.NONE, InputMethod.HOLD, SHIFT_AVAILABLE).equals(List.of(BASE))
+		check(slot.getAll(KeyModifier.NONE, InputMethod.HOLD, EVERYTHING_AVAILABLE).equals(List.of(BASE))
 				&& slot.getAll(KeyModifier.NONE, InputMethod.HOLD, NONE_AVAILABLE).equals(List.of(BASE)),
-				"without a modifier the base bind must be used whatever is available");
+				"without a modifier the base bind must be used while it can be, or while nothing can");
+		check(slot.getAll(KeyModifier.NONE, InputMethod.HOLD, SHIFT_AVAILABLE).equals(List.of(SHIFT_VARIANT))
+				&& slot.getAll(KeyModifier.CONTROL, InputMethod.CLICK, SHIFT_AVAILABLE).isEmpty(),
+				"a base with nothing to do gives the plain key to the variation that has, through a held modifier too");
 		check(slot.getAll(KeyModifier.CONTROL, InputMethod.HOLD, NONE_AVAILABLE).equals(List.of(CONTROL_VARIANT)),
 				"only SHIFT falls back on availability; CONTROL keeps its variation");
 
@@ -75,9 +79,12 @@ public final class HotbarShiftFallbackSmokeTest {
 		check(clickOverHold.getAll(KeyModifier.SHIFT, InputMethod.HOLD, NONE_AVAILABLE).equals(List.of(BASE))
 				&& clickOverHold.getAll(KeyModifier.SHIFT, InputMethod.HOLD).equals(List.of(BASE)),
 				"a locked SHIFT click variation leaves the held base under SHIFT");
-		check(clickOverHold.getAll(KeyModifier.NONE, InputMethod.HOLD, SHIFT_AVAILABLE).equals(List.of(BASE))
-				&& clickOverHold.getAll(KeyModifier.NONE, InputMethod.CLICK, SHIFT_AVAILABLE).isEmpty(),
+		check(clickOverHold.getAll(KeyModifier.NONE, InputMethod.HOLD, EVERYTHING_AVAILABLE).equals(List.of(BASE))
+				&& clickOverHold.getAll(KeyModifier.NONE, InputMethod.CLICK, EVERYTHING_AVAILABLE).isEmpty(),
 				"without SHIFT the slot keeps its held base only");
+		check(clickOverHold.getAll(KeyModifier.NONE, InputMethod.CLICK, SHIFT_AVAILABLE).equals(List.of(SHIFT_VARIANT))
+				&& clickOverHold.getAll(KeyModifier.NONE, InputMethod.HOLD, SHIFT_AVAILABLE).isEmpty(),
+				"the base gone, the plain key takes the variation on the variation's own input method");
 
 		// 1.16 Spice Girl: the held bounce_her is the shift variation of the instant bounce.
 		InputsByKeyModifier holdOverClick = new ClientControlScheme.HotbarSlot(4).binds;

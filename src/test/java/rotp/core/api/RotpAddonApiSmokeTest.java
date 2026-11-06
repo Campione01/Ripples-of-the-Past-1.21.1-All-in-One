@@ -61,6 +61,7 @@ import rotp.core.api.client.animation.AddonPlayerAnimationsSmokeTest;
 import rotp.core.client.entityanim.AnimPoseThreadIsolationSmokeTest;
 import rotp.core.client.entityanim.MolangQueryThreadIsolationSmokeTest;
 import rotp.core.client.entityrender.parsemodel.generic.GenericModelFormatSmokeTest;
+import rotp.core.client.input.controlscheme.HotbarSelectionRulesSmokeTest;
 import rotp.core.client.input.controlscheme.HotbarShiftFallbackSmokeTest;
 import rotp.core.client.ui.hud_power.StandHotbarShiftDisplaySmokeTest;
 import rotp.core.entityattachment.FrozenAttachmentsRestSmokeTest;
@@ -497,6 +498,7 @@ public final class RotpAddonApiSmokeTest {
 		PillarmanActionFlagsSmokeTest.run();
 		StandSkillsUnlockMessageSmokeTest.run();
 		HotbarShiftFallbackSmokeTest.run();
+		HotbarSelectionRulesSmokeTest.run();
 		StandHotbarShiftDisplaySmokeTest.run();
 		FrozenAttachmentsRestSmokeTest.run();
 		StandDamageBlockSubtitleSmokeTest.run();

@@ -76,7 +76,7 @@ public class StandInitMagiciansRed {
 					.addToHotbar("flame_burst", 0, InputMethod.HOLD)
 					.addToHotbar("fireball", 0, InputMethod.CLICK)
 					.addToHotbar("crossfire_hurricane", 0, InputMethod.HOLD)
-					.addToHotbar("crossfire_hurricane_special", 0, InputMethod.HOLD)
+					.addHotbarSlotVariation("crossfire_hurricane_special", "crossfire_hurricane", InputKey.Modifier.SHIFT, InputMethod.HOLD)
 					.addToHotbar("red_bind", 0, InputMethod.HOLD)
 					.addToHotbar("mr_detector", 0, InputMethod.CLICK)
 				.finalizeControlScheme()

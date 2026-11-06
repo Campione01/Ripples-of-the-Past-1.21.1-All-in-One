@@ -26,6 +26,7 @@ import rotp.core.client.input.controlscheme.ClientControlScheme.HotbarSlot;
 import rotp.core.client.input.controlscheme.ClientControlScheme.InputsByKeyModifier;
 import rotp.core.client.input.controlscheme.ClientInputBind;
 import rotp.core.client.input.controlscheme.ClientKey;
+import rotp.core.client.input.controlscheme.HotbarSelectionRules;
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.client.standskin.StandSkinsLoader;
 import rotp.core.client.standskin.sprites.AbilityIconSprites;
@@ -247,7 +248,8 @@ public class PowerHudControlsElement extends HudElement {
 	}
 	
 	public static class HotbarSlotUI {
-		public int slotIndex;
+		/** The number key that selects the slot (0 is the first key), or -1 for a slot that cannot be selected. */
+		public int numberKey;
 		public BindUI bind;
 		public AbilityBindUI sprite;
 		public Map<InputMethod, AbilityBindUI> abilities = new EnumMap<>(InputMethod.class);
@@ -327,20 +329,17 @@ public class PowerHudControlsElement extends HudElement {
 				
 				hotbarUI.isSelectingAbility = modInput.isSelectingAbility(hotbar);
 				hotbarUI.highlight = hotbarUI.isSelectingAbility && !hotbar.alwaysSwitchAbility();
+				boolean[] selectable = hotbar.selectableSlots();
 
-				CompactStandHotbarWindow.Range visibleRange = CompactStandHotbarWindow.visibleRange(
-						hotbar.slots.size(), hotbar.slotIndex, compactHotbarDisplay);
-				for (int slotPosition = visibleRange.startInclusive();
-						slotPosition < visibleRange.endExclusive(); slotPosition++) {
-					ClientControlScheme.HotbarSlot slot = hotbar.slots.get(slotPosition);
+				for (ClientControlScheme.HotbarSlot slot : hotbar.slots) {
 					HotbarSlotUI slotUI = new HotbarSlotUI();
 					ClientKey key = input.getKey();
 					slotUI.bind = new BindUI();
 					slotUI.bind.mainKey = getKeyName(key);
 					slotUI.bind.modifierKey = getModifierName(input.getKeyModifier());
 					slotUI.bind.fullKeybind = getKeyName(key, slotUI.bind.mainKey, input.getKeyModifier());
-					slotUI.slotIndex = slot.index;
-					
+					slotUI.numberKey = HotbarSelectionRules.numberKeyOfSlot(slot.index, selectable);
+
 					for (InputMethod inputMethod : InputMethod.values()) {
 						AbilityControlsEntry abilityEntry = slot.getBinds().getFirst(hotbarDisplayModifier, inputMethod);
 						if (abilityEntry != null) {
@@ -359,13 +358,17 @@ public class PowerHudControlsElement extends HudElement {
 							}
 						}
 					}
-					if (hotbarUI.isSelectingAbility || !slotUI.abilities.isEmpty()) {
+					// the row shows what can be used: a slot with nothing to draw takes no room, while selecting neither
+					if (!slotUI.abilities.isEmpty()) {
 						hotbarUI.slots.add(slotUI);
 						if (slot == selectedSlot) {
 							hotbarUI.selected = slotUI;
 						}
 					}
 				}
+				CompactStandHotbarWindow.Range visibleRange = CompactStandHotbarWindow.visibleRange(
+						hotbarUI.slots.size(), hotbarUI.slots.indexOf(hotbarUI.selected), compactHotbarDisplay);
+				hotbarUI.slots = new ArrayList<>(hotbarUI.slots.subList(visibleRange.startInclusive(), visibleRange.endExclusive()));
 
 				ClientKey hotbarKey = input.getKey();
 				hotbarUI.keybind = getKeyName(hotbarKey, KeyModifier.NONE);
@@ -672,11 +675,9 @@ public class PowerHudControlsElement extends HudElement {
 				if (hotbar.isSelectingAbility) {
 					x += 18;
 					for (HotbarSlotUI slot : hotbar.slots) {
-						if (!slot.abilities.isEmpty()) {
-							int numberKey = HotbarSlot.numberKey(slot.slotIndex);
-							if (numberKey != -1) {
-								guiGraphics.drawString(font, String.valueOf(numberKey), x, y, textColor);
-							}
+						int numberKey = HotbarSlot.numberKey(slot.numberKey);
+						if (numberKey != -1) {
+							guiGraphics.drawString(font, String.valueOf(numberKey), x, y, textColor);
 						}
 						x += SLOT_WIDTH;
 					}
