@@ -14,7 +14,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rotp.core.api.gravity.DirectionalGravityApi;
 import rotp.core.api.gravity.DirectionalGravityTransforms;
 
+import net.minecraft.Util;
 import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -23,6 +25,20 @@ import net.minecraft.world.phys.Vec3;
 
 @Mixin(Camera.class)
 public abstract class CameraDirectionalGravityMixin {
+	// A change of gravity turns the view over this time rather than at once.
+	@Unique
+	private static final float jojo_ripples$TURN_MILLIS = 200.0F;
+	@Unique
+	private Direction jojo_ripples$shownDirection = Direction.DOWN;
+	@Unique
+	private final Quaternionf jojo_ripples$turnedFrom = new Quaternionf();
+	@Unique
+	private final Quaternionf jojo_ripples$turn = new Quaternionf();
+	@Unique
+	private static final Quaternionf jojo_ripples$IDENTITY = new Quaternionf();
+	@Unique
+	private long jojo_ripples$turnStart;
+
 	@Shadow
 	@Final
 	private Quaternionf rotation;
@@ -69,10 +85,32 @@ public abstract class CameraDirectionalGravityMixin {
 	private void jojo_ripples$applyGravityRotation(Entity entity) {
 		Direction direction =
 				DirectionalGravityApi.getEffectiveDirection(entity);
-		if (direction == Direction.DOWN) {
+		long now = Util.getMillis();
+		if (direction != jojo_ripples$shownDirection) {
+			jojo_ripples$turnedFrom.set(jojo_ripples$turn);
+			jojo_ripples$turnStart = now;
+			jojo_ripples$shownDirection = direction;
+		}
+		long turned = now - jojo_ripples$turnStart;
+		// The raw angles do not change, so the renderer would not find the sections this turn brings into view.
+		if (turned <= jojo_ripples$TURN_MILLIS * 1.5F) {
+			Minecraft.getInstance().levelRenderer.needsUpdate();
+		}
+		float progress = Mth.clamp(turned / jojo_ripples$TURN_MILLIS, 0.0F, 1.0F);
+		if (direction == Direction.DOWN && progress >= 1.0F) {
+			jojo_ripples$turn.identity();
 			return;
 		}
+		jojo_ripples$turnedFrom.slerp(jojo_ripples$frameRotation(direction),
+				progress, jojo_ripples$turn);
+		rotation.premul(jojo_ripples$turn);
+		jojo_ripples$turn.transform(forwards);
+		jojo_ripples$turn.transform(up);
+		jojo_ripples$turn.transform(left);
+	}
 
+	@Unique
+	private static Quaternionf jojo_ripples$frameRotation(Direction direction) {
 		Matrix3f gravityFrame = new Matrix3f();
 		gravityFrame.setColumn(0,
 				jojo_ripples$toWorld(direction, 1.0F, 0.0F, 0.0F));
@@ -80,12 +118,7 @@ public abstract class CameraDirectionalGravityMixin {
 				jojo_ripples$toWorld(direction, 0.0F, 1.0F, 0.0F));
 		gravityFrame.setColumn(2,
 				jojo_ripples$toWorld(direction, 0.0F, 0.0F, 1.0F));
-		Quaternionf gravityRotation =
-				gravityFrame.getNormalizedRotation(new Quaternionf());
-		rotation.premul(gravityRotation);
-		jojo_ripples$transform(direction, forwards);
-		jojo_ripples$transform(direction, up);
-		jojo_ripples$transform(direction, left);
+		return gravityFrame.getNormalizedRotation(new Quaternionf());
 	}
 
 	@Inject(method = "setup",
@@ -99,7 +132,8 @@ public abstract class CameraDirectionalGravityMixin {
 			CallbackInfo ci) {
 		Direction direction =
 				DirectionalGravityApi.getEffectiveDirection(entity);
-		if (direction == Direction.DOWN) {
+		if (direction == Direction.DOWN
+				&& jojo_ripples$turn.equals(jojo_ripples$IDENTITY, 1.0E-5F)) {
 			return;
 		}
 
@@ -108,8 +142,13 @@ public abstract class CameraDirectionalGravityMixin {
 				Mth.lerp((double) partialTick, entity.yo, entity.getY()),
 				Mth.lerp((double) partialTick, entity.zo, entity.getZ()));
 		double smoothedEyeHeight = position.distanceTo(base);
-		setPosition(DirectionalGravityTransforms.eyePosition(
-				direction, base, smoothedEyeHeight));
+		// a change of gravity keeps the body's centre, so the eye swings about that
+		double halfHeight = entity.getBbHeight() / 2.0;
+		Vec3 center = DirectionalGravityTransforms.eyePosition(
+				direction, base, halfHeight);
+		Vector3f eye = jojo_ripples$turn.transform(
+				new Vector3f(0.0F, (float) (smoothedEyeHeight - halfHeight), 0.0F));
+		setPosition(center.add(eye.x, eye.y, eye.z));
 	}
 
 	@Unique
@@ -119,12 +158,5 @@ public abstract class CameraDirectionalGravityMixin {
 				direction, new Vec3(x, y, z));
 		return new Vector3f((float) transformed.x,
 				(float) transformed.y, (float) transformed.z);
-	}
-
-	@Unique
-	private static void jojo_ripples$transform(Direction direction,
-			Vector3f vector) {
-		vector.set(jojo_ripples$toWorld(
-				direction, vector.x, vector.y, vector.z));
 	}
 }

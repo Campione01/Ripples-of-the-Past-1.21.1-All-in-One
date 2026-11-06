@@ -18,7 +18,9 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.minecraft.core.Direction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -35,6 +37,24 @@ public abstract class PlayerDirectionalGravityMixin {
 				DirectionalGravityRuntime.enterLocalFrame(player)) {
 			original.call(travelVector);
 		}
+	}
+
+	/** Vanilla drops from above the feet of an upright body and along the raw angles, which mean the player's own frame. */
+	@WrapMethod(method = "drop(Lnet/minecraft/world/item/ItemStack;ZZ)"
+			+ "Lnet/minecraft/world/entity/item/ItemEntity;")
+	private ItemEntity jojo_ripples$directionalGravityDrop(
+			ItemStack stack, boolean dropAround, boolean includeThrowerName,
+			Operation<ItemEntity> original) {
+		ItemEntity item = original.call(stack, dropAround, includeThrowerName);
+		Player player = (Player) (Object) this;
+		Direction direction = DirectionalGravityApi.getEffectiveDirection(player);
+		if (item != null && direction != Direction.DOWN) {
+			item.setPos(player.getEyePosition().subtract(
+					DirectionalGravityTransforms.toWorld(direction, new Vec3(0.0, 0.3, 0.0))));
+			item.setDeltaMovement(DirectionalGravityTransforms.toWorld(
+					direction, item.getDeltaMovement()));
+		}
+		return item;
 	}
 
 	@Redirect(method = "travel",
