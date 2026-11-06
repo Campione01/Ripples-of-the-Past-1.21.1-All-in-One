@@ -19,6 +19,7 @@ import rotp.core.client.ClientPowerCache;
 import rotp.core.client.input.AbilityInputState;
 import rotp.core.client.input.HeldKeyTimer;
 import rotp.core.client.input.InputHandler;
+import rotp.core.client.input.StandVanillaClickInput;
 import rotp.core.client.input.controlscheme.ClientControlScheme;
 import rotp.core.client.input.controlscheme.ClientControlScheme.AbilityControlsEntry;
 import rotp.core.client.input.controlscheme.ClientControlScheme.Hotbar;
@@ -69,6 +70,7 @@ import net.minecraft.util.FastColor;
 import net.minecraft.util.FastColor.ARGB32;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.settings.KeyModifier;
 import net.neoforged.neoforge.common.util.TriState;
 
@@ -190,6 +192,10 @@ public class PowerHudControlsElement extends HudElement {
 							ability.appendWarnings(tooltip, power, minecraft.player);
 						}
 					}
+					if (!slot.standItem.isEmpty()) {
+						tooltip.add(Component.translatable("ripples_hud.key_ability", slot.fullKeybind,
+								Component.translatable("jojo_ripples.ability.item_use")).withStyle(ChatFormatting.BLACK));
+					}
 					screen.setTooltipForNextRenderPass(TextUtil.splitMultiLine(minecraft.font, 
 							tooltip, TextUtil.TOOLTIP_MAX_WIDTH), new BelowOrAboveWidgetTooltipPositioner(rectangle), true);
 					TooltipParams.set(TooltipParams.paperStyle());
@@ -226,10 +232,16 @@ public class PowerHudControlsElement extends HudElement {
 		public Component fullKeybind;
 		@Nullable public KeyModifier modifier;
 		public Map<InputMethod, AbilityBindUI> abilities = new EnumMap<>(InputMethod.class);
-		
+		/** What the Stand's right click uses, when no ability is left on this button. */
+		public ItemStack standItem = ItemStack.EMPTY;
+
 		public int y;
 		public int keybindWidth;
 		public int width;
+
+		public int slotCount() {
+			return abilities.size() + (standItem.isEmpty() ? 0 : 1);
+		}
 	}
 
 	public static class HotbarUILine {
@@ -295,7 +307,10 @@ public class PowerHudControlsElement extends HudElement {
 				}
 			}
 			
-			if (!bindUI.abilities.isEmpty()) {
+			if (bindUI.abilities.isEmpty()) {
+				bindUI.standItem = StandVanillaClickInput.itemOnRightClick(controlScheme, key, modifier);
+			}
+			if (bindUI.slotCount() > 0) {
 				bindUI.mainKey = getKeyName(key);
 				bindUI.modifierKey = getModifierName(bindUI.modifier);
 				bindUI.fullKeybind = getKeyName(key, bindUI.mainKey, bindUI.modifier);
@@ -305,7 +320,7 @@ public class PowerHudControlsElement extends HudElement {
 					bindUI.keybindWidth = Math.max(bindUI.keybindWidth, font.width(bindUI.modifierKey));
 				bindUI.keybindWidth += 4;
 				
-				bindUI.width = bindUI.keybindWidth + bindUI.abilities.size() * SLOT_WIDTH + 4;
+				bindUI.width = bindUI.keybindWidth + bindUI.slotCount() * SLOT_WIDTH + 4;
 				this.binds.add(bindUI);
 			}
 		}
@@ -406,7 +421,7 @@ public class PowerHudControlsElement extends HudElement {
 			hoverableAbilities.add(Pair.of(bind, new ScreenRectangle(
 					this.getX() + bind.keybindWidth, 
 					this.getY() + y, 
-					bind.abilities.size() * SLOT_WIDTH + 2, SLOT_HEIGHT + 2)));
+					bind.slotCount() * SLOT_WIDTH + 2, SLOT_HEIGHT + 2)));
 			y += SLOT_HEIGHT + 2;
 		}
 		for (HotbarUILine hotbar : this.hotbars) {
@@ -535,7 +550,7 @@ public class PowerHudControlsElement extends HudElement {
 		textColor &= alpha;
 		
 		for (BindUI bind : this.binds) {
-			GuiIcon hotbarSprite = getHotbarSprite(bind.abilities.size());
+			GuiIcon hotbarSprite = getHotbarSprite(bind.slotCount());
 			if (hotbarSprite != null) {
 				int x0 = x;
 				int y0 = y;
@@ -596,8 +611,13 @@ public class PowerHudControlsElement extends HudElement {
 					if (selectionTint.isPresent() || isClicked) {
 						HOTBAR_SELECTION.render(guiGraphics.pose(), x - 15, y - 15, frameTint);
 					}
-					
+
 					x += SLOT_WIDTH;
+				}
+				if (!bind.standItem.isEmpty()) {
+					guiGraphics.renderItem(bind.standItem, x + 3, y + 3);
+					RenderSystem.enableBlend();
+					RenderSystem.defaultBlendFunc();
 				}
 
 				x = x0;

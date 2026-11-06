@@ -23,6 +23,7 @@ import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.ability.controls.InputUseVanillaMapping;
 import rotp.core.powersystem.standpower.StandUnlockableSkill;
 import rotp.core.powersystem.unlockableskill.UnlockableSkill;
+import rotp.core.subsystems.entity_useitem.StandItemUse;
 import com.mojang.datafixers.util.Pair;
 
 import net.minecraft.resources.ResourceLocation;
@@ -380,7 +381,8 @@ public class MovesetBuilder {
 	public MovesetBuilder addHumanoidStandSkills() {
 		return this
 		.addSkill(StandUnlockableSkill.startingAbility("guard"))
-		.addSkill(StandUnlockableSkill.startingAbility("manual_control"));
+		.addSkill(StandUnlockableSkill.startingAbility("manual_control"))
+		.addSkill(new StandUnlockableSkill(StandItemUse.SKILL).setIsStartingSkill());
 	}
 	
 	protected void postInitControls() {

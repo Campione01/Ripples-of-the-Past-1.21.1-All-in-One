@@ -108,7 +108,8 @@ public class StarInhaleAbility extends StandEntityAbility {
                     standPower.setAbilityCooldown(inhaleAbility.name(), cooldownBeforeClear, cooldownTotalBeforeClear);
                 }
             }
-            setStandOffset(0, -0.25, StandOffsetFromUser.Rotations.HEAD, false);
+            // the official port's place, along the look in front of the user: 1.16's 0.25 behind him stood inside his model
+            setStandOffset(0, 1.5, StandOffsetFromUser.Rotations.HEAD_XY, false);
         }
 
         @Override
@@ -143,8 +144,9 @@ public class StarInhaleAbility extends StandEntityAbility {
                 StandAbilityStamina.consume(ability, standPower, INHALE_STAMINA_COST_TICK, true);
             }
 
+            // the official port's share of the height: 1.16's 0.75 was of a 2.1 high Stand, here it would fall on the chest
             Vec3 mouthPos = standEntity.position()
-                    .add(0, standEntity.getBbHeight() * 0.75F, 0)
+                    .add(0, standEntity.getBbHeight() * 0.9F, 0)
                     .add(new Vec3(0, standEntity.getBbHeight() / 16F, standEntity.getBbWidth() * 0.5F)
                             .xRot(-standEntity.getXRot() * MathUtil.DEG_TO_RAD)
                             .yRot(-standEntity.getYRot() * MathUtil.DEG_TO_RAD));

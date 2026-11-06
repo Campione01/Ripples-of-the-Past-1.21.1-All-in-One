@@ -18,7 +18,11 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 public class SPStarFingerEntity extends OwnerBoundProjectileEntity {
-	private static final Vec3 OFFSET = new Vec3(-0.3D, -0.2D, 0.75D);
+	// 1.16's (-0.3, -0.2, 0.75) from its Stand's eyes at 1.785 (0.85 of its 2.1) put the finger in the fist of the pose, whose
+	// drawn height and reach are the same here; the port's Stand has its eyes at 1.62, so that offset started the finger
+	// 0.165 below the fist. From these eyes: the shoulder of the held-out arm, then along that arm, which pitches with the look.
+	private static final Vec3 OFFSET = new Vec3(-0.3D, -0.115D, 0.189D);
+	private static final Vec3 ALONG_THE_ARM = new Vec3(0.0D, 0.08D, 0.561D);
 	private int lifeSpan = 20;
 	private double distance;
 	private boolean movingForward = true;
@@ -79,6 +83,11 @@ public class SPStarFingerEntity extends OwnerBoundProjectileEntity {
 	@Override
 	protected Vec3 getOwnerRelativeOffset() {
 		return OFFSET;
+	}
+
+	@Override
+	protected Vec3 getXRotOffset() {
+		return ALONG_THE_ARM;
 	}
 
 	@Override

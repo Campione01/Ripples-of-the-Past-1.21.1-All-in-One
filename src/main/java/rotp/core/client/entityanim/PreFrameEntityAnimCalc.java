@@ -338,6 +338,14 @@ public class PreFrameEntityAnimCalc {
 				boolean userPoseCopied = stand != null && stand.isArmsOnlyMode() && animVariables.animId != null
 						&& AnimationSet.copiesUserPoseInArmsOnly(animVariables.animId.name())
 						&& copyUserBipedPose(stand, pose);
+				if (stand != null && stand.isArmsOnlyMode()) {
+					for (String trunkBone : ArmsOnlyTrunk.BONES) {
+						AnimFramePose.ModelPartFrame trunk = pose.getIfPresent(trunkBone);
+						if (trunk != null) {
+							ArmsOnlyTrunk.keepOnlyTheTurn(trunk.positionOffset, trunk.rotationOffset);
+						}
+					}
+				}
 				((AnimatedEntity) living).jojo_ripples$setModelPose(AnimatedEntity.PoseType.UNMODIFIED, pose);
 				
 				if (newFrame) {
