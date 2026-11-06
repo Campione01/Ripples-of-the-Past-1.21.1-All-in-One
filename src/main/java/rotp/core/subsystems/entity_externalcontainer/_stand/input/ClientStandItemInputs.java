@@ -1,32 +1,28 @@
 package rotp.core.subsystems.entity_externalcontainer._stand.input;
 
 import rotp.core.client.ClientGlobals;
+import rotp.core.client.input.InputHandler;
 import rotp.core.core.JojoMod;
-import rotp.core.powersystem.standpower.entity.StandEntity;
-import com.mojang.blaze3d.platform.InputConstants;
 
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.settings.KeyConflictContext;
-import net.neoforged.neoforge.client.settings.KeyModifier;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 @EventBusSubscriber(modid = JojoMod.MOD_ID, value = Dist.CLIENT)
 public class ClientStandItemInputs {
 
-	public static KeyMapping keyDrop = new KeyMapping("jojo_ripples.key.swap_items", KeyConflictContext.UNIVERSAL, 
-			KeyModifier.CONTROL, InputConstants.Type.KEYSYM, InputConstants.KEY_F, "key.categories.inventory");
-
 	@SubscribeEvent
 	public static void handle(ClientTickEvent.Pre event) {
-		StandEntity standEntity = ClientGlobals.playerStandEntity;
-		if (standEntity != null && Screen.hasControlDown()) {
-			while (keyDrop.consumeClick()) {
+		InputHandler input = InputHandler.getInstance();
+		if (input == null) {
+			return;
+		}
+		while (input.vanillaKeybinds.swapItems.consumeClick()) {
+			if (ClientGlobals.playerStandEntity != null) {
 				PacketDistributor.sendToServer(ClStandItemInputPacket.packet(StandItemInput.Action.SWAP_USER_AND_STAND));
 			}
 		}

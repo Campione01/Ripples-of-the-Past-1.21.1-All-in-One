@@ -121,11 +121,13 @@ public final class StandSlotVariationGameTests {
 						stand + " " + keepsTheMapping + " left its own key mapping");
 			}
 			Pair<InputMethod, InputBindTemplate> grabThrow = template.defaultGroup.separateBinds.get("grab_throw");
-			helper.assertTrue(grabThrow == null || grabThrow.getSecond() == MovesetBuilder.DEFAULT_GRAB_THROW_INPUT,
-					stand + " grab_throw left its key");
+			helper.assertTrue(grabThrow == null || grabThrow.getSecond() == MovesetBuilder.DEFAULT_GRAB_THROW_INPUT
+					&& MovesetBuilder.DEFAULT_GRAB_THROW_INPUT instanceof InputUseVanillaMapping,
+					stand + " grab_throw left its key mapping");
 			Pair<InputMethod, InputBindTemplate> release = template.defaultGroup.separateBinds.get("grab_release");
-			helper.assertTrue(release == null || release.getSecond() == MovesetBuilder.DEFAULT_GRAB_RELEASE_INPUT,
-					stand + " grab_release left its key");
+			helper.assertTrue(release == null || release.getSecond() == MovesetBuilder.DEFAULT_GRAB_RELEASE_INPUT
+					&& MovesetBuilder.DEFAULT_GRAB_RELEASE_INPUT instanceof InputUseVanillaMapping,
+					stand + " grab_release left its key mapping");
 		}
 		helper.succeed();
 	}

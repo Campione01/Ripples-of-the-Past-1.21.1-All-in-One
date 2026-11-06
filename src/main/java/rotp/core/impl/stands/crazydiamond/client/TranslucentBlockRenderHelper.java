@@ -18,6 +18,7 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.impl.stands.crazydiamond.CrazyDRestoreTerrainAbility;
 import rotp.core.impl.stands.crazydiamond.CrazyDRestoreTerrainAbility.BlockToFix;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.PrevBlockInfo;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -113,7 +114,7 @@ public class TranslucentBlockRenderHelper {
 						(BlockPos targetPos, PrevBlockInfo block) -> CrazyDRestoreTerrainAbility.blockCanBePlaced(mc.level, targetPos, block.state));
 				Predicate<BlockPos> inAbilityRange = blockPos -> CrazyDRestoreTerrainAbility.blockPosSelectedForRestoration(blockPos, entity, 
 						lookVec, eyePosD, pos, manhattanRange, 
-						resolveEffect, mc.player.isShiftKeyDown());
+						resolveEffect, StandManualInput.isShiftHeld(mc.player));
 				TranslucentBlockRenderHelper.renderCDRestorationTranslucentBlocks(poseStack, mc, 
 						allFixableBlocks, inAbilityRange);
 			}

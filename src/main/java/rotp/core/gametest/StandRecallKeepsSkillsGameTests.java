@@ -293,6 +293,37 @@ public final class StandRecallKeepsSkillsGameTests {
 		helper.succeed();
 	}
 
+	// A player's client reports his variation key: that key takes the net down, the sneak key does not.
+	@GameTest(template = "empty", timeoutTicks = 60)
+	public static void aBarrierPressOnTheVariationKeyTakesTheNetDown(GameTestHelper helper) {
+		StandTaskTargetOffsetGameTests.withStand(helper, "hierophant_green", scene -> {
+			HierophantGreenEntity hierophant = placeNet(scene);
+			List<HGBarrierEntity> strings = barriers(scene);
+			Ability barrier = scene.power().getAbility("barrier");
+			try {
+				StandManualInput.setServerVariationKey(scene.user(), false);
+				scene.user().setShiftKeyDown(true);
+				helper.assertTrue(!barrier.checkSpecificConditions(scene.power()).isPositive(),
+						"sneaking is not the variation key: with no block aimed at the press must not go through");
+				scene.user().setShiftKeyDown(false);
+				StandManualInput.setServerVariationKey(scene.user(), true);
+				helper.assertTrue(barrier.checkSpecificConditions(scene.power()).isPositive(),
+						"a press on the variation key must go through with no block aimed at");
+				scene.set("barrier");
+				LivingComponentAction actions = LivingComponentAction.getComponent(scene.stand());
+				for (int tick = 0; tick < 5; tick++) {
+					actions.tick();
+				}
+				helper.assertTrue(strings.stream().allMatch(HGBarrierEntity::isRemoved) && hierophant.getBarriersNet().getSize() == 0,
+						"a press on the variation key must take down the whole net: " + barriers(scene).size() + " strings are left");
+			}
+			finally {
+				StandManualInput.clear(scene.user());
+			}
+		});
+		helper.succeed();
+	}
+
 	// Manual control clears the user's sneak: the press reads the Shift key his client sends (StandManualInput).
 	@GameTest(template = "empty", timeoutTicks = 60)
 	public static void aSneakingBarrierPressTakesTheNetDownUnderManualControl(GameTestHelper helper) {

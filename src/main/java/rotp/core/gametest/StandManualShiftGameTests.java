@@ -63,6 +63,23 @@ public final class StandManualShiftGameTests {
 			user.setShiftKeyDown(false);
 			StandManualInput.setServerShift(user, false);
 
+			// A client that reports the variation key decides: the sneak no longer counts for it.
+			helper.assertTrue(!StandManualInput.isShiftHeld(user), "Setup: the key counts before anything is pressed");
+			user.setShiftKeyDown(true);
+			helper.assertTrue(StandManualInput.isShiftHeld(user), "A user no client reports for must go by the sneak");
+			StandManualInput.setServerVariationKey(user, false);
+			helper.assertTrue(!StandManualInput.isShiftHeld(user), "Sneaking counted as the reported variation key");
+			helper.assertTrue(StandManualInput.isShiftHeld(user, stand), "The sneak itself must still count where the two-argument check asks for it");
+			user.setShiftKeyDown(false);
+			StandManualInput.setServerVariationKey(user, true);
+			helper.assertTrue(StandManualInput.isShiftHeld(user), "The reported variation key did not count");
+			helper.assertTrue(!StandManualInput.isShiftHeld(user, stand), "The variation key must not pass for the sneak");
+			StandManualInput.onLoggedOut(new PlayerEvent.PlayerLoggedOutEvent(user));
+			helper.assertTrue(!StandManualInput.isShiftHeld(user), "Logging out kept the reported variation key");
+			user.setShiftKeyDown(true);
+			helper.assertTrue(StandManualInput.isShiftHeld(user), "Logging out must forget the report, too");
+			user.setShiftKeyDown(false);
+
 			// Manual control: the sneak is cleared, the sent key counts.
 			stand.setManuallyControlled(true);
 			helper.assertTrue(stand.isManuallyControlled(), "Manual control did not start");
@@ -83,6 +100,11 @@ public final class StandManualShiftGameTests {
 					"Logging out kept the sent Shift");
 
 			// The payload carries the key state.
+			RegistryFriendlyByteBuf variationBuf = new RegistryFriendlyByteBuf(Unpooled.buffer(),
+					helper.getLevel().registryAccess());
+			StandManualInput.VariationKeyPacket.Handler.STREAM_CODEC.encode(variationBuf, new StandManualInput.VariationKeyPacket(true));
+			helper.assertTrue(StandManualInput.VariationKeyPacket.Handler.STREAM_CODEC.decode(variationBuf).held(),
+					"The variation key payload lost the held key");
 			RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(),
 					helper.getLevel().registryAccess());
 			StandManualInput.ShiftPacket.Handler.STREAM_CODEC.encode(buf, new StandManualInput.ShiftPacket(true));

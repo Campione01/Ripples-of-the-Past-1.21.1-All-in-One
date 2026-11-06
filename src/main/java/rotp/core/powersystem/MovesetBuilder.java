@@ -34,8 +34,11 @@ public class MovesetBuilder {
 			new InputUseVanillaMapping(GRAB_CHARGED_HEAVY_KEY_MAPPING_NAME);
 	public static final InputBindTemplate DEFAULT_GRAB_INPUT = GRAB_CHARGED_HEAVY_INPUT;
 	public static final InputBindTemplate DEFAULT_CHARGED_HEAVY_INPUT = GRAB_CHARGED_HEAVY_INPUT;
-	public static final InputBindTemplate DEFAULT_GRAB_THROW_INPUT = InputKey.RMB;
-	public static final InputBindTemplate DEFAULT_GRAB_RELEASE_INPUT = InputKey.Q;
+	public static final String GRAB_THROW_KEY_MAPPING_NAME = "jojo_ripples.key.grab_throw";
+	public static final String GRAB_RELEASE_KEY_MAPPING_NAME = "jojo_ripples.key.grab_release";
+	public static final String SWAP_ITEMS_KEY_MAPPING_NAME = "jojo_ripples.key.swap_items";
+	public static final InputBindTemplate DEFAULT_GRAB_THROW_INPUT = new InputUseVanillaMapping(GRAB_THROW_KEY_MAPPING_NAME);
+	public static final InputBindTemplate DEFAULT_GRAB_RELEASE_INPUT = new InputUseVanillaMapping(GRAB_RELEASE_KEY_MAPPING_NAME);
 
 	public final Map<String, ConfigAbilityFactory<?>> abilities = new LinkedHashMap<>();
 	public final Map<String, UnlockableSkill> unlockableSkills = new LinkedHashMap<>();
@@ -155,6 +158,16 @@ public class MovesetBuilder {
 		}
 		controlScheme.appendToExistingHotbar(
 				abilityName, hotbarId, inputMethod);
+	}
+
+	@ApiStatus.Internal
+	public void addStandMovesetExtensionHotbarVariation(
+			String controlSchemeName, int hotbarId,
+			String baseAbilityName, String abilityName,
+			InputKey.Modifier modifier, InputMethod inputMethod) {
+		addPlayerPowerMovesetExtensionHotbarVariation(
+				controlSchemeName, hotbarId, baseAbilityName,
+				abilityName, modifier, inputMethod);
 	}
 
 	@ApiStatus.Internal
@@ -391,7 +404,7 @@ public class MovesetBuilder {
 			addBindToAllCtrlSchemesIfMissing("grab_release", InputMethod.CLICK, DEFAULT_GRAB_RELEASE_INPUT);
 		}
 		addBindToAllCtrlSchemesIfMissing("manual_control", InputMethod.CLICK, InputKey.O);
-		addBindToAllCtrlSchemesIfMissing("items_swap_w_user", InputMethod.CLICK, InputKey.F.withModifier(InputKey.Modifier.CONTROL));
+		addBindToAllCtrlSchemesIfMissing("items_swap_w_user", InputMethod.CLICK, new InputUseVanillaMapping(SWAP_ITEMS_KEY_MAPPING_NAME));
 		addBindToAllCtrlSchemesIfMissing("items_swap_hands", InputMethod.CLICK, new InputUseVanillaMapping("key.swapOffhand"));
 		addBindToAllCtrlSchemesIfMissing("item_toss", InputMethod.CLICK, new InputUseVanillaMapping("key.drop"));
 	}

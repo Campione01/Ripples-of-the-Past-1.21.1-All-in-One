@@ -31,6 +31,7 @@ import rotp.core.client.input.controlscheme.ClientControlScheme.Hotbar;
 import rotp.core.client.input.controlscheme.ClientControlScheme.HotbarSlot;
 import rotp.core.client.input.controlscheme.ClientInputBind;
 import rotp.core.client.input.controlscheme.HotbarSelectionRules;
+import rotp.core.client.input.controlscheme.VariationKey;
 import rotp.core.client.input.controlscheme.ClientKey;
 import rotp.core.client.ui.AbilitySelectionWheel;
 import rotp.core.client.ui.hud_power.PowerHud;
@@ -63,6 +64,7 @@ import rotp.core.powersystem.playerpower.PlayerPower;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.subsystems.timestop.TimeStopState;
 import rotp.core.util.enums.Direction2D;
 import rotp.core.util.mod.IPlayerLeap;
@@ -80,6 +82,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.Input;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.FriendlyByteBuf;
@@ -141,6 +144,7 @@ public class InputHandler {
 	
 	@SubscribeEvent
 	public void handleKeyBindingsPost(ClientTickEvent.Post event) {
+		AllControlSchemes.followVariationKey();
 		keepHotbarSelectionsOnUsableSlots();
 		vanillaKeybinds.handleTick();
 		tickReleaseEventQueue();
@@ -235,6 +239,8 @@ public class InputHandler {
 		rawMouseClicks.clear();
 		keysPressedWithAbility.clear();
 		hamonDoubleShift.reset();
+		variationKeySent = false;
+		StandManualInput.setClientVariationKey(false);
 		lastActionKey = null;
 		inputsDisabled = false;
 		curPowerClassToggle = null;
@@ -260,7 +266,9 @@ public class InputHandler {
 	@SubscribeEvent(priority = EventPriority.HIGH)
 	public void onFrameUpdate(RenderFrameEvent.Pre event) {
 		if (!ClientModSettings.getSettingsReadOnly().toggleDisableHotbars) {
-			inputsDisabled = _heldKeys.containsKey(ClientKey.fromVanillaKeybind(vanillaKeybinds.disableHUDControls));
+			// a variation key set on this key must not turn off what it is held for
+			inputsDisabled = !vanillaKeybinds.disableHUDControls.getKey().equals(vanillaKeybinds.variationKey.getKey())
+					&& _heldKeys.containsKey(ClientKey.fromVanillaKeybind(vanillaKeybinds.disableHUDControls));
 		}
 		
 		float tickDelta = mc.getTimer()/*getDeltaTracker()*/.getRealtimeDeltaTicks();
@@ -448,12 +456,16 @@ public class InputHandler {
 	}
 
 	boolean hasActiveGrabChargedHeavyBinding() {
-		if (inputsDisabled || vanillaKeybinds == null || vanillaKeybinds.grabChargedHeavy == null) {
+		return vanillaKeybinds != null && hasActiveBinding(vanillaKeybinds.grabChargedHeavy);
+	}
+
+	boolean hasActiveBinding(@Nullable KeyMapping keyMapping) {
+		if (inputsDisabled || keyMapping == null) {
 			return false;
 		}
 		ClientControlScheme controls = getActiveControlScheme();
 		return hasActiveGrabChargedHeavyBinding(
-				controls != null ? controls.getCurGroup() : null, vanillaKeybinds.grabChargedHeavy, inputsDisabled);
+				controls != null ? controls.getCurGroup() : null, keyMapping, inputsDisabled);
 	}
 
 	@ApiStatus.Internal
@@ -546,7 +558,9 @@ public class InputHandler {
 				controlScheme != null
 						&& controlScheme.powerClassCosmetic == PowerClass.STAND,
 				vanillaUseTrigger,
-				keyModifier == KeyModifier.SHIFT,
+				keyModifier == KeyModifier.SHIFT
+						|| vanillaKeybinds != null && keyModifier != KeyModifier.NONE
+								&& keyModifier == vanillaKeybinds.grabChargedHeavy.getKeyModifier(),
 				standPowerSummonedAndUsable,
 				liveSynchronizedStandEntity,
 				ClientGlobals.isPlayerStandFullBodyUnsummoning());
@@ -962,27 +976,52 @@ public class InputHandler {
 	
 	// Key modifiers (Ctrl/Shift/Alt)
 	
-	private List<KeyModifier> modifiersQueue = new ArrayList<>();
-	
+	private List<Key> modifiersQueue = new ArrayList<>();
+	private boolean variationKeySent;
+
 	private void addKeyModifier(Key key) {
-		KeyModifier modifier = KeyModifier.getKeyModifier(key);
-		if (modifier != KeyModifier.NONE && !modifiersQueue.contains(modifier)) {
-			modifiersQueue.add(modifier);
+		if (VariationKey.heldAs(key) != KeyModifier.NONE && !modifiersQueue.contains(key)) {
+			modifiersQueue.add(key);
 		}
+		syncVariationKey(false);
 	}
-	
+
 	private void removeKeyModifier(Key key) {
-		KeyModifier modifier = KeyModifier.getKeyModifier(key);
-		if (modifier != KeyModifier.NONE) {
-			modifiersQueue.remove(modifier);
-		}
+		modifiersQueue.remove(key);
+		syncVariationKey(false);
 	}
-	
+
 	@Nonnull
 	public KeyModifier getCurModifier() {
-		return !modifiersQueue.isEmpty() ? modifiersQueue.get(modifiersQueue.size() - 1) : KeyModifier.NONE;
+		for (int i = modifiersQueue.size() - 1; i >= 0; i--) {
+			KeyModifier modifier = VariationKey.heldAs(modifiersQueue.get(i));
+			if (modifier != KeyModifier.NONE) {
+				return modifier;
+			}
+		}
+		return KeyModifier.NONE;
 	}
-	
+
+	public boolean isVariationKeyHeld() {
+		return getCurModifier() == VariationKey.modifier();
+	}
+
+	// goes out at the key event, before the press of the skill key it comes with
+	private void syncVariationKey(boolean always) {
+		boolean held = isVariationKeyHeld();
+		StandManualInput.setClientVariationKey(held);
+		ClientPacketListener connection = mc.getConnection();
+		if ((always || held != variationKeySent) && connection != null && connection.hasChannel(StandManualInput.VariationKeyPacket.TYPE)) {
+			PacketDistributor.sendToServer(new StandManualInput.VariationKeyPacket(held));
+			variationKeySent = held;
+		}
+	}
+
+	@SubscribeEvent
+	public void onLogin(ClientPlayerNetworkEvent.LoggingIn event) {
+		syncVariationKey(true);
+	}
+
 	
 	// The function that figures out what ability has the player inputed.
 	

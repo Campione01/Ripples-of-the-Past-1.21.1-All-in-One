@@ -14,6 +14,7 @@ import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.ability.condition.AvailableAbilities.AbilityConditionCheck;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.impl.stands.crazydiamond.CrazyDBlockBulletAbility;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.common.util.TriState;
@@ -29,7 +30,7 @@ public class CrazyDBloodHomingMarker extends MarkerRenderer {
 
 	@Override
 	protected boolean shouldRender() {
-		if (mc.player == null || mc.player.isShiftKeyDown()) {
+		if (mc.player == null || StandManualInput.isShiftHeld(mc.player)) {
 			return false;
 		}
 		ClientControlScheme controlScheme = InputHandler.getInstance().getActiveControlScheme();

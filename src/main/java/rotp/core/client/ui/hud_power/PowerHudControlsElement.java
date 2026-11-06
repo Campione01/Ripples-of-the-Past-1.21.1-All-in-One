@@ -27,6 +27,7 @@ import rotp.core.client.input.controlscheme.ClientControlScheme.InputsByKeyModif
 import rotp.core.client.input.controlscheme.ClientInputBind;
 import rotp.core.client.input.controlscheme.ClientKey;
 import rotp.core.client.input.controlscheme.HotbarSelectionRules;
+import rotp.core.client.input.controlscheme.VariationKey;
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.client.standskin.StandSkinsLoader;
 import rotp.core.client.standskin.sprites.AbilityIconSprites;
@@ -274,7 +275,7 @@ public class PowerHudControlsElement extends HudElement {
 			@Nonnull KeyModifier modifier, @Nullable StandSkin standSkin) {
 		if (controlScheme == null) return;
 		ClientControlScheme.MoveGroup curGroup = controlScheme.getCurGroup();
-		if (modifier == KeyModifier.ALT) modifier = KeyModifier.NONE;
+		if (modifier == KeyModifier.ALT && VariationKey.modifier() != KeyModifier.ALT) modifier = KeyModifier.NONE;
 		AbilityIconSprites abilityIconSprites = StandSkinsLoader.getInstance().abilityIcons;
 		
 		InputHandler modInput = InputHandler.getInstance();
@@ -336,8 +337,9 @@ public class PowerHudControlsElement extends HudElement {
 					ClientKey key = input.getKey();
 					slotUI.bind = new BindUI();
 					slotUI.bind.mainKey = getKeyName(key);
-					slotUI.bind.modifierKey = getModifierName(input.getKeyModifier());
-					slotUI.bind.fullKeybind = getKeyName(key, slotUI.bind.mainKey, input.getKeyModifier());
+					KeyModifier slotModifier = hotbarDisplayModifier != KeyModifier.NONE ? hotbarDisplayModifier : input.getKeyModifier();
+					slotUI.bind.modifierKey = getModifierName(slotModifier);
+					slotUI.bind.fullKeybind = getKeyName(key, slotUI.bind.mainKey, slotModifier);
 					slotUI.numberKey = HotbarSelectionRules.numberKeyOfSlot(slot.index, selectable);
 
 					for (InputMethod inputMethod : InputMethod.values()) {
@@ -434,11 +436,11 @@ public class PowerHudControlsElement extends HudElement {
 	}
 
 	/**
-	 * 1.16 ActionsOverlayGui.resolveVisibleActionInSlot: with Shift held a slot shows its Shift variation (the base
+	 * 1.16 ActionsOverlayGui.resolveVisibleActionInSlot: with the variation key held a slot shows its variation (the base
 	 * one while that is locked), Stand hotbars included. Other modifiers still leave a Stand hotbar on its base.
 	 */
 	static KeyModifier hotbarDisplayModifier(boolean standHotbar, KeyModifier modifier) {
-		return standHotbar && modifier != KeyModifier.SHIFT ? KeyModifier.NONE : modifier;
+		return standHotbar && modifier != VariationKey.modifier() ? KeyModifier.NONE : modifier;
 	}
 
 	private void updateWarnings(@Nullable Player player) {
@@ -821,6 +823,9 @@ public class PowerHudControlsElement extends HudElement {
 		if (key == null) {
 			return NOT_BOUND;
 		}
+		if (modifier == VariationKey.BORROWED_MODIFIER && VariationKey.isBorrowing()) {
+			return Component.empty().append(VariationKey.displayName()).append(" + ").append(keyName);
+		}
 		return modifier != null ? modifier.getCombinedName(key.getVanillaKey(), () -> keyName) : keyName;
 	}
 	
@@ -849,6 +854,7 @@ public class PowerHudControlsElement extends HudElement {
 	@Nullable
 	public static Component getModifierName(KeyModifier modifier) {
 		if (modifier == null) return null;
+		if (modifier == VariationKey.BORROWED_MODIFIER && VariationKey.isBorrowing()) return VariationKey.displayName();
 		return switch (modifier) {
 			case CONTROL -> Minecraft.ON_OSX ? CONTROL_MAC : CONTROL;
 			case SHIFT -> SHIFT;

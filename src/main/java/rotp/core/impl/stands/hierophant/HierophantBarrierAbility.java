@@ -190,7 +190,7 @@ public class HierophantBarrierAbility extends NoPoseStandEntityAbility {
 		return ConditionCheck.POSITIVE;
 	}
 
-	// the net goes on through a recall, which took it down in 1.16: a sneaking press takes it down now
+	// the net goes on through a recall, which took it down in 1.16: a press on the variation key takes it down now
 	private static boolean takesDownTheNet(@Nullable LivingEntity user) {
 		return StandManualInput.isShiftHeld(user);
 	}

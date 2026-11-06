@@ -176,6 +176,7 @@ public class PacketsRegister {
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClBroadcastedModSettingsPacket.Handler(JojoMod.resLoc("clbroadcastedsettings")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClStandManualMovementPacket.Handler(JojoMod.resLoc("clstandmove")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new StandManualInput.ShiftPacket.Handler());
+		registerPacket(registrar, PayloadRegistrar::playToServer, new StandManualInput.VariationKeyPacket.Handler());
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClMobControlMovementPacket.Handler(JojoMod.resLoc("clmobctrlmove")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClControlledMobCommandPacket.Handler(JojoMod.resLoc("clmobitemslot")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClStandClickPacket.Handler(JojoMod.resLoc("clstandclick")));

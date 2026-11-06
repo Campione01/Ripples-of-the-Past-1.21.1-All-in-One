@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import rotp.core.client.input.controlscheme.VariationKeyName;
 import rotp.core.core.JojoMod;
 import rotp.core.impl.powers.hamon.HamonSkillDefinition;
 import rotp.core.impl.powers.hamon.HamonSkillDefinition.HamonSkillBranch;
@@ -67,9 +68,9 @@ public final class HamonSkillsText {
 	// skill description, plus the Hamon Beat line for Overdrive
 	public static List<Component> descLines(HamonSkillDefinition skill) {
 		List<Component> lines = new ArrayList<>(2);
-		lines.add(Component.translatable("hamonSkill." + skill.name() + ".desc"));
+		lines.add(Component.translatable("hamonSkill." + skill.name() + ".desc", VariationKeyName.get()));
 		if (ModHamonSkills.OVERDRIVE_DEF.name().equals(skill.name())) {
-			lines.add(Component.translatable("hamonSkill.overdrive_strong.desc"));
+			lines.add(Component.translatable("hamonSkill.overdrive_strong.desc", VariationKeyName.get()));
 		}
 		return lines;
 	}
