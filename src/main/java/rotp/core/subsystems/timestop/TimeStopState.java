@@ -180,7 +180,7 @@ public class TimeStopState {
 
     /**
      * The owner's rule for an early end (2026-10-14): the unused share of what the start took comes back,
-     * except unrefundableStartCost, the price of the shortest stop (an immediate release) under the same
+     * except unrefundableStartCost, the price of the shortest stop (a double press's) under the same
      * policy and multiplier, which is never given back.
      */
     @ApiStatus.Internal

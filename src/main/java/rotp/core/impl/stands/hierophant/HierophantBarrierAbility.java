@@ -15,6 +15,7 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.AimingEntity;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTargetAim;
 import rotp.core.subsystems.target.ActionTargetRange;
@@ -191,7 +192,7 @@ public class HierophantBarrierAbility extends NoPoseStandEntityAbility {
 
 	// the net goes on through a recall, which took it down in 1.16: a sneaking press takes it down now
 	private static boolean takesDownTheNet(@Nullable LivingEntity user) {
-		return user != null && user.isShiftKeyDown();
+		return StandManualInput.isShiftHeld(user);
 	}
 
 	@Override

@@ -15,6 +15,7 @@ import rotp.core.client.input.InputHandler;
 import rotp.core.client.input.controlscheme.ClientControlScheme;
 import rotp.core.client.input.controlscheme.ClientControlScheme.AbilityControlsEntry;
 import rotp.core.client.input.controlscheme.ClientControlScheme.HotbarSlot;
+import rotp.core.client.input.controlscheme.HotbarSelectionRules;
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.client.standskin.StandSkinsLoader;
 import rotp.core.client.standskin.sprites.AbilityIconSprites;
@@ -144,7 +145,8 @@ public class AbilitySelectionWheel extends Screen implements ScreenLetsUseWASD {
 		if (newSelectedSlot.isPresent()) {
 			double width = (double)window.getScreenWidth();
 			double height = (double)window.getScreenHeight();
-			int[] pos = posAtSector(newSelectedSlot.getAsInt(), abilities.slots.size(), 50);
+			List<HotbarSlot> sectors = shownSlots();
+			int[] pos = posAtSector(sectors.indexOf(abilities.slots.get(newSelectedSlot.getAsInt())), sectors.size(), 50);
 			double xpos = pos[0] / (double)window.getGuiScaledWidth() * width;
 			double ypos = pos[1] / (double)window.getGuiScaledHeight() * height;
 			ClientCursorUtil.moveCursor(minecraft, xpos, ypos);
@@ -176,10 +178,22 @@ public class AbilitySelectionWheel extends Screen implements ScreenLetsUseWASD {
 	
 	protected static final boolean COUNTER_CLOCKWISE = true;
 
+	/** The wheel's sectors: a slot with nothing to draw gets none. */
+	private List<HotbarSlot> shownSlots() {
+		List<HotbarSlot> shown = new ArrayList<>();
+		for (HotbarSlot slot : abilities.slots) {
+			if (slot.showAbility() != null) {
+				shown.add(slot);
+			}
+		}
+		return shown;
+	}
+
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
 		ScreenLetsUseWASD.syncMovementKeys(minecraft);
-		if (abilities == null || !InputHandler.getInstance().isSelectingAbility(abilities)) {
+		List<HotbarSlot> sectors = abilities != null ? shownSlots() : List.of();
+		if (abilities == null || sectors.isEmpty() || !InputHandler.getInstance().isSelectingAbility(abilities)) {
 			onClose();
 			return;
 		}
@@ -198,7 +212,8 @@ public class AbilitySelectionWheel extends Screen implements ScreenLetsUseWASD {
 		boolean ignoreMouse = checkIsIgnoringMouse(mouseX, mouseY);
 		hoveredSlotIndex = ignoreMouse ? abilities.slotIndex : getSlotIndexAt(mouseX, mouseY);
 		
-		int n = abilities.slots.size();
+		int n = sectors.size();
+		boolean[] selectable = abilities.selectableSlots();
 		float angle0 = 0;
 		float fill = 1f / n;
 		float angleStep = 2 * (float) Math.PI * fill;
@@ -210,16 +225,16 @@ public class AbilitySelectionWheel extends Screen implements ScreenLetsUseWASD {
 		AbilityIconSprites abilityIconSprites = StandSkinsLoader.getInstance().abilityIcons;
 		List<ScreenRectangle> tooltipObstacles = new ArrayList<>();
 		for (int i = 0; i < n; i++) {
-			HotbarSlot slot = abilities.slots.get(i);
+			HotbarSlot slot = sectors.get(i);
 			AbilityConditionCheck ability = slot.showAbility();
 			boolean showAbility = ability != null;
 			Power<?> abilityCtx = ability != null && minecraft.player != null ? ability.ability.getUserPower(minecraft.player) : null;
 			TextureAtlasSprite abilitySprite = ability != null ? abilityIconSprites.getAbilityIcon(ability.ability, abilityCtx, standSkin) : null;
-			
-			if (i == hoveredSlotIndex && !showAbility) { 
+
+			if (slot.index == hoveredSlotIndex && !selectable[slot.index]) {
 				hoveredSlotIndex = -1;
 			}
-			boolean highlight = i == hoveredSlotIndex;
+			boolean highlight = slot.index == hoveredSlotIndex;
 			float alpha = highlight ? 0.5f : 0.25f;
 			int sectorTint = ARGB.white(alpha);
 			if (highlight && ability != null) {
@@ -258,7 +273,7 @@ public class AbilitySelectionWheel extends Screen implements ScreenLetsUseWASD {
 			
 
 			if (showAbility) {
-				int numberKey = HotbarSlot.numberKey(slot.index);
+				int numberKey = HotbarSlot.numberKey(HotbarSelectionRules.numberKeyOfSlot(slot.index, selectable));
 				if (numberKey != -1) {
 					int[] digitPos = posAtSector(i, n, 90);
 					String digit = String.valueOf(numberKey);
@@ -278,7 +293,7 @@ public class AbilitySelectionWheel extends Screen implements ScreenLetsUseWASD {
 		abilityNames.clear();
 		if (hoveredSlotIndex != -1 && !abilities.slots.isEmpty()) {
 			if (!ignoreMouse) {
-				abilities.slotIndex = hoveredSlotIndex;
+				abilities.pickSlot(hoveredSlotIndex);
 			}
 			
 			hoveredSlot = abilities.slots.get(hoveredSlotIndex);
@@ -332,15 +347,17 @@ public class AbilitySelectionWheel extends Screen implements ScreenLetsUseWASD {
 		}
 		if (angle < 0) angle += 2 * Math.PI;
 		if (angle >= 2 * Math.PI) angle -= 2 * Math.PI;
-		int index = Mth.floor(abilities.slots.size() * angle / (2 * Math.PI));
-		return index;
+		List<HotbarSlot> sectors = shownSlots();
+		int sector = Mth.floor(sectors.size() * angle / (2 * Math.PI));
+		return sector >= 0 && sector < sectors.size() ? sectors.get(sector).index : -1;
 	}
-	
+
 	protected boolean pickAbilityAt(int mouseX, int mouseY) {
 		if (abilities != null) {
 			int clickedIndex = getSlotIndexAt(mouseX, mouseY);
-			if (clickedIndex >= 0 && clickedIndex < abilities.slots.size()) {
-				abilities.slotIndex = clickedIndex;
+			if (clickedIndex >= 0 && clickedIndex < abilities.slots.size()
+					&& abilities.slots.get(clickedIndex).selectableAbility() != null) {
+				abilities.pickSlot(clickedIndex);
 				return true;
 			}
 		}
@@ -349,7 +366,7 @@ public class AbilitySelectionWheel extends Screen implements ScreenLetsUseWASD {
 
 	public void commitHoveredSelection() {
 		if (abilities != null && hoveredSlotIndex >= 0 && hoveredSlotIndex < abilities.slots.size()) {
-			abilities.slotIndex = hoveredSlotIndex;
+			abilities.pickSlot(hoveredSlotIndex);
 		}
 	}
 

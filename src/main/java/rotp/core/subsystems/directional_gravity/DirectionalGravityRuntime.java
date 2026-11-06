@@ -78,6 +78,15 @@ public final class DirectionalGravityRuntime {
 				event.getEntity());
 	}
 
+	/** Vanilla starts a shot 0.1 under the eye of a shooter standing upright, which can be inside a block otherwise. */
+	public static void startProjectileAtEye(Entity projectile, LivingEntity shooter) {
+		Direction direction = DirectionalGravityApi.getEffectiveDirection(shooter);
+		if (direction != Direction.DOWN) {
+			projectile.setPos(shooter.getEyePosition().subtract(
+					DirectionalGravityTransforms.toWorld(direction, new Vec3(0.0, 0.1, 0.0))));
+		}
+	}
+
 	private static DirectionalGravityFrameAccess access(Entity entity) {
 		return (DirectionalGravityFrameAccess) entity;
 	}

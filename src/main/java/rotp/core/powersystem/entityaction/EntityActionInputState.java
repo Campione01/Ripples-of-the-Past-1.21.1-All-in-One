@@ -56,6 +56,16 @@ public class EntityActionInputState implements TickingEntityData {
 	private final InputGenerationTracker inputGenerations =
 			new InputGenerationTracker();
 
+	/** No press yet: far enough from any game time that a difference with it does not overflow. */
+	@ApiStatus.Internal
+	public static final long NO_PRESS = Long.MIN_VALUE / 2;
+	/** Game time of the press that began a time stop's charge and may become a double press's first (TimeStopAbility). */
+	@ApiStatus.Internal
+	public long timeStopFirstPressTime = NO_PRESS;
+	/** Game time of the press that last resumed the user's own time stop. */
+	@ApiStatus.Internal
+	public long timeStopResumePressTime = NO_PRESS;
+
 	@ApiStatus.Internal
 	public long nextInputGeneration(short keyId) {
 		return user.level().isClientSide()

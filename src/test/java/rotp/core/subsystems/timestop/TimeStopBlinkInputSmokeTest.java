@@ -25,9 +25,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 1.16 reached a time stop's blink with SHIFT on the time stop slot (TimeResume#replaceAction). The port
- * gives the blink its own special-wheel slot instead (owner boundary: Stand variants are direct wheel
- * entries, no Shift/Ctrl variations), and the time stop key resumes the user's own stopped time. The blink
+ * 1.16 reached a time stop's blink with SHIFT on the time stop slot (TimeResume#replaceAction), and so does
+ * the port (a slot variation), while the time stop key resumes the user's own stopped time. The blink
  * cost 0.8 of its own base time stop's staminaCost / staminaCostTick (TimeStopInstant), turned the user
  * toward an entity target, and the TS punch trained its time stop in whole points only (TheWorldTSHeavyAttack).
  */
@@ -36,7 +35,9 @@ public final class TimeStopBlinkInputSmokeTest {
 	private static final ResourceLocation THE_WORLD = id("jojo_ripples", "the_world");
 	private static final String SHADOW_TS = "shadow_world_time_stop";
 	private static final String SHADOW_BLINK = "shadow_world_ts_blink";
-	private static final String BLINK_SLOT = ".addToHotbar(\"time_stop_blink\", 0, InputMethod.CLICK)";
+	private static final String BLINK_OWN_SLOT = ".addToHotbar(\"time_stop_blink\"";
+	private static final String BLINK_VARIATION =
+			".addHotbarSlotVariation(\"time_stop_blink\", \"time_stop\", InputKey.Modifier.SHIFT, InputMethod.CLICK)";
 	private static final String TIME_STOP_SLOT = ".addToHotbar(\"time_stop\", 0, InputMethod.HOLD)";
 	private static final float EPSILON = 0.0001F;
 
@@ -48,7 +49,7 @@ public final class TimeStopBlinkInputSmokeTest {
 
 	public static void run() {
 		verifyBlinkCosts();
-		verifyBlinkIsItsOwnSlot();
+		verifyBlinkKeepsItsIcon();
 		verifyTsPunchLearning();
 		verifyBlinkFacing();
 		verifySourceWiring();
@@ -116,10 +117,10 @@ public final class TimeStopBlinkInputSmokeTest {
 				"a NaN per-tick cost");
 	}
 
-	private static void verifyBlinkIsItsOwnSlot() {
+	private static void verifyBlinkKeepsItsIcon() {
 		TimeStopBlinkAbility worldBlink = blink(THE_WORLD, "time_stop_blink");
 		check("time_stop_blink".equals(worldBlink.getSpriteName(null)),
-				"the blink's own wheel slot must show the blink icon, not the time stop's");
+				"with Shift held the slot must show the blink icon, not the time stop's");
 		check(TimeStopLearning.TIME_STOP.equals(worldBlink.getTimeStopAbilityName()),
 				"the core blink must follow the moveset's time_stop");
 	}
@@ -143,16 +144,13 @@ public final class TimeStopBlinkInputSmokeTest {
 		Path root = Path.of(System.getProperty("user.dir")).resolve("src/main/java/rotp/core");
 		for (String stand : new String[] { "StandInitTheWorld.java", "StandInitStarPlatinum.java" }) {
 			String source = read(root.resolve("impl/stands/" + stand));
-			check(!source.contains(".addHotbarSlotVariation(") && !source.contains("\"time_resume\""),
-					stand + " must not bring back the SHIFT time resume variation");
+			check(!source.contains("\"time_resume\""),
+					stand + " must not bring back the SHIFT time resume ability: the key resumes");
 			String hotbar = between(source, ".makeControlScheme(\"hotbar\")", ".finalizeControlScheme()");
-			int timeStopSlot = hotbar.indexOf(TIME_STOP_SLOT);
-			int blinkSlot = hotbar.indexOf(BLINK_SLOT);
-			check(count(hotbar, TIME_STOP_SLOT) == 1 && count(hotbar, BLINK_SLOT) == 1
-					&& timeStopSlot >= 0 && blinkSlot > timeStopSlot
-					&& hotbar.substring(timeStopSlot + TIME_STOP_SLOT.length(), blinkSlot)
-							.replaceAll("//[^\n]*", "").isBlank(),
-					stand + " must give the blink its own wheel slot right after the held time stop");
+			check(count(hotbar, TIME_STOP_SLOT) == 1 && count(hotbar, BLINK_VARIATION) == 1
+					&& hotbar.indexOf(BLINK_VARIATION) > hotbar.indexOf(TIME_STOP_SLOT),
+					stand + " must put the blink under the held time stop as its Shift click");
+			check(!source.contains(BLINK_OWN_SLOT), stand + " must not give the blink a slot of its own");
 			check(!source.contains("withAbility(\"time_stop_blink\")"),
 					stand + " blink unlocks with its time stop, not as a skill of its own");
 		}

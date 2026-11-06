@@ -30,9 +30,11 @@ import rotp.core.client.input.controlscheme.ClientControlScheme.AbilityControlsE
 import rotp.core.client.input.controlscheme.ClientControlScheme.Hotbar;
 import rotp.core.client.input.controlscheme.ClientControlScheme.HotbarSlot;
 import rotp.core.client.input.controlscheme.ClientInputBind;
+import rotp.core.client.input.controlscheme.HotbarSelectionRules;
 import rotp.core.client.input.controlscheme.ClientKey;
 import rotp.core.client.ui.AbilitySelectionWheel;
 import rotp.core.client.ui.hud_power.PowerHud;
+import rotp.core.client.ui.screen_jojomenu.ControlSchemeEditorInput;
 import rotp.core.client.util.functions.ClientUtil;
 import rotp.core.config.client.ClientModSettings;
 import rotp.core.event.client.PreKeyInputEvent;
@@ -139,6 +141,7 @@ public class InputHandler {
 	
 	@SubscribeEvent
 	public void handleKeyBindingsPost(ClientTickEvent.Post event) {
+		keepHotbarSelectionsOnUsableSlots();
 		vanillaKeybinds.handleTick();
 		tickReleaseEventQueue();
 		tickPendingReleaseUse();
@@ -171,10 +174,26 @@ public class InputHandler {
 		}
 	}
 	
+	/**
+	 * Abilities come and go with their unlocks and their context (a nugget in the Stand's hand), so a selected slot can run
+	 * out of anything to use. A container menu shows its own slots: its selection stays for when it closes.
+	 */
+	private void keepHotbarSelectionsOnUsableSlots() {
+		if (mc.player == null || mc.screen != null && !(mc.screen instanceof AbilitySelectionWheel)) {
+			return;
+		}
+		ClientControlScheme controlScheme = getActiveControlSchemeForHotbarOperation();
+		if (controlScheme != null) {
+			for (Hotbar hotbar : controlScheme.getCurGroup().hotbars) {
+				hotbar.keepSelectionOnUsableSlot();
+			}
+		}
+	}
+
 	/** Whether the hotbar's selected ability would resolve to something usable right now. */
 	private boolean isSelectedAbilityUsable(Hotbar hotbar) {
 		HotbarSlot slot = hotbar.getSelected();
-		if (slot == null || slot.showAbility() == null) {
+		if (slot == null || slot.selectableAbility() == null) {
 			return false;
 		}
 		List<AbilityControlsEntry> clickBound = slot.getBinds().getAll(getCurModifier(), InputMethod.CLICK);
@@ -1055,8 +1074,9 @@ public class InputHandler {
 			Hotbar wheelHotbar = null;
 			ClientControlScheme.MoveGroup curControls = controlScheme.getCurGroup();
 			for (Hotbar abilityHotbar : curControls.hotbars) {
-				if (abilityHotbar.switchAbilityKey != null && abilityHotbar.switchAbilityKey.keyMatches(pressedKey, getCurModifier())) {
-					boolean selected = isHotbarToggleEnabled(abilityHotbar) 
+				if (abilityHotbar.switchAbilityKey != null && abilityHotbar.switchAbilityKey.keyMatches(pressedKey, getCurModifier())
+						&& abilityHotbar.hasSelectableSlot()) {
+					boolean selected = isHotbarToggleEnabled(abilityHotbar)
 							? switchToggledHotbarControls(abilityHotbar)
 							: setSelectingAbility(abilityHotbar, pressedKey, true);
 					if (selected && wheelHotbar == null) wheelHotbar = abilityHotbar;
@@ -1122,7 +1142,7 @@ public class InputHandler {
 		}
 		HotbarSlot slot = hotbar.getSelected();
 		ClientKey useKey = hotbar.useAbilityKey.getKey();
-		if (slot == null || slot.showAbility() == null || useKey == null) {
+		if (slot == null || slot.selectableAbility() == null || useKey == null) {
 			return;
 		}
 		input(useKey, InputConstants.PRESS, 0);
@@ -1153,34 +1173,17 @@ public class InputHandler {
 	}
 	
 	private boolean cycleHotbarSlot(Hotbar hotbar, boolean backwards, @Nullable AbilitySelectionWheel curWheel) {
-		if (hotbar.slots.isEmpty()) {
+		int newIndex = ControlSchemeEditorInput.cycleSlot(hotbar.slotIndex, hotbar.selectableSlots(), backwards);
+		if (newIndex < 0) {
 			return false;
 		}
-		
-		int n = hotbar.slots.size();
-		int newIndex = hotbar.slotIndex;
-		for (int attempts = 0; attempts < n; attempts++) {
-			if (newIndex < 0 || newIndex >= n) {
-				newIndex = backwards ? n - 1 : 0;
-			}
-			else {
-				newIndex += backwards ? -1 : 1;
-				if (newIndex < 0) newIndex = n - 1;
-				else if (newIndex >= n) newIndex = 0;
-			}
-			
-			HotbarSlot slot = hotbar.slots.get(newIndex);
-			if (slot.showAbility() != null) {
-				if (newIndex != hotbar.slotIndex) {
-					hotbar.slotIndex = newIndex;
-					if (curWheel != null && curWheel.abilities == hotbar) {
-						curWheel.setIgnoreMouseUntilMove(OptionalInt.of(newIndex));
-					}
-				}
-				return true;
+		if (newIndex != hotbar.slotIndex) {
+			hotbar.pickSlot(newIndex);
+			if (curWheel != null && curWheel.abilities == hotbar) {
+				curWheel.setIgnoreMouseUntilMove(OptionalInt.of(newIndex));
 			}
 		}
-		return false;
+		return true;
 	}
 	
 	public boolean hotbarPickSlot(ClientKey digitKey) {
@@ -1204,14 +1207,14 @@ public class InputHandler {
 			@Nullable AbilitySelectionWheel curWheel = mc.screen instanceof AbilitySelectionWheel w ? w : null;
 			for (Hotbar hotbar : curControls.hotbars) {
 				if (isSelectingAbility(hotbar) && newIndex < hotbar.slots.size()) {
-					HotbarSlot slot = hotbar.slots.get(newIndex);
-					if (slot.showAbility() != null) {
-						hotbar.slotIndex = newIndex;
+					int slotIndex = HotbarSelectionRules.slotOfNumberKey(newIndex, hotbar.selectableSlots());
+					if (slotIndex >= 0) {
+						hotbar.pickSlot(slotIndex);
 						if (curWheel != null && curWheel.abilities == hotbar) {
-							curWheel.setIgnoreMouseUntilMove(OptionalInt.of(newIndex));
+							curWheel.setIgnoreMouseUntilMove(OptionalInt.of(slotIndex));
 						}
 					}
-					
+
 					pickedAHotbarSlot |= true;
 				}
 			}

@@ -99,8 +99,7 @@ public class StandInitTheWorld {
 					.makeHotbar(0, USE_SPECIAL, SWITCH_SPECIAL)
 					.addToHotbar("ts_punch", 0, InputMethod.CLICK)
 					.addToHotbar("time_stop", 0, InputMethod.HOLD)
-					// 1.16 blink (SHIFT variation of the time stop) as its own wheel slot
-					.addToHotbar("time_stop_blink", 0, InputMethod.CLICK)
+					.addHotbarSlotVariation("time_stop_blink", "time_stop", InputKey.Modifier.SHIFT, InputMethod.CLICK)
 				.finalizeControlScheme()
 
 

@@ -37,6 +37,7 @@ import rotp.core.subsystems.timestop.TimeStopState;
 import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.ModHamonSkills;
 import rotp.core.impl.powers.hamon.entity.HamonSendoOverdriveEntity;
+import rotp.core.impl.stands.theworld.TimeStopAbility;
 import com.mojang.authlib.GameProfile;
 
 import net.minecraft.core.BlockPos;
@@ -668,7 +669,8 @@ public final class HeldConditionRecheckGameTests {
 		LivingComponentAction slot = LivingComponentAction.getComponent(f.user, PowerClass.STAND);
 		slot.setAction(charge, f.user, SyncType.NO_SYNC);
 		holdByKey(f.user, charge, PowerClass.STAND);
-		for (int tick = 0; tick < 3; tick++) {
+		int minimum = TimeStopAbility.getMinReleaseChargeTicks(charge.getCurPhaseLength());
+		for (int tick = 0; tick < minimum; tick++) {
 			slot.tick();
 		}
 		helper.assertTrue(slot.getAction() == charge && charge.getPhase() == ActionPhase.BUTTON_CHARGE
