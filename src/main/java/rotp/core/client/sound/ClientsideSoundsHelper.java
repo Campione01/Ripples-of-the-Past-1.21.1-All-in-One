@@ -104,9 +104,11 @@ public class ClientsideSoundsHelper {
 	private static ResourceLocation standSkin_standId;
 	private static Optional<ResourceLocation> standSkin_standSkin;
 	
+	// This event can come off the client thread. What it asks of the world here only reads; the Stand skin waiting
+	// above was set on the client thread for that thread's own next sound.
 	@SubscribeEvent
 	public static void onSoundPlayed(PlaySoundEvent event) {
-		if (standSkin_soundEvent != null) {
+		if (standSkin_soundEvent != null && Minecraft.getInstance().isSameThread()) {
 			SoundInstance sound = event.getSound();
 			if (sound != null && standSkin_soundEvent.getLocation().equals(sound.getLocation())) {
 				if (sound instanceof SoundInstanceWithStandSkin withSkin) {

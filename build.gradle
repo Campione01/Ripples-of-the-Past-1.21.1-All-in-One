@@ -494,6 +494,15 @@ tasks.register('stoppedTimeVanillaClickSmokeTest', JavaExec) {
             'rotp.core.client.input.StoppedTimeVanillaClickSmokeTest'
 }
 
+tasks.register('offThreadListenerRulesSmokeTest', JavaExec) {
+    group = 'verification'
+    description = 'Verifies no listener of an event fired off the main thread names the world\'s random.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass =
+            'rotp.core.compat.OffThreadListenerRulesSmokeTest'
+}
+
 tasks.register('standOffsetScaleSmokeTest', JavaExec) {
     group = 'verification'
     description = 'Verifies Stand-user offsets scaled by the user bounding box, pose included, as in 1.16.'
@@ -628,6 +637,7 @@ tasks.named('check').configure {
     dependsOn tasks.named('standAuraFxIntegrationSmokeTest')
     dependsOn tasks.named('animationLoaderForeignFilesSmokeTest')
     dependsOn tasks.named('molangUnaryNegationSmokeTest')
+    dependsOn tasks.named('offThreadListenerRulesSmokeTest')
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.
