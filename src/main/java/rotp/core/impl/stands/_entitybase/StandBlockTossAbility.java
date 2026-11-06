@@ -3,7 +3,6 @@ package rotp.core.impl.stands._entitybase;
 import javax.annotation.Nullable;
 
 import rotp.core.client.ClientGlobals;
-import rotp.core.client.entityanim.PreFrameEntityAnimCalc.LivingAnimState;
 import rotp.core.client.input.AbilityInputState;
 import rotp.core.client.sound.ClientsideSoundsHelper;
 import rotp.core.client.sound.sounds.EntityLingeringSoundInstance;
@@ -242,13 +241,6 @@ public class StandBlockTossAbility extends StandEntityAbility {
 		@Override
 		public boolean canBeCancelledInto(EntityActionType cancellingAbility) {
 			return phase != null && phase.ordinal() < ActionPhase.PERFORM.ordinal();
-		}
-
-		// the clip has a charge section of its own, which the base would skip for the 1.16 clips that have none
-		@Override
-		public void extractAnim(LivingAnimState animVariables, LivingEntity performer, float partialTick) {
-			super.extractAnim(animVariables, performer, partialTick);
-			animVariables.actionPhase = getPhase();
 		}
 
 		@Override

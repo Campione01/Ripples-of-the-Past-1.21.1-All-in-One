@@ -191,7 +191,7 @@ public class RotpAnimDefinition {
 		boolean appliedPhaseAnim = false;
 		boolean usePhaseTime = entityAction.actionPhase != null && this.instructionTimelines.phases != null;
 		if (usePhaseTime) {
-			ActionPhase taskPhase = entityAction.actionPhase;
+			ActionPhase taskPhase = sectionOf(entityAction.actionPhase);
 
 			Float2ObjectMap.Entry<AnimActionPhase> curPhase = null;
 			Float2ObjectMap.Entry<AnimActionPhase> nextPhase = null;
@@ -261,6 +261,21 @@ public class RotpAnimDefinition {
 		return animSeconds;
 	}
 	
+	/**
+	 * A clip with a charge section of its own draws the charge in it; 1.16's clips, which have none, draw it in their windup.
+	 */
+	private ActionPhase sectionOf(ActionPhase phase) {
+		if (phase != ActionPhase.BUTTON_CHARGE) {
+			return phase;
+		}
+		for (Float2ObjectMap.Entry<AnimActionPhase> section : instructionTimelines.phases.getEntries()) {
+			if (section.getValue().phase == ActionPhase.BUTTON_CHARGE) {
+				return phase;
+			}
+		}
+		return ActionPhase.WINDUP;
+	}
+
 	/**
 	 * @return anim time in seconds
 	 */

@@ -102,9 +102,9 @@ public final class StandClipPoses116GameTests {
 			// the rapier launch: SilverChariotModel's RANGED_ATTACK pose in PERFORM only, the idle before it
 			new HeadPose(SC_ANIMS, "rapier_launch", "0", Head.IDLE, null), new HeadPose(SC_ANIMS, "rapier_launch", "RECOVERY"),
 			new HeadPose(SC_ANIMS, "rangedAttack", "0", Head.IDLE, null), new HeadPose(SC_ANIMS, "rangedAttack", "RECOVERY"),
-			// the idle is the official port's, its head 5 degrees off the look under body_rot -25 and torso_bend 20; the
-			// other two idles (initBaseIdlePose: HEAD_ROTATION)
-			new HeadPose(SC_ANIMS, "idle", "0", Head.TURNED, new float[] { 0, -5, 0 }),
+			// the idle is the official port's but for its head, which G20 takes off its 5 degrees under body_rot -25 and torso_bend 20;
+			// the other two idles (initBaseIdlePose: HEAD_ROTATION)
+			new HeadPose(SC_ANIMS, "idle", "0"),
 			new HeadPose(SC_ANIMS, "no_rapier_idle", "0"), new HeadPose(SC_ANIMS, "no_armor_idle", "0"),
 			// SilverChariotModel :211-241, summon poses 1-3 (pose 2 has no head: the reset head, the root's forward), their
 			// head rolls zeroed by the idle's HEAD_ROTATION every frame (StandEntityModel :244, LegacyStandAnimator :119)
@@ -762,8 +762,13 @@ public final class StandClipPoses116GameTests {
 				f = switch (easing) {
 					case "linear" -> f;
 					case "easeInQuad" -> f * f;
+					case "easeOutQuad" -> 1 - (1 - f) * (1 - f);
+					case "easeInOutQuad" -> f < 0.5F ? 2 * f * f : 1 - 2 * (1 - f) * (1 - f);
 					case "easeInCubic" -> f * f * f;
 					case "easeOutCubic" -> 1 - (1 - f) * (1 - f) * (1 - f);
+					case "easeInOutCubic" -> f < 0.5F ? 4 * f * f * f : 1 - 4 * (1 - f) * (1 - f) * (1 - f);
+					case "easeOutQuart" -> 1 - (1 - f) * (1 - f) * (1 - f) * (1 - f);
+					case "easeOutQuint" -> 1 - (1 - f) * (1 - f) * (1 - f) * (1 - f) * (1 - f);
 					case "easeInSine" -> 1 - (float) Math.cos(f * Math.PI / 2);
 					case "easeOutSine" -> (float) Math.sin(f * Math.PI / 2);
 					case "easeInOutSine" -> (float) (-(Math.cos(Math.PI * f) - 1) / 2);

@@ -457,7 +457,7 @@ public class PreFrameEntityAnimCalc {
 		animVariables.animSet = charge.action().ability.getEntityAnimSet(stand);
 		animVariables.animId = charge.action().getEntityAnim();
 		animVariables.time = charge.fullTicks();
-		animVariables.actionPhase = charge.phase() == ActionPhase.BUTTON_CHARGE ? ActionPhase.WINDUP : charge.phase();
+		animVariables.actionPhase = charge.phase();
 		animVariables.phaseTime = charge.phaseTicks();
 		animVariables.phaseCompletion = charge.phaseCompletion();
 	}
