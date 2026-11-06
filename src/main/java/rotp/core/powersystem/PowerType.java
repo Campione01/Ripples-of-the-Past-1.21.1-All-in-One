@@ -178,6 +178,7 @@ public abstract class PowerType implements JsonConfigurable {
 		if (extensionTarget != null) {
 			applyMovesetExtensions(extensionTarget, copy);
 		}
+		copy.addWhatItsMovesBring();
 		return copy;
 	}
 	

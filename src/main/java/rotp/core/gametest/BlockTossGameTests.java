@@ -10,9 +10,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.imageio.ImageIO;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.datafixers.util.Pair;
 
@@ -31,7 +34,10 @@ import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModEntityTypes;
 import rotp.core.init.ModGamerules;
 import rotp.core.init.ModStatusEffects;
+import rotp.core.init.power.ModStandAbilities;
+import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.Power;
+import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.EntityActionAbility;
 import rotp.core.powersystem.ability.condition.AvailableAbilities.AbilityConditionCheck;
 import rotp.core.powersystem.ability.controls.ControlSchemeTemplate;
@@ -44,6 +50,10 @@ import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandStats;
+import rotp.core.powersystem.standpower.StandUnlockableSkill;
+import rotp.core.powersystem.standpower.entity.EntityStandType;
+import rotp.core.powersystem.standpower.entity.StandControlType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.powersystem.standpower.type.StandType;
@@ -60,6 +70,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -91,9 +102,9 @@ public final class BlockTossGameTests {
 	private static final float STAMINA_COST = 20.0F;
 	private static final float BASE_DAMAGE = 2.5F;
 	private static final String TOSS = "block_toss";
-	private static final List<String> WITH_THE_SKILL = List.of("star_platinum", "crazy_diamond");
-	private static final List<String> WITHOUT_THE_SKILL = List.of("the_world", "gold_experience", "magicians_red", "silver_chariot",
-			"hierophant_green");
+	private static final List<String> WITH_THE_SKILL = List.of("star_platinum", "crazy_diamond", "the_world");
+	private static final List<String> WITHOUT_THE_SKILL = List.of("gold_experience", "magicians_red", "silver_chariot",
+			"hierophant_green", "boy_ii_man", "mr_president");
 	private static final List<String> LANGUAGES = List.of("en_us", "en_pt", "es_es", "es_ve", "it_it", "ja_jp", "lzh", "pt_br", "ru_ru",
 			"uk_ua", "zh_cn", "zh_tw");
 
@@ -522,48 +533,189 @@ public final class BlockTossGameTests {
 		helper.succeed();
 	}
 
-	// as the official: the two Stands whose inits list it, as a starting skill; the add-on humanoids' shared method does not give it
+	// the one rule of the core: whichever Stand has the grab has the toss, as a starting skill, on the held key of every control scheme, beside its barrage
 	@GameTest(template = "empty", timeoutTicks = 40)
-	public static void theTwoStandsStartWithItOnTheHeldKeyAndOldDataGetsIt(GameTestHelper helper) {
+	public static void everyCoreStandWithAGrabStartsWithItOnTheHeldKey(GameTestHelper helper) {
+		List<String> grabbing = new ArrayList<>();
+		for (StandType type : JojoRegistries.DEFAULT_STANDS_REG) {
+			String id = type.getId().getPath();
+			boolean hasGrab = type.getDefaultMoveset().abilities.containsKey("grab");
+			if (hasGrab) {
+				grabbing.add(id);
+			}
+			helper.assertTrue(type.getUnlockableSkills().containsKey(TOSS) == hasGrab, id + " has the grab " + hasGrab + " but the skill "
+					+ type.getUnlockableSkills().containsKey(TOSS));
+		}
+		helper.assertTrue(grabbing.containsAll(WITH_THE_SKILL) && WITH_THE_SKILL.containsAll(grabbing), "The core Stands with a grab are " + grabbing);
 		for (String id : WITH_THE_SKILL) {
 			StandType type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc(id));
 			helper.assertTrue(type != null, "Missing Stand type " + id);
 			var skill = type.getUnlockableSkills().get(TOSS);
-			helper.assertTrue(skill != null && skill.isStarting, id + " does not start with Block Toss");
+			helper.assertTrue(skill != null && skill.isStarting && skill.unlocksAbilities.contains(TOSS), id + " does not start with Block Toss");
+			helper.assertTrue(type.getBaseMoveset().getAbility(TOSS) instanceof StandBlockTossAbility, id + " has no Block Toss in its moveset");
+			MovesetBuilder built = type.getDefaultMoveset().deepCopy();
+			built.addWhatItsMovesBring();
+			built.build(type.getPowerClass(), type.getId());
 			for (String schemeName : new String[] { "hotbar", "keybinds" }) {
-				ControlSchemeTemplate scheme = type.getDefaultMoveset().controlSchemes.get(schemeName);
+				ControlSchemeTemplate scheme = built.controlSchemes.get(schemeName);
 				helper.assertTrue(scheme != null, id + " lost its " + schemeName + " scheme");
-				for (String move : new String[] { TOSS, "barrage" }) {
-					Pair<InputMethod, InputBindTemplate> bind = scheme.defaultGroup.separateBinds.get(move);
-					helper.assertTrue(bind != null && bind.getFirst() == InputMethod.HOLD && bind.getSecond() == InputKey.LMB,
-							id + " " + schemeName + ": " + move + " is not on the held left button: " + bind);
-				}
+				assertOnTheHeldKey(helper, id + " " + schemeName, scheme);
 			}
+			assertOnTheHeldKey(helper, id + "'s client template", type.makeDefaultControlSchemeTemplate());
 		}
+		helper.succeed();
+	}
+
+	private static void assertOnTheHeldKey(GameTestHelper helper, String where, ControlSchemeTemplate scheme) {
+		for (String move : new String[] { TOSS, "barrage" }) {
+			Pair<InputMethod, InputBindTemplate> bind = scheme.defaultGroup.separateBinds.get(move);
+			helper.assertTrue(bind != null && bind.getFirst() == InputMethod.HOLD && bind.getSecond() == InputKey.LMB,
+					where + ": " + move + " is not on the held left button: " + bind);
+		}
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 40)
+	public static void aMovesetWithoutAGrabDoesNotHaveIt(GameTestHelper helper) {
 		for (String id : WITHOUT_THE_SKILL) {
 			StandType type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc(id));
 			helper.assertTrue(type != null, "Missing Stand type " + id);
-			helper.assertTrue(!type.getUnlockableSkills().containsKey(TOSS) && !type.getDefaultMoveset().abilities.containsKey(TOSS),
-					id + " has Block Toss, which the official's has not");
+			helper.assertTrue(!type.getDefaultMoveset().abilities.containsKey("grab"), "Fixture: " + id + " has a grab");
+			helper.assertTrue(!type.getUnlockableSkills().containsKey(TOSS) && type.getBaseMoveset().getAbility(TOSS) == null
+					&& !type.makeDefaultControlSchemeTemplate().defaultGroup.separateBinds.containsKey(TOSS), id + " has Block Toss with no grab");
 		}
-		StandTaskTargetOffsetGameTests.withStand(helper, "crazy_diamond", scene -> {
-			StandTypePersistentData data = scene.power().getCurTypeData();
-			scene.stand().setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.COBBLESTONE));
-			helper.assertTrue(data.isSkillUnlocked(TOSS) && resolve(scene, TOSS) != null, "A new Crazy Diamond has no Block Toss");
-			CompoundTag saved = data.serializeNBT(helper.getLevel().registryAccess());
-			ListTag old = new ListTag();
-			for (Tag skill : saved.getList("skills", Tag.TAG_STRING)) {
-				if (!TOSS.equals(skill.getAsString())) {
-					old.add(StringTag.valueOf(skill.getAsString()));
-				}
-			}
-			saved.put("skills", old);
-			data._setSkillUnlocked(TOSS, false, false);
-			helper.assertTrue(resolve(scene, TOSS) == null, "A locked skill still has the ability");
-			data.deserializeNBT(helper.getLevel().registryAccess(), saved);
-			helper.assertTrue(data.isSkillUnlocked(TOSS), "A save from before the skill does not get it");
+		EntityStandType noGrab = standOf(new MovesetBuilder().addHumanoidStandStuff().addAbility("barrage", ModStandAbilities.BARRAGE), "gametest_no_grab");
+		helper.assertTrue(!noGrab.getUnlockableSkills().containsKey(TOSS) && noGrab.getBaseMoveset().getAbility(TOSS) == null,
+				"The humanoid call alone gave a moveset Block Toss");
+		helper.succeed();
+	}
+
+	// the rule fills a gap and takes nothing: another ability under the name, its own skill and key, or no skill at all, stay as declared
+	@GameTest(template = "empty", timeoutTicks = 40)
+	public static void aMovesetThatDeclaresItsOwnKeepsIt(GameTestHelper helper) {
+		EntityStandType own = standOf(new MovesetBuilder()
+				.addAbility("grab", ModStandAbilities.GRAB)
+				.addAbility("barrage", ModStandAbilities.BARRAGE)
+				.addAbility(TOSS, ModStandAbilities.HEAVY_PUNCH)
+				.makeControlScheme("hotbar")
+					.bind(TOSS, InputMethod.CLICK, InputKey.RMB)
+					.bind("barrage", InputMethod.HOLD, InputKey.LMB)
+				.finalizeControlScheme()
+				.makeControlScheme("keybinds")
+					.bind("barrage", InputMethod.HOLD, InputKey.LMB)
+				.finalizeControlScheme()
+				.addSkill(StandUnlockableSkill.unlockableAbility(TOSS, 100)), "gametest_own_toss");
+		helper.assertTrue(own.getBaseMoveset().getAbility(TOSS).abilityType == ModStandAbilities.HEAVY_PUNCH.get(),
+				"A moveset's own ability under the name was replaced: " + own.getBaseMoveset().getAbility(TOSS).abilityType);
+		StandUnlockableSkill ownSkill = own.getUnlockableSkills().get(TOSS);
+		helper.assertTrue(!ownSkill.isStarting && ownSkill.expToUnlock == 100, "A moveset's own skill was replaced: starting " + ownSkill.isStarting
+				+ ", " + ownSkill.expToUnlock + " to unlock");
+		Pair<InputMethod, InputBindTemplate> ownBind = own.makeDefaultControlSchemeTemplate().defaultGroup.separateBinds.get(TOSS);
+		helper.assertTrue(ownBind != null && ownBind.getFirst() == InputMethod.CLICK && ownBind.getSecond() == InputKey.RMB,
+				"A moveset's own key was replaced: " + ownBind);
+
+		EntityStandType noSkill = standOf(new MovesetBuilder().addAbility("grab", ModStandAbilities.GRAB).addAbility(TOSS, ModStandAbilities.HEAVY_PUNCH),
+				"gametest_own_toss_no_skill");
+		helper.assertTrue(noSkill.getBaseMoveset().getAbility(TOSS).abilityType == ModStandAbilities.HEAVY_PUNCH.get()
+				&& !noSkill.getUnlockableSkills().containsKey(TOSS), "A moveset's own ability with no skill got the core's");
+		helper.succeed();
+	}
+
+	// a config's "disable" takes the ability out of the built moveset, and the rule, which runs on every copy, must not put it back
+	@GameTest(template = "empty", timeoutTicks = 40)
+	public static void aConfigThatDisablesItKeepsItDisabled(GameTestHelper helper) {
+		EntityStandType type = standOf(new MovesetBuilder().addAbility("grab", ModStandAbilities.GRAB), "gametest_toss_disabled");
+		helper.assertTrue(type.getBaseMoveset().getAbility(TOSS) != null, "Fixture: the moveset has no Block Toss");
+		JsonObject moveset = new JsonObject();
+		JsonArray disable = new JsonArray();
+		disable.add(TOSS);
+		moveset.add("disable", disable);
+		JsonObject config = new JsonObject();
+		config.add("moveset", moveset);
+		type.applyConfig(config);
+		helper.assertTrue(type.getBaseMoveset().getAbility(TOSS) == null, "A config could not disable Block Toss");
+		type.restoreDefaults();
+		helper.assertTrue(type.getBaseMoveset().getAbility(TOSS) != null, "Block Toss did not come back with the defaults");
+		helper.succeed();
+	}
+
+	// an add-on's Stand finds the core's icon and words: its ability's sprite and text keys are the core's, not its own namespace's, and a skin's own icon still comes first
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void anAddOnsStandFindsTheCoresIconAndWords(GameTestHelper helper) {
+		EntityStandType type = new EntityStandType(new StandStats.Builder().power(1).speed(1).range(1, 2).durability(1).precision(1).build(),
+				new MovesetBuilder().addHumanoidStandStuff().addAbility("grab", ModStandAbilities.GRAB),
+				ResourceLocation.fromNamespaceAndPath("rotp_gametest", "grabbing_stand"), StandControlType.CLOSE_RANGE_DIRECT, 1, 2, true, true);
+		Ability toss = type.getBaseMoveset().getAbility(TOSS);
+		helper.assertTrue(toss != null, "An add-on's Stand with a grab has no Block Toss");
+		helper.assertTrue(toss.getSpriteId(null).equals(JojoMod.resLoc(TOSS)), "Its icon is looked for at " + toss.getSpriteId(null));
+		helper.assertTrue("jojo_ripples.ability.block_toss".equals(toss.getTranslationKey()), "Its name is looked for at " + toss.getTranslationKey());
+		String icons = source("client/standskin/sprites/AbilityIconSprites.java");
+		helper.assertTrue(icons.contains("spritePath = skinSpritePath(curStandSkin.skinId, abilitySpriteId.getPath());"),
+				"A skin's own icon of the ability no longer comes first");
+		helper.assertTrue(icons.contains("return icons.apply(JojoMod.resLoc(skill.skillName));"), "A skill with no ability of its name, Use Item, no longer finds the core's icon");
+		String words = source("client/ui/text/StandSkillText.java");
+		helper.assertTrue(words.contains("return \"jojo_ripples.skill.\" + skill.skillName + suffix;") && words.contains("return Component.translatable(baseKey, args);"),
+				"A skill's text is no longer found under the core's key on another mod's Stand");
+		helper.succeed();
+	}
+
+	// the same key on a Stand other than the first two: with empty hands the hold is the barrage, with a block the throw
+	@GameTest(template = "empty", timeoutTicks = 100)
+	public static void onAnotherStandTheBarrageKeepsTheKeyWithEmptyHands(GameTestHelper helper) {
+		StandTaskTargetOffsetGameTests.withStand(helper, "the_world", scene -> {
+			StandEntity stand = scene.stand();
+			helper.assertTrue(resolve(scene, TOSS) == null, "The World's empty hands have the toss");
+			AbilityConditionCheck barrage = resolve(scene, "barrage");
+			helper.assertTrue(barrage != null, "The World's empty hands lost the barrage");
+			stand.summonLockTicks = 0;
+			BufferingState state = BufferingState.clickCanBuffer();
+			AbilityInput.keyPress(KEY, barrage.ability, scene.user(), null, InputMethod.HOLD, 0, state, barrage.ability.getAbilityId());
+			EntityActionInstance running = stand.getCurStandAction();
+			helper.assertTrue(state.isActionSuccess && running != null && running.ability == barrage.ability,
+					"The held key with empty hands did not start the barrage: " + running);
+			AbilityInput.keyRelease(KEY, scene.user());
+			running.forceStop();
+			tick(scene);
+
+			stand.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.COBBLESTONE, 3));
+			EntityActionInstance toss = press(scene);
+			helper.assertTrue("block_toss_right".equals(toss.getEntityAnim().name()), "The World's main hand plays " + toss.getEntityAnim());
+			tick(scene, CHARGE_TICKS);
+			AbilityInput.keyRelease(KEY, scene.user());
+			tick(scene, PERFORM_TICKS);
+			helper.assertTrue(thrown(scene).size() == 1 && stand.getMainHandItem().getCount() == 2, "The World threw " + thrown(scene).size() + " blocks, holds "
+					+ stand.getMainHandItem());
+			thrown(scene).forEach(ThrownBlockEntity::discard);
 		});
 		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 40)
+	public static void anOldSaveOfAnyStandWithAGrabGetsIt(GameTestHelper helper) {
+		for (String id : WITH_THE_SKILL) {
+			StandTaskTargetOffsetGameTests.withStand(helper, id, scene -> {
+				StandTypePersistentData data = scene.power().getCurTypeData();
+				scene.stand().setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.COBBLESTONE));
+				helper.assertTrue(data.isSkillUnlocked(TOSS) && resolve(scene, TOSS) != null, "A new " + id + " has no Block Toss");
+				CompoundTag saved = data.serializeNBT(helper.getLevel().registryAccess());
+				ListTag old = new ListTag();
+				for (Tag skill : saved.getList("skills", Tag.TAG_STRING)) {
+					if (!TOSS.equals(skill.getAsString())) {
+						old.add(StringTag.valueOf(skill.getAsString()));
+					}
+				}
+				saved.put("skills", old);
+				data._setSkillUnlocked(TOSS, false, false);
+				helper.assertTrue(resolve(scene, TOSS) == null, "A locked skill still has the ability");
+				data.deserializeNBT(helper.getLevel().registryAccess(), saved);
+				helper.assertTrue(data.isSkillUnlocked(TOSS), "A save of " + id + " from before the skill does not get it");
+			});
+		}
+		helper.succeed();
+	}
+
+	private static EntityStandType standOf(MovesetBuilder moveset, String id) {
+		return new EntityStandType(new StandStats.Builder().power(1).speed(1).range(1, 2).durability(1).precision(1).build(), moveset, JojoMod.resLoc(id),
+				StandControlType.CLOSE_RANGE_DIRECT, 1, 2, true, true);
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 20)
@@ -590,16 +742,31 @@ public final class BlockTossGameTests {
 			JsonObject clip = StandClipPoses116GameTests.readJson(helper,
 					"stand_skins/" + stand + "/assets/jojo_ripples/animations/" + stand + ".animation.json")
 					.getAsJsonObject("animations").getAsJsonObject(TOSS);
-			helper.assertTrue(clip != null && clip.has("bones"), stand + " has no clip for the throw");
-			String timeline = clip.getAsJsonObject("timeline").toString();
-			for (String mark : new String[] { "phase = BUTTON_CHARGE", "phase = WINDUP", "phase = PERFORM", "phase = RECOVERY", "mirror.start" }) {
-				helper.assertTrue(timeline.contains(mark), stand + "'s clip lost " + mark);
+			assertATossClip(helper, stand, clip);
+		}
+		JsonObject defaults = StandClipPoses116GameTests.readJson(helper, "animations/stand_default.animation.json").getAsJsonObject("animations");
+		assertATossClip(helper, "stand_default", defaults.getAsJsonObject(TOSS));
+		helper.assertTrue(defaults.has(TOSS + "_right") && defaults.has("bow_shoot_right"), "stand_default does not write the other hand of a clip its mirror cannot hold");
+		for (String stand : List.of("star_platinum", "crazy_diamond")) {
+			JsonObject theirs = StandClipPoses116GameTests.readJson(helper, "stand_skins/" + stand + "/assets/jojo_ripples/animations/" + stand + ".animation.json")
+					.getAsJsonObject("animations").getAsJsonObject(TOSS).getAsJsonObject("bones");
+			for (Map.Entry<String, JsonElement> bone : defaults.getAsJsonObject(TOSS).getAsJsonObject("bones").entrySet()) {
+				helper.assertTrue(!bone.getKey().endsWith("arm") || !bone.getValue().equals(theirs.get(bone.getKey())),
+						"stand_default's " + bone.getKey() + " is a copy of " + stand + "'s");
 			}
 		}
 		helper.assertTrue(source("client/ModEntityTypeRenderers.java")
 				.contains("event.registerEntityRenderer(ModEntityTypes.THROWN_BLOCK.get(), ThrownBlockRenderer::new);"),
 				"The thrown block has no renderer, and a client that meets one crashes");
 		helper.succeed();
+	}
+
+	private static void assertATossClip(GameTestHelper helper, String stand, JsonObject clip) {
+		helper.assertTrue(clip != null && clip.has("bones"), stand + " has no clip for the throw");
+		String timeline = clip.getAsJsonObject("timeline").toString();
+		for (String mark : new String[] { "phase = BUTTON_CHARGE", "phase = WINDUP", "phase = PERFORM", "phase = RECOVERY", "mirror.start" }) {
+			helper.assertTrue(timeline.contains(mark), stand + "'s clip lost " + mark);
+		}
 	}
 
 	private static String source(String file) {

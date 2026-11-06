@@ -85,8 +85,34 @@ public final class StandHeadLookRuleGameTests {
 			else if (off > TOLERANCE) {
 				wrong.add(stand + " " + name + ": " + off + " degrees");
 			}
+			else {
+				String hand = handItsMirrorCannotHold(entry.getValue().getAsJsonObject());
+				if (hand != null && !names.contains(name + hand)) {
+					wrong.add(stand + " " + name + " is mirrored over a window, and the file does not write " + name + hand);
+				}
+			}
 		}
 		return measured;
+	}
+
+	// keys outside the window stay on their side, so around it the mirrored trunk does not meet the head written for the clip's own hand
+	private static String handItsMirrorCannotHold(JsonObject clip) {
+		if (!clip.has("timeline")) {
+			return null;
+		}
+		String hand = null;
+		boolean window = false;
+		for (Map.Entry<String, JsonElement> mark : clip.getAsJsonObject("timeline").entrySet()) {
+			String lines = mark.getValue().toString().replace(" ", "");
+			if (lines.contains("mirror.default=LEFT")) {
+				hand = "_right";
+			}
+			else if (lines.contains("mirror.default=RIGHT")) {
+				hand = "_left";
+			}
+			window |= lines.contains("mirror.end") || lines.contains("mirror.start") && Float.parseFloat(mark.getKey()) > 0;
+		}
+		return window ? hand : null;
 	}
 
 	private static double worstOff(JsonObject clip) {
