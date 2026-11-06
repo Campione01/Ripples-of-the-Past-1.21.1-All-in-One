@@ -33,12 +33,11 @@ public final class StandHeadLookRuleGameTests {
 	private static final Pattern LEFT_OUT = Pattern.compile("^(armsOnly_.*|unused#.*|_.*|summon\\d*|inhale|time_stop|timeStop)$");
 
 	private static final String TURNS_OVER = "the whole body turns over by more than 100 degrees: the head goes with it, or the neck would break";
-	private static final String FLAME_POSE = "1.16 MagiciansRedModel posed the head for the flame on purpose, and the remote view reads it";
 	private static final String KICK_POSE = "1.16 MagiciansRedModel's kickPose1-3 pose the head with the body's lean on purpose";
 	private static final String SPLASH_POSE = "1.16 HierophantGreenModel's esPose3 turns the head for a moment of the windup on purpose";
 	private static final Map<String, Map<String, String>> EXCEPTIONS = Map.of(
 			"crazy_diamond", Map.of("finisher", TURNS_OVER, "grab_finisher", TURNS_OVER, "heavy_charged", TURNS_OVER),
-			"magicians_red", Map.of("flame_burst", FLAME_POSE, "fireball", FLAME_POSE, "crossfire_hurricane", FLAME_POSE, "flameBurst", FLAME_POSE, "kick", KICK_POSE),
+			"magicians_red", Map.of("kick", KICK_POSE),
 			"hierophant_green", Map.of("emerald_splash", SPLASH_POSE, "rangedAttack", SPLASH_POSE),
 			"silver_chariot", Map.of("sweeping_attack", TURNS_OVER, "no_armor_sweeping_attack", TURNS_OVER),
 			"star_platinum", Map.of("block_toss", TURNS_OVER, "grab_throw", TURNS_OVER),

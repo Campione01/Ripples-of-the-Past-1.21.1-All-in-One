@@ -367,10 +367,10 @@ public class StandEntityRenderer<
 				float xRotRad = renderState.xRot * MathUtil.DEG_TO_RAD;
 				poseStack.mulPose(Axis.XP.rotation(xRotRad));
 				poseStack.translate(0, -entity.getBbHeight() * 0.25F, 0.25F);
-				// 1.16's head carried the look; the port's flame clips carry 1.16's head angles on head_rot
+				// 1.16 tilted by head.xRot - xRot; here the head stays on the look, so its part of that comes from the action
 				ModelPart lookPart = model.head_rot != null ? model.head_rot : model.head;
 				float headXRot = lookPart != null ? lookPart.xRot : xRotRad;
-				poseStack.mulPose(Axis.XP.rotation(headXRot - xRotRad));
+				poseStack.mulPose(Axis.XP.rotation(headXRot - xRotRad + renderState.action.flameBurstViewTilt * MathUtil.DEG_TO_RAD));
 				poseStack.translate(0, entity.getBbHeight() * 0.25F, -0.25F);
 				poseStack.mulPose(Axis.YP.rotationDegrees(180 + renderState.bodyRot));
 				poseStack.translate(0, -entity.getEyeHeight(), 0);
