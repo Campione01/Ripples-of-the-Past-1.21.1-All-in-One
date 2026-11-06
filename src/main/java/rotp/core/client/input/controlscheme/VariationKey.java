@@ -9,7 +9,8 @@ import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.client.settings.KeyModifier;
 
 /**
- * The player's variation key (jojo_ripples.key.variation): what a moveset's declared Modifier.SHIFT means.
+ * The player's variation key (jojo_ripples.key.variation): what a moveset's declared Modifier.SHIFT means. A declared
+ * Modifier.CONTROL stays Ctrl, but while this key is Ctrl it is Shift, so that the two never share a key.
  * <p>
  * Binds are looked up by KeyModifier, which has no value of its own for a key that is no modifier. Such a key borrows
  * ALT: no moveset declares Alt, and Alt held turns the controls off by default. Left and right count as one key,
