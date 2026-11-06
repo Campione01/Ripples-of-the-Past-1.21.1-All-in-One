@@ -34,6 +34,7 @@ public final class VariationKeySmokeTest {
 	private static final int L_SHIFT = 340;
 	private static final int L_ALT = 342;
 	private static final int KEY_V = 86;
+	private static final int KEY_R = 82;
 	private static final InputConstants.Key RMB = InputConstants.Type.MOUSE.getOrCreate(InputConstants.MOUSE_BUTTON_RIGHT);
 	private static final InputConstants.Key MOUSE_5 = InputConstants.Type.MOUSE.getOrCreate(4);
 	private static final AbilityControlsEntry BASE = new AbilityControlsEntry(null, "base");
@@ -52,6 +53,7 @@ public final class VariationKeySmokeTest {
 			verifyWhatAKeyCountsAs();
 			verifySingleKey(setting);
 			verifyDeclaredModifiers(setting);
+			verifyDeclaredPairsOnOneButton(setting);
 			verifySlotFollowsTheKey(setting);
 			verifySchemesFollowTheKey(setting);
 			verifyLockedVariationUnderEveryKey(setting);
@@ -103,18 +105,72 @@ public final class VariationKeySmokeTest {
 		check(declaredShift.keyMatches(lmb, KeyModifier.CONTROL) && !declaredShift.keyMatches(lmb, KeyModifier.SHIFT),
 				"a declared SHIFT goes with the variation key, not with the Shift key");
 
+		check(ClientInputBind.toClientModifier(InputKey.Modifier.CONTROL) == KeyModifier.SHIFT && declaredCtrl.getKeyModifier() == KeyModifier.SHIFT,
+				"by default a declared CONTROL falls to Shift");
+		check(declaredCtrl.keyMatches(lmb, KeyModifier.SHIFT) && !declaredCtrl.keyMatches(lmb, KeyModifier.CONTROL),
+				"by default a declared CONTROL goes with the Shift key, not with the variation key");
+
 		setting.setKey(key(L_SHIFT));
 		check(ClientInputBind.toClientModifier(InputKey.Modifier.SHIFT) == KeyModifier.SHIFT, "the setting takes effect at once");
 		check(declaredShift.getKeyModifier() == KeyModifier.SHIFT, "a bind made earlier follows at once");
 		check(ClientInputBind.toClientModifier(InputKey.Modifier.CONTROL) == KeyModifier.CONTROL && declaredCtrl.getKeyModifier() == KeyModifier.CONTROL,
-				"a declared CONTROL stays Ctrl");
+				"on Shift a declared CONTROL is Ctrl again, as in 1.16, for a bind made earlier too");
 
 		setting.setKey(key(KEY_V));
 		check(declaredShift.getKeyModifier() == VariationKey.BORROWED_MODIFIER, "another key: the bind follows");
 		check(declaredCtrl.getKeyModifier() == KeyModifier.CONTROL, "a declared CONTROL stays Ctrl under another key");
 		check(ClientInputBind.toClientModifier(null) == KeyModifier.NONE, "no modifier stays none");
 
+		setting.setKey(key(R_CTRL));
+		check(declaredCtrl.getKeyModifier() == KeyModifier.SHIFT && declaredShift.getKeyModifier() == KeyModifier.CONTROL,
+				"the right Ctrl is the same variation key: back to the default pair");
+
 		setting.setKey(key(L_CTRL));
+	}
+
+	/** Ultimate Lifeform: Overdrive (SHIFT) and Beat (CONTROL) share LMB, Barrage (SHIFT, hold) and Kick (CONTROL, click) share RMB. */
+	private static void verifyDeclaredPairsOnOneButton(KeyMapping setting) {
+		MoveGroup group = new MoveGroup("test", Component.empty(), null);
+		AbilityControlsEntry overdrive = new AbilityControlsEntry(null, "hamon_overdrive");
+		AbilityControlsEntry beat = new AbilityControlsEntry(null, "hamon_overdrive_beat");
+		AbilityControlsEntry barrage = new AbilityControlsEntry(null, "ultimate_hamon_barrage");
+		AbilityControlsEntry kick = new AbilityControlsEntry(null, "ultimate_hamon_kick");
+		group.binds.add(declaredBind(InputKey.LMB, InputKey.Modifier.SHIFT, InputMethod.CLICK, overdrive));
+		group.binds.add(declaredBind(InputKey.LMB, InputKey.Modifier.CONTROL, InputMethod.CLICK, beat));
+		group.binds.add(declaredBind(InputKey.RMB, InputKey.Modifier.SHIFT, InputMethod.HOLD, barrage));
+		group.binds.add(declaredBind(InputKey.RMB, InputKey.Modifier.CONTROL, InputMethod.CLICK, kick));
+		ClientKey lmb = ClientKey.make(InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_LEFT);
+		ClientKey rmb = ClientKey.make(InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_RIGHT);
+
+		// the key map is rebuilt at every look, so one set of binds is read under every choice
+		check(answers(group, lmb, KeyModifier.CONTROL, InputMethod.CLICK, overdrive) && answers(group, lmb, KeyModifier.SHIFT, InputMethod.CLICK, beat),
+				"default: Ctrl + LMB is the overdrive, Shift + LMB is the beat");
+		check(answers(group, rmb, KeyModifier.CONTROL, InputMethod.HOLD, barrage) && answers(group, rmb, KeyModifier.SHIFT, InputMethod.CLICK, kick),
+				"default: Ctrl + RMB holds the barrage, Shift + RMB is the kick");
+
+		setting.setKey(key(L_SHIFT));
+		check(answers(group, lmb, KeyModifier.SHIFT, InputMethod.CLICK, overdrive) && answers(group, lmb, KeyModifier.CONTROL, InputMethod.CLICK, beat),
+				"Shift without a relog: Shift + LMB is the overdrive, Ctrl + LMB is the beat");
+		check(answers(group, rmb, KeyModifier.SHIFT, InputMethod.HOLD, barrage) && answers(group, rmb, KeyModifier.CONTROL, InputMethod.CLICK, kick),
+				"Shift without a relog: Shift + RMB holds the barrage, Ctrl + RMB is the kick");
+
+		setting.setKey(key(KEY_V));
+		check(answers(group, lmb, VariationKey.BORROWED_MODIFIER, InputMethod.CLICK, overdrive) && answers(group, lmb, KeyModifier.CONTROL, InputMethod.CLICK, beat),
+				"another key: it gives the overdrive, Ctrl + LMB the beat");
+
+		setting.setKey(key(L_CTRL));
+		check(answers(group, lmb, KeyModifier.CONTROL, InputMethod.CLICK, overdrive) && answers(group, lmb, KeyModifier.SHIFT, InputMethod.CLICK, beat),
+				"and back to the default pair");
+	}
+
+	private static ClientControlScheme.Bind declaredBind(InputKey button, InputKey.Modifier modifier, InputMethod inputMethod, AbilityControlsEntry ability) {
+		return new ClientControlScheme.Bind(ClientInputBind.toClientInput(button.withModifier(modifier)), inputMethod, ability);
+	}
+
+	/** The key map's answer for the press is exactly this ability, and nothing else is on that key and modifier. */
+	private static boolean answers(MoveGroup group, ClientKey key, KeyModifier modifier, InputMethod inputMethod, AbilityControlsEntry expected) {
+		InputsByKeyModifier onKey = group.getBinds(true).get(key);
+		return onKey != null && onKey.getAll(modifier, inputMethod, ALL).equals(List.of(expected));
 	}
 
 	private static InputsByKeyModifier declaredSlot() {
@@ -129,9 +185,10 @@ public final class VariationKeySmokeTest {
 	private static void verifySlotFollowsTheKey(KeyMapping setting) {
 		InputsByKeyModifier slot = declaredSlot();
 		check(slot.getAll(KeyModifier.CONTROL, InputMethod.CLICK, ALL).equals(List.of(VARIATION)),
-				"on the same key a variation takes the place of a declared Ctrl");
-		check(slot.getAll(KeyModifier.SHIFT, InputMethod.CLICK, ALL).equals(List.of(BASE)),
-				"under Ctrl, Shift + the key is the base");
+				"under Ctrl, Ctrl + the key is the variation");
+		check(slot.getAll(KeyModifier.SHIFT, InputMethod.CLICK, ALL).equals(List.of(DECLARED_CTRL)),
+				"under Ctrl, a declared Ctrl moves to Shift + the key");
+		check(slot.getAll(KeyModifier.NONE, InputMethod.CLICK, ALL).equals(List.of(BASE)), "under Ctrl, the plain key is the base");
 
 		setting.setKey(key(L_SHIFT));
 		slot.applyDeclaredMoves();
@@ -204,6 +261,13 @@ public final class VariationKeySmokeTest {
 		setting.setKey(key(L_CTRL));
 		check(!input.keyMatches(rmb, KeyModifier.CONTROL), "the variation key on RMB must not grab");
 
+		ClientInputBind standMode = new ClientInputBind(new StandaloneMapping("test.stand_mode", KeyModifier.CONTROL, key(KEY_R)));
+		for (int code : new int[] { L_CTRL, L_SHIFT, L_ALT, KEY_V }) {
+			setting.setKey(key(code));
+			check(standMode.getKeyModifier() == KeyModifier.CONTROL, "a key mapping with Ctrl (stand mode, item swap) must stay Ctrl under key " + code);
+		}
+		setting.setKey(key(L_CTRL));
+
 		grab.setKeyModifierAndCode(KeyModifier.ALT, MOUSE_5);
 		check(input.keyMatches(mouse5, KeyModifier.ALT) && !input.keyMatches(rmb, KeyModifier.SHIFT), "rebound: another key and modifier");
 		grab.setKeyModifierAndCode(KeyModifier.NONE, MOUSE_5);
@@ -262,6 +326,8 @@ public final class VariationKeySmokeTest {
 				"release defaults to Q");
 		check(keybinds.contains(squash("MovesetBuilder.SWAP_ITEMS_KEY_MAPPING_NAME, KeyConflictContext.IN_GAME, KeyModifier.CONTROL, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F")),
 				"item swap defaults to Ctrl+F");
+		check(keybinds.contains(squash(".key.stand_mode\", KeyConflictContext.IN_GAME, KeyModifier.CONTROL, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_R")),
+				"stand mode defaults to Ctrl+R");
 
 		String moveset = squash(read(root.resolve(java + "powersystem/MovesetBuilder.java")));
 		check(moveset.contains(squash("\"items_swap_w_user\", InputMethod.CLICK, new InputUseVanillaMapping(SWAP_ITEMS_KEY_MAPPING_NAME)")),

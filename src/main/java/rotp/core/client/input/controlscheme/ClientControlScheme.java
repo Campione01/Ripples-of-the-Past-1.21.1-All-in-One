@@ -442,20 +442,13 @@ public class ClientControlScheme {
 			declaredMoves.add(new DeclaredMove(modifier, inputMethod, entry));
 		}
 
-		/** A declared Ctrl stays Ctrl; on the same key a variation takes its place, so it goes in last. */
+		/** Declared SHIFT and CONTROL never land on one modifier (ClientInputBind#toClientModifier), so the order does not matter. */
 		public void applyDeclaredMoves() {
 			movesByModifier.clear();
 			for (DeclaredMove move : declaredMoves) {
-				if (move.modifier() != InputKey.Modifier.SHIFT) putDeclared(move);
+				movesByModifier.computeIfAbsent(ClientInputBind.toClientModifier(move.modifier()), __ -> new EnumMap<>(InputMethod.class))
+						.put(move.inputMethod(), Collections.singletonList(move.entry()));
 			}
-			for (DeclaredMove move : declaredMoves) {
-				if (move.modifier() == InputKey.Modifier.SHIFT) putDeclared(move);
-			}
-		}
-
-		private void putDeclared(DeclaredMove move) {
-			movesByModifier.computeIfAbsent(ClientInputBind.toClientModifier(move.modifier()), __ -> new EnumMap<>(InputMethod.class))
-					.put(move.inputMethod(), Collections.singletonList(move.entry()));
 		}
 
 		public List<AbilityControlsEntry> getAll(@Nonnull KeyModifier curModifier, InputMethod inputMethod) {
