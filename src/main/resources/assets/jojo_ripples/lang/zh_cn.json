@@ -690,7 +690,7 @@
   "jojo_ripples.ability.manual_control": "手动控制",
   "jojo_ripples.skill.item_use": "使用物品",
   "jojo_ripples.skill.item_use.desc": "按右键让替身使用手中的物品或面前的方块：拉弓射箭（箭放在另一只手上）、投掷、进食、举盾。替身拿着物品时，右键不再是防御和重拳。可以通过物品栏里的替身槽位或交换物品的按键把物品交给它。按住 Shift 时，右键仍用于替身的其他招式和你自己的手。",
-  "jojo_ripples.skill.item_use.controls": "（替身手持物品，且未按住 Shift）",
+  "jojo_ripples.skill.item_use.controls": "（替身手持物品）",
   "jojo_ripples.ability.item_use": "使用物品",
   "stand.jojo_ripples.star_platinum": "『白金之星』",
   "stand.jojo_ripples.star_platinum.desc": "力量型替身，拥有极高的力量、速度与精密度。作为与世界同类型的替身，在与世界的冲突中，白金之星也会觉醒停止时间的能力。",
