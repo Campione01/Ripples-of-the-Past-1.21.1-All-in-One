@@ -361,11 +361,8 @@ public final class StandClipPoses116GameTests {
 			new HandOver(MR_ANIMS, "punch", "idle"), new HandOver(MR_ANIMS, "heavy_punch", "idle"),
 			new HandOver(MR_ANIMS, "kick", "idle"), new HandOver(MR_ANIMS, "red_bind", "idle"),
 			new HandOver(MR_ANIMS, "redBind", "idle"),
-			// the flame poses set the head themselves (head.xRot = xRot - 22.5 degrees), the port's clips have none
-			new HandOver(MR_ANIMS, "flame_burst", "idle", "head", "head_rot"),
-			new HandOver(MR_ANIMS, "flameBurst", "idle", "head", "head_rot"),
-			new HandOver(MR_ANIMS, "fireball", "idle", "head", "head_rot"),
-			new HandOver(MR_ANIMS, "crossfire_hurricane", "idle", "head", "head_rot"),
+			new HandOver(MR_ANIMS, "flame_burst", "idle"), new HandOver(MR_ANIMS, "flameBurst", "idle"),
+			new HandOver(MR_ANIMS, "fireball", "idle"), new HandOver(MR_ANIMS, "crossfire_hurricane", "idle"),
 			new HandOver(SC_ANIMS, "summon1", "idle"), new HandOver(SC_ANIMS, "summon2", "idle"),
 			new HandOver(SC_ANIMS, "summon3", "idle"), new HandOver(SC_ANIMS, "light_attack", "idle"),
 			new HandOver(SC_ANIMS, "melee_barrage", "idle"), new HandOver(SC_ANIMS, "dash_attack", "idle"),
