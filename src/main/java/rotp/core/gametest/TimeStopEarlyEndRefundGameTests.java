@@ -44,8 +44,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
  * The owner's rule for the stamina of a time stop that ends early (2026-10-14, calibration S04-04): the start pays the
- * full price scaled by the charged length; the shortest stop's price (a press released at once, the stop of pressing
- * time stop twice in quick succession) is never given back; an early end gives back the rest of the start's charge in
+ * full price scaled by the charged length; the shortest stop's price (the stop of pressing time stop twice in quick
+ * succession) is never given back; an early end gives back the rest of the start's charge in
  * the share of its ticks left unused. The same holds when the stop ends because the last player left (no cooldown and
  * no training there, as 1.16's TimeStopHandler.reset).
  */
@@ -63,13 +63,12 @@ public final class TimeStopEarlyEndRefundGameTests {
 		Scene scene = new Scene(helper);
 		try {
 			scene.setUp();
-			EntityActionInstance charge = scene.startCharge();
 			float before = scene.power.getStamina();
-			// released at once: the shortest stop, 4 of 100 ticks with The World's 30-tick charge
-			charge.onButtonStopHold();
+			// the double press: the shortest stop, 4 of 100 ticks with The World's 30-tick charge
+			scene.doublePress();
 			TimeStopState.Instance started = scene.instance();
 			helper.assertTrue(started != null && started.totalTicks() == 4,
-					"S04-04 premise: a release at once starts a 4-tick stop: " + started);
+					"S04-04 premise: a double press starts a 4-tick stop: " + started);
 			float paid = before - scene.power.getStamina();
 			float shortest = TimeStopLearning.getTimeStopStaminaCost(scene.power, TimeStopLearning.TIME_STOP, 4);
 			helper.assertTrue(near(paid, shortest), "S04-04 premise: the instant stop paid " + paid + ", not " + shortest);
@@ -266,6 +265,19 @@ public final class TimeStopEarlyEndRefundGameTests {
 					&& action.phasesLength.getFloat(ActionPhase.BUTTON_CHARGE) == 30,
 					"S04-04 premise: The World's 30-tick time stop charge did not start: " + action.getPhase());
 			return action;
+		}
+
+		// TimeStopAbility.onKeyPress: a press let go, then a second one at once
+		private void doublePress() {
+			BufferingState first = BufferingState.clickOnly();
+			timeStop.onKeyPress(level, player, null, InputMethod.HOLD, 0.0F, first);
+			EntityActionInstance charge = component.getAction();
+			helper.assertTrue(first.isActionSuccess && charge != null && charge.getPhase() == ActionPhase.BUTTON_CHARGE,
+					"S04-04 premise: the first press did not begin a charge: " + charge);
+			charge.onButtonStopHold();
+			BufferingState second = BufferingState.clickOnly();
+			timeStop.onKeyPress(level, player, null, InputMethod.HOLD, 0.0F, second);
+			helper.assertTrue(second.isActionSuccess, "S04-04 premise: the second press was refused");
 		}
 
 		/** The held charge as the action component runs it: BUTTON_CHARGE to its end, then PERFORM. */

@@ -170,16 +170,14 @@ public final class TimeStopPerformPose116GameTests {
 			int poseTicks = POSE_TICKS_116.get(standId);
 			try (Scene s = new Scene(helper, "EarlyPose" + standId, standId)) {
 				EntityActionInstance stop = s.charge();
-				for (int tick = 0; tick < 5; tick++) {
-					s.tick();
-				}
+				int hold = s.tickToMinimum(stop);
 				int fullTicks = TimeStopLearning.getTimeStopTicks(s.power, TIME_STOP);
 				helper.assertTrue(stop.getPhase() == ActionPhase.BUTTON_CHARGE && s.stand.getPerformPose() == null,
-						"setup: " + standId + "'s time stop is not charging 5 ticks after its press, or its Stand is posed");
+						"setup: " + standId + "'s time stop is not charging " + hold + " ticks after its press, or its Stand is posed");
 				AbilityInput.keyRelease(STOP_KEY, s.user);
 				int started = s.stopTicks();
 				helper.assertTrue(started > 0 && started < fullTicks && s.userSlot().getAction() == null,
-						"setup: " + standId + "'s time stop let go 5 ticks into its charge did not start a shorter stop than its "
+						"setup: " + standId + "'s time stop let go " + hold + " ticks into its charge did not start a shorter stop than its "
 								+ fullTicks + " ticks (" + started + ") and clear its slot (" + s.userSlot().getAction() + ")");
 				if (s.stand.getPerformPose() != stop || s.stand.getPerformPoseTicks(0) != 0) {
 					wrong.add(standId + ": as its charge let go early stopped time the Stand took the pose "
@@ -231,22 +229,25 @@ public final class TimeStopPerformPose116GameTests {
 	/*
 	 * 1.16 posed the Stand only for a time stop that performed (TimeStop.perform). The user's own client lets go of its
 	 * copy of the charge before the server decides the release (InputHandler.doReleaseInput), so it takes the pose from
-	 * the server's PERFORM_POSE_EVENT, as the other clients do, with the copy it let go of. Let go early while an add-on
-	 * cancels the start (TimeStopLifecycleEvent.PreStart), or with the Stand's body lost in that tick (the release's
-	 * recheck), the server starts no stop: the Stand that client draws shows no pose, and an event after the wait (40
-	 * ticks) does not take that copy either. Let go early otherwise, the shorter stop starts and that client's Stand takes
-	 * the pose of its copy from 0 ticks as the event arrives, not before. (The core time stops ignore their Stand's stun,
-	 * as 1.16's did, so a stun refuses nothing.)
+	 * the server's PERFORM_POSE_EVENT, as the other clients do, with the copy it let go of. Let go before the charge's
+	 * minimum, while an add-on cancels the start (TimeStopLifecycleEvent.PreStart), or with the Stand's body lost in that
+	 * tick (the release's recheck), the server starts no stop: the Stand that client draws shows no pose, and an event
+	 * after the wait (40 ticks) does not take that copy either. Let go at the minimum otherwise, the shorter stop starts
+	 * and that client's Stand takes the pose of its copy from 0 ticks as the event arrives, not before. (The core time
+	 * stops ignore their Stand's stun, as 1.16's did, so a stun refuses nothing.)
 	 */
 	@GameTest(template = "empty", timeoutTicks = 100, batch = GameTestBatches.TIME_STOP)
 	public static void theUsersOwnClientTakesAnEarlyReleasesPoseOnlyFromTheServer(GameTestHelper helper) {
 		List<String> wrong = new ArrayList<>();
 		for (String standId : List.of("star_platinum", "the_world")) {
-			for (String refusal : List.of("a cancelled start", "a lost body")) {
+			for (String refusal : List.of("a tap", "a cancelled start", "a lost body")) {
 				try (Scene s = new Scene(helper, "RefusedPose" + standId, standId)) {
 					EntityActionInstance stop = s.charge();
-					for (int tick = 0; tick < 5; tick++) {
+					if (refusal.equals("a tap")) {
 						s.tick();
+					}
+					else {
+						s.tickToMinimum(stop);
 					}
 					Consumer<TimeStopLifecycleEvent.PreStart> deny = event -> {
 						if (event.getInstance().userId() == s.user.getId()) {
@@ -257,7 +258,7 @@ public final class TimeStopPerformPose116GameTests {
 					if (refusal.equals("a lost body")) {
 						s.power.getStandInstance().ifPresent(instance -> instance.removePart(StandPart.MAIN_BODY));
 					}
-					else {
+					else if (refusal.equals("a cancelled start")) {
 						NeoForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, TimeStopLifecycleEvent.PreStart.class, deny);
 					}
 					try {
@@ -290,9 +291,7 @@ public final class TimeStopPerformPose116GameTests {
 
 			try (Scene s = new Scene(helper, "ConfirmedPose" + standId, standId)) {
 				EntityActionInstance stop = s.charge();
-				for (int tick = 0; tick < 5; tick++) {
-					s.tick();
-				}
+				s.tickToMinimum(stop);
 				UsersClientCharge copy = new UsersClientCharge(stop, s.stand, s.user);
 				copy.onButtonStopHold();
 				EntityActionInstance atRelease = s.stand.getPerformPose();
@@ -333,10 +332,8 @@ public final class TimeStopPerformPose116GameTests {
 		for (String standId : List.of("star_platinum", "the_world")) {
 			try (Scene s = new Scene(helper, "KeptChargeAccepted" + standId, standId)) {
 				EntityActionInstance stop = s.charge();
-				for (int tick = 0; tick < 5; tick++) {
-					s.tick();
-				}
-				UsersClientCharge copy = new UsersClientCharge(stop, s.stand, s.user).chargedFor(5);
+				int hold = s.tickToMinimum(stop);
+				UsersClientCharge copy = new UsersClientCharge(stop, s.stand, s.user).chargedFor(hold);
 				copy.onButtonStopHold();
 				StandEntity.ReleasedCharge atRelease = s.stand.getReleasedChargePose();
 				AbilityInput.keyRelease(STOP_KEY, s.user);
@@ -348,7 +345,7 @@ public final class TimeStopPerformPose116GameTests {
 				s.stand.handleEntityEvent(StandEntity.PERFORM_POSE_EVENT);
 				if (!heldCharge(atRelease, copy) || waiting != atRelease || s.stand.getPerformPose() != copy
 						|| s.stand.getReleasedChargePose() != null) {
-					wrong.add(standId + ", accepted: its user's own client let go of the charge (5 ticks) and drew "
+					wrong.add(standId + ", accepted: its user's own client let go of the charge (" + hold + " ticks) and drew "
 							+ describe(atRelease) + " at the release, " + describe(waiting) + " a tick later, then the pose "
 							+ s.stand.getPerformPose() + " and the kept charge " + describe(s.stand.getReleasedChargePose())
 							+ " after the server's event, where the other clients went from the charge straight to the release pose");
@@ -356,16 +353,14 @@ public final class TimeStopPerformPose116GameTests {
 			}
 			try (Scene s = new Scene(helper, "KeptChargeRefused" + standId, standId)) {
 				EntityActionInstance stop = s.charge();
-				for (int tick = 0; tick < 5; tick++) {
-					s.tick();
-				}
+				int hold = s.tickToMinimum(stop);
 				Consumer<TimeStopLifecycleEvent.PreStart> deny = event -> {
 					if (event.getInstance().userId() == s.user.getId()) {
 						event.setCanceled(true);
 					}
 				};
 				NeoForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, TimeStopLifecycleEvent.PreStart.class, deny);
-				UsersClientCharge copy = new UsersClientCharge(stop, s.stand, s.user).chargedFor(5);
+				UsersClientCharge copy = new UsersClientCharge(stop, s.stand, s.user).chargedFor(hold);
 				try {
 					copy.onButtonStopHold();
 					AbilityInput.keyRelease(STOP_KEY, s.user);
@@ -628,6 +623,15 @@ public final class TimeStopPerformPose116GameTests {
 					&& stop.getPerformer() == stand, "setup: the time stop is not charging in its user's Stand-power slot,"
 							+ " performed by its Stand: " + stop + (stop != null ? " in " + stop.getPhase() : ""));
 			return stop;
+		}
+
+		// as long as the charge must be held for its release to start a stop
+		int tickToMinimum(EntityActionInstance stop) {
+			int ticks = TimeStopAbility.getMinReleaseChargeTicks(stop.getCurPhaseLength());
+			for (int tick = 0; tick < ticks; tick++) {
+				tick();
+			}
+			return ticks;
 		}
 
 		// the tick the time stop performs in, stopping time (its one-tick perform and empty recovery end in that tick)

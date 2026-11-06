@@ -37,6 +37,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
+import net.minecraft.network.protocol.game.ClientboundStopSoundPacket;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -364,6 +365,22 @@ public class JojoModUtil {
 		level.playSound(null, entity, MultiSoundEventResolver.resolve(sound).value(), source, volume, pitch);
 		return true;
 	}
+
+	/** Cuts off a line {@link #sayVoiceLine} is saying, for whoever could hear it. The sound must be the resolved one. */
+	public static void stopVoiceLine(LivingEntity entity, Holder<SoundEvent> sound) {
+		if (!(entity.level() instanceof ServerLevel serverLevel)) {
+			return;
+		}
+		ClientboundStopSoundPacket packet = new ClientboundStopSoundPacket(sound.value().getLocation(), SoundSource.VOICE);
+		for (ServerPlayer player : serverLevel.players()) {
+			if (player.distanceToSqr(entity) < VOICE_LINE_STOP_RADIUS_SQR) {
+				player.connection.send(packet);
+			}
+		}
+	}
+
+	// the line's 16 blocks, and a hearer that has walked out of them meanwhile
+	private static final double VOICE_LINE_STOP_RADIUS_SQR = 32.0D * 32.0D;
 
 	private static boolean canPlayVoiceLine(Player entity, Holder<SoundEvent> voiceLine, int voiceLineDelay) {
 		PlayerVoiceLineData data = entity.getData(ModDataAttachmentTypes.PLAYER_VOICE_LINES.get());

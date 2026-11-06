@@ -270,7 +270,7 @@ public class TimeStopBlinkAbility extends Ability {
 		return amount * PlayerClientBroadcastedSettings.getTimeStopStaminaCostMultiplier(power);
 	}
 
-	private Holder<SoundEvent> getTimeStopBlinkSound(StandPower power) {
+	public Holder<SoundEvent> getTimeStopBlinkSound(StandPower power) {
 		if (blinkSound != null) {
 			return blinkSound;
 		}

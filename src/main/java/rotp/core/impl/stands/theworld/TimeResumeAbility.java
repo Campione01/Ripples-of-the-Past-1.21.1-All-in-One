@@ -74,6 +74,9 @@ public class TimeResumeAbility extends Ability {
 	public HeldInput onKeyPress(Level level, LivingEntity user, FriendlyByteBuf extraClientInput,
 			InputMethod inputMethod, float clickHoldResolveTime, BufferingState bufferingState) {
 		bufferingState.isActionSuccess = requestManualResume(level, user);
+		if (bufferingState.isActionSuccess) {
+			TimeStopAbility.noteResumePress(user);
+		}
 		return null;
 	}
 

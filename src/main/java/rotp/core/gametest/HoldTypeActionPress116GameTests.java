@@ -356,6 +356,7 @@ public final class HoldTypeActionPress116GameTests {
 								+ " power held the charge: the zombie's Stand-power action " + now + ", the Stand's "
 								+ standAction.getAction() + ", the " + held + " over " + hold.isOver());
 				zombie.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get()).heldKeys.clear();
+				zombie.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get()).timeStopFirstPressTime = EntityActionInputState.NO_PRESS;
 				standAction.setAction(null, zombie, SyncType.NO_SYNC);
 				zombieSlot.setAction(null, zombie, SyncType.NO_SYNC);
 			}
@@ -1347,6 +1348,8 @@ public final class HoldTypeActionPress116GameTests {
 		// a press left buffered stays there: the test does not tick, and the next press decides by the Stand's action
 		private void clear() {
 			input().heldKeys.clear();
+			// this test's presses share one game tick, and the next time stop's is no double press
+			input().timeStopFirstPressTime = EntityActionInputState.NO_PRESS;
 			standAction.setAction(null, user, SyncType.NO_SYNC);
 			LivingComponentAction.getComponent(user, PowerClass.STAND).setAction(null, user, SyncType.NO_SYNC);
 		}
