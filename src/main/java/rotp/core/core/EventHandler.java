@@ -130,10 +130,12 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerWakeUpEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent.Pre;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 @EventBusSubscriber(modid = JojoMod.MOD_ID)
@@ -144,6 +146,16 @@ public class EventHandler {
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void onFinalizeSpawn(FinalizeSpawnEvent event) {
 		CocoJumboTurtleEntity.onRegularTurtleSpawn(event);
+	}
+
+	@SubscribeEvent
+	public static void refreshCocoJumboPlayerViews(ServerTickEvent.Post event) {
+		CocoJumboTurtleEntity.tickPlayerSpawnViews(event.getServer());
+	}
+
+	@SubscribeEvent
+	public static void clearCocoJumboPlayerViews(ServerStoppedEvent event) {
+		CocoJumboTurtleEntity.clearPlayerSpawnViews();
 	}
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)

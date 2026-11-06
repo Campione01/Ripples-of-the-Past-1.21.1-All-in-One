@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
@@ -85,7 +86,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 @EventBusSubscriber(modid = JojoMod.MOD_ID)
 public class TimeStopState {
-    private static final Map<Integer, TimeStopState.Instance> CLIENT_INSTANCES = new HashMap<>();
+    // Read from PlaySoundEvent too, which can come off the client thread.
+    private static final Map<Integer, TimeStopState.Instance> CLIENT_INSTANCES = new ConcurrentHashMap<>();
     public static final double TIME_STOP_SPRINT_FLOAT_START_THRESHOLD = 0.0D;
     public static final double TIME_STOP_SPRINT_FLOAT_LIFT_VELOCITY = 0.2D;
     public static final double TIME_STOP_SPRINT_FLOAT_STEADY_VELOCITY = 0.1D;
