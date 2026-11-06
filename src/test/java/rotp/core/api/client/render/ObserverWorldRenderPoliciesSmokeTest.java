@@ -202,6 +202,9 @@ public final class ObserverWorldRenderPoliciesSmokeTest {
 						"method = \"renderSnowAndRain\"")
 				&& levelMixin.contains("Pass.WEATHER"),
 				"terrain or weather guard is missing");
+		check(levelMixin.substring(levelMixin.indexOf("method = \"renderSnowAndRain\""))
+				.contains("order = -1"),
+				"the weather guard must apply before another mod's rain at HEAD");
 		check(!levelMixin.contains("renderSky")
 				&& !levelMixin.contains("renderClouds")
 				&& !levelMixin.contains("renderEntity"),
