@@ -6,6 +6,7 @@ import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
 import rotp.core.gametest.StandTaskTargetOffsetGameTests.Scene;
+import rotp.core.init.ModEntityTypes;
 import rotp.core.impl.stands.hierophant.HGBarrierEntity;
 import rotp.core.impl.stands.hierophant.HGBarriersNet;
 import rotp.core.impl.stands.hierophant.HGEmeraldEntity;
@@ -14,13 +15,16 @@ import rotp.core.impl.stands.silverchariot.SCRapierEntity;
 import rotp.core.impl.stands.starplatinum.SPStarFingerEntity;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
+import rotp.core.powersystem.ability.EntityActionAbility;
 import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
+import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.type.StandType;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -285,6 +289,60 @@ public final class StandRecallKeepsSkillsGameTests {
 			helper.assertTrue(hierophant.getPlacedBarriersCount() == 0, "the taken down net still counts "
 					+ hierophant.getPlacedBarriersCount());
 			helper.assertTrue(!hierophant.takeDownPlacedBarriers(), "with no net placed there is nothing to take down");
+		});
+		helper.succeed();
+	}
+
+	// Manual control clears the user's sneak: the press reads the Shift key his client sends (StandManualInput).
+	@GameTest(template = "empty", timeoutTicks = 60)
+	public static void aSneakingBarrierPressTakesTheNetDownUnderManualControl(GameTestHelper helper) {
+		StandTaskTargetOffsetGameTests.withStand(helper, "hierophant_green", scene -> {
+			HierophantGreenEntity hierophant = placeNet(scene);
+			List<HGBarrierEntity> strings = barriers(scene);
+			Ability barrier = scene.power().getAbility("barrier");
+			hierophant.setManuallyControlled(true);
+			try {
+				StandManualInput.setServerShift(scene.user(), true);
+				helper.assertTrue(barrier.checkSpecificConditions(scene.power()).isPositive(),
+						"under manual control a press with the sent Shift must go through with no block aimed at");
+				scene.stand().summonLockTicks = 0;
+				LivingComponentAction actions = LivingComponentAction.getComponent(scene.stand());
+				actions.setAction(((EntityActionAbility) barrier).initActionOnAbilityUse(helper.getLevel(), scene.user(), scene.stand(), null),
+						scene.user(), SyncType.NO_SYNC);
+				for (int tick = 0; tick < 5; tick++) {
+					actions.tick();
+				}
+				helper.assertTrue(strings.stream().allMatch(HGBarrierEntity::isRemoved) && hierophant.getBarriersNet().getSize() == 0,
+						"under manual control the press must take down the whole net: " + barriers(scene).size()
+								+ " strings are left");
+			}
+			finally {
+				StandManualInput.setServerShift(scene.user(), false);
+				hierophant.setManuallyControlled(false);
+			}
+		});
+		helper.succeed();
+	}
+
+	// A reload loses the Stand for good: the guard that counted from the recall must count from there too.
+	@GameTest(template = "empty", timeoutTicks = 60)
+	public static void aShotWithNoLifespanEndsWithItsOwnerGoneAfterAReload(GameTestHelper helper) {
+		StandTaskTargetOffsetGameTests.withStand(helper, "silver_chariot", scene -> {
+			SCRapierEntity rapier = new SCRapierEntity(ModEntityTypes.SC_RAPIER.get(), helper.getLevel());
+			Vec3 from = scene.user().position().add(0.0D, 8.0D, 0.0D);
+			rapier.setPos(from.x, from.y, from.z);
+			helper.assertTrue(helper.getLevel().addFreshEntity(rapier), "setup: could not add the rapier");
+			scene.spawned().add(rapier);
+			helper.assertTrue(rapier.getOwner() == null, "setup: the loaded rapier has an owner");
+			int ticks = 0;
+			for (; ticks < 400 && !rapier.isRemoved(); ticks++) {
+				rapier.setDeltaMovement(0.0D, 0.0D, 0.001D);
+				rapier.setPos(from.x, from.y, from.z);
+				rapier.tick();
+			}
+			helper.assertTrue(rapier.isRemoved() && ticks > 100,
+					"a projectile with no lifespan and no owner must end after a grace: after " + ticks + " ticks it "
+							+ (rapier.isRemoved() ? "ended too soon" : "still flies"));
 		});
 		helper.succeed();
 	}
