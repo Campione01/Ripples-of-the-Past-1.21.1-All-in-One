@@ -21,6 +21,8 @@ import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModSpecialActions;
+import rotp.core.init.power.ModStandAbilities;
+import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.controls.InputMethod;
@@ -30,14 +32,20 @@ import rotp.core.powersystem.ability.input.InputKeyId;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandStats;
+import rotp.core.powersystem.standpower.StandUnlockableSkill;
+import rotp.core.powersystem.standpower.entity.EntityStandType;
+import rotp.core.powersystem.standpower.entity.StandControlType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.powersystem.standpower.type.StandTypePersistentData;
 import rotp.core.subsystems.entity_useitem.ClStandClickPacket;
 import rotp.core.subsystems.entity_useitem.HitResultSync;
+import rotp.core.subsystems.entity_useitem.ServerSideLivingClick;
 import rotp.core.subsystems.entity_useitem.StandItemUse;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -53,7 +61,11 @@ import net.minecraft.world.entity.projectile.Arrow;
 import net.minecraft.world.entity.projectile.Snowball;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -202,12 +214,65 @@ public final class StandItemUseGameTests {
 		helper.succeed();
 	}
 
+	// a Stand that is no humanoid does not list the skill, and keeps the click for what its own abilities hand it
 	@GameTest(template = "empty", timeoutTicks = 20)
 	public static void aMovesetThatDoesNotListTheSkillKeepsTheClick(GameTestHelper helper) {
 		helper.assertTrue(StandItemUse.skillAllows(false, false), "A Stand whose moveset does not list the skill lost the click");
 		helper.assertTrue(StandItemUse.skillAllows(true, true), "An unlocked skill did not allow the click");
 		helper.assertTrue(!StandItemUse.skillAllows(true, false), "A locked skill allowed the click");
+		EntityStandType notHumanoid = standOf(new MovesetBuilder().addAbility("punch", ModStandAbilities.PUNCH), "gametest_not_humanoid");
+		helper.assertTrue(!notHumanoid.getUnlockableSkills().containsKey(StandItemUse.SKILL), "A moveset that never called the humanoid method lists the skill");
+		StandType bodiless = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("boy_ii_man"));
+		helper.assertTrue(bodiless != null && !bodiless.getUnlockableSkills().containsKey(StandItemUse.SKILL), "Boy II Man lists the skill");
 		helper.succeed();
+	}
+
+	// the 13 add-on modules that call addHumanoidStandStuff alone: the skill and nothing else of addHumanoidStandSkills, which would change their guard and manual control
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void aHumanoidStandStartsWithTheSkillAndNotWithTheRestOfTheSkillsMethod(GameTestHelper helper) {
+		EntityStandType stuffOnly = standOf(new MovesetBuilder().addHumanoidStandStuff().addAbility("punch", ModStandAbilities.PUNCH)
+				.addSkill(StandUnlockableSkill.startingAbility("punch")), "gametest_stuff_only");
+		var skills = stuffOnly.getUnlockableSkills();
+		helper.assertTrue(skills.containsKey(StandItemUse.SKILL) && skills.get(StandItemUse.SKILL).isStarting, "A humanoid Stand does not start with the skill");
+		helper.assertTrue(!skills.containsKey("guard") && !skills.containsKey("manual_control"), "The rule also added the skills method's others: " + skills.keySet());
+		helper.assertTrue(List.of("punch", StandItemUse.SKILL).equals(List.copyOf(skills.keySet())), "The skill is not at the end of the list: " + skills.keySet());
+		EntityStandType both = standOf(new MovesetBuilder().addHumanoidStandStuff().addSkill(StandUnlockableSkill.startingAbility("manual_control"))
+				.addHumanoidStandSkills().addSkill(new StandUnlockableSkill("a_later_one")), "gametest_both_calls");
+		helper.assertTrue(List.of("manual_control", "guard", StandItemUse.SKILL, "a_later_one").equals(List.copyOf(both.getUnlockableSkills().keySet())),
+				"A moveset with the skills method lost its order: " + both.getUnlockableSkills().keySet());
+		helper.succeed();
+	}
+
+	// nothing in its hands, nothing changes: the click stays the user's, whatever the skill list says and whatever the user aims at
+	@GameTest(template = "empty", timeoutTicks = 40)
+	public static void aStandWithEmptyHandsLeavesTheClickToItsUser(GameTestHelper helper) {
+		try (Scene scene = new Scene(helper, "StandEmptyHands")) {
+			helper.assertTrue(scene.power.getCurTypeData().isSkillUnlocked(StandItemUse.SKILL), "Fixture: the skill is locked");
+			helper.assertTrue(!ServerSideLivingClick.isEntityHoldingAnItem(scene.stand), "Fixture: the Stand holds something");
+			helper.assertTrue(StandItemUse.takesRightClick(scene.power, scene.stand), "Fixture: the shared rule already refuses the click");
+			scene.click(1L);
+			helper.assertTrue(!scene.stand.isUsingItem() && scene.stand.getCurStandAction() == null && !scene.holdsTheRightButton(),
+					"A Stand with nothing in its hands took the click: action " + scene.stand.getCurStandAction());
+			// aimed at nothing, empty hands do nothing with or without the packet's rule: only a click at something shows the rule at work
+			BlockPos trapdoor = new BlockPos(2, 2, 3);
+			helper.setBlock(trapdoor, Blocks.OAK_TRAPDOOR);
+			BlockPos at = helper.absolutePos(trapdoor);
+			BlockHitResult aimed = new BlockHitResult(Vec3.atCenterOf(at), Direction.UP, at, false);
+			scene.click(2L, aimed);
+			helper.assertTrue(!helper.getBlockState(trapdoor).getValue(TrapDoorBlock.OPEN), "A Stand with nothing in its hands opened the trapdoor its user aimed at");
+			// the two controls: past the rule the same empty hands do open it, and the packet does carry the aim to a Stand that holds something
+			ServerSideLivingClick.rightClick(scene.stand, scene.user, aimed, InteractionHand.MAIN_HAND, InteractionHand.OFF_HAND);
+			helper.assertTrue(helper.getBlockState(trapdoor).getValue(TrapDoorBlock.OPEN), "Fixture: empty hands cannot work the trapdoor even past the rule");
+			scene.stand.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.STICK));
+			scene.click(3L, aimed);
+			helper.assertTrue(!helper.getBlockState(trapdoor).getValue(TrapDoorBlock.OPEN), "Fixture: the aim of the click did not reach a Stand that holds something");
+		}
+		helper.succeed();
+	}
+
+	private static EntityStandType standOf(MovesetBuilder moveset, String id) {
+		return new EntityStandType(new StandStats.Builder().power(1).speed(1).range(1, 2).durability(1).precision(1).build(), moveset, JojoMod.resLoc(id),
+				StandControlType.CLOSE_RANGE_DIRECT, 1, 2, true, true);
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 40)
@@ -352,8 +417,12 @@ public final class StandItemUseGameTests {
 			return user.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get()).heldKeys.containsKey(InputKeyId.STAND_ITEM_RMB);
 		}
 
-		// through the packet's server handler, as the user's client sends it on a right click with nothing aimed at
 		void click(long generation) {
+			click(generation, null);
+		}
+
+		// through the packet's server handler, as the user's client sends it on a right click, with what it aims at if anything
+		void click(long generation, HitResult target) {
 			IPayloadContext context = (IPayloadContext) Proxy.newProxyInstance(IPayloadContext.class.getClassLoader(),
 					new Class<?>[] { IPayloadContext.class }, (proxy, method, args) -> {
 						if (method.getName().equals("player")) {
@@ -374,7 +443,7 @@ public final class StandItemUseGameTests {
 			}
 			try {
 				new ClStandClickPacket.Handler(JojoMod.resLoc("clstandclick")).handle(new ClStandClickPacket(
-						new HitResultSync(null), generation, InteractionHand.MAIN_HAND, InteractionHand.OFF_HAND), context);
+						new HitResultSync(target), generation, InteractionHand.MAIN_HAND, InteractionHand.OFF_HAND), context);
 			}
 			finally {
 				try {

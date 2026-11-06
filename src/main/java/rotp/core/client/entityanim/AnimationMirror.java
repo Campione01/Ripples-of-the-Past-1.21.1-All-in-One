@@ -68,7 +68,8 @@ public record AnimationMirror(HumanoidArm defaultSide, float start, float end) {
 			}
 		}
 		
-		if (toAdd != null) anims.putAll(toAdd);
+		// a mirrored trunk does not meet a head written for the other hand: a clip file may write that hand itself
+		if (toAdd != null) toAdd.forEach(anims::putIfAbsent);
 	}
 
 

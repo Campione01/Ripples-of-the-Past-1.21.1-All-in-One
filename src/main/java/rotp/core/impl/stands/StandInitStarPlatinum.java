@@ -96,7 +96,6 @@ public class StandInitStarPlatinum {
 				})
 
 				.addAbility("guard", ModStandAbilities.GUARD)
-				.addAbility("block_toss", ModStandAbilities.BLOCK_TOSS)
 				.addAbility("bearing_shot", ModStandAbilities.BEARING_SHOT)
 
 				.addAbility("enhanced_eyesight", ModStandAbilities.SP_EYESIGHT, ability -> {
@@ -119,7 +118,6 @@ public class StandInitStarPlatinum {
 				.makeControlScheme("hotbar")
 					.bind("punch", InputMethod.CLICK, InputKey.LMB)
 					.bind("barrage", InputMethod.HOLD, InputKey.LMB)
-					.bind("block_toss", InputMethod.HOLD, InputKey.LMB)
 					.bind("heavy_punch", InputMethod.CLICK, InputKey.RMB)
 					.bind("heavy_charged", InputMethod.HOLD, MovesetBuilder.DEFAULT_CHARGED_HEAVY_INPUT)
 					.bind("grab", InputMethod.CLICK, MovesetBuilder.DEFAULT_GRAB_INPUT)
@@ -138,7 +136,6 @@ public class StandInitStarPlatinum {
 				.makeControlScheme("keybinds")
 					.bind("punch", InputMethod.CLICK, InputKey.LMB)
 					.bind("barrage", InputMethod.HOLD, InputKey.LMB)
-					.bind("block_toss", InputMethod.HOLD, InputKey.LMB)
 					.bind("heavy_punch", InputMethod.CLICK, InputKey.RMB)
 					.bind("heavy_charged", InputMethod.HOLD, MovesetBuilder.DEFAULT_CHARGED_HEAVY_INPUT)
 					.bind("grab", InputMethod.CLICK, MovesetBuilder.DEFAULT_GRAB_INPUT)
@@ -153,7 +150,6 @@ public class StandInitStarPlatinum {
 				.addSkill(StandUnlockableSkill.startingAbility("heavy_charged").prerequisiteSkill("heavy_punch"))
 				.addSkill(StandUnlockableSkill.startingAbility("guard"))
 				.addSkill(StandUnlockableSkill.startingAbility("grab"))
-				.addSkill(StandUnlockableSkill.startingAbility("block_toss"))
 				.addSkill(StandUnlockableSkill.unlockableAbility("grab_throw", 100).withAbility("grab_punch", "grab_barrage", "grab_heavy_punch", "grab_uppercut").prerequisiteSkill("grab"))
 				.addSkill(new StandUnlockableSkill("uppercut")
 						.setExpToUnlock(150)

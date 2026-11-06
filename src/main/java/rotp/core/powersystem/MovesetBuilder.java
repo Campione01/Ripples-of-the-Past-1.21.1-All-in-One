@@ -40,12 +40,14 @@ public class MovesetBuilder {
 	public static final String SWAP_ITEMS_KEY_MAPPING_NAME = "jojo_ripples.key.swap_items";
 	public static final InputBindTemplate DEFAULT_GRAB_THROW_INPUT = new InputUseVanillaMapping(GRAB_THROW_KEY_MAPPING_NAME);
 	public static final InputBindTemplate DEFAULT_GRAB_RELEASE_INPUT = new InputUseVanillaMapping(GRAB_RELEASE_KEY_MAPPING_NAME);
+	private static final String BLOCK_TOSS = "block_toss";
 
 	public final Map<String, ConfigAbilityFactory<?>> abilities = new LinkedHashMap<>();
 	public final Map<String, UnlockableSkill> unlockableSkills = new LinkedHashMap<>();
-	
+
 	@ApiStatus.Internal public Map<String, ControlSchemeTemplate> controlSchemes = new LinkedHashMap<>();
 	@ApiStatus.Internal public ControlSchemeTemplate curControlScheme = new ControlSchemeTemplate();
+	private boolean humanoidStand;
 	private final Set<ResourceLocation> appliedStandMovesetExtensions = new LinkedHashSet<>();
 	private final Set<ResourceLocation> appliedPlayerPowerMovesetExtensions = new LinkedHashSet<>();
 	private final Map<PlayerPowerHotbarAnchor, String>
@@ -62,6 +64,7 @@ public class MovesetBuilder {
 		this.controlSchemes.forEach((name, scheme) -> copy.controlSchemes.put(name, scheme.deepCopy()));
 		copy.curControlScheme = this.curControlScheme.deepCopy();
 		copy.lastAbility = this.lastAbility;
+		copy.humanoidStand = this.humanoidStand;
 		copy.appliedStandMovesetExtensions.addAll(this.appliedStandMovesetExtensions);
 		copy.appliedPlayerPowerMovesetExtensions.addAll(
 				this.appliedPlayerPowerMovesetExtensions);
@@ -92,6 +95,7 @@ public class MovesetBuilder {
 		controlSchemes.putAll(staged.controlSchemes);
 		curControlScheme = staged.curControlScheme;
 		lastAbility = staged.lastAbility;
+		humanoidStand = staged.humanoidStand;
 		appliedStandMovesetExtensions.clear();
 		appliedStandMovesetExtensions.addAll(
 				staged.appliedStandMovesetExtensions);
@@ -129,6 +133,7 @@ public class MovesetBuilder {
 		controlSchemes.putAll(staged.controlSchemes);
 		curControlScheme = staged.curControlScheme;
 		lastAbility = staged.lastAbility;
+		humanoidStand = staged.humanoidStand;
 		appliedStandMovesetExtensions.clear();
 		appliedStandMovesetExtensions.addAll(
 				staged.appliedStandMovesetExtensions);
@@ -377,6 +382,7 @@ public class MovesetBuilder {
 	// shortcuts for some common abilities
 	
 	public MovesetBuilder addHumanoidStandStuff() {
+		humanoidStand = true;
 		addManualControl();
 		return this;
 	}
@@ -397,7 +403,24 @@ public class MovesetBuilder {
 		.addSkill(StandUnlockableSkill.startingAbility("manual_control"))
 		.addSkill(new StandUnlockableSkill(StandItemUse.SKILL).setIsStartingSkill());
 	}
-	
+
+	/**
+	 * What a moveset has by the rules of the core, for add-ons built against any version of it: a Stand with the grab can toss a
+	 * block, and a humanoid Stand can use what it holds. Skills are read without building the moveset, so this runs on every copy
+	 * PowerType makes, after the extensions. The skill's name stands for a moveset's own choice: one that names it, or that a
+	 * config has taken the ability from, keeps what it has.
+	 */
+	@ApiStatus.Internal
+	public void addWhatItsMovesBring() {
+		if (abilities.containsKey("grab") && !abilities.containsKey(BLOCK_TOSS) && !unlockableSkills.containsKey(BLOCK_TOSS)) {
+			addAbility(BLOCK_TOSS, ModStandAbilities.BLOCK_TOSS, Ability::useAbilityTypeResourceNamespace);
+			addSkill(StandUnlockableSkill.startingAbility(BLOCK_TOSS));
+		}
+		if (humanoidStand && !unlockableSkills.containsKey(StandItemUse.SKILL)) {
+			addSkill(new StandUnlockableSkill(StandItemUse.SKILL).setIsStartingSkill());
+		}
+	}
+
 	protected void postInitControls() {
 		if (abilities.containsKey("grab")) {
 			if (!abilities.containsKey("grab_release")) {
@@ -405,6 +428,7 @@ public class MovesetBuilder {
 			}
 			addBindToAllCtrlSchemesIfMissing("grab_release", InputMethod.CLICK, DEFAULT_GRAB_RELEASE_INPUT);
 		}
+		addBindToAllCtrlSchemesIfMissing(BLOCK_TOSS, InputMethod.HOLD, InputKey.LMB);
 		addBindToAllCtrlSchemesIfMissing("manual_control", InputMethod.CLICK, InputKey.O);
 		addBindToAllCtrlSchemesIfMissing("items_swap_w_user", InputMethod.CLICK, new InputUseVanillaMapping(SWAP_ITEMS_KEY_MAPPING_NAME));
 		addBindToAllCtrlSchemesIfMissing("items_swap_hands", InputMethod.CLICK, new InputUseVanillaMapping("key.swapOffhand"));

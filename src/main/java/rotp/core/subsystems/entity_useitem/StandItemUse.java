@@ -12,7 +12,7 @@ import rotp.core.subsystems.entity_grab.LivingComponentGrab;
 
 /**
  * When a Stand takes its user's right click for the item in its hands or the block in front of it. A humanoid Stand lists this
- * as a skill it starts with (MovesetBuilder.addHumanoidStandSkills); a Stand whose moveset does not list the skill keeps the
+ * as a skill it starts with (MovesetBuilder.addWhatItsMovesBring); a Stand whose moveset does not list the skill keeps the
  * click as well, so an add-on's Stand loses nothing. No client classes here, so server gametests can run it.
  */
 public final class StandItemUse {
