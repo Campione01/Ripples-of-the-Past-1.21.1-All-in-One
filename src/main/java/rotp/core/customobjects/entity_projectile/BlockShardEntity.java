@@ -52,6 +52,11 @@ public class BlockShardEntity extends ModdedProjectileEntity implements EntityMa
     public BlockShardEntity(EntityType<? extends BlockShardEntity> entityType, Level level) {
         super(entityType, level);
     }
+
+    protected BlockShardEntity(EntityType<? extends BlockShardEntity> entityType, LivingEntity shooter, Level level, BlockState blockState) {
+        super(entityType, shooter, level);
+        this.blockState = blockState;
+    }
     
     public BlockState getBlock() {
         if (blockState == null) {

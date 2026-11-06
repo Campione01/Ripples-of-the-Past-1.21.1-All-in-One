@@ -6,6 +6,7 @@ import rotp.core.init.ModEntityCustomEffects;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.impl.stands._entitybase.StandBearingShotAbility;
+import rotp.core.impl.stands._entitybase.StandBlockTossAbility;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
 import rotp.core.impl.stands._entitybase.StandEntityBlockAbility;
 import rotp.core.impl.stands._entitybase.StandEntityGrabAbility;
@@ -125,6 +126,9 @@ public final class ModStandAbilities {
 
 	public static final DeferredHolder<AbilityType<?>, AbilityType<StandBearingShotAbility>> BEARING_SHOT = ABILITY_TYPES.register(
 			"bearing_shot", key -> new AbilityType<>(key, StandBearingShotAbility::new));
+
+	public static final DeferredHolder<AbilityType<?>, AbilityType<StandBlockTossAbility>> BLOCK_TOSS = ABILITY_TYPES.register(
+			"block_toss", key -> new AbilityType<>(key, StandBlockTossAbility::new));
 	
 	public static final DeferredHolder<AbilityType<?>, AbilityType<StarFingerAbility>> SP_STAR_FINGER = ABILITY_TYPES.register(
 			"star_finger", key -> new AbilityType<>(key, StarFingerAbility::new));

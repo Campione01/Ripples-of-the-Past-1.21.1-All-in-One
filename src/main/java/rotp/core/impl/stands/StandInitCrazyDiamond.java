@@ -87,6 +87,7 @@ public class StandInitCrazyDiamond {
 				})
 
 				.addAbility("guard", ModStandAbilities.GUARD)
+				.addAbility("block_toss", ModStandAbilities.BLOCK_TOSS)
 				.addAbility("bearing_shot", ModStandAbilities.BEARING_SHOT)
 
 				.addAbility("leave_object", ModStandAbilities.CD_LEAVE_OBJECT_ON_PUNCH, ability -> {
@@ -125,6 +126,7 @@ public class StandInitCrazyDiamond {
 				.makeControlScheme("hotbar")
 					.bind("punch", InputMethod.CLICK, InputKey.LMB)
 					.bind("barrage", InputMethod.HOLD, InputKey.LMB)
+					.bind("block_toss", InputMethod.HOLD, InputKey.LMB)
 					.bind("heavy_punch", InputMethod.CLICK, InputKey.RMB)
 					.bind("heavy_charged", InputMethod.HOLD, MovesetBuilder.DEFAULT_CHARGED_HEAVY_INPUT)
 					.bind("grab", InputMethod.CLICK, MovesetBuilder.DEFAULT_GRAB_INPUT)
@@ -148,6 +150,7 @@ public class StandInitCrazyDiamond {
 				.makeControlScheme("keybinds")
 					.bind("punch", InputMethod.CLICK, InputKey.LMB)
 					.bind("barrage", InputMethod.HOLD, InputKey.LMB)
+					.bind("block_toss", InputMethod.HOLD, InputKey.LMB)
 					.bind("heavy_punch", InputMethod.CLICK, InputKey.RMB)
 					.bind("heavy_charged", InputMethod.HOLD, MovesetBuilder.DEFAULT_CHARGED_HEAVY_INPUT)
 					.bind("grab", InputMethod.CLICK, MovesetBuilder.DEFAULT_GRAB_INPUT)
@@ -163,6 +166,7 @@ public class StandInitCrazyDiamond {
 				.addSkill(StandUnlockableSkill.startingAbility("heavy_charged").prerequisiteSkill("heavy_punch"))
 				.addSkill(StandUnlockableSkill.startingAbility("guard"))
 				.addSkill(StandUnlockableSkill.startingAbility("grab"))
+				.addSkill(StandUnlockableSkill.startingAbility("block_toss"))
 				.addSkill(StandUnlockableSkill.unlockableAbility("grab_throw", 100)
 						.withAbility("grab_punch", "grab_barrage", "grab_heavy_punch", "grab_finisher")
 						.prerequisiteSkill("grab"))
