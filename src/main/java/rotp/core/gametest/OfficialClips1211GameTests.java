@@ -59,7 +59,10 @@ public final class OfficialClips1211GameTests {
 	private static final String GRAB_ONE_TICK = "K5-30 (19170e37): the grab heavy's RECOVERY a tick after PERFORM for the"
 			+ " one-tick perform, the markers pinned by HeavyPunchPerform116GameTests";
 	private static final String NO_BONE = "a bone the Stand's geo lacks, absent since the first snapshot c9799c78";
-	private static final String UPPER_BODY_BARRAGE = "731e5d41: an ordinary barrage moves the upper body only, this bone held";
+	private static final String BARRAGE_HEAD = "G1, G21 (2026-11-05): the head takes back its keyed chain, so it stays on the look";
+	private static final String CD_BARRAGE_LOOK = "G21 (2026-11-05): Crazy Diamond's barrage follows the look: head_rot reads it throughout, the"
+			+ " arms take its pitch as Star Platinum's do, the fist no longer turns about its forearm, the fist and stride hold from"
+			+ " the end of the windup to the recovery";
 	private static final String R148_MIRROR = "af972e0c (R148): the clip mirrored for the hand it is played with";
 	private static final String R148_ARM_LOOK = "af972e0c (R148): the arms follow the look pitch up to 60 degrees";
 
@@ -75,17 +78,14 @@ public final class OfficialClips1211GameTests {
 			new Difference("silver_chariot", "idle", "bones/left_item", Change.LACKS, NO_BONE),
 			new Difference("silver_chariot", "idle", "bones/right_item", Change.LACKS, NO_BONE),
 			new Difference("crazy_diamond", "uncraft", "bones/torso_old", Change.LACKS, NO_BONE),
-			new Difference("star_platinum", "barrage", "bones/back_fabric", Change.CHANGES, UPPER_BODY_BARRAGE),
-			new Difference("star_platinum", "barrage", "bones/front_fabric", Change.CHANGES, UPPER_BODY_BARRAGE),
-			new Difference("star_platinum", "barrage", "bones/head", Change.CHANGES, UPPER_BODY_BARRAGE),
-			new Difference("star_platinum", "barrage", "bones/left_leg", Change.CHANGES, UPPER_BODY_BARRAGE),
-			new Difference("star_platinum", "barrage", "bones/left_leg_bend", Change.CHANGES, UPPER_BODY_BARRAGE),
-			new Difference("star_platinum", "barrage", "bones/left_leg_joint", Change.CHANGES, UPPER_BODY_BARRAGE),
-			new Difference("star_platinum", "barrage", "bones/right_leg", Change.CHANGES, UPPER_BODY_BARRAGE),
-			new Difference("star_platinum", "barrage", "bones/right_leg_bend", Change.CHANGES, UPPER_BODY_BARRAGE),
-			new Difference("star_platinum", "barrage", "bones/right_leg_joint", Change.CHANGES, UPPER_BODY_BARRAGE),
-			new Difference("star_platinum", "barrage", "bones/torso", Change.CHANGES, UPPER_BODY_BARRAGE),
-			new Difference("star_platinum", "barrage", "bones/torso_bend", Change.CHANGES, UPPER_BODY_BARRAGE),
+			new Difference("star_platinum", "barrage", "bones/head", Change.CHANGES, BARRAGE_HEAD),
+			new Difference("crazy_diamond", "barrage", "bones/head", Change.CHANGES, BARRAGE_HEAD),
+			new Difference("crazy_diamond", "barrage", "bones/head_rot", Change.CHANGES, CD_BARRAGE_LOOK),
+			new Difference("crazy_diamond", "barrage", "bones/left_arm_xrot", Change.CHANGES, CD_BARRAGE_LOOK),
+			new Difference("crazy_diamond", "barrage", "bones/right_arm_xrot", Change.CHANGES, CD_BARRAGE_LOOK),
+			new Difference("crazy_diamond", "barrage", "bones/left_arm_bend", Change.CHANGES, CD_BARRAGE_LOOK),
+			new Difference("crazy_diamond", "barrage", "bones/right_arm", Change.CHANGES, CD_BARRAGE_LOOK),
+			new Difference("crazy_diamond", "barrage", "bones/right_leg", Change.CHANGES, CD_BARRAGE_LOOK),
 			new Difference("crazy_diamond", "block_bullet", "timeline", Change.CHANGES, R148_MIRROR + " (LEFT, the official RIGHT)"),
 			new Difference("crazy_diamond", "block_bullet", "bones/left_arm_xrot", Change.ADDS, R148_ARM_LOOK),
 			new Difference("crazy_diamond", "block_bullet", "bones/right_arm_xrot", Change.ADDS, R148_ARM_LOOK),

@@ -212,9 +212,13 @@ public final class StarSpecialtyOffsetGameTests {
             return switch (spec.ability) {
                 case "star_finger" -> new Vec3(0, stand.Y_OFFSET, 0.5);
                 case "enhanced_eyesight" -> new Vec3(-0.25, -0.3, -0.25);
-                case "inhale" -> new Vec3(0, stand.Y_OFFSET, -0.25);
+                case "inhale" -> new Vec3(0, stand.Y_OFFSET, 1.5);
                 default -> new Vec3(0, stand.Y_OFFSET, 0.3);
             };
+        }
+        // G3: the inhale stands in front of the user along the whole look, so it cannot overlap him at any pitch
+        StandOffsetFromUser.Rotations rotations() {
+            return spec.ability.equals("inhale") ? StandOffsetFromUser.Rotations.HEAD_XY : StandOffsetFromUser.Rotations.HEAD;
         }
         void prepare() {
             ChunkPos chunk = new ChunkPos(suite.helper.absolutePos(BlockPos.ZERO));
@@ -269,7 +273,7 @@ public final class StarSpecialtyOffsetGameTests {
                 startedAt = posts;
                 suite.check(action.getSyncedStandOffset().distanceTo(relative()) < 1.0E-8
                         && stand.offsetFromUser.getRelativeOffset().distanceTo(relative()) < 1.0E-8, "unchanged numeric/Y offset and action sync payload");
-                suite.check(stand.offsetFromUser.getRotations() == StandOffsetFromUser.Rotations.HEAD, "selected yaw-only HEAD projection");
+                suite.check(stand.offsetFromUser.getRotations() == rotations(), "selected projection " + rotations());
                 suite.check(action.standRotationTarget == null, "real raw aim did not become retained rotation target");
                 return;
             }
@@ -292,10 +296,16 @@ public final class StarSpecialtyOffsetGameTests {
                     checkPosition(manualAnchor, "native O-control anchor not overwritten by follow offset");
                 }
                 else {
-                    Vec3 expected = oracle(relative(), VIEW_YAW);
+                    Vec3 turned = rotations() == StandOffsetFromUser.Rotations.HEAD_XY
+                            ? relative().xRot((float) Math.toRadians(-spec.pitch)) : relative();
+                    Vec3 expected = oracle(turned, VIEW_YAW);
                     checkPosition(expected, "actual native follow uses view-yaw position, not body or aimed center");
-                    suite.check(Math.abs(stand.getY() - expected.y) < 1.0E-5, "pitch does not orbit retained vertical offset");
+                    suite.check(Math.abs(stand.getY() - expected.y) < 1.0E-5, rotations() == StandOffsetFromUser.Rotations.HEAD_XY
+                            ? "the pitch carries the offset along the look" : "pitch does not orbit retained vertical offset");
                     suite.check(Math.abs(Mth.wrapDegrees(stand.yBodyRot - VIEW_YAW)) < 1.0E-5, "native active body copy follows view yaw");
+                    if (spec.ability.equals("inhale") && Math.abs(spec.pitch) <= 30) {
+                        suite.check(!stand.getBoundingBox().intersects(user.getBoundingBox()), "the inhaling Stand does not overlap its user");
+                    }
                 }
                 log("SAMPLE " + id() + " view=" + user.getYRot() + " body=" + user.yBodyRot + " user=" + user.position()
                         + " stand=" + stand.position() + " relative=" + relative() + " phaseTick=" + action.getPhaseTick());

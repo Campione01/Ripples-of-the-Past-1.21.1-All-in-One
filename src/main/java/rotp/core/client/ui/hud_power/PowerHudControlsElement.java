@@ -310,7 +310,7 @@ public class PowerHudControlsElement extends HudElement {
 			}
 			
 			if (bindUI.abilities.isEmpty()) {
-				bindUI.standItem = StandVanillaClickInput.itemOnRightClick(controlScheme, key, modifier);
+				bindUI.standItem = StandVanillaClickInput.itemOnRightClick(controlScheme, key);
 			}
 			if (bindUI.slotCount() > 0) {
 				bindUI.mainKey = getKeyName(key);

@@ -46,12 +46,12 @@ public class ClientPowerCache {
 				Power<?> power = powersCache[i];
 				if (power != null) {
 					availableAbilitiesCache[i] = power.updateAvailableMoves();
-					StandVanillaClickInput.onMovesUpdate(power, availableAbilitiesCache[i]);
+					StandVanillaClickInput.movesGiveWayToTheItem(power, availableAbilitiesCache[i]);
 				}
 			}
 		}
 	}
-
+	
 	@SuppressWarnings("unchecked")
 	public static <P extends Power<P>> P getPower(PowerClass<P> powerClass) {
 		return (P) powersCache[powerClass.ordinal()];
