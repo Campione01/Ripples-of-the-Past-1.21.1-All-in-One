@@ -44,6 +44,7 @@ import rotp.core.impl.stands.goldexperience.GEStuckObjectsState;
 import rotp.core.impl.stands.goldexperience.GELifeshotState;
 import rotp.core.impl.stands.goldexperience.GETreeLeavesDecayState;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.BrokenBlocksChunkData;
+import rotp.core.impl.stands.hierophant.HGBarriersNet;
 import rotp.core.impl.stands.silverchariot.SilverChariotState;
 
 import net.minecraft.server.level.ServerLevel;
@@ -121,6 +122,9 @@ public final class ModDataAttachmentTypes {
 
 	public static final Supplier<AttachmentType<SilverChariotState>> SILVER_CHARIOT_STATE = ATTACHMENT_TYPES.register("silver_chariot_state",
 			() -> AttachmentType.serializable(obj -> obj instanceof LivingEntity ? new SilverChariotState() : null).build());
+
+	public static final Supplier<AttachmentType<HGBarriersNet>> HG_BARRIERS_NET = ATTACHMENT_TYPES.register("hg_barriers_net",
+			() -> AttachmentType.builder(() -> new HGBarriersNet()).build());
 
 	public static final Supplier<AttachmentType<VampirismState>> VAMPIRISM_STATE = ATTACHMENT_TYPES.register("vampirism_state",
 			() -> AttachmentType.serializable(obj -> obj instanceof LivingEntity ? new VampirismState() : null)

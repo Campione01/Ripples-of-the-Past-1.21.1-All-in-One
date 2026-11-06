@@ -3,6 +3,7 @@ package rotp.core.customobjects.entity_projectile;
 import javax.annotation.Nullable;
 
 import rotp.core.network.s2c.DeflectedBulletPacket;
+import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget.TargetType;
 import rotp.core.util.functions.MathUtil;
 
@@ -27,7 +28,10 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 public abstract class ModdedProjectileEntity extends DamagingEntity implements IProjectileEvasion {
 	protected static final EntityDataAccessor<Boolean> IS_DEFLECTED = SynchedEntityData.defineId(ModdedProjectileEntity.class, EntityDataSerializers.BOOLEAN);
+	// a projectile with no lifespan of its own counted on its Stand to end it
+	private static final int MAX_TICKS_WITHOUT_STAND = 200;
 	protected int ownerId = -1;
+	private int ticksWithoutStand;
 
 	protected ModdedProjectileEntity(EntityType<? extends ModdedProjectileEntity> type, LivingEntity shooter, Level level) {
 		super(type, shooter, level);
@@ -103,7 +107,23 @@ public abstract class ModdedProjectileEntity extends DamagingEntity implements I
 	}
 
 	protected boolean shouldExpire(@Nullable Entity owner) {
-		return tickCount > ticksLifespan() || owner != null && !owner.isAlive();
+		return tickCount > ticksLifespan() || owner != null && !owner.isAlive() && !goesOnAfterItsStand(owner);
+	}
+
+	/**
+	 * Whether this projectile goes on after the Stand that shot it is recalled (StandEntity#isRecalled), as whatever a
+	 * Stand has already sent out does, by the owner's rule of 2026-11-05 (1.16 removed it with its Stand). False for what
+	 * is still a part of the Stand's body (OwnerBoundProjectileEntity).
+	 */
+	protected boolean goesOnWithoutItsStand() {
+		return true;
+	}
+
+	private boolean goesOnAfterItsStand(Entity owner) {
+		if (!goesOnWithoutItsStand() || !(owner instanceof StandEntity stand) || !stand.isRecalled()) {
+			return false;
+		}
+		return ticksLifespan() != Integer.MAX_VALUE || ++ticksWithoutStand <= MAX_TICKS_WITHOUT_STAND;
 	}
 
 	protected void moveProjectile() {

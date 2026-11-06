@@ -114,6 +114,12 @@ public abstract class OwnerBoundProjectileEntity extends ModdedProjectileEntity 
 				: super.shouldExpire(owner);
 	}
 
+	// a part of its owner's body, drawn from it and moved by it
+	@Override
+	protected boolean goesOnWithoutItsStand() {
+		return false;
+	}
+
 	@Override
 	protected void addAdditionalSaveData(CompoundTag nbt) {
 		super.addAdditionalSaveData(nbt);

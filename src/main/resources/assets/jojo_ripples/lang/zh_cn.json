@@ -941,7 +941,7 @@
   "jojo_ripples.skill.grapple_entity.desc": "用绿色法皇的绳索抓住实体，而不是地形。",
   "jojo_ripples.skill.grapple_entity.controls": "瞄准实体时通过轮盘选择并按住特殊能力",
   "jojo_ripples.skill.barrier": "半径 20 米结界",
-  "jojo_ripples.skill.barrier.desc": "展开绿色法皇的绳结界，使穿过的敌人受到攻击。",
+  "jojo_ripples.skill.barrier.desc": "展开绿色法皇的绳结界，使穿过的敌人受到攻击。替身在场时，潜行使用可拆除全部结界。",
   "jojo_ripples.skill.barrier.controls": "特殊能力",
   "jojo_ripples.skill.flame_burst": "『火焰爆裂』",
   "jojo_ripples.skill.flame_burst.desc": "『魔术师之红』释放近距离火焰爆裂。",

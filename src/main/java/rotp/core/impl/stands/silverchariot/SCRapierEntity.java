@@ -1,5 +1,7 @@
 package rotp.core.impl.stands.silverchariot;
 
+import javax.annotation.Nullable;
+
 import rotp.core.client.ClientProxy;
 import rotp.core.customobjects.entity_projectile.ModdedProjectileEntity;
 import rotp.core.init.ModEntityTypes;
@@ -79,6 +81,21 @@ public class SCRapierEntity extends ModdedProjectileEntity {
 	@Override
 	public int ticksLifespan() {
 		return Integer.MAX_VALUE;
+	}
+
+	// nothing can take a rapier back once its Stand is gone and the next summon has a new one: it flies on and ends where
+	// it stops, or with that summon
+	@Override
+	protected boolean shouldExpire(@Nullable Entity owner) {
+		if (super.shouldExpire(owner)) {
+			return true;
+		}
+		if (!(owner instanceof StandEntity stand) || stand.isAlive()) {
+			return false;
+		}
+		LivingEntity user = stand.getUser();
+		StandPower power = user != null ? StandPower.get(user) : null;
+		return getDeltaMovement().lengthSqr() < 1.0E-7D || power != null && power.isSummoned();
 	}
 
 	@Override

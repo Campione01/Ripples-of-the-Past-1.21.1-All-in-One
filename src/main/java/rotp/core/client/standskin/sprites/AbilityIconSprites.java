@@ -16,8 +16,10 @@ import org.jetbrains.annotations.ApiStatus;
 
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.core.JojoMod;
+import rotp.core.powersystem.Moveset;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.ability.Ability;
+import rotp.core.powersystem.unlockableskill.UnlockableSkill;
 
 import net.minecraft.Util;
 import net.minecraft.client.renderer.texture.SpriteContents;
@@ -123,6 +125,49 @@ public class AbilityIconSprites implements AutoCloseable {
 
 	public TextureAtlasSprite getAbilityIcon(String abilitySpriteName, @Nullable StandSkin curStandSkin) {
 		return getAbilityIcon(JojoMod.resLoc(abilitySpriteName), curStandSkin);
+	}
+
+	/**
+	 * A skill's icon on the skills screen: what the HUD shows for the ability of that name, else the skill's name in
+	 * its Stand's namespace, else what the HUD shows for the abilities it unlocks, else the core's icon of that name.
+	 */
+	public TextureAtlasSprite getSkillIcon(UnlockableSkill skill, @Nullable Power<?> power, @Nullable StandSkin curStandSkin) {
+		boolean hasPower = power != null && power.hasPower();
+		return resolveSkillIcon(skill,
+				hasPower ? power.getMoveset() : null,
+				hasPower ? power.getPowerType().getId() : null,
+				power,
+				spriteId -> getAbilityIcon(spriteId, curStandSkin),
+				textureAtlas.missingSprite);
+	}
+
+	static <S> S resolveSkillIcon(UnlockableSkill skill, @Nullable Moveset moveset, @Nullable ResourceLocation powerTypeId,
+			@Nullable Power<?> context, Function<ResourceLocation, S> icons, S missing) {
+		Ability namedAbility = moveset != null ? moveset.getAbility(skill.skillName) : null;
+		if (namedAbility != null) {
+			S icon = icons.apply(namedAbility.getSpriteId(context));
+			if (icon != missing) {
+				return icon;
+			}
+		}
+		if (powerTypeId != null) {
+			S icon = icons.apply(ResourceLocation.fromNamespaceAndPath(powerTypeId.getNamespace(), skill.skillName));
+			if (icon != missing) {
+				return icon;
+			}
+		}
+		if (moveset != null) {
+			for (String abilityName : skill.unlocksAbilities) {
+				Ability ability = moveset.getAbility(abilityName);
+				if (ability != null) {
+					S icon = icons.apply(ability.getSpriteId(context));
+					if (icon != missing) {
+						return icon;
+					}
+				}
+			}
+		}
+		return icons.apply(JojoMod.resLoc(skill.skillName));
 	}
 
 	public TextureAtlasSprite getAbilityIcon(ResourceLocation abilitySpriteId, @Nullable StandSkin curStandSkin) {

@@ -1,5 +1,7 @@
 package rotp.core.impl.stands.hierophant;
 
+import javax.annotation.Nullable;
+
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 
 import rotp.core.powersystem.Power;
@@ -145,6 +147,9 @@ public class HierophantBarrierAbility extends NoPoseStandEntityAbility {
 		}
 		if (context instanceof StandPower standPower) {
 			LivingEntity user = standPower.getUser();
+			if (takesDownTheNet(user)) {
+				return ConditionCheck.POSITIVE;
+			}
 			Level level = user != null ? user.level() : null;
 			LivingEntity performer = standPower.getSummonedStandEntity();
 			if (level != null) {
@@ -177,10 +182,16 @@ public class HierophantBarrierAbility extends NoPoseStandEntityAbility {
 		if (!check.isPositive()) {
 			return check;
 		}
-		if (standEntity instanceof HierophantGreenEntity hierophant && !hierophant.canPlaceBarrier()) {
+		if (standEntity instanceof HierophantGreenEntity hierophant && !hierophant.canPlaceBarrier()
+				&& !takesDownTheNet(standPower.getUser())) {
 			return ConditionCheck.createNegative("barrier");
 		}
 		return ConditionCheck.POSITIVE;
+	}
+
+	// the net goes on through a recall, which took it down in 1.16: a sneaking press takes it down now
+	private static boolean takesDownTheNet(@Nullable LivingEntity user) {
+		return user != null && user.isShiftKeyDown();
 	}
 
 	@Override
@@ -223,6 +234,10 @@ public class HierophantBarrierAbility extends NoPoseStandEntityAbility {
 			}
 			ActionTarget target = getActionTarget(level);
 			LivingEntity user = getPowerUser();
+			if (takesDownTheNet(user) && hierophant.takeDownPlacedBarriers()) {
+				startRecovery();
+				return;
+			}
 			if (target.getType() != TargetType.BLOCK || target.isEmpty(level)) {
 				if (user != null) {
 					ConditionCheck.sendActionFailedMessage(null, ConditionCheck.createNegative("block_target"), user);

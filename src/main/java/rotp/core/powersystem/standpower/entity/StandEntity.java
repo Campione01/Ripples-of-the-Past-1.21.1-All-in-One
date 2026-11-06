@@ -685,6 +685,23 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		return userPower;
 	}
 
+	/**
+	 * Whether this Stand is gone while its user, alive in its level, still has it: recalled, or otherwise unsummoned. The
+	 * owner's rule of 2026-11-05: what it left in the world goes on, and ends by its own rules or with its user's death,
+	 * logout or loss of the Stand. A server-side question.
+	 */
+	public boolean isRecalled() {
+		if (isAlive()) {
+			return false;
+		}
+		LivingEntity user = getUser();
+		if (user == null || user.isRemoved() || !user.isAlive() || user.level() != level()) {
+			return false;
+		}
+		StandPower power = StandPower.get(user);
+		return power != null && power.hasPower() && power.getPowerType().getId().equals(standId);
+	}
+
 	protected final boolean hasUser() {
 		return entityData.get(USER_ID) >= 0;
 	}

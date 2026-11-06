@@ -2,6 +2,8 @@ package rotp.core.impl.stands.hierophant;
 
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
 import rotp.core.core.JojoMod;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.powersystem.standpower.StandPower;
@@ -15,6 +17,7 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -28,7 +31,8 @@ public class HierophantGreenEntity extends StandEntity {
 
 	private HGBarrierEntity stringToUser;
 	private HGBarrierEntity stringFromStand;
-	private final HGBarriersNet placedBarriers = new HGBarriersNet();
+	private final HGBarriersNet netWithoutUser = new HGBarriersNet();
+	private boolean tookOverBarriers;
 
 	public HierophantGreenEntity(EntityType<? extends HierophantGreenEntity> type, Level level) {
 		super(type, level);
@@ -37,6 +41,11 @@ public class HierophantGreenEntity extends StandEntity {
 	@Override
 	public void tick() {
 		if (!level().isClientSide()) {
+			HGBarriersNet placedBarriers = getBarriersNet();
+			if (!tookOverBarriers) {
+				placedBarriers.setOwnerStand(this);
+				tookOverBarriers = true;
+			}
 			placedBarriers.tick();
 			setPlacedBarriersCount(placedBarriers.getSize());
 		}
@@ -44,7 +53,27 @@ public class HierophantGreenEntity extends StandEntity {
 	}
 
 	public HGBarriersNet getBarriersNet() {
-		return placedBarriers;
+		LivingEntity user = getUser();
+		return user != null ? HGBarriersNet.of(user) : netWithoutUser;
+	}
+
+	/**
+	 * Takes down its user's net of placed barriers, the sneaking press of the Barrier ability: the net goes on through a
+	 * recall, which was the way to take it down in 1.16.
+	 * @return whether there was a net to take down
+	 */
+	public boolean takeDownPlacedBarriers() {
+		HGBarriersNet placedBarriers = getBarriersNet();
+		boolean loosePlacedString = stringFromStand != null && stringFromStand.isAlive() && stringFromStand != stringToUser;
+		if (level().isClientSide() || placedBarriers.getSize() == 0 && !loosePlacedString) {
+			return false;
+		}
+		placedBarriers.discardAll();
+		setPlacedBarriersCount(0);
+		if (loosePlacedString) {
+			stringFromStand.discard();
+		}
+		return true;
 	}
 
 	@Override
@@ -103,6 +132,7 @@ public class HierophantGreenEntity extends StandEntity {
 				return;
 			}
 			stringFromStand.attachToBlockPos(blockPos);
+			HGBarriersNet placedBarriers = getBarriersNet();
 			placedBarriers.add(stringFromStand);
 			setPlacedBarriersCount(placedBarriers.getSize());
 		}
@@ -144,21 +174,23 @@ public class HierophantGreenEntity extends StandEntity {
 	@Override
 	public void remove(Entity.RemovalReason reason) {
 		if (!level().isClientSide()) {
-			if (stringToUser != null && stringToUser.isAlive()) {
-				stringToUser.discard();
-			}
-			if (stringFromStand != null && stringFromStand.isAlive()) {
-				stringFromStand.discard();
-			}
-			placedBarriers.discardAll();
+			// the strings still tied to the Stand end with it; the placed ones stay, and end with their user (HGBarrierEntity)
+			discardIfNotPlaced(stringToUser);
+			discardIfNotPlaced(stringFromStand);
 		}
 		super.remove(reason);
+	}
+
+	private static void discardIfNotPlaced(@Nullable HGBarrierEntity string) {
+		if (string != null && string.isAlive() && !string.isAttachedToBlock()) {
+			string.discard();
+		}
 	}
 
 	@Override
 	public void setSelectedSkin(Optional<ResourceLocation> standSkin) {
 		super.setSelectedSkin(standSkin);
-		placedBarriers.setStandSkin(standSkin);
+		getBarriersNet().setStandSkin(standSkin);
 		if (stringToUser != null) {
 			stringToUser.withStandSkin(standSkin);
 		}

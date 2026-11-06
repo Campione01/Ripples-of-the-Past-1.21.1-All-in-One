@@ -113,7 +113,7 @@ public class HGBarrierEntity extends OwnerBoundProjectileEntity {
 			return;
 		}
 
-		if (!level().isClientSide() && getStandUser() == null) {
+		if (!level().isClientSide() && hasLostItsUser()) {
 			discard();
 			return;
 		}
@@ -122,6 +122,22 @@ public class HGBarrierEntity extends OwnerBoundProjectileEntity {
 			moveToBlock(attachedBlock);
 		}
 		super.tick();
+	}
+
+	// a placed barrier stays through a recall; its user's death, logout, trip to another level or loss of the Stand ends it
+	private boolean hasLostItsUser() {
+		LivingEntity user = getStandUser();
+		if (user == null || user.isRemoved() || !user.isAlive() || user.level() != level()) {
+			return true;
+		}
+		StandPower power = StandPower.get(user);
+		ResourceLocation type = getStandType();
+		return power == null || !power.hasPower() || type != null && !type.equals(power.getPowerType().getId());
+	}
+
+	@Override
+	protected boolean shouldExpire(@Nullable Entity owner) {
+		return !isAttachedToBlock() && super.shouldExpire(owner);
 	}
 
 	private void tickStoppedInTime() {
@@ -146,7 +162,7 @@ public class HGBarrierEntity extends OwnerBoundProjectileEntity {
 	}
 
 	@Nullable
-	private LivingEntity getStandUser() {
+	public LivingEntity getStandUser() {
 		if (standUser == null && getOwner() instanceof StandEntity stand) {
 			standUser = stand.getUser();
 		}
@@ -314,8 +330,7 @@ public class HGBarrierEntity extends OwnerBoundProjectileEntity {
 		boolean shouldGlow = level().isClientSide()
 				&& !isTimeStoppedAroundThis()
 				&& wasRipped()
-				&& getOwner() instanceof StandEntity stand
-				&& stand.getUser() == ClientProxy.getClientPlayer();
+				&& getStandUser() == ClientProxy.getClientPlayer();
 		return shouldGlow || super.isCurrentlyGlowing();
 	}
 
