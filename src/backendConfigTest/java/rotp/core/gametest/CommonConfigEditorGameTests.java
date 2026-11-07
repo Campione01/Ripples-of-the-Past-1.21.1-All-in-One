@@ -61,6 +61,9 @@ public final class CommonConfigEditorGameTests {
 					"metadata must describe the actual Time Stop setting");
 			helper.assertTrue(banned.kind() == ConfigEntry.Kind.LIST && banned.elementKind() == ConfigEntry.Kind.STRING,
 					"empty bannedStands default must still have a string element type");
+			helper.assertTrue(entry(entries, "Stand settings.standPowerMultiplier").synced()
+							&& !entry(entries, PROGRESSION).synced(),
+					"sync metadata must use the actual persisted keys, not the Java field names");
 			helper.assertTrue(Arrays.equals(before, Files.readAllBytes(path)), "reading the catalog must not write the TOML");
 			helper.succeed();
 		}

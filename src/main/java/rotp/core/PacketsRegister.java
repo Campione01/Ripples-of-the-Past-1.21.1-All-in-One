@@ -1,5 +1,6 @@
 package rotp.core;
 
+import rotp.core.config.editor.ConfigEditorPackets;
 import rotp.core.core.JojoMod;
 import rotp.core.customobjects.explosion.CustomExplosionPacket;
 import rotp.core.entityattachment.custom_effect.TrEntityCustomEffectsPacket;
@@ -152,6 +153,7 @@ public class PacketsRegister {
 
 	public static void register(RegisterPayloadHandlersEvent event) {
 		PayloadRegistrar registrar = event.registrar(NETWORK_PROTOCOL_VERSION);
+		ConfigEditorPackets.register(registrar);
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClAbilityInputPacket.Handler(JojoMod.resLoc("clkey")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClNoParamsPacket.Handler(JojoMod.resLoc("clsignal")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClGELifeformButtonPacket.Handler(JojoMod.resLoc("cl_ge_lifeform")));
