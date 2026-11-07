@@ -290,7 +290,8 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 		
 		renderTabs(guiGraphics, this);
 		
-		if (hovered != null) {
+		// the selected row's name is in the header: its tooltip would only cover the controls box under the mouse that just clicked it
+		if (hovered != null && (hovered != selectedSkill || hovered.implemented != DevStatus.IMPLEMENTED)) {
 			TooltipParams.set(TooltipParams.paperStyle(1));
 			List<FormattedCharSequence> skillNameTooltip = new ArrayList<>();
 			skillNameTooltip.add(skinSkillName(hovered).copy().withStyle(ChatFormatting.BLACK).getVisualOrderText());

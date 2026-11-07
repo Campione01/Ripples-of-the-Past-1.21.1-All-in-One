@@ -1,6 +1,6 @@
 {
   "jojo_ripples.skill.time_stop": "\"Стар Платинум, За Вардо!\"",
-  "jojo_ripples.skill.time_stop.desc": "Star Platinum stops the flow of time for a brief moment, allowing only you to act freely while time is frozen.",
+  "jojo_ripples.skill.time_stop.desc": "Star Platinum stops the flow of time for a brief moment, allowing only you to act freely while time is frozen.\nHold to charge: let go before half the charge and nothing happens. In an emergency, press twice quickly to stop time at once, for only a moment.",
   "jojo_ripples.ability.time_stop": "\"Стар Платинум, За Вардо!\" (%ss)",
   "jojo_ripples.ability.time_resume": "Час знову тече",
   "jojo_ripples.ability.time_stop_blink": "\"Пересунутися\" в зупиненому часі"
