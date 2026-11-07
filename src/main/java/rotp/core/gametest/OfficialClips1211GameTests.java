@@ -65,6 +65,8 @@ public final class OfficialClips1211GameTests {
 			+ " the end of the windup to the recovery";
 	private static final String HEAD_RULE = "G20 (2026-11-05, the owner: 統一規則，保留各自姿勢): the head stays on the look, its rotation taking back the bones above it"
 			+ " and head_rot reading the look; the limb keys stay the official's";
+	private static final String BARRAGE_SWAY = "R772.1 (2026-11-06, the owner: 目前近戰人形替身似乎很多都有這個問題): the barrage's sway goes through the hips into the legs, the chest turning over them by 15 at most"
+			+ " and the rest on body, so the chest's own turn stays; the head gives way by its share (the owner: 為了動作流暢性優先級可以下調)";
 	private static final String R148_MIRROR = "af972e0c (R148): the clip mirrored for the hand it is played with";
 	private static final String R148_ARM_LOOK = "af972e0c (R148): the arms follow the look pitch up to 60 degrees";
 
@@ -81,6 +83,9 @@ public final class OfficialClips1211GameTests {
 			new Difference("silver_chariot", "idle", "bones/right_item", Change.LACKS, NO_BONE),
 			new Difference("crazy_diamond", "uncraft", "bones/torso_old", Change.LACKS, NO_BONE),
 			new Difference("star_platinum", "barrage", "bones/head", Change.CHANGES, BARRAGE_HEAD),
+			new Difference("star_platinum", "barrage", "bones/head_rot", Change.CHANGES, BARRAGE_SWAY),
+			new Difference("star_platinum", "barrage", "bones/body", Change.CHANGES, BARRAGE_SWAY),
+			new Difference("star_platinum", "barrage", "bones/torso", Change.CHANGES, BARRAGE_SWAY),
 			new Difference("crazy_diamond", "barrage", "bones/head", Change.CHANGES, BARRAGE_HEAD),
 			new Difference("crazy_diamond", "barrage", "bones/head_rot", Change.CHANGES, CD_BARRAGE_LOOK),
 			new Difference("crazy_diamond", "barrage", "bones/left_arm_xrot", Change.CHANGES, CD_BARRAGE_LOOK),
