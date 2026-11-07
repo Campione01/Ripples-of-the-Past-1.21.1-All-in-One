@@ -69,6 +69,8 @@ public final class GameTestBatchSourcePinGameTests {
 			Map.entry("VampirismEyeBeamTimeStopGameTests.stoppedOwnersShotAndBoundBeamsWaitForTimeToResume",
 					GameTestBatches.HELD_TIME_STOP_EYE_BEAM),
 			Map.entry("TimeStopWorldGameTests.randomTicksWaitInStoppedTime", GameTestBatches.WORLD_RANDOM_TICKS),
+			Map.entry("TimeStopWorldGameTests.timeStopRangeCostInLoadedWorld", GameTestBatches.WORLD_RANGE_COST),
+			Map.entry("TimeStopWorldGameTests.entityDataChangesWaitForTheFrozenViewer", GameTestBatches.WORLD_DIRTY_DATA),
 			Map.entry("TimeStopWorldGameTests.blockEventsWaitForResumeAndAMovingPistonSurvivesTheStop",
 					GameTestBatches.WORLD_PISTONS),
 			Map.entry("TimeStopWorldGameTests.aLeverInStoppedTimeChangesNothingUntilTimeResumes", GameTestBatches.WORLD_LEVER),

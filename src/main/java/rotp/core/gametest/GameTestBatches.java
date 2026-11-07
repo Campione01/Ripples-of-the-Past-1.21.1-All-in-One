@@ -35,6 +35,8 @@ final class GameTestBatches {
 
 	// What stopped time does to the world: a level's held redstone waits for its last stop, so each test runs alone.
 	static final String WORLD_RANDOM_TICKS = "jojo_ripples_time_stop_world_random_ticks";
+	static final String WORLD_RANGE_COST = "jojo_ripples_time_stop_range_cost";
+	static final String WORLD_DIRTY_DATA = "jojo_ripples_time_stop_dirty_data";
 	static final String WORLD_PISTONS = "jojo_ripples_time_stop_world_pistons";
 	static final String WORLD_LEVER = "jojo_ripples_time_stop_world_lever";
 	static final String WORLD_BUILDING = "jojo_ripples_time_stop_world_building";

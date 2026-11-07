@@ -1,17 +1,23 @@
 package rotp.core.gametest;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
 import com.mojang.authlib.GameProfile;
+import io.netty.channel.embedded.EmbeddedChannel;
 
 import rotp.core.api.power.PowerSkillUnlocks;
 import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.ModDataAttachmentTypes;
+import rotp.core.network.s2c.TrDirectEntityDataPacket;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
@@ -26,8 +32,18 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.GameTestInfo;
 import net.minecraft.gametest.framework.GameTestListener;
 import net.minecraft.gametest.framework.GameTestRunner;
+import net.minecraft.network.Connection;
+import net.minecraft.network.PacketSendListener;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.ChunkPos;
@@ -69,6 +85,152 @@ public final class TimeStopWorldGameTests {
 	private static int nextStopId = -7_340_000;
 
 	private TimeStopWorldGameTests() {}
+
+	@GameTest(template = "empty", timeoutTicks = 20, batch = GameTestBatches.WORLD_DIRTY_DATA)
+	public static void entityDataChangesWaitForTheFrozenViewer(GameTestHelper helper) {
+		Scene s = start(helper);
+		ArmorStand actor = helper.spawn(EntityType.ARMOR_STAND, 3, 2, 2);
+		FakePlayer viewer = new FakePlayer(s.level, new GameProfile(UUID.randomUUID(), "FrozenDataViewer"));
+		List<TrDirectEntityDataPacket> received = new ArrayList<>();
+		Connection connection = new Connection(PacketFlow.SERVERBOUND);
+		EmbeddedChannel channel = new EmbeddedChannel(connection);
+		var tracked = s.level.getChunkSource().chunkMap.entityMap.get(actor.getId());
+		boolean addedTracker = false;
+		try {
+			viewer.connection = new ServerGamePacketListenerImpl(s.level.getServer(), connection, viewer,
+					CommonListenerCookie.createInitial(viewer.getGameProfile(), false)) {
+				@Override
+				public void send(Packet<?> packet, @Nullable PacketSendListener listener) {
+					if (packet instanceof ClientboundCustomPayloadPacket payload
+							&& payload.payload() instanceof TrDirectEntityDataPacket data
+							&& data.entityId() == actor.getId()) {
+						received.add(data);
+					}
+				}
+			};
+			Vec3 at = Vec3.atBottomCenterOf(s.abs(2, 2, 2));
+			viewer.moveTo(at.x, at.y, at.z);
+			s.level.addNewPlayer(viewer);
+			helper.assertTrue(tracked != null && s.level.players().contains(viewer), "Expected native entity and player tracking");
+			addedTracker = tracked.seenBy.add(viewer.connection);
+			actor.setCustomName(Component.literal("before time stopped"));
+			int stop = s.stop(200, 0);
+			helper.assertTrue(!s.state.canPlayerSeeAndMove(viewer).canSee(), "The observer did not enter frozen vision");
+			s.state.tickLifecycle();
+			helper.assertTrue(!actor.getEntityData().isDirty() && received.isEmpty(),
+					"Already dirty data must be queued when the first viewer freezes, without sending yet");
+
+			actor.setCustomName(Component.literal("during stopped time"));
+			s.state.tickLifecycle();
+			helper.assertTrue(!actor.getEntityData().isDirty() && received.isEmpty(),
+					"A real dirty write during stopped time must be queued without sending to the frozen viewer");
+			s.state.removeInstance(stop);
+			helper.assertTrue(received.size() == 1 && received.getFirst().packedItems().stream().anyMatch(item ->
+					item.value() instanceof Optional<?> name && name.orElse(null) instanceof Component text
+							&& text.getString().equals("during stopped time")),
+					"Resuming must send the latest held value once");
+		}
+		finally {
+			if (addedTracker) {
+				tracked.seenBy.remove(viewer.connection);
+			}
+			s.close();
+			viewer.discard();
+			actor.discard();
+			channel.finishAndReleaseAll();
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 450, batch = GameTestBatches.WORLD_RANGE_COST)
+	public static void timeStopRangeCostInLoadedWorld(GameTestHelper helper) {
+		Scene s = start(helper);
+		GameTestChunkTickets tickets = new GameTestChunkTickets(helper);
+		List<ChunkPos> chunks = new ArrayList<>();
+		List<ArmorStand> actors = new ArrayList<>();
+		FakePlayer viewer = new FakePlayer(s.level, new GameProfile(UUID.randomUUID(), "RangeCostViewer"));
+		helper.testInfo.addListener(new GameTestListener() {
+			private void close() {
+				viewer.discard();
+				actors.forEach(Entity::discard);
+			}
+
+			@Override public void testStructureLoaded(GameTestInfo test) {}
+			@Override public void testPassed(GameTestInfo test, GameTestRunner runner) { close(); }
+			@Override public void testFailed(GameTestInfo test, GameTestRunner runner) { close(); }
+			@Override public void testAddedForRerun(GameTestInfo oldTest, GameTestInfo newTest, GameTestRunner runner) { close(); }
+		});
+		ChunkPos center = new ChunkPos(s.abs(2, 2, 2));
+		Vec3 at = Vec3.atBottomCenterOf(s.abs(3, 5, 3));
+		viewer.moveTo(at.x, at.y, at.z);
+		viewer.setNoGravity(true);
+		s.level.addNewPlayer(viewer);
+		for (int side : new int[] { 0, 16 }) {
+			ChunkPos first = new ChunkPos(center.x + side, center.z);
+			ChunkPos last = new ChunkPos(first.x + 5, first.z + 3);
+			tickets.hold(new Vec3(first.getMinBlockX() + 4, at.y, first.getMinBlockZ() + 4),
+					new Vec3(last.getMinBlockX() + 11, at.y, last.getMinBlockZ() + 11));
+			for (int x = 0; x < 6; x++) {
+				for (int z = 0; z < 4; z++) {
+					chunks.add(new ChunkPos(first.x + x, first.z + z));
+				}
+			}
+		}
+		helper.runAfterDelay(5, () -> s.guarded(() -> {
+			for (ChunkPos chunk : chunks) {
+				for (int i = 0; i < 10; i++) {
+					ArmorStand actor = EntityType.ARMOR_STAND.create(s.level);
+					actor.setNoGravity(true);
+					actor.setPos(chunk.getMinBlockX() + 2.5D + 3 * (i % 4), at.y,
+							chunk.getMinBlockZ() + 2.5D + 4 * (i / 4));
+					actors.add(actor);
+					helper.assertTrue(s.level.addFreshEntity(actor), "Range-cost fixture could not add an actor");
+				}
+			}
+			int finite = s.stop(400, 12);
+			assertRangeCostFixture(helper, s, viewer, actors, 240);
+			helper.runAfterDelay(105, () -> s.guarded(() -> {
+				logRangeCost(s, 12, finite, actors.size());
+				s.state.removeInstance(finite);
+				int whole = s.stop(400, 0);
+				assertRangeCostFixture(helper, s, viewer, actors, 480);
+				helper.runAfterDelay(105, () -> s.guarded(() -> {
+					logRangeCost(s, 0, whole, actors.size());
+					helper.succeed();
+				}));
+			}));
+		}));
+	}
+
+	private static void assertRangeCostFixture(GameTestHelper helper, Scene s, FakePlayer viewer,
+			List<ArmorStand> actors, long expectedCovered) {
+		long loaded = actors.stream().filter(actor -> s.level.getEntity(actor.getId()) == actor).count();
+		long covered = actors.stream().filter(s.state::isTimeStopped).count();
+		helper.assertTrue(loaded == 480 && covered == expectedCovered && s.level.players().contains(viewer)
+						&& !s.state.canPlayerSeeAndMove(viewer).canSee(),
+				"Range-cost premises: loaded=" + loaded + " covered=" + covered + " frozen observer="
+						+ !s.state.canPlayerSeeAndMove(viewer).canSee());
+	}
+
+	private static void logRangeCost(Scene s, int range, int stop, int actorCount) {
+		var server = s.level.getServer();
+		long[] ring = server.getTickTimesNanos();
+		long[] elapsed = new long[80];
+		for (int i = 0; i < elapsed.length; i++) {
+			elapsed[i] = ring[Math.floorMod(server.getTickCount() - 1 - i, ring.length)];
+		}
+		Arrays.sort(elapsed);
+		long lifecycleStart = System.nanoTime();
+		for (int i = 0; i < 100; i++) {
+			s.state.tickLifecycle();
+		}
+		long lifecycle = System.nanoTime() - lifecycleStart;
+		s.helper.assertTrue(s.state.getInstance(stop).isPresent(), "Range-cost stop expired during measurement");
+		JojoMod.getLogger().info("TIME-STOP-RANGE-COST range={} fixtureActors={} loadedChunks={} "
+						+ "serverSamples={} meanMs={} p95Ms={} lifecycleSamples=100 lifecycleMeanUs={}",
+				range, actorCount, s.level.getChunkSource().getLoadedChunksCount(), elapsed.length,
+				Arrays.stream(elapsed).average().orElseThrow() / 1e6, elapsed[75] / 1e6, lifecycle / 1e5);
+	}
 
 	/** Leaves with no log decay on any random tick, so 4096 ticks of a section hit one of 16 for certain. */
 	@GameTest(template = "empty", timeoutTicks = 20, batch = GameTestBatches.WORLD_RANDOM_TICKS)
@@ -462,9 +624,13 @@ public final class TimeStopWorldGameTests {
 		}
 
 		private int stop(int ticks) {
+			return stop(ticks, 2);
+		}
+
+		private int stop(int ticks, int range) {
 			int id = nextStopId--;
 			stops.add(id);
-			helper.assertTrue(state.tryPutInstance(new TimeStopState.Instance(id, ticks, ticks, new ChunkPos(abs(2, 2, 2)), 2,
+			helper.assertTrue(state.tryPutInstance(new TimeStopState.Instance(id, ticks, ticks, new ChunkPos(abs(2, 2, 2)), range,
 					user.getId(), "time_stop_world_test")), "setup: could not stop time");
 			helper.assertTrue(state.isTimeStopped(new ChunkPos(abs(2, 2, 2))), "setup: the cell's chunk is not stopped");
 			return id;
