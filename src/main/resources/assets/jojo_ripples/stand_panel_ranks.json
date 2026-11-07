@@ -65,6 +65,7 @@
   "rotp_tl:the_lock": ["E", "E", "A", "A", "E", "E"],
   "rotp_nextalbum:the_sun": ["B", "E", "A", "A", "E", "E"],
   "rotp_ttr:ticket_to_ride": ["E", "E", "E", "C", "E", "C"],
+  "rotp_tog:tower_of_gray": ["E", "A", "A", "C", "E", "E"],
   "rotp_t:tusk": ["E", "E", "E", "B", "E", "A"],
   "rotp_t:tusk_act_2": ["D", "D", "D", "C", "C", "A"],
   "rotp_t:tusk_act_3": ["D", "D", "D", "D", "C", "A"],
