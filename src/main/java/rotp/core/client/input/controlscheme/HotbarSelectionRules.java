@@ -27,6 +27,11 @@ public final class HotbarSelectionRules {
 		return current;
 	}
 
+	/** With the selection wheel open only its own bar's use key reaches an ability: a click stays the wheel's. */
+	public static boolean keyReachesAbilities(boolean wheelOpen, boolean wheelBarUseKey) {
+		return !wheelOpen || wheelBarUseKey;
+	}
+
 	/** The slot a number key picks (0 is the first key), or -1. */
 	public static int slotOfNumberKey(int key, boolean[] selectable) {
 		int seen = 0;

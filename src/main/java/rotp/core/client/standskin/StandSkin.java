@@ -1,8 +1,10 @@
 package rotp.core.client.standskin;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Collections;
 import java.util.IllegalFormatException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -56,6 +58,7 @@ public class StandSkin {
 	protected float[] renderScale;
 	private boolean surfaceTranslucency = true;
 	@Nullable private float[] headLookLimit;
+	private List<String> authors = List.of();
 
 	protected Map<ResourceLocation, WeighedSoundEvents> soundEvents = new HashMap<>();
 	protected Map<ResourceLocation, ResourceLocation> existingSounds = new HashMap<>();
@@ -141,6 +144,34 @@ public class StandSkin {
 			return new float[] { Math.abs(limit.get(0).getAsFloat()), Math.abs(limit.get(1).getAsFloat()) };
 		}
 		return null;
+	}
+
+	protected void withAuthors(List<String> authors) {
+		this.authors = authors;
+	}
+
+	public List<String> getAuthors() {
+		return authors;
+	}
+
+	/** The optional "authors" of a skin.json, an array of names. Credit is no reason to refuse a skin: what is no name is left out. */
+	public static List<String> authorsFrom(com.google.gson.JsonObject skinInfo) {
+		if (!(skinInfo.get("authors") instanceof com.google.gson.JsonArray names)) {
+			return List.of();
+		}
+		List<String> authors = new ArrayList<>(names.size());
+		for (com.google.gson.JsonElement name : names) {
+			if (name.isJsonPrimitive() && name.getAsJsonPrimitive().isString() && !name.getAsString().isBlank()) {
+				authors.add(name.getAsString().trim());
+			}
+		}
+		return List.copyOf(authors);
+	}
+
+	/** The line that credits the skin's authors, or empty for a skin with none. */
+	public Optional<Component> authorsLine() {
+		return authors.isEmpty() ? Optional.empty()
+				: Optional.of(Component.translatable("jojo_ripples.stand_skins.authors", String.join(", ", authors)));
 	}
 
 	protected void withSoundEvents(Map<ResourceLocation, WeighedSoundEvents> soundEvents) {

@@ -199,7 +199,16 @@ public class ClientModSettingsScreen extends Screen {
 		};
 		addRenderableWidget(releaseToUseAbility.createButton(calcButtonX(i), calcButtonY(i++) + yOffset, 150, 20, this, i));
 
-		
+		Setting<Boolean> standExpBar = new BooleanSetting(settings,
+				Component.translatable("jojo_ripples.config.client.standExpBar"),
+				Component.translatable("jojo_ripples.config.client.standExpBar.tooltip")
+				) {
+			@Override public Boolean get() { return settingsValues.standExpBar; }
+			@Override public void set(Boolean value) {  settingsValues.standExpBar = value; }
+		};
+		addRenderableWidget(standExpBar.createButton(calcButtonX(i), calcButtonY(i++) + yOffset, 150, 20, this, i));
+
+
 		// Stand settings
 
 		yOffset += 10;

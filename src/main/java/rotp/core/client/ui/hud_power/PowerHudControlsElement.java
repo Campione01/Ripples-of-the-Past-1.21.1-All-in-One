@@ -386,6 +386,10 @@ public class PowerHudControlsElement extends HudElement {
 				CompactStandHotbarWindow.Range visibleRange = CompactStandHotbarWindow.visibleRange(
 						hotbarUI.slots.size(), hotbarUI.slots.indexOf(hotbarUI.selected), compactHotbarDisplay);
 				hotbarUI.slots = new ArrayList<>(hotbarUI.slots.subList(visibleRange.startInclusive(), visibleRange.endExclusive()));
+				// nothing unlocked yet: no key, no hint and no room for them
+				if (hotbarUI.slots.isEmpty()) {
+					continue;
+				}
 
 				ClientKey hotbarKey = input.getKey();
 				hotbarUI.keybind = getKeyName(hotbarKey, KeyModifier.NONE);

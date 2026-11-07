@@ -13,6 +13,7 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import rotp.core.JojoModConfig;
 import rotp.core.client.ui.hud_misc.BottomLeftNotifications;
 import rotp.core.client.ui.text.StandSkillText;
 import rotp.core.init.ModStatusEffects;
@@ -307,20 +308,19 @@ public class StandTypePersistentData extends PowerData {
 		syncExp(standUser);
 		return newInt - prevInt;
 	}
-	
+
+	/** Exp earned in play, which the standExpMultiplier setting scales; an amount a command gives goes to {@link #addExp} as it is. */
+	public int gainExp(float exp, LivingEntity standUser) {
+		return addExp(exp * JojoModConfig.getCommonConfigInstance(false).standExpMultiplier.get().floatValue(), standUser);
+	}
+
 	public void setExp(float exp, StandPower userPower) {
 		setExp(exp, userPower, false);
 	}
 	
 	public void setExp(float exp, StandPower userPower, boolean clientSideNewSkillNotification) {
 		if (clientSideNewSkillNotification) {
-			Collection<? extends UnlockableSkill> couldUnlock = getAllSkills().values().stream()
-					.filter(skill -> skill.canUnlockFromMenu(userPower, this).isPositive()).collect(Collectors.toSet());
-			
-			this.exp = exp;
-			
-			Collection<? extends UnlockableSkill> newSkillsToUnlock = getAllSkills().values().stream()
-					.filter(skill -> skill.canUnlockFromMenu(userPower, this).isPositive() && !couldUnlock.contains(skill)).toList();
+			Collection<? extends UnlockableSkill> newSkillsToUnlock = setExpAndListNewSkills(exp, userPower);
 			if (!newSkillsToUnlock.isEmpty()) {
 				BottomLeftNotifications.add(Component.translatable("jojo_ripples.notification.stand_skill"));
 				for (UnlockableSkill skill : newSkillsToUnlock) {
@@ -334,6 +334,19 @@ public class StandTypePersistentData extends PowerData {
 		}
 	}
 	
+	/** Sets the exp and returns the skills it newly lets the user learn: not one the user already has. */
+	@ApiStatus.Internal
+	public Collection<? extends UnlockableSkill> setExpAndListNewSkills(float exp, StandPower userPower) {
+		Collection<? extends UnlockableSkill> couldUnlock = getAllSkills().values().stream()
+				.filter(skill -> skill.canUnlockFromMenu(userPower, this).isPositive()).collect(Collectors.toSet());
+
+		this.exp = exp;
+
+		return getAllSkills().values().stream()
+				.filter(skill -> !isSkillUnlocked(skill.skillName)
+						&& skill.canUnlockFromMenu(userPower, this).isPositive() && !couldUnlock.contains(skill)).toList();
+	}
+
 	protected void syncExp(LivingEntity standUser) {
 		if (standUser instanceof ServerPlayer player) {
 			PacketDistributor.sendToPlayer(player, new StandExpPacket(this.exp));

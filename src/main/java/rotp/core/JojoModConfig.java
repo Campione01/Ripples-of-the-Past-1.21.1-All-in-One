@@ -98,6 +98,7 @@ public class JojoModConfig {
 		public final ConfigValue<Boolean> pillarManTempleSpawn;
 		public final ConfigValue<Boolean> skipStandProgression;
 		public final ConfigValue<List<? extends Double>> resolveLvlPoints;
+		public final ConfigValue<Double> standExpMultiplier;
 		public final ConfigValue<Integer> timeStopChunkRange;
 		public final ConfigValue<Double> timeStopDamageMultiplier;
 		public final ConfigValue<Double> standDamageMultiplier;
@@ -175,6 +176,11 @@ public class JojoModConfig {
 					.translation("jojo.config.resolveLvlPoints")
 					.defineList("resolveLvlPoints", JojoModConfig::defaultResolveLvlPoints, JojoModConfig::isPositiveFiniteDouble),
 					defaultResolveLvlPoints());
+			// server-side only, the exp reaches the client already scaled
+			standExpMultiplier = ConfigValue.fromSpec(
+					builder.comment("Multiplier for the Stand EXP earned in play. The stand_exp command gives its amount as it is.")
+					.translation("jojo.config.standExpMultiplier")
+					.defineInRange("standExpMultiplier", 1.0D, 0.0D, 5000.0D), 1.0D);
 			builder.pop();
 
 			standArrowMode = ConfigValue.fromSpec(
@@ -362,6 +368,7 @@ public class JojoModConfig {
 			pillarManTempleSpawn = ConfigValue.synced(true);
 			skipStandProgression = ConfigValue.synced(false);
 			resolveLvlPoints = ConfigValue.synced(defaultResolveLvlPoints());
+			standExpMultiplier = ConfigValue.synced(1.0D);
 			timeStopChunkRange = ConfigValue.synced(12);
 			timeStopDamageMultiplier = ConfigValue.synced(1.0D);
 			standDamageMultiplier = ConfigValue.synced(1.0D);

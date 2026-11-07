@@ -208,6 +208,7 @@ public class PowerHud {
 		public PowerIcon powerIcon = 			addElement(new PowerIcon("powerIcon", 11, 12, 16, 16));
 		public Resolve resolveBar = 			addElement(new Resolve("resolve_bar", 31, 12, 32, 16));
 		public Stamina staminaBar = 			addElement(new Stamina("stamina_bar", 81, 16, Bars.HORIZONTAL_LENGTH + 8, Bars.HORIZONTAL_WIDTH));
+		public StaminaMiniBar staminaMiniBar = 	addElement(new StaminaMiniBar("stamina_mini_bar", 89, 16));
 		public HamonEnergy hamonEnergy = 		addElement(new HamonEnergy("energy_hamon", 81, 28, Bars.HORIZONTAL_LENGTH + 8, Bars.HORIZONTAL_WIDTH));
 		public VampireEnergy vampireEnergy = 	addElement(new VampireEnergy("energy_vampire", 81, 28, Bars.HORIZONTAL_LENGTH + 8, Bars.HORIZONTAL_WIDTH));
 		public ZombieEnergy zombieEnergy = 		addElement(new ZombieEnergy("energy_zombie", 81, 28, Bars.HORIZONTAL_LENGTH + 8, Bars.HORIZONTAL_WIDTH));

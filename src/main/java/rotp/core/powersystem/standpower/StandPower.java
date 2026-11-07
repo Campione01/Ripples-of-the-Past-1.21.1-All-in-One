@@ -374,7 +374,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	
 	public int addExp(float exp) {
 		StandTypePersistentData data = getCurTypeData();
-		return data != null ? data.addExp(exp, user) : 0;
+		return data != null ? data.gainExp(exp, user) : 0;
 	}
 	
 	public void skipProgression() {

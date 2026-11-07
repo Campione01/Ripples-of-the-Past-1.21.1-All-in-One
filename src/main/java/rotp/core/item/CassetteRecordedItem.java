@@ -43,6 +43,10 @@ public class CassetteRecordedItem extends Item {
 
 		tooltip.add(Component.translatable("jojo_ripples.cassette.generation." + Math.min(cassette.generation(), 2))
 				.withStyle(ChatFormatting.GRAY));
+		tooltip.add(Component.translatable("item.jojo_ripples.cassette_recorded.hint.play").withStyle(ChatFormatting.GRAY));
+		if (cassette.generation() < CassetteData.MAX_GENERATION) {
+			tooltip.add(Component.translatable("item.jojo_ripples.cassette_recorded.hint.copy").withStyle(ChatFormatting.GRAY));
+		}
 	}
 
 	private static void addSideTooltip(List<Component> tooltip, Item.TooltipContext context, CassetteSide side, List<CassetteTrackSource> tracks) {
