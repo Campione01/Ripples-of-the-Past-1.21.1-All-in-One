@@ -75,8 +75,8 @@ public final class OfficialParitySmokeTest {
 		check(bar.contains("VanillaGuiLayers.EXPERIENCE_BAR") && bar.contains("VanillaGuiLayers.EXPERIENCE_LEVEL") && bar.contains("event.setCanceled(true)"),
 				"the bar must replace both vanilla layers");
 		check(bar.contains("mc.options.hideGui"), "the HUD hidden hides the bar too: the event comes with the HUD hidden as well");
-		String settings = read(ROOT.resolve("src/main/java/rotp/core/config/client/ClientModSettingsScreen.java"));
-		check(settings.contains("jojo_ripples.config.client.standExpBar\""), "the setting must have a button");
+		String settings = read(ROOT.resolve("src/main/java/rotp/core/config/editor/client/ClientConfigEditor.java"));
+		check(settings.contains("CLIENT_LABEL + \"standExpBar\""), "the setting must have a row in the settings screen");
 	}
 
 	private static void verifyStaminaMiniBar() throws IOException {

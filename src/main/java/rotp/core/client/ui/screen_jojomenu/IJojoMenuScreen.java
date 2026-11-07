@@ -37,7 +37,9 @@ public interface IJojoMenuScreen {
 	public static final int TAB_LENGTH = 32;
 	
 	default boolean rightSideTabsEnabled() { return true; }
-	
+
+	default List<TabCategory> activeCategories() { return TabCategory.getActiveCategories(); }
+
 	public default void renderTabs(GuiGraphics guiGraphics, Screen screen) {
 		int x = getWindowX(screen);
 		int y = getWindowY(screen);
@@ -48,7 +50,7 @@ public interface IJojoMenuScreen {
 		int tabX = x - TAB_LENGTH + 4;
 		int tabY = y;
 		boolean firstTab = true;
-		for (TabCategory category : TabCategory.getActiveCategories()) {
+		for (TabCategory category : activeCategories()) {
 			float texX = firstTab ? 0 : TAB_LENGTH;
 			float texY = TAB_LENGTH * 2 + (category == curCategory ? TAB_WIDTH : 0);
 			BlitFloat.blit(guiGraphics.pose(), screen.getMinecraft(), TABS_TEXTURE, 
@@ -121,7 +123,7 @@ public interface IJojoMenuScreen {
 		if (mouseY >= y) {
 			if (mouseX < x && mouseX >= x - TAB_LENGTH) {
 				int categoryIndex = (int) ((mouseY - y) / TAB_WIDTH);
-				List<TabCategory> categories = TabCategory.getActiveCategories();
+				List<TabCategory> categories = activeCategories();
 				if (categoryIndex < categories.size()) {
 					return categories.get(categoryIndex);
 				}

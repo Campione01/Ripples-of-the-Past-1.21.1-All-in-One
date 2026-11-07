@@ -16,6 +16,7 @@ import rotp.core.client.ui.hud_power.PowerHud;
 import rotp.core.client.ui.utils.BlitFloat;
 import rotp.core.client.ui.utils.GuiIcon;
 import rotp.core.client.util.functions.ClientUtil;
+import rotp.core.config.client.screen.ModConfigScreen;
 import rotp.core.core.JojoMod;
 import rotp.core.init.power.ModPlayerPowers;
 import rotp.core.powersystem.Power;
@@ -430,6 +431,21 @@ public class JojoMenuTabs {
 			.withScreen(tab -> new ControlSchemeScreen(CommonComponents.EMPTY, tab.getCategory(), tab))
 			.withName(Component.translatable("jojo_ripples.screen.edit_hud_layout"))
 			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/controls.png"), 16, 16));
-	
+
+	// Settings
+
+	public static final TabCategory CATEGORY_SETTINGS = new TabCategory()
+			.withName(Component.translatable("jojo_ripples.config.screen.category"))
+			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/settings/category.png"), 16, 16));
+
+	public static final Tab SETTINGS_CLIENT = new Tab(CATEGORY_SETTINGS)
+			.withName(Component.translatable("jojo_ripples.config.screen.page.client"))
+			.withScreen(tab -> new ModConfigScreen(null, ModConfigScreen.Page.CLIENT))
+			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/settings/client.png"), 16, 16));
+
+	public static final Tab SETTINGS_GAMEPLAY = new Tab(CATEGORY_SETTINGS)
+			.withName(Component.translatable("jojo_ripples.config.screen.page.gameplay"))
+			.withScreen(tab -> new ModConfigScreen(null, ModConfigScreen.Page.GAMEPLAY))
+			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/settings/gameplay.png"), 16, 16));
 
 }
