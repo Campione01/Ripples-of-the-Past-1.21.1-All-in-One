@@ -205,6 +205,8 @@
   "jojo_ripples.config.client.resolveShaders.tooltip": "啟覺悟效著色",
   "jojo_ripples.config.client.menacingParticles": "\"威壓\"粒",
   "jojo_ripples.config.client.menacingParticles.tooltip": "啟ゴゴゴゴゴ粒於閒時",
+  "jojo_ripples.config.client.screenSplash": "血沙濺目",
+  "jojo_ripples.config.client.screenSplash.tooltip": "血沙濺面，須臾蔽目，旋即拭去。僅為視效，諸儀表猶在其上。",
   "jojo_ripples.config.client.timeStopAnimation": "時止動效",
   "jojo_ripples.config.client.timeStopAnimation.tooltip": "時止五息以上啟初視效",
   "jojo_ripples.config.client.standSide": "替身偏位",

@@ -205,6 +205,8 @@
   "jojo_ripples.config.client.resolveShaders.tooltip": "Activar shaders durante el efecto de Determinación.",
   "jojo_ripples.config.client.menacingParticles": "Particulas \"amenazantes\"",
   "jojo_ripples.config.client.menacingParticles.tooltip": "Activar las particulas ゴゴゴゴゴ mientras estas AFK.",
+  "jojo_ripples.config.client.screenSplash": "Sangre y arena en pantalla",
+  "jojo_ripples.config.client.screenSplash.tooltip": "La sangre o la arena que te salpica la cara tapa la vista un momento, hasta que se limpia. Es solo un efecto visual; el HUD queda por encima.",
   "jojo_ripples.config.client.timeStopAnimation": "Animacion de Parada del tiempo",
   "jojo_ripples.config.client.timeStopAnimation.tooltip": "Habilita el efecto visual al inicio de la parada de tiempo cuando su duración es de minimo 5 segundos o más.",
   "jojo_ripples.config.client.standSide": "Posición del Stand",

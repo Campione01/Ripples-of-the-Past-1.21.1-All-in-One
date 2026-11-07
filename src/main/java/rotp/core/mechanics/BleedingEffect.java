@@ -181,6 +181,7 @@ public class BleedingEffect extends StatusEffectModified implements StatusEffect
 		if (level.isClientSide()) {
 			return false;
 		}
+		ScreenSplashes.blood((ServerLevel) level, splashPos, radius, bleedAmount, ownerEntity);
 
 		AABB aabb = new AABB(splashPos.subtract(radius, radius, radius), splashPos.add(radius, radius, radius));
 		List<Vec3> particlePos = new ArrayList<>();

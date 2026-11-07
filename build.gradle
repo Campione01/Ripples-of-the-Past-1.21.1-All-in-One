@@ -586,6 +586,14 @@ tasks.register('creativeTabSectionsSmokeTest', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
     mainClass = 'rotp.core.init.CreativeTabSectionsSmokeTest'
+}
+
+tasks.register('screenSplashSmokeTest', JavaExec) {
+    group = 'verification'
+    description = 'Verifies that the screen splash is off by default, lands as drops, is wiped away, and holds while time is stopped.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'rotp.core.client.ui.hud_misc.ScreenSplashSmokeTest'
     workingDir projectDir
 }
 
@@ -660,6 +668,7 @@ tasks.named('check').configure {
     dependsOn tasks.named('manualControlIconSmokeTest')
     dependsOn tasks.named('officialParitySmokeTest')
     dependsOn tasks.named('creativeTabSectionsSmokeTest')
+    dependsOn tasks.named('screenSplashSmokeTest')
     dependsOn tasks.named('sewingScreenFitSmokeTest')
     dependsOn tasks.named('clothesModelLoaderSmokeTest')
     dependsOn tasks.named('firstPersonExtraArmContractSmokeTest')

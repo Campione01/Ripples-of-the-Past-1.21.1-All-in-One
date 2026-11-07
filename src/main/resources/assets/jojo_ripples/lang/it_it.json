@@ -198,6 +198,8 @@
   "jojo_ripples.config.client.resolveShaders.tooltip": "Abilita gli shader durante l'effetto Risolutezza.",
   "jojo_ripples.config.client.menacingParticles": "\"Menacing\" particles",
   "jojo_ripples.config.client.menacingParticles.tooltip": "Enable ゴゴゴゴゴ particles when AFK.",
+  "jojo_ripples.config.client.screenSplash": "Sangue e sabbia sullo schermo",
+  "jojo_ripples.config.client.screenSplash.tooltip": "Il sangue o la sabbia che ti colpisce il viso copre la visuale per un attimo, finché non viene pulito. È solo un effetto visivo; l'HUD resta in primo piano.",
   "jojo_ripples.config.client.timeStopAnimation": "Time stop animation",
   "jojo_ripples.config.client.timeStopAnimation.tooltip": "Enables the visual effect at the beginning of time stop when its duration is 5 seconds or longer.",
   "jojo_ripples.config.client.standSide": "Stand offset side",
