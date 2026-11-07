@@ -33,6 +33,8 @@ public class StandInitSilverChariot {
 				new MovesetBuilder()
 
 				.addHumanoidStandStuff()
+				// a rapier's thrust, under the punch's class
+				.noPunchCombo()
 
 				.addAbility("light_attack", ModStandAbilities.SC_LIGHT_ATTACK)
 				.addAbility("no_rapier_light_attack", ModStandAbilities.SC_NO_RAPIER_LIGHT_ATTACK)

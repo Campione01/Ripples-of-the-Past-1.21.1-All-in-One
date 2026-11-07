@@ -7,6 +7,8 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import org.jetbrains.annotations.ApiStatus;
+
 import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.api.stand.StandSkillWalls;
 import rotp.core.client.ClientGlobals;
@@ -15,7 +17,6 @@ import rotp.core.client.sound.ClientsideSoundsHelper;
 import rotp.core.client.sound.sounds.EntityLingeringSoundInstance;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.init.ModSoundEvents;
-import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.Moveset;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
@@ -94,6 +95,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	@Nullable private Holder<SoundEvent> standCrySound;
 	private boolean detachedLightCounterKnockback;
 	private boolean laterPhaseEntryTiming;
+	@Nullable private String comboPunchName;
 
 	public StandEntityPunchAbility(AbilityType<?> abilityType, AbilityId abilityId) {
 		this(abilityType, abilityId, StandEntityPunch::new);
@@ -134,6 +136,40 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	public StandEntityPunchAbility initIsGrabVariation() {
 		usageGroup = AbilityUsageGroup.GRAB;
 		return this;
+	}
+
+	/**
+	 * This ability is a later punch of the named punch's combo, made for it by the core's rule (MovesetBuilder.addWhatItsMovesBring).
+	 * The player knows one move on the key, so it goes by that punch's name and is locked and cooled down with it. The clip is the
+	 * index-th of the name the punch asks for, also where a punch's constructor fixes that name.
+	 */
+	@ApiStatus.Internal
+	public final void initIsComboMemberOf(String punchName, int index) {
+		comboPunchName = punchName;
+		anim = ActionAnimIdentifier.getOrCreate(anim.name(), index, anim.isIdle());
+	}
+
+	@Override
+	public String getTranslationKey(String postfix) {
+		return comboPunchName != null ? getResourceNamespace() + ".ability." + comboPunchName + postfix : super.getTranslationKey(postfix);
+	}
+
+	@Override
+	public ConditionCheck getUnlockConditionCheck(Power<?> context) {
+		Ability punch = comboPunchName != null && context != null ? context.getMoveset().getAbility(comboPunchName) : null;
+		ConditionCheck punchCheck = punch != null ? punch.getUnlockConditionCheck(context) : ConditionCheck.POSITIVE;
+		return punchCheck.isPositive() ? super.getUnlockConditionCheck(context) : punchCheck;
+	}
+
+	@Override
+	public void setCooldownOnUse(Power<?> context, int ticksHeld) {
+		super.setCooldownOnUse(context, ticksHeld);
+		int cooldown = getCooldown(context, ticksHeld);
+		if (cooldown > 0 && context instanceof StandPower standPower) {
+			for (String memberName : getComboPunchNames(standPower.getMoveset(), comboPunchName != null ? comboPunchName : name())) {
+				standPower.setAbilityCooldown(memberName, cooldown);
+			}
+		}
 	}
 
 	/**
@@ -294,6 +330,9 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 			// 1.16 replayed the punch cry with every new punch task, chained ones too (StandEntityLightAttack.getSounds)
 			playedStandCrySound = false;
 			if (performer instanceof StandEntity stand) {
+				if (ability instanceof StandEntityPunchAbility punch) {
+					punch.rememberIfOpening(stand);
+				}
 				// a failed input that puts this punch back keeps its hand
 				if (stand.level().isClientSide() || isRestoringInputLifecycle()) {
 					stand.applySyncedPunchingHand(punchingHand);
@@ -1476,14 +1515,14 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	}
 
 	private static boolean isSameLightComboFamily(Moveset moveset, EntityActionType first, EntityActionType second) {
-		if (!(first instanceof Ability firstAbility) || !(second instanceof Ability secondAbility)
+		if (!(first instanceof StandEntityPunchAbility firstAbility) || !(second instanceof StandEntityPunchAbility secondAbility)
 				|| first.getAbilityUsageCategory() != AbilityUsageGroup.COMBAT || second.getAbilityUsageCategory() != AbilityUsageGroup.COMBAT
-				|| firstAbility.abilityType != ModStandAbilities.PUNCH.get() || secondAbility.abilityType != ModStandAbilities.PUNCH.get()) {
+				|| firstAbility.abilityType != secondAbility.abilityType) {
 			return false;
 		}
 		for (Ability root : moveset.abilities.values()) {
 			String name = root.name();
-			if (root.isSubAbility || root.usageGroup != AbilityUsageGroup.COMBAT || root.abilityType != ModStandAbilities.PUNCH.get()
+			if (root.isSubAbility || root.usageGroup != AbilityUsageGroup.COMBAT || root.abilityType != firstAbility.abilityType
 					|| name == null || moveset.getAbility(name) != root) continue;
 			boolean firstMember = false;
 			boolean secondMember = false;
@@ -1520,8 +1559,10 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 			return null;
 		}
 		List<String> punchNamesBuffer = getComboPunchNames(moveset, baseName);
-		
+
+		// A quick press: the Stand is still in a punch of this combo, which is the combo window. The punch after it follows.
 		int startFromPunch = 0;
+		boolean quickPress = false;
 		if (standEntity != null) {
 			AbilityId curAbility = LivingComponentAction.getComponent(standEntity).comboString.getLast();
 			if (curAbility != null) {
@@ -1529,12 +1570,18 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 				for (int i = 0; i < punchNamesBuffer.size(); i++) {
 					if (punchNamesBuffer.get(i).equals(actionName)) {
 						startFromPunch = i + 1;
+						quickPress = true;
 						break;
 					}
 				}
 			}
 		}
-		
+
+		if (!quickPress) {
+			Ability opening = getSlowPressPunch(standPower, standEntity, baseName, punchNamesBuffer);
+			if (opening != null) return opening;
+		}
+
 		int size = punchNamesBuffer.size();
 		for (int i = 0; i < size; i++) {
 			int index = (startFromPunch + i) % size;
@@ -1546,6 +1593,37 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		}
 		
 		return null;
+	}
+
+	/**
+	 * A press after the combo window has run out plays one of the first two punches, the one the Stand did not play last, so the arms
+	 * keep taking turns however slowly the player clicks. The third and fourth punch are reached only by quick presses. A locked
+	 * punch is skipped for the other of the two; with both locked the press falls to the whole combo.
+	 * Which arm a clip swings is not known here (the clips are the skin's own data, read by the client's renderer), so after a chain
+	 * that ended on the third or fourth punch it is the one of the two not played last, not one picked by the clip's arm.
+	 */
+	@Nullable
+	private Ability getSlowPressPunch(StandPower standPower, @Nullable StandEntity standEntity, String baseName, List<String> punchNames) {
+		if (punchNames.size() < 2) return null;
+		String last = standEntity != null ? standEntity.lastOpeningPunch(baseName) : null;
+		int first = punchNames.get(0).equals(last) ? 1 : 0;
+		Moveset moveset = standPower.getMoveset();
+		for (int i = 0; i < 2; i++) {
+			Ability opening = moveset.getAbility(punchNames.get((first + i) % 2));
+			if (opening != null && opening.isAbilityAvailable(standPower)) {
+				return opening;
+			}
+		}
+		return null;
+	}
+
+	private void rememberIfOpening(StandEntity stand) {
+		String name = name();
+		if (name == null || usageGroup != AbilityUsageGroup.COMBAT) return;
+		String punch = comboPunchName != null ? comboPunchName : isSubAbility ? name.replaceAll("\\d+$", "") : name;
+		if (name.equals(punch) || name.equals(punch + "2")) {
+			stand.rememberOpeningPunch(punch, name);
+		}
 	}
 
 	private static List<String> getComboPunchNames(Moveset moveset, String baseName) {
