@@ -1843,6 +1843,8 @@
   "jojo.config.timeStopChunkRange.tooltip": "Range of Time Stop ability in chunks. If set to 0, the whole dimension is frozen in time.",
   "jojo.config.timeStopDamageMultiplier": "Множитель урона в остановленном времени",
   "jojo.config.timeStopDamageMultiplier.tooltip": "Damage multiplier for entities frozen in time.",
+  "jojo.config.timeStopChargeSeconds": "Время заряда остановки времени (сек.)",
+  "jojo.config.timeStopChargeSeconds.tooltip": "Сколько заряжается остановка времени Star Platinum и The World: от 0,5 до 5 секунд. The World с 4 уровня решимости нужно две трети этого времени.",
   "jojo.config.standPowerMultiplier": "Множитель урона от Стендов",
   "jojo.config.standPowerMultiplier.tooltip": "Множитель урона, который применяется ко всем Стендам",
   "jojo.config.standResistanceMultiplier": "Stand resistance multiplier",

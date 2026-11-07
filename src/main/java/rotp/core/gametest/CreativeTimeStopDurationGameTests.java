@@ -456,7 +456,7 @@ public final class CreativeTimeStopDurationGameTests {
                     "S04-05 AbilityInput did not install the held action: " + stand);
             action = (EntityActionInstance) input.action;
             inputGeneration = input.generation;
-            int charge = stand.equals("star_platinum") ? 40 : 20;
+            int charge = stand.equals("star_platinum") ? 30 : 20;
             helper.assertTrue(action.getPhase() == ActionPhase.BUTTON_CHARGE && action.getCurPhaseLength() == charge
                             && action.getPhaseTick() == 0 && !player.hasEffect(ModStatusEffects.TIME_STOP)
                             && state.getInstance(player.getId()).isEmpty(),
@@ -490,7 +490,7 @@ public final class CreativeTimeStopDurationGameTests {
                     return;
                 }
                 JojoMod.getLogger().info("S04-05 DEADLINE " + describe());
-                int charge = stand.equals("star_platinum") ? 40 : 20;
+                int charge = stand.equals("star_platinum") ? 30 : 20;
                 helper.assertTrue(started.totalTicks() == duration && started.ticksLeft() == duration
                                 && started.ticksPassed() == -OPENING_TICKS
                                 && effectDurationAtStart == OPENING_TICKS + duration

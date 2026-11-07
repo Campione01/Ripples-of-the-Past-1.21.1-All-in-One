@@ -1,5 +1,8 @@
 package rotp.core.mixin.timestop;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -18,6 +21,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.CommandBlock;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.material.Fluid;
 
 @Mixin(ServerLevel.class)
@@ -40,6 +44,26 @@ public abstract class ServerLevelTimeStopTickMixin {
             ((LevelAccessor) level).scheduleTick(pos, block, 1);
             ci.cancel();
         }
+    }
+
+    // Random ticks, with the snow, ice and lightning of the same call; the owner took this, 1.16 is unconfirmed here.
+    @Inject(method = "tickChunk", at = @At("HEAD"), cancellable = true)
+    private void jojo_ripples$cancelChunkTickInTimeStop(LevelChunk chunk, int randomTickSpeed, CallbackInfo ci) {
+        TimeStopState state = jojo_ripples$getTimeStopState();
+        if (state != null && !state.getInstances().isEmpty() && state.isTimeStopped(chunk.getPos())) {
+            ci.cancel();
+        }
+    }
+
+    // Vanilla's path for a chunk that is not ticking: the event stays queued, in order, and runs once time resumes.
+    @WrapOperation(method = "runBlockEvents", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/server/level/ServerLevel;shouldTickBlocksAt(Lnet/minecraft/core/BlockPos;)Z"))
+    private boolean jojo_ripples$holdBlockEventInTimeStop(ServerLevel level, BlockPos pos, Operation<Boolean> original) {
+        TimeStopState state = jojo_ripples$getTimeStopState();
+        if (state != null && !state.getInstances().isEmpty() && state.isTimeStopped(new ChunkPos(pos))) {
+            return false;
+        }
+        return original.call(level, pos);
     }
 
     @Inject(method = "tickNonPassenger", at = @At("HEAD"), cancellable = true)

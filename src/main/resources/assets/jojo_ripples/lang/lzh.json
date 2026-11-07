@@ -1812,6 +1812,8 @@
   "jojo.config.timeStopChunkRange.tooltip": "時止技輿圖距(設0則止全界時)",
   "jojo.config.timeStopDamageMultiplier": "時止傷倍",
   "jojo.config.timeStopDamageMultiplier.tooltip": "時止中物受創倍",
+  "jojo.config.timeStopChargeSeconds": "時止蓄力之時（秒）",
+  "jojo.config.timeStopChargeSeconds.tooltip": "『白金之星』與『世界』時止蓄力之時，可設半秒至五秒。覺悟等級四以上，『世界』僅需其三之二。",
   "jojo.config.standPowerMultiplier": "替身傷倍",
   "jojo.config.standPowerMultiplier.tooltip": "替身傷效倍",
   "jojo.config.standResistanceMultiplier": "Stand resistance multiplier",

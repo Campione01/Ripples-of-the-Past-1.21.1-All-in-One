@@ -1,0 +1,579 @@
+package rotp.core.gametest;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.function.Consumer;
+
+import com.mojang.authlib.GameProfile;
+
+import rotp.core.api.power.PowerSkillUnlocks;
+import rotp.core.api.stand.StandPowerTransitions;
+import rotp.core.core.JojoMod;
+import rotp.core.core.JojoRegistries;
+import rotp.core.init.ModDataAttachmentTypes;
+import rotp.core.powersystem.PowerClass;
+import rotp.core.powersystem.standpower.StandInstance;
+import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.type.StandType;
+import rotp.core.subsystems.timestop.TimeStopLearning;
+import rotp.core.subsystems.timestop.TimeStopState;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.GameTestInfo;
+import net.minecraft.gametest.framework.GameTestListener;
+import net.minecraft.gametest.framework.GameTestRunner;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.FallingBlockEntity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.block.LeverBlock;
+import net.minecraft.world.level.block.RedStoneWireBlock;
+import net.minecraft.world.level.block.RedstoneLampBlock;
+import net.minecraft.world.level.block.entity.CommandBlockEntity;
+import net.minecraft.world.level.block.piston.PistonBaseBlock;
+import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.AttachFace;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.block.state.properties.RedstoneSide;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.common.util.FakePlayer;
+import net.neoforged.neoforge.event.PlayLevelSoundEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+/**
+ * What the owner's "連拉桿紅石也等時間恢復" asks of stopped time, through real level calls: random ticks stop, block events
+ * wait, and neighbour updates to redstone wait for the level's last stop to end while building goes on as it did.
+ */
+@GameTestHolder(JojoMod.MOD_ID)
+@PrefixGameTestTemplate(false)
+public final class TimeStopWorldGameTests {
+	private static final PowerSkillUnlocks.Owner TEST_UNLOCKS =
+			PowerSkillUnlocks.register(JojoMod.resLoc("time_stop_world_gametest"));
+	private static int nextStopId = -7_340_000;
+
+	private TimeStopWorldGameTests() {}
+
+	/** Leaves with no log decay on any random tick, so 4096 ticks of a section hit one of 16 for certain. */
+	@GameTest(template = "empty", timeoutTicks = 20, batch = GameTestBatches.WORLD_RANDOM_TICKS)
+	public static void randomTicksWaitInStoppedTime(GameTestHelper helper) {
+		Scene s = start(helper);
+		List<BlockPos> leaves = new ArrayList<>();
+		BlockState decaying = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, false)
+				.setValue(LeavesBlock.DISTANCE, 7);
+		for (int y = 2; y < 18; y++) {
+			BlockPos pos = s.abs(1, y, 1);
+			s.level.setBlock(pos, decaying, Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
+			leaves.add(pos);
+		}
+		var chunk = s.level.getChunkAt(leaves.get(0));
+		int stop = s.stop(200);
+		for (int round = 0; round < 8; round++) {
+			s.level.tickChunk(chunk, 4096);
+		}
+		helper.assertTrue(leaves.stream().allMatch(pos -> s.level.getBlockState(pos).is(Blocks.OAK_LEAVES)),
+				"a leaf decayed on a random tick in stopped time");
+		s.state.removeInstance(stop);
+		s.level.tickChunk(chunk, 4096);
+		s.level.tickChunk(chunk, 4096);
+		helper.assertTrue(leaves.stream().anyMatch(pos -> !s.level.getBlockState(pos).is(Blocks.OAK_LEAVES)),
+				"setup: random ticks do not reach these leaves in normal time");
+		helper.succeed();
+	}
+
+	/**
+	 * A piston caught moving stays as it is; the update that would retract it and the event of one placed in the stop
+	 * wait; both run at resume against the world as it then is, with no block lost or doubled.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 60, batch = GameTestBatches.WORLD_PISTONS)
+	public static void blockEventsWaitForResumeAndAMovingPistonSurvivesTheStop(GameTestHelper helper) {
+		Scene s = start(helper);
+		s.floor();
+		BlockPos piston = s.abs(2, 2, 1);
+		BlockPos front = s.abs(3, 2, 1);
+		BlockPos pushedTo = s.abs(4, 2, 1);
+		BlockPos power = s.abs(1, 2, 1);
+		s.level.setBlock(front, Blocks.STONE.defaultBlockState(), 3);
+		s.level.setBlock(piston, Blocks.PISTON.defaultBlockState().setValue(PistonBaseBlock.FACING, Direction.EAST), 3);
+		s.level.setBlock(power, Blocks.REDSTONE_BLOCK.defaultBlockState(), 3);
+		BlockPos second = s.abs(2, 2, 3);
+		BlockPos secondHead = s.abs(3, 2, 3);
+		float[] progress = new float[1];
+		helper.runAfterDelay(1, () -> s.guarded(() -> {
+			helper.assertTrue(s.level.getBlockEntity(pushedTo) instanceof PistonMovingBlockEntity,
+					"setup: the stone is not moving when the stop begins: " + s.level.getBlockState(pushedTo));
+			progress[0] = ((PistonMovingBlockEntity) s.level.getBlockEntity(pushedTo)).getProgress(0.0F);
+			s.stop(6);
+			s.level.setBlock(power, Blocks.AIR.defaultBlockState(), 3);
+			s.level.setBlock(s.abs(1, 2, 3), Blocks.REDSTONE_BLOCK.defaultBlockState(), 3);
+			s.level.setBlock(second, Blocks.PISTON.defaultBlockState().setValue(PistonBaseBlock.FACING, Direction.EAST), 3);
+		}));
+		helper.runAfterDelay(4, () -> s.guarded(() -> {
+			helper.assertTrue(s.level.getBlockEntity(pushedTo) instanceof PistonMovingBlockEntity moving
+					&& moving.getProgress(0.0F) == progress[0], "a moving piston's block went on in stopped time");
+			helper.assertTrue(!s.level.getBlockState(second).getValue(PistonBaseBlock.EXTENDED),
+					"a block event ran in stopped time: the piston placed by the redstone block extended");
+			helper.assertTrue(s.level.getBlockState(piston).getValue(PistonBaseBlock.EXTENDED),
+					"the moving piston retracted in stopped time");
+		}));
+		helper.runAfterDelay(16, () -> s.guarded(() -> {
+			helper.assertTrue(!s.level.getBlockState(piston).getValue(PistonBaseBlock.EXTENDED),
+					"the update that lost the piston its power never came: " + s.level.getBlockState(piston));
+			helper.assertTrue(s.level.getBlockState(front).isAir() && s.level.getBlockState(pushedTo).is(Blocks.STONE),
+					"the pushed stone did not end up one further on, once: " + s.level.getBlockState(front) + ", "
+							+ s.level.getBlockState(pushedTo));
+			helper.assertTrue(s.level.getBlockState(second).getValue(PistonBaseBlock.EXTENDED)
+							&& s.level.getBlockState(secondHead).is(Blocks.PISTON_HEAD),
+					"the block event that waited did not run at resume: " + s.level.getBlockState(second) + ", "
+							+ s.level.getBlockState(secondHead));
+			helper.succeed();
+		}));
+	}
+
+	/** The lever flips; dust, lamp, door and piston react when the stop runs out. A command block keeps running. */
+	@GameTest(template = "empty", timeoutTicks = 60, batch = GameTestBatches.WORLD_LEVER)
+	public static void aLeverInStoppedTimeChangesNothingUntilTimeResumes(GameTestHelper helper) {
+		Scene s = start(helper);
+		s.floor();
+		// with no stop a lever changes the wire at once
+		BlockPos control = s.abs(0, 2, 4);
+		BlockPos controlDust = s.abs(1, 2, 4);
+		s.lever(control);
+		s.dust(controlDust);
+		s.pull(control);
+		helper.assertTrue(s.power(controlDust) > 0, "normal time held a lever's update");
+
+		BlockPos lever = s.abs(2, 2, 2);
+		BlockPos dust = s.abs(3, 2, 2);
+		BlockPos lamp = s.abs(5, 2, 2);
+		BlockPos door = s.abs(2, 2, 3);
+		BlockPos piston = s.abs(1, 2, 2);
+		BlockPos command = s.abs(2, 2, 1);
+		s.lever(lever);
+		s.dust(dust);
+		s.dust(s.abs(4, 2, 2));
+		s.level.setBlock(lamp, Blocks.REDSTONE_LAMP.defaultBlockState(), 3);
+		s.door(door);
+		s.level.setBlock(piston, Blocks.PISTON.defaultBlockState().setValue(PistonBaseBlock.FACING, Direction.WEST), 3);
+		s.level.setBlock(command, Blocks.COMMAND_BLOCK.defaultBlockState(), 3);
+		s.stop(6);
+		s.pull(lever);
+		Runnable nothingYet = () -> {
+			helper.assertTrue(s.level.getBlockState(lever).getValue(LeverBlock.POWERED), "the lever did not flip");
+			helper.assertTrue(s.power(dust) == 0, "the wire reacted in stopped time: " + s.power(dust));
+			helper.assertTrue(!s.level.getBlockState(lamp).getValue(RedstoneLampBlock.LIT), "the lamp reacted in stopped time");
+			helper.assertTrue(!s.level.getBlockState(door).getValue(DoorBlock.OPEN), "the door reacted in stopped time");
+			helper.assertTrue(!s.level.getBlockState(piston).getValue(PistonBaseBlock.EXTENDED), "the piston reacted in stopped time");
+		};
+		s.guarded(nothingYet);
+		s.guarded(() -> helper.assertTrue(s.level.getBlockEntity(command) instanceof CommandBlockEntity block && block.isPowered(),
+				"a command block's neighbour update waited: it keeps running in stopped time, as in 1.16"));
+		// past the stop's reach, in the same level, a lever goes on as ever
+		BlockPos farLever = s.abs(50, 2, 2);
+		BlockPos farDust = s.abs(51, 2, 2);
+		s.guarded(() -> {
+			s.level.setBlock(farLever.below(), Blocks.STONE.defaultBlockState(), 3);
+			s.level.setBlock(farDust.below(), Blocks.STONE.defaultBlockState(), 3);
+			s.lever(farLever);
+			s.dust(farDust);
+			helper.assertTrue(!s.state.isTimeStopped(new ChunkPos(farLever)), "setup: the far lever is in the stop's reach");
+			s.pull(farLever);
+			helper.assertTrue(s.power(farDust) > 0, "a lever past the stop's reach was held");
+			s.level.setBlock(farLever, Blocks.AIR.defaultBlockState(), 3);
+			s.level.setBlock(farDust, Blocks.AIR.defaultBlockState(), 3);
+			s.level.setBlock(farLever.below(), Blocks.AIR.defaultBlockState(), 3);
+			s.level.setBlock(farDust.below(), Blocks.AIR.defaultBlockState(), 3);
+		});
+		helper.runAfterDelay(4, () -> s.guarded(nothingYet));
+		helper.runAfterDelay(12, () -> s.guarded(() -> {
+			helper.assertTrue(s.power(dust) > 0, "the wire did not react when time resumed");
+			helper.assertTrue(s.level.getBlockState(lamp).getValue(RedstoneLampBlock.LIT), "the lamp did not react when time resumed");
+			helper.assertTrue(s.level.getBlockState(door).getValue(DoorBlock.OPEN), "the door did not react when time resumed");
+			helper.assertTrue(s.level.getBlockState(piston).getValue(PistonBaseBlock.EXTENDED), "the piston did not react when time resumed");
+			helper.assertTrue(s.state.heldNeighborUpdates().isEmpty(), "updates are still held: " + s.state.heldNeighborUpdates());
+			helper.succeed();
+		}));
+	}
+
+	/**
+	 * What the stopper places and breaks shows at once: a torch and a repeater come off with their block, dust joins the
+	 * dust beside it. Sand and water stay as the frozen ticks keep them, and move when time resumes.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 60, batch = GameTestBatches.WORLD_BUILDING)
+	public static void buildingInStoppedTimeShowsAndOnlyRedstoneWaits(GameTestHelper helper) {
+		Scene s = start(helper);
+		s.floor();
+		BlockPos torchBase = s.abs(0, 2, 0);
+		BlockPos torch = s.abs(0, 3, 0);
+		BlockPos repeaterBase = s.abs(1, 1, 1);
+		BlockPos repeater = s.abs(1, 2, 1);
+		BlockPos dust = s.abs(3, 2, 0);
+		BlockPos nextDust = s.abs(4, 2, 0);
+		BlockPos placed = s.abs(5, 2, 0);
+		BlockPos sand = s.abs(5, 4, 3);
+		BlockPos water = s.abs(2, 2, 3);
+		s.level.setBlock(torchBase, Blocks.STONE.defaultBlockState(), 3);
+		s.level.setBlock(torch, Blocks.TORCH.defaultBlockState(), 3);
+		s.level.setBlock(repeater, Blocks.REPEATER.defaultBlockState(), 3);
+		BlockPos railBase = s.abs(6, 1, 4);
+		BlockPos rail = s.abs(6, 2, 4);
+		s.level.setBlock(rail, Blocks.RAIL.defaultBlockState(), 3);
+		s.dust(dust);
+		s.stop(6);
+
+		s.level.setBlock(placed, Blocks.STONE.defaultBlockState(), 3);
+		helper.assertTrue(s.level.getBlockState(placed).is(Blocks.STONE), "the placed block does not show");
+		s.level.destroyBlock(torchBase, false);
+		helper.assertTrue(s.level.getBlockState(torchBase).isAir() && s.level.getBlockState(torch).isAir(),
+				"a torch stayed on the block broken under it: " + s.level.getBlockState(torch));
+		s.level.destroyBlock(repeaterBase, false);
+		helper.assertTrue(s.level.getBlockState(repeater).isAir(),
+				"a repeater stayed on the block broken under it: " + s.level.getBlockState(repeater));
+		// a rail comes off through its neighbour update alone, which a component with its block gone must not wait for
+		s.level.destroyBlock(railBase, false);
+		helper.assertTrue(s.level.getBlockState(rail).isAir(),
+				"a rail stayed on the block broken under it: " + s.level.getBlockState(rail));
+		s.dust(nextDust);
+		helper.assertTrue(s.level.getBlockState(dust).getValue(RedStoneWireBlock.EAST) != RedstoneSide.NONE,
+				"dust does not show its joining the dust placed beside it");
+		s.level.setBlock(sand, Blocks.SAND.defaultBlockState(), 3);
+		s.level.setBlock(water, Blocks.WATER.defaultBlockState(), 3);
+		helper.runAfterDelay(5, () -> s.guarded(() -> {
+			helper.assertTrue(s.level.getBlockState(sand).is(Blocks.SAND), "sand fell in stopped time");
+			helper.assertTrue(!s.flowedFrom(water), "water spread in stopped time");
+		}));
+		helper.runAfterDelay(20, () -> s.guarded(() -> {
+			helper.assertTrue(!s.level.getBlockState(sand).is(Blocks.SAND), "the sand did not fall when time resumed");
+			helper.assertTrue(s.flowedFrom(water), "the water did not spread when time resumed");
+			helper.succeed();
+		}));
+	}
+
+	/** Each row a stop over a flipped lever and its dust, ended as the game ends one, within one game tick. */
+	@GameTest(template = "empty", timeoutTicks = 20, batch = GameTestBatches.WORLD_ENDS)
+	public static void everyEndOfAStopDrainsWhatItHeld(GameTestHelper helper) {
+		Scene s = start(helper);
+		s.floor();
+		s.row("a stop that runs out", 1, id -> s.state.tickOnLevelTick());
+		s.row("a manual resume", 200, id -> {
+			s.state.requestManualResume(id);
+			s.state.requestManualResume(id);
+			s.state.tickOnLevelTick();
+		});
+		s.row("the user's death", 200, id -> {
+			s.user.setHealth(0.0F);
+			s.state.tickOnLevelTick();
+			s.user.setHealth(s.user.getMaxHealth());
+		});
+		s.row("a logout", 200, id -> {
+			s.state.removeInstance(id);
+			s.state.tickOnLevelTick();
+		});
+		s.row("the last player's logout", 200, id -> {
+			s.state.reset();
+			s.state.tickOnLevelTick();
+		});
+		s.row("the last of two stops ending", 200, id -> {
+			int other = s.stop(200);
+			s.state.removeInstance(id);
+			s.state.tickOnLevelTick();
+			helper.assertTrue(s.power(s.rowDust()) == 0 && !s.state.heldNeighborUpdates().isEmpty(),
+					"the first of two stops ending let go of what the level holds");
+			s.state.removeInstance(other);
+			s.state.tickOnLevelTick();
+		});
+		// the stop goes on where its user left, as the owner chose (T3-09), and the update stays in its own level
+		ServerLevel nether = s.level.getServer().getLevel(Level.NETHER);
+		helper.assertTrue(nether != null, "setup: no second dimension");
+		TimeStopState netherState = nether.getData(ModDataAttachmentTypes.TIME_STOP.get());
+		s.row("a level change", 2, id -> {
+			s.level.removePlayerImmediately(s.user, Entity.RemovalReason.CHANGED_DIMENSION);
+			s.user.revive();
+			s.user.setServerLevel(nether);
+			nether.addDuringTeleport(s.user);
+			helper.assertTrue(netherState.heldNeighborUpdates().isEmpty(), "held updates are not their own level's");
+			netherState.tickOnLevelTick();
+			s.state.tickOnLevelTick();
+			helper.assertTrue(s.state.getInstance(id).isPresent() && s.power(s.rowDust()) == 0
+					&& !s.state.heldNeighborUpdates().isEmpty(), "the stop its user left did not go on holding");
+			s.state.tickOnLevelTick();
+			helper.assertTrue(s.state.getInstance(id).isEmpty(), "the stop its user left did not run out");
+		});
+		s.user.discard();
+		s.bringUserBack();
+		BlockPos stoppingPiston = s.abs(1, 2, 2);
+		s.level.setBlock(stoppingPiston, Blocks.PISTON.defaultBlockState().setValue(PistonBaseBlock.FACING, Direction.SOUTH), 3);
+		s.row("the server stopping", 200, id -> {
+			TimeStopState.onServerStopping(new ServerStoppingEvent(s.level.getServer()));
+			helper.assertTrue(s.state.getInstance(id).isEmpty(), "the server stopping left the stop running");
+			helper.assertTrue(s.level.getBlockState(stoppingPiston).getValue(PistonBaseBlock.EXTENDED),
+					"the server stopping lost the block event of an update it drained: a level's block events are not saved");
+		});
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20, batch = GameTestBatches.WORLD_QUEUE)
+	public static void theHeldQueueKeepsOrderDropsDuplicatesAndFlushesWhenFull(GameTestHelper helper) {
+		Scene s = start(helper);
+		s.floor();
+		BlockPos firstLever = s.abs(1, 2, 1);
+		BlockPos firstDoor = s.abs(2, 2, 1);
+		BlockPos lastLever = s.abs(5, 2, 4);
+		BlockPos lastDoor = s.abs(6, 2, 4);
+		s.lever(firstLever);
+		s.door(firstDoor);
+		s.lever(lastLever);
+		s.door(lastDoor);
+		List<BlockPos> heard = new ArrayList<>();
+		Consumer<PlayLevelSoundEvent.AtPosition> sound = event -> {
+			if (event.getLevel() == s.level) {
+				heard.add(BlockPos.containing(event.getPosition()));
+			}
+		};
+		NeoForge.EVENT_BUS.addListener(sound);
+		try {
+			int stop = s.stop(200);
+			s.pull(firstLever);
+			int afterOneFlip = s.state.heldNeighborUpdates().size();
+			s.pull(firstLever);
+			s.pull(firstLever);
+			helper.assertTrue(s.state.heldNeighborUpdates().size() == afterOneFlip,
+					"flipping a lever on, off and on held the same updates again: " + afterOneFlip + ", then "
+							+ s.state.heldNeighborUpdates().size());
+			s.pull(lastLever);
+			heard.clear();
+			s.state.removeInstance(stop);
+			s.state.tickOnLevelTick();
+			List<BlockPos> doors = heard.stream().filter(pos -> pos.equals(firstDoor) || pos.equals(lastDoor)).toList();
+			helper.assertTrue(doors.equals(List.of(firstDoor, lastDoor)),
+					"the held updates did not run in the order they came: doors heard " + doors);
+		}
+		finally {
+			NeoForge.EVENT_BUS.unregister(sound);
+		}
+
+		// flushing early is better than losing an update: past the cap all of it runs, in stopped time, and the rest of
+		// the stop stays live; the next stop holds again
+		BlockPos lever = s.abs(3, 2, 2);
+		BlockPos lamp = s.abs(4, 2, 2);
+		BlockPos liveLever = s.abs(3, 2, 3);
+		BlockPos liveDust = s.abs(4, 2, 3);
+		BlockPos heldDust = s.abs(3, 2, 1);
+		s.lever(lever);
+		s.dust(heldDust);
+		s.level.setBlock(lamp, Blocks.REDSTONE_LAMP.defaultBlockState(), 3);
+		s.lever(liveLever);
+		s.dust(liveDust);
+		int stop = s.stop(200);
+		s.pull(lever);
+		helper.assertTrue(!s.level.getBlockState(lamp).getValue(RedstoneLampBlock.LIT), "the lamp reacted before the queue was full");
+		for (int at = s.state.heldNeighborUpdates().size(); at < 4096; at++) {
+			helper.assertTrue(!s.level.getBlockState(lamp).getValue(RedstoneLampBlock.LIT), "the queue overflowed at " + at);
+			s.level.neighborChanged(lamp, Blocks.LEVER, s.abs(0, 200, at));
+		}
+		helper.assertTrue(s.state.heldNeighborUpdates().size() == 4096, "setup: the queue holds "
+				+ s.state.heldNeighborUpdates().size());
+		s.level.neighborChanged(lamp, Blocks.LEVER, s.abs(1, 200, 0));
+		helper.assertTrue(s.state.heldNeighborUpdates().isEmpty() && s.level.getBlockState(lamp).getValue(RedstoneLampBlock.LIT)
+						&& s.power(heldDust) > 0,
+				"an overflow lost updates or kept them: " + s.state.heldNeighborUpdates().size() + " held, lamp "
+						+ s.level.getBlockState(lamp) + ", dust " + s.power(heldDust));
+		s.pull(liveLever);
+		helper.assertTrue(s.power(liveDust) > 0, "the rest of an overflowed stop did not stay live");
+		s.state.removeInstance(stop);
+		s.state.tickOnLevelTick();
+		s.pull(liveLever);
+		s.pull(liveLever);
+		int next = s.stop(200);
+		s.pull(liveLever);
+		helper.assertTrue(!s.state.heldNeighborUpdates().isEmpty(), "the next stop does not hold after an overflow");
+		s.state.removeInstance(next);
+		s.state.tickOnLevelTick();
+		helper.succeed();
+	}
+
+	private static Scene start(GameTestHelper helper) {
+		Scene scene = new Scene(helper);
+		helper.testInfo.addListener(scene);
+		scene.setUp();
+		return scene;
+	}
+
+	/** A Stand user who keeps a real stop running over the test cell, and a cell of blocks to clear after it. */
+	private static final class Scene implements GameTestListener {
+		private final GameTestHelper helper;
+		private final ServerLevel level;
+		private final TimeStopState state;
+		private final List<Integer> stops = new ArrayList<>();
+		private FakePlayer user;
+		private BlockPos rowDust;
+		private boolean closed;
+
+		private Scene(GameTestHelper helper) {
+			this.helper = helper;
+			level = helper.getLevel();
+			state = level.getData(ModDataAttachmentTypes.TIME_STOP.get());
+		}
+
+		private void setUp() {
+			bringUserBack();
+		}
+
+		private void bringUserBack() {
+			user = new FakePlayer(level, new GameProfile(UUID.randomUUID(), "TimeStopWorld"));
+			Vec3 at = Vec3.atBottomCenterOf(abs(7, 6, 5));
+			user.moveTo(at.x, at.y, at.z);
+			user.setNoGravity(true);
+			helper.assertTrue(level.addFreshEntity(user), "setup: could not add the user");
+			StandType type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
+			StandPower power = PowerClass.STAND.attachGet(user);
+			helper.assertTrue(type != null && StandPowerTransitions.insert(power, new StandInstance(type)).status()
+					== StandPowerTransitions.Status.APPLIED, "setup: could not grant Star Platinum");
+			power.setResolveLevel(power.getMaxResolveLevel());
+			TEST_UNLOCKS.forceUnlock(power, TimeStopLearning.TIME_STOP);
+		}
+
+		private BlockPos abs(int x, int y, int z) {
+			return helper.absolutePos(new BlockPos(x, y, z));
+		}
+
+		private void floor() {
+			for (int x = 0; x <= 7; x++) {
+				for (int z = 0; z <= 5; z++) {
+					level.setBlock(abs(x, 1, z), Blocks.STONE.defaultBlockState(), 3);
+				}
+			}
+		}
+
+		private int stop(int ticks) {
+			int id = nextStopId--;
+			stops.add(id);
+			helper.assertTrue(state.tryPutInstance(new TimeStopState.Instance(id, ticks, ticks, new ChunkPos(abs(2, 2, 2)), 2,
+					user.getId(), "time_stop_world_test")), "setup: could not stop time");
+			helper.assertTrue(state.isTimeStopped(new ChunkPos(abs(2, 2, 2))), "setup: the cell's chunk is not stopped");
+			return id;
+		}
+
+		private void lever(BlockPos pos) {
+			level.setBlock(pos, Blocks.LEVER.defaultBlockState().setValue(LeverBlock.FACE, AttachFace.FLOOR), 3);
+		}
+
+		private void pull(BlockPos pos) {
+			BlockState lever = level.getBlockState(pos);
+			((LeverBlock) lever.getBlock()).pull(lever, level, pos, null);
+		}
+
+		private void dust(BlockPos pos) {
+			level.setBlock(pos, Blocks.REDSTONE_WIRE.defaultBlockState(), 3);
+		}
+
+		private void door(BlockPos lower) {
+			BlockState door = Blocks.OAK_DOOR.defaultBlockState();
+			level.setBlock(lower, door.setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
+			level.setBlock(lower.above(), door.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
+		}
+
+		// water runs toward the floor's nearest edge only
+		private boolean flowedFrom(BlockPos source) {
+			return Direction.Plane.HORIZONTAL.stream().anyMatch(
+					side -> level.getFluidState(source.relative(side)).is(Fluids.FLOWING_WATER));
+		}
+
+		private int power(BlockPos dust) {
+			return level.getBlockState(dust).getValue(RedStoneWireBlock.POWER);
+		}
+
+		private BlockPos rowDust() {
+			return rowDust;
+		}
+
+		private void row(String name, int ticks, Consumer<Integer> end) {
+			BlockPos lever = abs(1, 2, 1);
+			rowDust = abs(2, 2, 1);
+			lever(lever);
+			dust(rowDust);
+			int id = stop(ticks);
+			pull(lever);
+			helper.assertTrue(power(rowDust) == 0 && !state.heldNeighborUpdates().isEmpty(), name + ": the update was not held");
+			end.accept(id);
+			helper.assertTrue(power(rowDust) > 0, name + ": the wire did not react, power " + power(rowDust));
+			helper.assertTrue(state.heldNeighborUpdates().isEmpty(), name + ": updates are still held: " + state.heldNeighborUpdates());
+			state.removeInstance(id);
+			level.setBlock(lever, Blocks.AIR.defaultBlockState(), 3);
+			level.setBlock(rowDust, Blocks.AIR.defaultBlockState(), 3);
+		}
+
+		private void guarded(Runnable step) {
+			try {
+				step.run();
+			}
+			catch (RuntimeException | Error failure) {
+				close();
+				throw failure;
+			}
+		}
+
+		private void close() {
+			if (closed) {
+				return;
+			}
+			closed = true;
+			for (int id : stops) {
+				state.removeInstance(id);
+			}
+			state.tickOnLevelTick();
+			// from y 1: the test's structure block is at y 0
+			for (int x = 0; x <= 7; x++) {
+				for (int z = 0; z <= 5; z++) {
+					for (int y = 1; y <= 19; y++) {
+						BlockPos pos = abs(x, y, z);
+						if (!level.getBlockState(pos).isAir()) {
+							level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
+						}
+					}
+				}
+			}
+			BoundingBox cell = BoundingBox.fromCorners(abs(0, 1, 0), abs(7, 19, 5));
+			level.clearBlockEvents(cell);
+			level.getEntitiesOfClass(ItemEntity.class, AABB.of(cell)).forEach(Entity::discard);
+			level.getEntitiesOfClass(FallingBlockEntity.class, AABB.of(cell)).forEach(Entity::discard);
+			if (user != null) {
+				user.discard();
+			}
+		}
+
+		@Override
+		public void testStructureLoaded(GameTestInfo test) {}
+
+		@Override
+		public void testPassed(GameTestInfo test, GameTestRunner runner) {
+			close();
+		}
+
+		@Override
+		public void testFailed(GameTestInfo test, GameTestRunner runner) {
+			close();
+		}
+
+		@Override
+		public void testAddedForRerun(GameTestInfo oldTest, GameTestInfo newTest, GameTestRunner runner) {
+			close();
+		}
+	}
+}

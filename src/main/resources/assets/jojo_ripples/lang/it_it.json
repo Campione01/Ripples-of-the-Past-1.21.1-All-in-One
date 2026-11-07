@@ -1803,6 +1803,8 @@
   "jojo.config.timeStopChunkRange.tooltip": "Raggio di abilità Congelamento del Tempo in blocchi. Se impostato a 0, l'intera dimensione sarà congelata nel tempo.",
   "jojo.config.timeStopDamageMultiplier": "Moltiplicatore Danno del Congelamento del Tempo",
   "jojo.config.timeStopDamageMultiplier.tooltip": "Moltiplicatore del danno che viene subito alle entità in Congelamento del Tempo",
+  "jojo.config.timeStopChargeSeconds": "Tempo di carica del Congelamento del Tempo (secondi)",
+  "jojo.config.timeStopChargeSeconds.tooltip": "Quanto impiega a caricarsi il Congelamento del Tempo di Star Platinum e The World, da 0,5 a 5 secondi. The World ne impiega due terzi dal livello di Risolutezza 4.",
   "jojo.config.standPowerMultiplier": "Moltiplicatore di danno degli Stand",
   "jojo.config.standPowerMultiplier.tooltip": "Moltiplicatore del danno applicato a tutti gli stand.",
   "jojo.config.standResistanceMultiplier": "Stand resistance multiplier",

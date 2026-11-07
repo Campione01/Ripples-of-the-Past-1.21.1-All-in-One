@@ -55,19 +55,27 @@ public final class GameTestBatchSourcePinGameTests {
 			"startSequence(", "succeedOnTickWhen(", "succeedWhenEntityPresent(");
 	private static final String MOVES_AWAY = ".withArea(";
 	// Tests that hold a stop over their cells through later ticks, each in its exact batch.
-	private static final Map<String, String> ISOLATED = Map.of(
-			"CoreDetachedHeavyPulseGameTests.registeredRmbSeparatesNativeExtraAndAdmittedTail",
-			GameTestBatches.DETACHED_HEAVY_TIME_STOP,
-			"TheWorldHeavyShoutAndImpactGameTests.frozenBoatHurtByHeavyPunchSoundsOnTimeResume",
-			GameTestBatches.HELD_TIME_STOP_BOAT,
-			"VampirismEyeBeamTimeStopGameTests.shotFiredInStoppedTimeByAMovingOwnerExtendsBoundThenStopsDetached",
-			GameTestBatches.HELD_TIME_STOP_EYE_BEAM,
-			"VampirismEyeBeamTimeStopGameTests.shotBegunBeforeTheStopKeepsExtendingBoundToItsMovingOwner",
-			GameTestBatches.HELD_TIME_STOP_EYE_BEAM,
-			"VampirismEyeBeamTimeStopGameTests.shotThatRunsDryInStoppedTimeDetachesAfterThatTicksMove",
-			GameTestBatches.HELD_TIME_STOP_EYE_BEAM,
-			"VampirismEyeBeamTimeStopGameTests.stoppedOwnersShotAndBoundBeamsWaitForTimeToResume",
-			GameTestBatches.HELD_TIME_STOP_EYE_BEAM);
+	private static final Map<String, String> ISOLATED = Map.ofEntries(
+			Map.entry("CoreDetachedHeavyPulseGameTests.registeredRmbSeparatesNativeExtraAndAdmittedTail",
+					GameTestBatches.DETACHED_HEAVY_TIME_STOP),
+			Map.entry("TheWorldHeavyShoutAndImpactGameTests.frozenBoatHurtByHeavyPunchSoundsOnTimeResume",
+					GameTestBatches.HELD_TIME_STOP_BOAT),
+			Map.entry("VampirismEyeBeamTimeStopGameTests.shotFiredInStoppedTimeByAMovingOwnerExtendsBoundThenStopsDetached",
+					GameTestBatches.HELD_TIME_STOP_EYE_BEAM),
+			Map.entry("VampirismEyeBeamTimeStopGameTests.shotBegunBeforeTheStopKeepsExtendingBoundToItsMovingOwner",
+					GameTestBatches.HELD_TIME_STOP_EYE_BEAM),
+			Map.entry("VampirismEyeBeamTimeStopGameTests.shotThatRunsDryInStoppedTimeDetachesAfterThatTicksMove",
+					GameTestBatches.HELD_TIME_STOP_EYE_BEAM),
+			Map.entry("VampirismEyeBeamTimeStopGameTests.stoppedOwnersShotAndBoundBeamsWaitForTimeToResume",
+					GameTestBatches.HELD_TIME_STOP_EYE_BEAM),
+			Map.entry("TimeStopWorldGameTests.randomTicksWaitInStoppedTime", GameTestBatches.WORLD_RANDOM_TICKS),
+			Map.entry("TimeStopWorldGameTests.blockEventsWaitForResumeAndAMovingPistonSurvivesTheStop",
+					GameTestBatches.WORLD_PISTONS),
+			Map.entry("TimeStopWorldGameTests.aLeverInStoppedTimeChangesNothingUntilTimeResumes", GameTestBatches.WORLD_LEVER),
+			Map.entry("TimeStopWorldGameTests.buildingInStoppedTimeShowsAndOnlyRedstoneWaits", GameTestBatches.WORLD_BUILDING),
+			Map.entry("TimeStopWorldGameTests.everyEndOfAStopDrainsWhatItHeld", GameTestBatches.WORLD_ENDS),
+			Map.entry("TimeStopWorldGameTests.theHeldQueueKeepsOrderDropsDuplicatesAndFlushesWhenFull",
+					GameTestBatches.WORLD_QUEUE));
 	// An ISOLATED test removes its held stop when it fails or times out too: a GameTestListener on its test info.
 	private static final String CLEANS_UP_ON_FAILURE = "testInfo.addListener(";
 	// Detector self-check for the held stops: one that is held in place, one that is moved far away.

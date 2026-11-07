@@ -1812,6 +1812,8 @@
   "jojo.config.timeStopChunkRange.tooltip": "Rango de capacidad de detención del tiempo en fragmentos. Si se establece en 0, toda la dimensión se congela en el tiempo.",
   "jojo.config.timeStopDamageMultiplier": "Multiplicador de daño de Detención del tiempo",
   "jojo.config.timeStopDamageMultiplier.tooltip": "Multiplicador de daño para entidades congeladas en el tiempo.",
+  "jojo.config.timeStopChargeSeconds": "Tiempo de carga de la Detención del tiempo (segundos)",
+  "jojo.config.timeStopChargeSeconds.tooltip": "Cuánto tarda en cargarse la Detención del tiempo de Star Platinum y The World, de 0,5 a 5 segundos. The World solo necesita dos tercios desde el nivel de Resolución 4.",
   "jojo.config.standPowerMultiplier": "Multiplicador de daño de Stand",
   "jojo.config.standPowerMultiplier.tooltip": "Multiplicador de daño aplicado a todos los stands.",
   "jojo.config.standResistanceMultiplier": "Stand resistance multiplier",
