@@ -222,6 +222,7 @@
 	"client.directional_gravity.CameraDirectionalGravityMixin",
 	"client.directional_gravity.LivingEntityRendererDirectionalGravityMixin",
 	"client.directional_gravity.LocalPlayerDirectionalGravityMixin",
+	"client.directional_gravity.PlayerRendererDirectionalGravityMixin",
 	"client.polaroid.CameraPolaroidMixin",
 	"client.hamon.LivingEntityWallClimbTravelMixin",
 	"client.BleedingHealthGui",

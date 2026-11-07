@@ -15,6 +15,7 @@ import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.type.StandType;
+import rotp.core.subsystems.directional_gravity.DirectionalGravityRuntime;
 import com.mojang.authlib.GameProfile;
 
 import net.minecraft.core.BlockPos;
@@ -27,6 +28,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
@@ -251,6 +253,108 @@ public final class DirectionalGravityLivingGameTests {
 		helper.succeed();
 	}
 
+	@GameTest(template = "empty", batch = "gravityLiving8", timeoutTicks = 60)
+	public static void aPlayerStandsCrouchesAndCrawlsByTheRoomOnItsOwnFloor(GameTestHelper helper) {
+		Scene scene = new Scene(helper);
+		List<String> wrong = new ArrayList<>();
+		int spot = 0;
+		for (Direction direction : TURNED) {
+			BlockPos floor = BlockPos.containing(scene.origin).offset(spot++ * 8, 0, 0);
+			scene.block(floor);
+			Vec3 onFloor = scene.onFace(floor, direction);
+			Vec3 up = Vec3.atLowerCornerOf(direction.getNormal()).scale(-1.0);
+			Player player = scene.player(onFloor.add(up.scale(3.0)));
+			scene.turn(player, direction);
+
+			player.setPos(onFloor);
+			player.setPose(Pose.SWIMMING);
+			scene.checkPose(wrong, player, Pose.STANDING, direction + " left lying with room to stand");
+			player.setPos(onFloor.add(up));
+			scene.checkPose(wrong, player, Pose.STANDING, direction + " a block off the floor");
+			player.setPos(onFloor);
+			player.setShiftKeyDown(true);
+			scene.checkPose(wrong, player, Pose.CROUCHING, direction + " sneaking");
+			player.setShiftKeyDown(false);
+			scene.checkPose(wrong, player, Pose.STANDING, direction + " done sneaking");
+
+			BlockPos roof = floor.relative(direction.getOpposite(), 2);
+			scene.block(roof);
+			scene.checkPose(wrong, player, Pose.SWIMMING, direction + " with one block of room");
+			scene.level.setBlockAndUpdate(roof, Blocks.AIR.defaultBlockState());
+			scene.checkPose(wrong, player, Pose.STANDING, direction + " when the room comes back");
+		}
+
+		// a slab leaves 1.5 of room on a ceiling: too low to stand, enough to crouch
+		BlockPos ceiling = BlockPos.containing(scene.origin).offset(0, 0, 8);
+		scene.block(ceiling);
+		Player low = scene.player(scene.onFace(ceiling, Direction.UP).subtract(0.0, 3.0, 0.0));
+		scene.turn(low, Direction.UP);
+		low.setPos(scene.onFace(ceiling, Direction.UP));
+		BlockPos slab = ceiling.below(2);
+		scene.level.setBlockAndUpdate(slab, Blocks.STONE_SLAB.defaultBlockState());
+		scene.plates.add(slab);
+		scene.checkPose(wrong, low, Pose.CROUCHING, "on a ceiling over a slab");
+
+		scene.plate(3);
+		double plateBottom = scene.origin.y + 3.0;
+		Player walker = scene.player(scene.origin.subtract(0.0, 0.0, 2.0));
+		scene.turn(walker, Direction.UP);
+		walker.setNoGravity(false);
+		walker.setPos(scene.origin.x, plateBottom, scene.origin.z - 2.0);
+		walker.setYRot(90.0F);
+		double startX = walker.getX();
+		int[] ticks = {0};
+		helper.onEachTick(() -> {
+			walker.zza = 1.0F;
+			if (walker.getPose() != Pose.STANDING || Math.abs(walker.getY() - plateBottom) > 1.0E-6) {
+				wrong.add("a walk on the ceiling at tick " + ticks[0] + ": " + walker.getPose() + " at y " + walker.getY()
+						+ " under " + plateBottom);
+			}
+			if (++ticks[0] == 20) {
+				double walked = walker.getX() - startX;
+				scene.close();
+				helper.assertTrue(Math.abs(walked) > 1.0, "Premise: the walker must walk, he went " + walked);
+				helper.assertTrue(wrong.isEmpty(), "A player's pose goes by the room on his own floor: " + wrong);
+				helper.succeed();
+			}
+		});
+	}
+
+	@GameTest(template = "empty", batch = "gravityLiving9", timeoutTicks = 40)
+	public static void aBodyIsNotPushedOffItsFloorButIsPushedOutOfWhatItStandsIn(GameTestHelper helper) {
+		Scene scene = new Scene(helper);
+		List<String> wrong = new ArrayList<>();
+		int spot = 0;
+		for (Direction direction : TURNED) {
+			BlockPos floor = BlockPos.containing(scene.origin).offset(spot++ * 8, 0, 0);
+			scene.block(floor);
+			Vec3 onFloor = scene.onFace(floor, direction);
+			Player player = scene.player(onFloor.subtract(Vec3.atLowerCornerOf(direction.getNormal()).scale(3.0)));
+			scene.turn(player, direction);
+			player.setPos(onFloor);
+			player.setDeltaMovement(Vec3.ZERO);
+			double side = player.getBbWidth() * 0.35;
+			scene.pushFromCorners(player, direction, side);
+			if (player.getDeltaMovement().lengthSqr() != 0.0) {
+				wrong.add(direction + " pushed off its floor: " + player.getDeltaMovement());
+			}
+
+			// a block beside the body, into which it reaches by 0.15
+			Direction beside = direction.getAxis() == Direction.Axis.X ? Direction.NORTH : Direction.EAST;
+			Vec3 toBlock = Vec3.atLowerCornerOf(beside.getNormal());
+			scene.block(floor.relative(direction.getOpposite()).relative(beside));
+			player.setPos(onFloor.add(toBlock.scale(0.35)));
+			scene.pushFromCorners(player, direction, side);
+			double along = player.getDeltaMovement().dot(toBlock);
+			if (Math.abs(along + 0.1) > 1.0E-9) {
+				wrong.add(direction + " must be pushed out along its floor, it moves " + player.getDeltaMovement());
+			}
+		}
+		scene.close();
+		helper.assertTrue(wrong.isEmpty(), "The push out of blocks works on the body's own floor: " + wrong);
+		helper.succeed();
+	}
+
 	private static final class Scene {
 		final GameTestHelper helper;
 		final ServerLevel level;
@@ -320,6 +424,25 @@ public final class DirectionalGravityLivingGameTests {
 			if (along < 0.99) {
 				wrong.add(what + " flies " + shot.getDeltaMovement() + " with the look " + look);
 			}
+		}
+
+		/** The middle of the block's face that a body falling in this direction lands on. */
+		Vec3 onFace(BlockPos block, Direction direction) {
+			return Vec3.atCenterOf(block).subtract(Vec3.atLowerCornerOf(direction.getNormal()).scale(0.5));
+		}
+
+		void checkPose(List<String> wrong, Player player, Pose expected, String what) {
+			player.tick();
+			if (player.getPose() != expected) {
+				wrong.add(what + ": " + player.getPose() + " for " + expected);
+			}
+		}
+
+		void pushFromCorners(Player player, Direction direction, double side) {
+			DirectionalGravityRuntime.pushOutOfBlocks(player, direction, -side, side);
+			DirectionalGravityRuntime.pushOutOfBlocks(player, direction, -side, -side);
+			DirectionalGravityRuntime.pushOutOfBlocks(player, direction, side, -side);
+			DirectionalGravityRuntime.pushOutOfBlocks(player, direction, side, side);
 		}
 
 		void close() {

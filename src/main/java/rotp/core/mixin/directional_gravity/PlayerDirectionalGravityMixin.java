@@ -18,6 +18,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.minecraft.core.Direction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -36,6 +37,22 @@ public abstract class PlayerDirectionalGravityMixin {
 		try (LocalFrame ignored =
 				DirectionalGravityRuntime.enterLocalFrame(player)) {
 			original.call(travelVector);
+		}
+	}
+
+	/**
+	 * Vanilla asks about a box above the feet, which on a ceiling or a wall lies in the floor. The pose then freezes: whatever
+	 * it was the last time the feet were off that floor stays, and between 0.6 and 1.5 blocks off a ceiling that is the crawl.
+	 */
+	@Inject(method = "canPlayerFitWithinBlocksAndEntitiesWhen", at = @At("HEAD"), cancellable = true)
+	private void jojo_ripples$directionalGravityPoseFits(
+			Pose pose, CallbackInfoReturnable<Boolean> cir) {
+		Player player = (Player) (Object) this;
+		Direction direction = DirectionalGravityApi.getEffectiveDirection(player);
+		if (direction != Direction.DOWN) {
+			AABB upright = player.getDimensions(pose).makeBoundingBox(player.position());
+			cir.setReturnValue(player.level().noCollision(player,
+					DirectionalGravityTransforms.rotateBox(direction, upright, player.position()).deflate(1.0E-7)));
 		}
 	}
 
