@@ -110,6 +110,15 @@ public class ClientModSettingsScreen extends Screen {
 		};
 		addRenderableWidget(ownAfkMenacingFirstPerson.createButton(calcButtonX(i), calcButtonY(i++) + yOffset, 150, 20, this, i));
 
+		BooleanSetting screenSplash = new BooleanSetting(settings,
+				Component.translatable("jojo_ripples.config.client.screenSplash"),
+				Component.translatable("jojo_ripples.config.client.screenSplash.tooltip")
+				) {
+			@Override public Boolean get() { return settingsValues.screenSplash; }
+			@Override public void set(Boolean value) { settingsValues.screenSplash = value; }
+		};
+		addRenderableWidget(screenSplash.createButton(calcButtonX(i), calcButtonY(i++) + yOffset, 150, 20, this, i));
+
 		
 		// HUD settings
 		

@@ -572,6 +572,15 @@ tasks.register('manualControlIconSmokeTest', JavaExec) {
     workingDir projectDir
 }
 
+tasks.register('screenSplashSmokeTest', JavaExec) {
+    group = 'verification'
+    description = 'Verifies that the screen splash is off by default, lands as drops, is wiped away, and holds while time is stopped.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'rotp.core.client.ui.hud_misc.ScreenSplashSmokeTest'
+    workingDir projectDir
+}
+
 tasks.register('sewingScreenFitSmokeTest', JavaExec) {
     group = 'verification'
     description = 'Verifies sewing viewport bounds, inverse mouse coordinates, preview anchors and unscaled parity.'
@@ -641,6 +650,7 @@ tasks.named('check').configure {
     dependsOn tasks.named('standRangeLayoutSmokeTest')
     dependsOn tasks.named('unusableAbilityIconTintSmokeTest')
     dependsOn tasks.named('manualControlIconSmokeTest')
+    dependsOn tasks.named('screenSplashSmokeTest')
     dependsOn tasks.named('sewingScreenFitSmokeTest')
     dependsOn tasks.named('clothesModelLoaderSmokeTest')
     dependsOn tasks.named('firstPersonExtraArmContractSmokeTest')

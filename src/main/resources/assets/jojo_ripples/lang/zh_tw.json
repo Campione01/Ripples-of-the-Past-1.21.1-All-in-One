@@ -191,6 +191,8 @@
   "jojo_ripples.config.client.resolveShaders.tooltip": "在覺悟期間啟用特殊著色器。",
   "jojo_ripples.config.client.menacingParticles": "「ゴゴゴゴゴ」 粒子",
   "jojo_ripples.config.client.menacingParticles.tooltip": "使玩家在靜止的情況下時漂浮ゴゴゴゴゴ粒子",
+  "jojo_ripples.config.client.screenSplash": "畫面血沙飛濺",
+  "jojo_ripples.config.client.screenSplash.tooltip": "飛向臉部的鮮血或沙子會短暫遮擋視野，隨後被擦去。僅為視覺效果，HUD 始終顯示在其上方。",
   "jojo_ripples.config.client.ownAfkMenacingFirstPerson": "第一人稱顯示自己的「ゴゴゴゴゴ」粒子",
   "jojo_ripples.config.client.ownAfkMenacingFirstPerson.tooltip": "在第一人稱視角下顯示自己掛機時產生的ゴゴゴゴゴ粒子。不影響其他玩家的粒子和第三人稱視角。關閉「ゴゴゴゴゴ」粒子時此選項無效。",
   "jojo_ripples.config.client.timeStopAnimation": "時停動畫",

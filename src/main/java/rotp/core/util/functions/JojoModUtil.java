@@ -115,7 +115,12 @@ public class JojoModUtil {
 ////					Collections.emptyList());
 ////		}
 //		return res;
-		return level.destroyBlock(blockPos, dropBlock, entity);
+		BlockState blockState = level.getBlockState(blockPos);
+		boolean destroyed = level.destroyBlock(blockPos, dropBlock, entity);
+		if (destroyed) {
+			rotp.core.mechanics.ScreenSplashes.brokenBlock(level, blockPos, blockState);
+		}
+		return destroyed;
 	}
 
 	public static boolean dropBrokenBlock(LivingEntity entity) {

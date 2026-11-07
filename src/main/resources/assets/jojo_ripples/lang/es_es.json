@@ -189,6 +189,8 @@
   "jojo_ripples.config.client.resolveShaders.tooltip": "Habilite los sombreadores durante el efecto de resolución.",
   "jojo_ripples.config.client.menacingParticles": "\"Partículas\" amenazantes",
   "jojo_ripples.config.client.menacingParticles.tooltip": "Habilitar las partículas ゴゴゴゴゴ cuando esté AFK.",
+  "jojo_ripples.config.client.screenSplash": "Sangre y arena en pantalla",
+  "jojo_ripples.config.client.screenSplash.tooltip": "La sangre o la arena que te salpica la cara tapa la vista un momento, hasta que se limpia. Es solo un efecto visual; el HUD queda por encima.",
   "jojo_ripples.config.client.timeStopAnimation": "Animación de parada del tiempo",
   "jojo_ripples.config.client.timeStopAnimation.tooltip": "Habilita el efecto visual al inicio de la parada de tiempo cuando su duración es de 5 segundos o más.",
   "jojo_ripples.config.client.standSide": "Stand offset side",

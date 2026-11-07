@@ -571,6 +571,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 			}
 			if (level.destroyBlock(blockPos, dropBlock, stand)) {
 				blockState.getBlock().destroy(level, blockPos, blockState);
+				rotp.core.mechanics.ScreenSplashes.brokenBlock(level, blockPos, blockState);
 				return true;
 			}
 			return false;

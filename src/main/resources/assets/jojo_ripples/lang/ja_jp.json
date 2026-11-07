@@ -189,6 +189,8 @@
   "jojo_ripples.config.client.resolveShaders.tooltip": "解決 エフェクト中にシェーダーを有効にする.",
   "jojo_ripples.config.client.menacingParticles": "\"Menacing\" particles",
   "jojo_ripples.config.client.menacingParticles.tooltip": "Enable ゴゴゴゴゴ particles when AFK.",
+  "jojo_ripples.config.client.screenSplash": "画面の血と砂",
+  "jojo_ripples.config.client.screenSplash.tooltip": "顔に飛んできた血や砂が一瞬視界を覆い、やがて拭い去られます。見た目だけの効果で、HUDは常に手前に表示されます。",
   "jojo_ripples.config.client.timeStopAnimation": "Time stop animation",
   "jojo_ripples.config.client.timeStopAnimation.tooltip": "Enables the visual effect at the beginning of time stop when its duration is 5 seconds or longer.",
   "jojo_ripples.config.client.standSide": "Stand offset side",

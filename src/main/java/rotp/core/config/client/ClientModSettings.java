@@ -53,6 +53,7 @@ public class ClientModSettings {
 		public boolean menacingParticles = true;
 		public boolean ownAfkMenacingFirstPerson = true;
 		public boolean characterVoiceLines = true;
+		public boolean screenSplash = false;
 		public boolean toggleLmbHotbar = false;
 		public boolean toggleRmbHotbar = false;
 		public boolean toggleDisableHotbars = false;

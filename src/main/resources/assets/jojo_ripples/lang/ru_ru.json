@@ -190,6 +190,8 @@
   "jojo_ripples.config.client.resolveShaders.tooltip": "Шейдеры смены цветов во время эффекта Решимости",
   "jojo_ripples.config.client.menacingParticles": "Частицы \"опасности\"",
   "jojo_ripples.config.client.menacingParticles.tooltip": "Частицы ゴゴゴゴゴ, исходящие от неактивных игроков",
+  "jojo_ripples.config.client.screenSplash": "Кровь и песок на экране",
+  "jojo_ripples.config.client.screenSplash.tooltip": "Кровь или песок, летящие в лицо, на миг закрывают обзор, пока их не сотрёт. Только визуальный эффект; интерфейс остаётся поверх.",
   "jojo_ripples.config.client.timeStopAnimation": "Анимация остановки времени",
   "jojo_ripples.config.client.timeStopAnimation.tooltip": "Включает визуальный эффект остановки времени, если его продолжительность - 5 секунд или больше.",
   "jojo_ripples.config.client.standSide": "Расположение Стенда",
