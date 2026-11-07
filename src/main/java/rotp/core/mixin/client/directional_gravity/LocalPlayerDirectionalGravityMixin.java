@@ -2,6 +2,8 @@ package rotp.core.mixin.client.directional_gravity;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import rotp.core.api.gravity.DirectionalGravityApi;
 import rotp.core.api.gravity.DirectionalGravityTransforms;
@@ -17,6 +19,19 @@ import net.neoforged.neoforge.fluids.FluidType;
 
 @Mixin(LocalPlayer.class)
 public abstract class LocalPlayerDirectionalGravityMixin {
+	@Inject(method = "moveTowardsClosestSpace(DD)V", at = @At("HEAD"), cancellable = true)
+	private void jojo_ripples$directionalGravityPushOut(
+			double x, double z, CallbackInfo ci) {
+		LocalPlayer player = (LocalPlayer) (Object) this;
+		Direction direction =
+				DirectionalGravityApi.getEffectiveDirection(player);
+		if (direction != Direction.DOWN) {
+			DirectionalGravityRuntime.pushOutOfBlocks(player, direction,
+					x - player.getX(), z - player.getZ());
+			ci.cancel();
+		}
+	}
+
 	@WrapOperation(method = "aiStep",
 			at = @At(value = "INVOKE",
 					target = "Lnet/minecraft/client/player/"
