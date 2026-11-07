@@ -539,15 +539,22 @@ public final class PunchComboGameTests {
 		presses(helper, "the_world", "SSSQSSQQ", List.of("punch", "punch2", "punch", "punch2", "punch", "punch2", "punch3", "punch4"), (rig, press) -> {});
 	}
 
-	// Star Platinum declares all four itself; a chain that ended on the fourth, then slow presses
+	// Star Platinum declares all four itself; a chain that ended on the fourth, then slow presses: the second punch turns the arm, then they alternate from it
 	@GameTest(template = "empty", timeoutTicks = 600)
-	public static void aSlowPressAfterTheFourthPunchGoesBackToTheFirstTwo(GameTestHelper helper) {
-		presses(helper, "star_platinum", "SQQQSSS", List.of("punch", "punch2", "punch3", "punch4", "punch", "punch2", "punch"), (rig, press) -> {});
+	public static void aSlowPressAfterTheFourthPunchPlaysTheSecond(GameTestHelper helper) {
+		presses(helper, "star_platinum", "SQQQSSS", List.of("punch", "punch2", "punch3", "punch4", "punch2", "punch", "punch2"), (rig, press) -> {});
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 600)
-	public static void aSlowPressAfterTheThirdPunchGoesBackToTheFirstTwo(GameTestHelper helper) {
-		presses(helper, "the_world", "SQQSS", List.of("punch", "punch2", "punch3", "punch", "punch2"), (rig, press) -> {});
+	public static void aSlowPressAfterTheThirdPunchPlaysTheSecond(GameTestHelper helper) {
+		presses(helper, "the_world", "SQQSS", List.of("punch", "punch2", "punch3", "punch2", "punch"), (rig, press) -> {});
+	}
+
+	// with the second punch locked, a slow press after the third or fourth plays the first
+	@GameTest(template = "empty", timeoutTicks = 600)
+	public static void aSlowPressAfterTheLaterPunchesPlaysTheFirstWhenTheSecondIsLocked(GameTestHelper helper) {
+		presses(helper, "the_world", "SQQSQS", List.of("punch", "punch3", "punch4", "punch", "punch3", "punch"),
+				(rig, press) -> rig.power.getCurTypeData()._lockedAbilities.add("punch2"));
 	}
 
 	// a locked second punch leaves the slow presses on the first; the third and fourth locked, the Stand has two punches and they alternate
@@ -565,7 +572,7 @@ public final class PunchComboGameTests {
 		});
 	}
 
-	// the one of the first two not played last, whatever later punch the chain ended on: punch, then punch3 with the second locked, then it is free
+	// a chain that ended on the third punch with the second locked: once the second is free, the slow press plays it
 	@GameTest(template = "empty", timeoutTicks = 600)
 	public static void aSlowPressTakesTheOneOfTheFirstTwoNotPlayedLast(GameTestHelper helper) {
 		presses(helper, "the_world", "SQS", List.of("punch", "punch3", "punch2"), (rig, press) -> {
