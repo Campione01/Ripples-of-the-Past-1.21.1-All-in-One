@@ -18,6 +18,7 @@ import rotp.core.core.JojoRegistries;
 import rotp.core.impl.npc.rps.RockPaperScissorsGame;
 import rotp.core.impl.npc.rps.RockPaperScissorsGame.Pick;
 import rotp.core.impl.npc.rps.RockPaperScissorsKidEntity;
+import rotp.core.impl.stands.boyiiman.BoyIIManStandPartTakenEffect;
 import rotp.core.init.ModEntityTypes;
 import rotp.core.init.ModItems;
 import rotp.core.init.ModStatusEffects;
@@ -247,6 +248,39 @@ public final class TemporaryStandLoanGameTests {
 			helper.assertTrue(f.power.getPowerType() == f.borrowed && token.equals(f.power.temporaryLoanId()),
 					"Boy II Man's effects ending during the loan must give the borrowed Stand back");
 			f.restore(f.player, f.power, token);
+		}
+		helper.succeed();
+	}
+
+	/** Limbs Boy II Man took before the loan, handed back during it: on the borrowed Stand or with none on hand, the original gets them. */
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void boyIIMansPartsReturnedDuringALoanGoToTheReservedStand(GameTestHelper helper) {
+		for (boolean borrowedLost : List.of(false, true)) {
+			try (Fixture f = new Fixture(helper)) {
+				FakePlayer boyIIMan = new FakePlayer(helper.getLevel(), new GameProfile(UUID.randomUUID(), "TemporaryStandBoyIIMan"));
+				try {
+					StandInstance legs = new StandInstance(f.original.getStandType());
+					List.of(StandPart.MAIN_BODY, StandPart.ARMS).forEach(legs::removePart);
+					BoyIIManStandPartTakenEffect taken = new BoyIIManStandPartTakenEffect(legs);
+					taken.withTarget(f.player);
+					StandPower boyIIManPower = PowerClass.STAND.attachGet(boyIIMan);
+					boyIIManPower.userStandEffects.addEffect(taken);
+					UUID token = f.begin();
+					if (borrowedLost) {
+						f.power.setStand(null);
+					}
+					boyIIManPower.userStandEffects.removeEffect(taken);
+					helper.assertTrue(f.power.hasPower() != borrowedLost && f.power.getStandInstance().map(StandInstance::getStandType).orElse(f.borrowed) == f.borrowed,
+							"The parts of the reserved Stand must not change what is on hand during the loan");
+					helper.assertTrue(StandPowerTransitions.restoreTemporaryLoan(f.power, token, f.context()).applied()
+									&& f.power.getStandInstance().filter(stand -> stand.getStandType() == f.original.getStandType()
+											&& stand.hasPart(StandPart.LEGS)).isPresent(),
+							"The original came back without the legs Boy II Man gave back during the loan");
+				}
+				finally {
+					boyIIMan.discard();
+				}
+			}
 		}
 		helper.succeed();
 	}

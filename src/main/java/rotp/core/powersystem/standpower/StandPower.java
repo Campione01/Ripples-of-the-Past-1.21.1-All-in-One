@@ -351,6 +351,16 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		}
 	}
 
+	/** Whether these parts are the reserved Stand's: they go back to it, as they would have with no loan. */
+	@ApiStatus.Internal
+	public boolean returnPartsToReservedStand(StandInstance parts) {
+		if (temporaryStandLoan == null || !temporaryStandLoan.originalStand().getStandId().equals(parts.getStandId())) {
+			return false;
+		}
+		parts.getAllParts().forEach(temporaryStandLoan.originalStand()::addPart);
+		return true;
+	}
+
 	private void endTemporaryLoan(TemporaryStandLoan loan, StandInstance original) {
 		restoreBorrowedResolveLevel(loan);
 		powerData.put(original.getStandId(), Either.right(loan.originalProgression().copy()));
