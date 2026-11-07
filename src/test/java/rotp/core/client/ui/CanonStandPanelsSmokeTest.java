@@ -32,7 +32,7 @@ public final class CanonStandPanelsSmokeTest {
 		InputStream input = CanonStandPanelsSmokeTest.class.getResourceAsStream("/assets/jojo_ripples/stand_panel_ranks.json");
 		check(input != null, "canonical Stand panel table must be bundled");
 		try (Reader reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
-			check(CanonStandPanels.read(reader).size() == 75, "canonical table must contain 75 unique Stand IDs");
+			check(CanonStandPanels.read(reader).size() == 76, "canonical table must contain 76 unique Stand IDs");
 		}
 		catch (IOException exception) {
 			throw new AssertionError("could not read bundled canonical panels", exception);
@@ -40,6 +40,7 @@ public final class CanonStandPanelsSmokeTest {
 
 		assertPanel(D4C, "A A C A A A", 5, 5, 3, 5, 5, 5);
 		assertPanel("rotp_tog:tower_of_gray", "E A A C E E", 1, 5, 5, 3, 1, 1);
+		assertPanel("rotp_justice:justice", "D E A A E E", 2, 1, 5, 5, 1, 1);
 		assertPanel("rotp_echoes:echoes_act1", "E E B B C A", 1, 1, 4, 4, 3, 5);
 		assertPanel("rotp_echoes:echoes_act2", "C D B B C A", 3, 2, 4, 4, 3, 5);
 		assertPanel("rotp_echoes:echoes_act3", "B B C B C A", 4, 4, 3, 4, 3, 5);
