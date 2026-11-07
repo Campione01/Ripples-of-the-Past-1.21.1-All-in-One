@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -17,6 +18,7 @@ import rotp.core.powersystem.standpower.StandPower;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -129,6 +131,109 @@ public final class StandPowerTransitions {
 	}
 
 	/**
+	 * Reserves the current Stand and temporarily installs another without exchanging
+	 * the server's original ownership count. A disc used by the caller remains
+	 * a disc in its custody. Consume and persist that exact stack in the same
+	 * server interaction, and only after an applied result.
+	 */
+	public static TemporaryLoanResult beginTemporaryLoan(
+			StandPower power, StandInstance borrowed, TransitionContext context) {
+		Status failure = temporaryLoanContext(power, context);
+		if (failure != null) {
+			return TemporaryLoanResult.failed(failure);
+		}
+		if (power.temporaryLoanId() != null) {
+			return TemporaryLoanResult.failed(Status.VETOED);
+		}
+		Optional<StandInstance> current = power.getStandInstance().filter(StandInstance::standExists);
+		if (current.isEmpty()) {
+			return TemporaryLoanResult.failed(Status.NO_STAND);
+		}
+		if (borrowed == null || !borrowed.standExists()
+				|| current.orElseThrow().getStandId().equals(borrowed.getStandId())) {
+			return TemporaryLoanResult.failed(Status.INVALID_REPLACEMENT);
+		}
+		failure = temporaryLoanVeto(power, context, current, borrowed);
+		if (failure != null) {
+			return TemporaryLoanResult.failed(failure);
+		}
+		int originalResolveLevel = power.getResolveLevel();
+		boolean originalSkipped = power.wasProgressionSkipped();
+		UUID token = UUID.randomUUID();
+		power.beginTemporaryLoan(token, borrowed);
+		if (!power.canRestoreTemporaryLoan(token)) {
+			return TemporaryLoanResult.failed(Status.SOURCE_MISMATCH);
+		}
+		return new TemporaryLoanResult(Status.APPLIED, token, originalResolveLevel, originalSkipped);
+	}
+
+	/** Returns the reserved Stand once. Refusal leaves both the loan and the caller's escrow intact. */
+	public static Result restoreTemporaryLoan(StandPower power, UUID token, TransitionContext context) {
+		Status failure = temporaryLoanContext(power, context);
+		if (failure != null) {
+			return Result.failed(failure);
+		}
+		if (token == null || !power.canRestoreTemporaryLoan(token)) {
+			return Result.failed(Status.SOURCE_MISMATCH);
+		}
+		StandInstance original = power.originalStandOfLoan(token);
+		if (original == null || !original.standExists()) {
+			return Result.failed(Status.INVALID_REPLACEMENT);
+		}
+		Optional<StandInstance> current = power.getStandInstance().map(StandInstance::copy);
+		failure = temporaryLoanVeto(power, context, current, original);
+		if (failure != null) {
+			return Result.failed(failure);
+		}
+		power.restoreTemporaryLoan(token);
+		if (power.temporaryLoanId() != null) {
+			return Result.failed(Status.SOURCE_MISMATCH);
+		}
+		return Result.applied(current, Optional.of(original));
+	}
+
+	@Nullable
+	private static Status temporaryLoanContext(StandPower power, @Nullable TransitionContext context) {
+		Objects.requireNonNull(power, "power");
+		StandPowerAccess access = new StandPowerAccess(power);
+		if (!access.isServerSide()) {
+			return Status.NOT_SERVER_SIDE;
+		}
+		if (!access.isServerThread()) {
+			return Status.NOT_SERVER_THREAD;
+		}
+		LivingEntity user = power.getUser();
+		return !(user instanceof ServerPlayer) || !user.isAlive() || context == null
+				|| context.actor() != null && context.actor() != user ? Status.INVALID_CONTEXT : null;
+	}
+
+	@Nullable
+	private static Status temporaryLoanVeto(StandPower power, TransitionContext context,
+			Optional<StandInstance> current, StandInstance replacement) {
+		if (current.isPresent()) {
+			Status removal = evaluateVetoes(new TransitionQuery(Operation.EXTRACT,
+					context, power.getUser(), current.orElseThrow()));
+			if (removal != null) {
+				return removal;
+			}
+		}
+		return evaluateMutationVetoes(new MutationQuery(
+				current.isPresent() ? MutationOperation.REPLACE : MutationOperation.INSERT,
+				context, power.getUser(), current, replacement));
+	}
+
+	public record TemporaryLoanResult(Status status, @Nullable UUID token,
+			int originalResolveLevel, boolean originalProgressionSkipped) {
+		public boolean applied() {
+			return status == Status.APPLIED;
+		}
+
+		private static TemporaryLoanResult failed(Status status) {
+			return new TemporaryLoanResult(status, null, 0, false);
+		}
+	}
+
+	/**
 	 * Registers a deterministic, owner-keyed destructive-transition veto.
 	 * Replaying the same owner and stateless callback is a no-op. Callbacks
 	 * are preflight-only and must not mutate game state.
@@ -188,6 +293,9 @@ public final class StandPowerTransitions {
 		if (context == null || !power.isContextValid(context)) {
 			return Result.failed(Status.INVALID_CONTEXT);
 		}
+		if (power.hasTemporaryLoan()) {
+			return Result.failed(Status.VETOED);
+		}
 		if (replacement == null || !replacement.standExists()) {
 			return Result.failed(Status.INVALID_REPLACEMENT);
 		}
@@ -220,6 +328,9 @@ public final class StandPowerTransitions {
 		}
 		if (!power.isContextValid(LEGACY_CONTEXT)) {
 			return Result.failed(Status.INVALID_CONTEXT);
+		}
+		if (power.hasTemporaryLoan()) {
+			return Result.failed(Status.VETOED);
 		}
 		Objects.requireNonNull(expectedCurrent, "expectedCurrent");
 
@@ -270,6 +381,9 @@ public final class StandPowerTransitions {
 		}
 		if (context == null || !power.isContextValid(context)) {
 			return Result.failed(Status.INVALID_CONTEXT);
+		}
+		if (power.hasTemporaryLoan()) {
+			return Result.failed(Status.VETOED);
 		}
 		Objects.requireNonNull(expectedCurrent, "expectedCurrent");
 		if (replacement == null || !replacement.standExists()) {
@@ -346,6 +460,9 @@ public final class StandPowerTransitions {
 		}
 		if (context == null || !power.isContextValid(context)) {
 			return Result.failed(Status.INVALID_CONTEXT);
+		}
+		if (power.hasTemporaryLoan()) {
+			return Result.failed(Status.VETOED);
 		}
 		if (operation == Operation.EXTRACT && expectedCurrent == null) {
 			return Result.failed(Status.INVALID_SOURCE);
@@ -589,6 +706,9 @@ public final class StandPowerTransitions {
 		default boolean isContextValid(TransitionContext context) {
 			return true;
 		}
+		default boolean hasTemporaryLoan() {
+			return false;
+		}
 		@Nullable
 		default LivingEntity getUser() {
 			return null;
@@ -626,6 +746,11 @@ public final class StandPowerTransitions {
 		@Override
 		public LivingEntity getUser() {
 			return power.getUser();
+		}
+
+		@Override
+		public boolean hasTemporaryLoan() {
+			return power.temporaryLoanId() != null;
 		}
 
 		@Override
