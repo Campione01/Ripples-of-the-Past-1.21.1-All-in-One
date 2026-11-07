@@ -3,6 +3,7 @@ package rotp.core.impl.stands._entitybase;
 import rotp.core.api.stand.ManualControlBlockers;
 import rotp.core.client.ClientProxy;
 import rotp.core.client.input.InputHandler;
+import rotp.core.client.ui.hud_power.ManualControlIcon;
 import rotp.core.core.JojoMod;
 import rotp.core.entityattachment.ComponentUtil;
 import rotp.core.init.ModDataAttachmentTypes;
@@ -22,6 +23,8 @@ import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.subsystems.entity_puppetcontrol.client.ClientEntityController;
 import rotp.core.subsystems.entity_puppetcontrol.client.stand.ClientStandController;
 
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -59,8 +62,7 @@ public class StandEntityManualControlToggle extends Ability {
 		// 1.16 StandUtil.setManualControl silently refused arms-only Stands; grey the icon, no message
 		StandEntity stand = StandUtil.getSummonedStand(context);
 		LivingEntity user = context.getUser();
-		if (stand != null && user != null && !stand.isManuallyControlled()
-				&& EntityComponentController.getControlTarget(user) != stand) {
+		if (stand != null && user != null && !isUnderControl(user, stand)) {
 			if (stand.isArmsOnlyMode()) {
 				return ConditionCheck.NEGATIVE;
 			}
@@ -79,14 +81,31 @@ public class StandEntityManualControlToggle extends Ability {
 				&& standPower.getPowerType() instanceof EntityStandType standType
 				&& standType.canBeManuallyControlled();
 	}
-	
+
+	private static boolean isUnderControl(LivingEntity user, StandEntity stand) {
+		return stand.isManuallyControlled() || EntityComponentController.getControlTarget(user) == stand;
+	}
+
+	@Override
+	public void renderAbilityIcon(Power<?> context, GuiGraphics guiGraphics, TextureAtlasSprite sprite, float x, float y, int color) {
+		if (context instanceof StandPower standPower) {
+			StandEntity stand = standPower.getSummonedStandEntity();
+			LivingEntity user = standPower.getUser();
+			boolean underControl = stand != null && user != null && isUnderControl(user, stand);
+			if (ManualControlIcon.render(standPower, guiGraphics, underControl, x, y, color)) {
+				return;
+			}
+		}
+		super.renderAbilityIcon(context, guiGraphics, sprite, x, y, color);
+	}
+
 	@Override
 	public void onClick(Level level, LivingEntity user, FriendlyByteBuf extraClientInput) {
 		if (!level.isClientSide()) {
 			boolean shift = readKeepPositionInput(extraClientInput, user);
 			StandEntity stand = StandUtil.getSummonedStand(user);
 			if (stand != null) {
-				if (!stand.isManuallyControlled() && EntityComponentController.getControlTarget(user) != stand) {
+				if (!isUnderControl(user, stand)) {
 					on(level, stand);
 				}
 				else {

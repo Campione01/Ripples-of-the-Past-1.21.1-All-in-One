@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import javax.annotation.Nullable;
+
 import rotp.core.client.ClientGlobals;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.client.ClientProxy;
@@ -500,20 +502,21 @@ public class PowerHud {
 	}
 	
 	public static void renderStandIcon(StandPower standPower, PoseStack pose, int x, int y) {
-		if (standPower != null) {
-			StandSkin skin = StandSkinsLoader.getInstance().getSkin(standPower);
-			if (skin != null) {
-				GuiIcon icon = skin.getStandIcon();
-				if (icon != null) {
-					RenderSystem.enableBlend();
-					RenderSystem.defaultBlendFunc();
-					icon.render(pose, x, y);
-					RenderSystem.disableBlend();
-				}
-			}
+		GuiIcon icon = getStandIcon(standPower);
+		if (icon != null) {
+			RenderSystem.enableBlend();
+			RenderSystem.defaultBlendFunc();
+			icon.render(pose, x, y);
+			RenderSystem.disableBlend();
 		}
 	}
-	
+
+	@Nullable
+	public static GuiIcon getStandIcon(@Nullable StandPower standPower) {
+		StandSkin skin = standPower != null ? StandSkinsLoader.getInstance().getSkin(standPower) : null;
+		return skin != null ? skin.getStandIcon() : null;
+	}
+
 	protected static final Map<ResourceLocation, GuiIcon> POWER_ICONS = new HashMap<>();
 	public static GuiIcon getPowerIcon(PowerType powerType) {
 		return POWER_ICONS.computeIfAbsent(powerType.getId(), 
