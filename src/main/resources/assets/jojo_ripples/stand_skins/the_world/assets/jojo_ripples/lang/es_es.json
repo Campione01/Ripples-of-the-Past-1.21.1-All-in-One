@@ -1,6 +1,6 @@
 {
   "jojo_ripples.skill.time_stop": "\"Tiempo, ¡Detente!\"",
-  "jojo_ripples.skill.time_stop.desc": "The World stops the flow of time for a brief moment, allowing only you to act freely while time is frozen.",
+  "jojo_ripples.skill.time_stop.desc": "The World stops the flow of time for a brief moment, allowing only you to act freely while time is frozen.\nHold to charge: let go before half the charge and nothing happens. In an emergency, press twice quickly to stop time at once, for only a moment.",
   "jojo_ripples.ability.time_stop": "\"Tiempo, ¡Detente!\" (%ss)",
   "jojo_ripples.ability.time_resume": "Reanudar el tiempo",
   "jojo_ripples.ability.time_stop_blink": "Movimiento rápido"

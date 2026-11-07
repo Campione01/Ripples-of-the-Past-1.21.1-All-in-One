@@ -1,6 +1,6 @@
 {
   "jojo_ripples.skill.time_stop": "『白金之星.世界』",
-  "jojo_ripples.skill.time_stop.desc": "Star Platinum stops the flow of time for a brief moment, allowing only you to act freely while time is frozen.",
+  "jojo_ripples.skill.time_stop.desc": "『白金之星』暫止時流，唯汝可行於凍時。\n長按以蓄力，未及其半而釋則不發。事急時速連按二次，可立止時流，然僅止一瞬。",
   "jojo_ripples.ability.time_stop": "『白金之星.世界』(上限%s秒)",
   "jojo_ripples.ability.time_resume": "時間開始『流動』",
   "jojo_ripples.ability.time_stop_blink": "『時停瞬移』"

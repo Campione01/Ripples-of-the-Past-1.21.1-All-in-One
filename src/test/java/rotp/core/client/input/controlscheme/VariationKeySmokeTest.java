@@ -379,6 +379,15 @@ public final class VariationKeySmokeTest {
 			}
 			check(lineOf(file, "jojo_ripples.skill.time_stop.controls").contains("%s"), lang + ": the time stop's text must take the key's name");
 			check(lineOf(file, "jojo_ripples.skill.barrier.desc").contains("%s"), lang + ": the net's text must take the key's name");
+			check(!lineOf(file, "jojo_ripples.skill.item_use.desc").contains("Shift"), lang + ": Use Item's text must name no key that can be rebound");
+			for (String stand : List.of("star_platinum", "the_world")) {
+				String description = valueOf(lineOf(file, "jojo_ripples.skill." + stand + ".time_stop.desc"));
+				check(description.contains("\\n"), lang + ": " + stand + "'s time stop text must have its charge and double press line");
+				// a default skin's overlay answers before the base file
+				String overlay = read(root.resolve("resources/assets/jojo_ripples/stand_skins/" + stand + "/assets/jojo_ripples/lang/" + lang + ".json"));
+				check(valueOf(lineOf(overlay, "jojo_ripples.skill.time_stop.desc")).equals(description),
+						lang + ": the skin overlay of " + stand + " must hold the base file's time stop text");
+			}
 		}
 		String english = read(root.resolve("resources/assets/jojo_ripples/lang/en_us.json"));
 		check(lineOf(english, "jojo_ripples.key.variation.desc").contains("holding sprint and pressing the skill key"),
@@ -412,6 +421,11 @@ public final class VariationKeySmokeTest {
 			}
 		}
 		throw new AssertionError("no line for " + key);
+	}
+
+	private static String valueOf(String line) {
+		String value = line.substring(line.indexOf("\":") + 2).trim();
+		return value.endsWith(",") ? value.substring(0, value.length() - 1) : value;
 	}
 
 	private static String read(Path path) {
