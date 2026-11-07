@@ -19,6 +19,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.HumanoidArm;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.loading.FMLEnvironment;
+import rotp.core.client.shader.ModShaders;
 import rotp.core.config.client.ClientModSettings;
 import rotp.core.config.client.ClientModSettings.Settings;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
@@ -58,6 +59,11 @@ public final class ClientConfigEditor {
 		}
 		Settings settings = ClientModSettings.getSettingsReadOnly();
 		return FIELDS.stream().map(field -> field.entry(settings)).toList();
+	}
+
+	/** Every setting at its default, for what must not depend on a loaded settings file. */
+	public static List<ConfigEntry> catalog() {
+		return FIELDS.stream().map(field -> field.entry(DEFAULTS)).toList();
 	}
 
 	public static ConfigEditResult set(String key, JsonElement value) {
@@ -122,6 +128,10 @@ public final class ClientConfigEditor {
 		}
 		if (broadcast && FMLEnvironment.dist == Dist.CLIENT) {
 			ConnectedClient.broadcast(settings.broadcasted);
+		}
+		if (FMLEnvironment.dist == Dist.CLIENT && !settings.resolveShaders
+				&& changes.stream().anyMatch(change -> "resolveShaders".equals(change.key()))) {
+			ConnectedClient.stopResolveShader();
 		}
 		return ConfigEditResult.ok(changes);
 	}
@@ -268,6 +278,14 @@ public final class ClientConfigEditor {
 			if (minecraft.player != null && connection != null
 					&& connection.hasChannel(new ClBroadcastedModSettingsPacket(settings).type())) {
 				settings.broadcastToServer();
+			}
+		}
+
+		// the old settings button did this: a shader already running would otherwise stay on until it ended by itself
+		static void stopResolveShader() {
+			ModShaders shaders = ModShaders.getInstance();
+			if (shaders != null && shaders.resolveShaderManager != null) {
+				shaders.resolveShaderManager.stopResolveShader();
 			}
 		}
 	}

@@ -64,6 +64,12 @@ public final class CommonConfigEditorGameTests {
 			helper.assertTrue(entry(entries, "Stand settings.standPowerMultiplier").synced()
 							&& !entry(entries, PROGRESSION).synced(),
 					"sync metadata must use the actual persisted keys, not the Java field names");
+			helper.assertTrue(entry(entries, "Stand settings.Time Stop.timeStopChargeSeconds").synced(),
+					"timeStopChargeSeconds is in SyncedValues, so its row must say so");
+			long syncedFields = Arrays.stream(JojoModConfig.Common.SyncedValues.class.getDeclaredFields())
+					.filter(field -> !java.lang.reflect.Modifier.isStatic(field.getModifiers())).count();
+			helper.assertTrue(entries.stream().filter(ConfigEntry::synced).count() == syncedFields,
+					"the sync flags must cover SyncedValues: " + entries.stream().filter(ConfigEntry::synced).count() + " / " + syncedFields);
 			helper.assertTrue(Arrays.equals(before, Files.readAllBytes(path)), "reading the catalog must not write the TOML");
 			helper.succeed();
 		}
