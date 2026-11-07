@@ -177,6 +177,7 @@
   "jojo_ripples.options.client.hamon": "波紋…",
   "jojo_ripples.options.client.vampirism": "吸血鬼…",
   "jojo_ripples.config.screen.title": "Ripples of the Past 設定",
+  "jojo_ripples.config.screen.addons": "附屬模組",
   "jojo_ripples.config.screen.category": "設定",
   "jojo_ripples.config.screen.page.client": "用戶端",
   "jojo_ripples.config.screen.page.client.desc": "存在這台電腦上。",

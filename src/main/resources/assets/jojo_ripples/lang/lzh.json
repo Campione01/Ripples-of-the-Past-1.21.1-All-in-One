@@ -175,6 +175,7 @@
   "jojo_ripples.options.client.hamon": "波紋...",
   "jojo_ripples.options.client.vampirism": "血妖...",
   "jojo_ripples.config.screen.title": "往昔之波諸設",
+  "jojo_ripples.config.screen.addons": "附屬",
   "jojo_ripples.config.screen.category": "諸設",
   "jojo_ripples.config.screen.page.client": "客端",
   "jojo_ripples.config.screen.page.client.desc": "存於此機。",

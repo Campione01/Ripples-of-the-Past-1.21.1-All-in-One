@@ -57,7 +57,8 @@ public final class ConfigEditorPackets {
 	private ConfigEditorPackets() {}
 
 	public static void register(PayloadRegistrar registrar) {
-		var editor = registrar.versioned("1").optional();
+		// 2: a reply may carry more entries than a version 1 client accepts, so the two never pair
+		var editor = registrar.versioned("2").optional();
 		editor.playToServer(Request.TYPE, Request.CODEC, ConfigEditorPackets::handleRequest);
 		editor.playToClient(Reply.TYPE, Reply.CODEC, ConfigEditorPackets::handleReply);
 	}

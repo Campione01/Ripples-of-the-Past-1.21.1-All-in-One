@@ -175,6 +175,7 @@
   "jojo_ripples.options.client.hamon": "Hamon...",
   "jojo_ripples.options.client.vampirism": "Vampirismo",
   "jojo_ripples.config.screen.title": "Ajustes de Ripples of the Past",
+  "jojo_ripples.config.screen.addons": "Complementos",
   "jojo_ripples.config.screen.category": "Ajustes",
   "jojo_ripples.config.screen.page.client": "Cliente",
   "jojo_ripples.config.screen.page.client.desc": "Se guardan en este equipo.",

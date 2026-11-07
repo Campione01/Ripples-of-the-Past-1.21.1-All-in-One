@@ -192,6 +192,7 @@
   "jojo_ripples.options.client.hamon": "波纹...",
   "jojo_ripples.options.client.vampirism": "吸血鬼",
   "jojo_ripples.config.screen.title": "Ripples of the Past 设置",
+  "jojo_ripples.config.screen.addons": "附属模组",
   "jojo_ripples.config.screen.category": "设置",
   "jojo_ripples.config.screen.page.client": "客户端",
   "jojo_ripples.config.screen.page.client.desc": "保存在这台电脑上。",
