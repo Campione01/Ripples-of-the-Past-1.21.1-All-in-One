@@ -48,9 +48,6 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class CoreStandMotionFixesGameTests {
 	private static final String SP_ANIMS = "stand_skins/star_platinum/assets/jojo_ripples/animations/star_platinum.animation.json";
 	private static final String CD_ANIMS = "stand_skins/crazy_diamond/assets/jojo_ripples/animations/crazy_diamond.animation.json";
-	private static final String[] HEAD_CHAIN = { "stand_pos", "body_rot", "body", "torso", "torso_bend", "head", "head_rot" };
-	private static final float[][] LOOKS = { { 0, 0 }, { 30, 45 }, { -40, -60 } };
-	private static final double HEAD_TOLERANCE = 3;
 	/** Star Platinum's hair is not symmetric in 1.16's icon or in the official's. */
 	private static final List<String> SYMMETRIC_ICONS = List.of("the_world", "crazy_diamond", "gold_experience", "magicians_red",
 			"silver_chariot", "hierophant_green");
@@ -61,20 +58,9 @@ public final class CoreStandMotionFixesGameTests {
 	public static void theBarragesKeepTheHeadOnTheLook(GameTestHelper helper) {
 		for (String asset : List.of(SP_ANIMS, CD_ANIMS)) {
 			JsonObject clip = StandClipPoses116GameTests.readJson(helper, asset).getAsJsonObject("animations").getAsJsonObject("barrage");
-			float end = clip.get("animation_length").getAsFloat();
-			for (float[] look : LOOKS) {
-				double[][] want = StandClipPoses116GameTests.rotationMatrix(new float[] { look[0], look[1], 0 });
-				for (float time = 0; time <= end; time += 0.005F) {
-					double[][] head = StandClipPoses116GameTests.rotationMatrix(new float[3]);
-					for (String bone : HEAD_CHAIN) {
-						head = StandClipPoses116GameTests.multiply(head,
-								StandClipPoses116GameTests.rotationMatrix(StandClipPoses116GameTests.rotationAt(clip, bone, time, look)));
-					}
-					double off = StandClipPoses116GameTests.angleBetween(want, head);
-					helper.assertTrue(off <= HEAD_TOLERANCE, asset + ": the head is " + off + " degrees off the look "
-							+ Arrays.toString(look) + " at " + time + " s");
-				}
-			}
+			// the owner lowered this rule while the trunk moves (為了動作流暢性優先級可以下調): the head may leave the look by its band, as StandHeadLookRuleGameTests holds it
+			double past = StandHeadLookRuleGameTests.worstPastItsBand(clip);
+			helper.assertTrue(past <= 0, asset + ": the head is " + past + " degrees past its band");
 		}
 		helper.succeed();
 	}

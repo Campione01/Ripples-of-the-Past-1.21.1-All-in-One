@@ -26,6 +26,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class StandHeadLookRuleGameTests {
 	private static final String[] HEAD_CHAIN = { "stand_pos", "body_rot", "body", "torso", "torso_bend", "head", "head_rot" };
 	private static final String[] TRUNK_CHAIN = { "stand_pos", "body_rot", "body", "torso", "torso_bend" };
+	private static final String[] HIPS = { "stand_pos", "body_rot", "body" };
+	private static final String[] OVER_HIPS = { "torso", "torso_bend" };
+	private static final double SWAY_CAP = 15;
 	private static final float[][] LOOKS = { { 0, 0 }, { 30, 45 } };
 	private static final double TOLERANCE = 3;
 	// gen_unify.py and gradle/stand-head-look-rule.groovy of the add-on tree: while the trunk moves, the head takes back 0.65 of its turn and may be off by the rest
@@ -65,6 +68,62 @@ public final class StandHeadLookRuleGameTests {
 		helper.assertTrue(measured > 120, "setup: only " + measured + " clips were measured");
 		helper.assertTrue(wrong.isEmpty(), "The head leaves the look: " + wrong);
 		helper.succeed();
+	}
+
+	/** The owner's rule on the barrage's lower body: the sway goes through the hips into the legs, the chest turning over the hips by the cap at most (gen_unify.py rule 8). */
+	@GameTest(template = "empty", timeoutTicks = 200)
+	public static void theCoreBarragesSwayThroughTheHips(GameTestHelper helper) {
+		List<String> wrong = new ArrayList<>();
+		for (String stand : List.of("star_platinum", "the_world", "crazy_diamond", "gold_experience")) {
+			sway(helper, stand, "stand_skins/" + stand + "/assets/jojo_ripples/animations/" + stand + ".animation.json", wrong);
+		}
+		sway(helper, "stand_default", DEFAULT_CLIPS, wrong);
+		helper.assertTrue(wrong.isEmpty(), "The sway does not reach the legs: " + wrong);
+		helper.succeed();
+	}
+
+	private static void sway(GameTestHelper helper, String stand, String asset, List<String> wrong) {
+		JsonObject clip = StandClipPoses116GameTests.readJson(helper, asset).getAsJsonObject("animations").getAsJsonObject("barrage");
+		if (clip == null) {
+			wrong.add(stand + " has no barrage clip");
+			return;
+		}
+		float from = 0;
+		float to = clip.get("animation_length").getAsFloat();
+		for (Map.Entry<String, JsonElement> mark : clip.getAsJsonObject("timeline").entrySet()) {
+			String lines = mark.getValue().toString().replace(" ", "");
+			if (lines.contains("phase=PERFORM")) {
+				from = Float.parseFloat(mark.getKey());
+			}
+			else if (lines.contains("phase=RECOVERY")) {
+				to = Float.parseFloat(mark.getKey());
+			}
+		}
+		double overHips = widest(clip, OVER_HIPS, from, to);
+		double ofHips = widest(clip, HIPS, from, to);
+		double ofChest = widest(clip, TRUNK_CHAIN, from, to);
+		if (overHips > 2 * SWAY_CAP + 1) {
+			wrong.add(stand + ": the chest turns " + overHips + " degrees over its hips");
+		}
+		if (ofChest > 10 && ofHips < 0.4 * ofChest) {
+			wrong.add(stand + ": the chest turns " + ofChest + " degrees and the hips " + ofHips);
+		}
+	}
+
+	private static double widest(JsonObject clip, String[] chain, float from, float to) {
+		float[] look = { 0, 0 };
+		int samples = 24;
+		double[][][] at = new double[samples + 1][][];
+		for (int i = 0; i <= samples; i++) {
+			at[i] = net(clip, chain, from + (to - from) * i / samples, look);
+		}
+		double best = 0;
+		for (int i = 0; i <= samples; i++) {
+			for (int j = i + 1; j <= samples; j++) {
+				best = Math.max(best, StandClipPoses116GameTests.angleBetween(at[i], at[j]));
+			}
+		}
+		return best;
 	}
 
 	private static int measure(GameTestHelper helper, String stand, String asset, List<String> wrong) {
@@ -122,7 +181,7 @@ public final class StandHeadLookRuleGameTests {
 		return window ? hand : null;
 	}
 
-	private static double worstPastItsBand(JsonObject clip) {
+	static double worstPastItsBand(JsonObject clip) {
 		float end = clip.has("animation_length") ? clip.get("animation_length").getAsFloat() : 0;
 		double worst = -TOLERANCE;
 		double[][] restTrunk = StandClipPoses116GameTests.rotationMatrix(new float[3]);
