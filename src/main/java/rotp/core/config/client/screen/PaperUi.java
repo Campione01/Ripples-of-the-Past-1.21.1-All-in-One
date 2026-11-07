@@ -24,6 +24,8 @@ import rotp.core.core.JojoMod;
 /** The paper window's colours, glyphs and text fitting, shared by the settings screen and its dialogs. */
 final class PaperUi {
 	static final int PAPER_LIGHT = 0xFFF8F9FA;
+	// the window sprite's own fill, for what is drawn over the list and must look like the page
+	static final int PAPER = 0xFFEEF0F2;
 	static final int PANEL = 0xFFD1D6E0;
 	static final int LINE = 0xFF989EAB;
 	static final int LINE_SOFT = 0xFFC7CAD4;
@@ -128,7 +130,7 @@ final class PaperUi {
 		for (String segment : path.split("\\.")) {
 			names.add(Language.getInstance().getOrDefault(modId + ".configuration." + segment, ConfigWidgetRules.fallbackName(segment)));
 		}
-		return String.join(" · ", names);
+		return String.join(" / ", names);
 	}
 
 	static Component valueText(ConfigEntry entry, JsonElement value) {

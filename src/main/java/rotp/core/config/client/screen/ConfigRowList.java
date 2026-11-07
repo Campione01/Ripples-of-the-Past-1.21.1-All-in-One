@@ -40,6 +40,11 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 	private static final int REFUSAL_FLASH_MILLIS = 1400;
 
 	private final ConfigScreenHost host;
+	// an open add-on block scrolled past its header keeps the header on top, with the group in view
+	private @Nullable SectionRow pinned;
+	private @Nullable String pinnedGroup;
+	private int pinnedTop;
+	private int mouseYNow;
 
 	public ConfigRowList(Minecraft minecraft, ConfigScreenHost host, int x, int y, int width, int height) {
 		super(minecraft, x, y, width, height, PaperUi.ROW_HEIGHT);
@@ -75,7 +80,7 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 						if (!openBlocks.remove(id)) {
 							openBlocks.add(id);
 						}
-					}));
+					}, id));
 			if (openBlocks.contains(id)) {
 				for (Group group : block.groups()) {
 					if (block.groups().size() > 1 && !group.path().isEmpty()) {
@@ -111,7 +116,123 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 	}
 
 	public @Nullable Row hoveredRow() {
-		return getHovered();
+		return pinnedCovers(mouseYNow) ? null : getHovered();
+	}
+
+	@Override
+	public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+		mouseYNow = mouseY;
+		super.renderWidget(graphics, mouseX, mouseY, partialTick);
+		findPinned();
+		if (pinned != null) {
+			renderPinned(graphics, mouseX, mouseY);
+		}
+	}
+
+	private void findPinned() {
+		pinned = null;
+		pinnedGroup = null;
+		List<Row> rows = children();
+		int first = -1;
+		for (int i = 0; i < rows.size(); i++) {
+			if (getRowTop(i) + itemHeight > getY()) {
+				first = i;
+				break;
+			}
+		}
+		if (first < 0) {
+			return;
+		}
+		int header = -1;
+		for (int i = first; i >= 0; i--) {
+			if (rows.get(i) instanceof SectionRow section) {
+				if (section.blockId == null || !section.open.getAsBoolean() || getRowTop(i) >= getY() - 1) {
+					return;
+				}
+				pinned = section;
+				header = i;
+				break;
+			}
+		}
+		if (pinned == null) {
+			return;
+		}
+		// the group named is the one of the first row the strip leaves mostly in sight; a heading in sight names itself
+		int under = first;
+		while (under + 1 < rows.size() && getRowTop(under) + itemHeight / 2 < getY() + itemHeight) {
+			under++;
+		}
+		for (int i = under - 1; i > header; i--) {
+			if (rows.get(i) instanceof GroupRow group) {
+				pinnedGroup = group.name;
+				break;
+			}
+		}
+		if (rows.get(under) instanceof GroupRow) {
+			pinnedGroup = null;
+		}
+		// the next header pushes this one out rather than sliding under it
+		pinnedTop = getY();
+		for (int i = first + 1; i < rows.size(); i++) {
+			if (rows.get(i) instanceof SectionRow) {
+				pinnedTop = Math.min(getY(), getRowTop(i) - 1 - itemHeight);
+				break;
+			}
+			if (getRowTop(i) > getY() + itemHeight * 2) {
+				break;
+			}
+		}
+	}
+
+	private boolean pinnedCovers(double mouseY) {
+		return pinned != null && mouseY >= getY() && mouseY < pinnedTop + itemHeight;
+	}
+
+	private void renderPinned(GuiGraphics graphics, int mouseX, int mouseY) {
+		Font font = host.font();
+		int left = getRowLeft() - 2;
+		int right = getRowLeft() + getRowWidth() - 2;
+		int top = pinnedTop;
+		int bottom = top + itemHeight;
+		graphics.enableScissor(getX(), getY(), getRight(), getBottom());
+		graphics.fill(getX(), top, getScrollbarPosition(), bottom, PaperUi.PAPER);
+		boolean hot = mouseX >= left && mouseX < right && mouseY >= Math.max(top, getY()) && mouseY < bottom;
+		if (hot) {
+			graphics.fill(left, top, right, bottom, PaperUi.HOVER);
+		}
+		PaperUi.glyph(graphics, Glyph.CHEVRON_DOWN, left + 3, top + 8, PaperUi.INK_SOFT);
+		String title = PaperUi.oneLine(font, pinned.header.getMessage().getString(), right - left - 40);
+		Component shown = Component.literal(title).withStyle(net.minecraft.ChatFormatting.BOLD);
+		PaperUi.text(graphics, font, shown, left + 15, top + 9, PaperUi.INK);
+		int x = left + 15 + font.width(shown);
+		if (pinnedGroup != null) {
+			String group = PaperUi.oneLine(font, "  ·  " + pinnedGroup, right - 18 - x);
+			PaperUi.text(graphics, font, Component.literal(group), x, top + 9, PaperUi.INK_SOFT);
+		}
+		graphics.fill(left, bottom - 1, right, bottom, PaperUi.LINE_SOFT);
+		graphics.fillGradient(getX(), bottom, getScrollbarPosition(), bottom + 4, 0x18000000, 0x00000000);
+		graphics.disableScissor();
+	}
+
+	@Override
+	public boolean mouseClicked(double mouseX, double mouseY, int button) {
+		if (pinnedCovers(mouseY) && isMouseOver(mouseX, mouseY) && mouseX < getScrollbarPosition()) {
+			if (button == 0) {
+				// folding from the pinned header leaves the folded block's header where the pinned one was
+				String id = pinned.blockId;
+				pinned.header.onPress();
+				for (int i = 0; i < children().size(); i++) {
+					if (children().get(i) instanceof SectionRow section && id.equals(section.blockId)) {
+						setScrollAmount(getScrollAmount() + getRowTop(i) - getY());
+						break;
+					}
+				}
+				minecraft.getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
+						net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK, 1.0F));
+			}
+			return true;
+		}
+		return super.mouseClicked(mouseX, mouseY, button);
 	}
 
 	public @Nullable Row rowAt(double mouseX, double mouseY) {
@@ -288,6 +409,7 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 		private final BooleanSupplier open;
 		private final HeaderButton header;
 		private final GlyphButton reset;
+		private final @Nullable String blockId;
 
 		SectionRow(ConfigScreenHost host, String id, List<String> keys, Set<String> collapsed) {
 			this(host, Component.translatableWithFallback(ConfigWidgetRules.SECTION_TEXT + id, ConfigWidgetRules.fallbackName(id)), keys,
@@ -295,13 +417,14 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 						if (!collapsed.remove(id)) {
 							collapsed.add(id);
 						}
-					});
+					}, null);
 		}
 
-		SectionRow(ConfigScreenHost host, Component title, List<String> keys, BooleanSupplier open, Runnable toggle) {
+		SectionRow(ConfigScreenHost host, Component title, List<String> keys, BooleanSupplier open, Runnable toggle, @Nullable String blockId) {
 			this.host = host;
 			this.keys = keys;
 			this.open = open;
+			this.blockId = blockId;
 			this.header = new HeaderButton(title, () -> {
 				toggle.run();
 				host.rowsChanged();
@@ -410,12 +533,14 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 				int mouseX, int mouseY, boolean hovering, float partialTick) {
 			Font font = host.font();
 			String text = Component.translatableWithFallback("jojo_ripples.config.screen.addons", "Add-ons").getString();
-			int right = left + width - 4;
-			int textX = left + (right - left - font.width(text)) / 2;
-			int lineY = top + 11;
-			graphics.fill(left + 2, lineY, textX - 6, lineY + 1, PaperUi.LINE);
-			graphics.fill(textX + font.width(text) + 6, lineY, right - 2, lineY + 1, PaperUi.LINE);
-			PaperUi.text(graphics, font, Component.literal(text), textX, top + 7, PaperUi.INK_SOFT);
+			// the same span as a section's line, so the two read as one page
+			int lineLeft = left + 1;
+			int lineRight = left + width - 20;
+			int textX = lineLeft + (lineRight - lineLeft - font.width(text)) / 2;
+			int lineY = top + 13;
+			graphics.fill(lineLeft, lineY, textX - 6, lineY + 1, PaperUi.LINE);
+			graphics.fill(textX + font.width(text) + 6, lineY, lineRight, lineY + 1, PaperUi.LINE);
+			PaperUi.text(graphics, font, Component.literal(text), textX, top + 9, PaperUi.INK_SOFT);
 		}
 
 		@Override
@@ -436,6 +561,7 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 
 	/** A group inside an add-on's block: lighter than a section, and it folds nothing. */
 	static final class GroupRow extends Row {
+		private static final int GROUP_LINE = 0xFFDDE0E6;
 		private final ConfigScreenHost host;
 		private final String name;
 
@@ -448,9 +574,10 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 		public void render(GuiGraphics graphics, int index, int top, int left, int width, int height,
 				int mouseX, int mouseY, boolean hovering, float partialTick) {
 			Font font = host.font();
-			String shown = PaperUi.oneLine(font, name, width - 12);
-			PaperUi.text(graphics, font, Component.literal(shown), left + 3, top + 9, PaperUi.ACCENT);
-			graphics.fill(left + 3, top + 19, left + 3 + font.width(shown), top + 20, PaperUi.ACCENT_FILL);
+			String shown = PaperUi.oneLine(font, name, width - 40);
+			PaperUi.text(graphics, font, Component.literal(shown), left + 3, top + 10, PaperUi.INK_SOFT);
+			int lineX = left + 3 + font.width(shown) + 5;
+			graphics.fill(lineX, top + 14, left + width - 20, top + 15, GROUP_LINE);
 		}
 
 		@Override
