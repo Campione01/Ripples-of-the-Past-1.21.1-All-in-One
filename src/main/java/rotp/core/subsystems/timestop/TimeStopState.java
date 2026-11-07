@@ -686,7 +686,15 @@ public class TimeStopState {
             restoreTimeStopGamerulesIfNoActiveInstances();
             syncRemovedInstanceToAll(id);
             updateAllPlayerAwareness();
+            pruneViewersIfNoStopLeft();
             ModEventHooks.onTimeStopRemoved(level, removed, reason);
+        }
+    }
+
+    // a viewer gone before the last stop ended meets neither the awareness pass above nor the data sync, which needs a stop
+    private void pruneViewersIfNoStopLeft() {
+        if (instances.isEmpty() && !playersVisionFrozen.isEmpty()) {
+            pruneFrozenVisionPlayers();
         }
     }
 
@@ -805,6 +813,7 @@ public class TimeStopState {
         if (!instances.isEmpty() && !playersVisionFrozen.isEmpty()) {
             manualEntitiesDataSync();
         }
+        pruneViewersIfNoStopLeft();
         for (PendingRemoval removal : pendingRemovals) {
             ModEventHooks.onTimeStopRemoved(
                     level, removal.instance(), removal.reason());
@@ -1468,6 +1477,12 @@ public class TimeStopState {
         TimeStopState state = serverLevel.getData(attachmentType);
         return !state.instances.isEmpty() && state.isTimeStopped(new ChunkPos(pos))
                 && state.redstoneHold.hold(receiver, pos, source, sourcePos, movedByPiston);
+    }
+
+    /** How many entities' data changes wait for a frozen viewer. */
+    @ApiStatus.Internal
+    public int heldEntityDataCount() {
+        return dirtyEntityData.size();
     }
 
     /** The held neighbour updates' blocks, in the order they will run. */

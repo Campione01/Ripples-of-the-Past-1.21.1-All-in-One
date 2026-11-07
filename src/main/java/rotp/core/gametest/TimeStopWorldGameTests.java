@@ -142,6 +142,42 @@ public final class TimeStopWorldGameTests {
 		helper.succeed();
 	}
 
+	/**
+	 * A frozen viewer logs out on the last tick of the last stop, so neither the awareness pass nor the data sync meets it
+	 * again: its name must not stay behind and keep the index taking every entity's data writes with no stop running.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 20, batch = GameTestBatches.WORLD_VIEWER_LEFT)
+	public static void aViewerGoneBeforeTheLastStopEndedLeavesNoDirtyIndex(GameTestHelper helper) {
+		Scene s = start(helper);
+		ArmorStand actor = helper.spawn(EntityType.ARMOR_STAND, 3, 2, 2);
+		Vec3 at = Vec3.atBottomCenterOf(s.abs(2, 2, 2));
+		for (boolean expires : List.of(true, false)) {
+			FakePlayer viewer = new FakePlayer(s.level, new GameProfile(UUID.randomUUID(), "GoneDataViewer"));
+			try {
+				viewer.moveTo(at.x, at.y, at.z);
+				s.level.addNewPlayer(viewer);
+				int stop = s.stop(expires ? 1 : 200, 0);
+				helper.assertTrue(!s.state.canPlayerSeeAndMove(viewer).canSee(), "The observer did not enter frozen vision");
+				s.level.removePlayerImmediately(viewer, Entity.RemovalReason.UNLOADED_WITH_PLAYER);
+				if (expires) {
+					s.state.tickLifecycle();
+				}
+				else {
+					s.state.removeInstance(stop);
+				}
+				helper.assertTrue(s.state.getInstance(stop).isEmpty(), "Expected the last stop to be over");
+				actor.setCustomName(Component.literal("after the last stop, expired " + expires));
+				helper.assertTrue(s.state.heldEntityDataCount() == 0,
+						"With no stop running a gone viewer kept the dirty index growing, expired " + expires + ": "
+								+ s.state.heldEntityDataCount());
+			}
+			finally {
+				viewer.discard();
+			}
+		}
+		helper.succeed();
+	}
+
 	@GameTest(template = "empty", timeoutTicks = 450, batch = GameTestBatches.WORLD_RANGE_COST)
 	public static void timeStopRangeCostInLoadedWorld(GameTestHelper helper) {
 		Scene s = start(helper);
