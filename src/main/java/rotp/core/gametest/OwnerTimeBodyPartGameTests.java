@@ -54,6 +54,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class OwnerTimeBodyPartGameTests {
 	private static final String SLOWED = "jojo_ripples_gametest_owner_time_slowed";
+	private static final String BEING_SLOWED = "jojo_ripples_gametest_owner_time_being_slowed";
 	private static final String SPED_UP = "jojo_ripples_gametest_owner_time_sped_up";
 	private static final String ZOOM_PUNCH = "zoom_punch";
 	private static final int COOLDOWN = 14;
@@ -69,6 +70,9 @@ public final class OwnerTimeBodyPartGameTests {
 			if (channel == EntityTimeRates.Channel.STAND_ACTIONS) {
 				return entity.getTags().contains(SLOWED) ? 1.0F / 3.0F
 						: entity.getTags().contains(SPED_UP) ? 3.0F : EntityTimeRates.NO_RATE;
+			}
+			if (channel == EntityTimeRates.Channel.BEING && entity.getTags().contains(BEING_SLOWED)) {
+				return 0.5F;
 			}
 			if (channel == EntityTimeRates.Channel.ENTITY_TICK && entity instanceof OwnerBoundProjectileEntity part) {
 				LivingEntity owner = part.getOwner();
@@ -217,8 +221,16 @@ public final class OwnerTimeBodyPartGameTests {
 	private static void lastsInItsOwnersTime(GameTestHelper helper, LivingEntity user, String what,
 			Supplier<OwnerBoundProjectileEntity> make, Consumer<OwnerBoundProjectileEntity> place) {
 		int control = serverTicksOut(helper, make, place, what);
+		user.addTag(BEING_SLOWED);
+		int beingSlowed = serverTicksOut(helper, make, place, what + " with a BEING-only slowdown");
+		helper.assertTrue(Math.abs(beingSlowed - 2 * control) <= 2,
+				what + " follows the mob user's BEING-only rate of 1/2: " + beingSlowed + " server ticks against " + control);
 		user.addTag(SLOWED);
+		int bothSlowed = serverTicksOut(helper, make, place, what + " with both slowdowns");
+		user.removeTag(BEING_SLOWED);
 		int slowed = serverTicksOut(helper, make, place, what + " at 1/3");
+		helper.assertTrue(bothSlowed == slowed, what + " uses the slower of 1/2 and 1/3, not their product: "
+				+ bothSlowed + " server ticks against " + slowed + " at 1/3 alone");
 		user.removeTag(SLOWED);
 		user.addTag(SPED_UP);
 		int fast = serverTicksOut(helper, make, place, what + " at 3");
