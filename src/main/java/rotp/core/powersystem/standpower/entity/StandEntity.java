@@ -232,9 +232,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	private Optional<Entity> barrageClashOpponent = Optional.empty();
 	private int lastStandSwingTick;
 	private boolean alternateAdditionalSwing;
-	// Per light punch, the first or second punch of its combo this Stand played last. Neither saved nor synced: the server and the
+	// Per light punch, the punch of its combo this Stand played last. Neither saved nor synced: the server and the
 	// user's client both run every punch action, and each fills it from those.
-	private final Map<String, String> lastOpeningPunch = new HashMap<>();
+	private final Map<String, String> lastComboPunch = new HashMap<>();
 	private static final Map<LivingEntity, StandAttackInvulState> STAND_ATTACK_INVUL = Collections.synchronizedMap(new WeakHashMap<>());
 	
 	public ClientStandEntityStuff clientStuff;
@@ -1388,13 +1388,13 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		return !usesSilverChariotRapierHand();
 	}
 
-	public void rememberOpeningPunch(String punchName, String openingName) {
-		lastOpeningPunch.put(punchName, openingName);
+	public void rememberComboPunch(String punchName, String playedName) {
+		lastComboPunch.put(punchName, playedName);
 	}
 
 	@Nullable
-	public String lastOpeningPunch(String punchName) {
-		return lastOpeningPunch.get(punchName);
+	public String lastComboPunch(String punchName) {
+		return lastComboPunch.get(punchName);
 	}
 
 	public void applySyncedPunchingHand(InteractionHand hand) {

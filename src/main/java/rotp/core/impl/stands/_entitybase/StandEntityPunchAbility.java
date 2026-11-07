@@ -331,7 +331,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 			playedStandCrySound = false;
 			if (performer instanceof StandEntity stand) {
 				if (ability instanceof StandEntityPunchAbility punch) {
-					punch.rememberIfOpening(stand);
+					punch.rememberComboPunch(stand);
 				}
 				// a failed input that puts this punch back keeps its hand
 				if (stand.level().isClientSide() || isRestoringInputLifecycle()) {
@@ -1596,17 +1596,17 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	}
 
 	/**
-	 * A press after the combo window has run out plays one of the first two punches, the one the Stand did not play last, so the arms
-	 * keep taking turns however slowly the player clicks. The third and fourth punch are reached only by quick presses. A locked
-	 * punch is skipped for the other of the two; with both locked the press falls to the whole combo.
-	 * Which arm a clip swings is not known here (the clips are the skin's own data, read by the client's renderer), so after a chain
-	 * that ended on the third or fourth punch it is the one of the two not played last, not one picked by the clip's arm.
+	 * A press after the combo window has run out plays one of the first two punches, so the arms keep taking turns however slowly the
+	 * player clicks: the one the Stand did not play last, and after a chain that ended on the third or fourth punch the second, as those
+	 * swing the first punch's arm on most skins. The third and fourth punch are reached only by quick presses. A locked punch is
+	 * skipped for the other of the two; with both locked the press falls to the whole combo.
 	 */
 	@Nullable
 	private Ability getSlowPressPunch(StandPower standPower, @Nullable StandEntity standEntity, String baseName, List<String> punchNames) {
 		if (punchNames.size() < 2) return null;
-		String last = standEntity != null ? standEntity.lastOpeningPunch(baseName) : null;
-		int first = punchNames.get(0).equals(last) ? 1 : 0;
+		String last = standEntity != null ? standEntity.lastComboPunch(baseName) : null;
+		int lastIndex = last != null ? punchNames.indexOf(last) : -1;
+		int first = lastIndex == 0 || lastIndex >= 2 ? 1 : 0;
 		Moveset moveset = standPower.getMoveset();
 		for (int i = 0; i < 2; i++) {
 			Ability opening = moveset.getAbility(punchNames.get((first + i) % 2));
@@ -1617,13 +1617,11 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		return null;
 	}
 
-	private void rememberIfOpening(StandEntity stand) {
+	private void rememberComboPunch(StandEntity stand) {
 		String name = name();
 		if (name == null || usageGroup != AbilityUsageGroup.COMBAT) return;
 		String punch = comboPunchName != null ? comboPunchName : isSubAbility ? name.replaceAll("\\d+$", "") : name;
-		if (name.equals(punch) || name.equals(punch + "2")) {
-			stand.rememberOpeningPunch(punch, name);
-		}
+		stand.rememberComboPunch(punch, name);
 	}
 
 	private static List<String> getComboPunchNames(Moveset moveset, String baseName) {
