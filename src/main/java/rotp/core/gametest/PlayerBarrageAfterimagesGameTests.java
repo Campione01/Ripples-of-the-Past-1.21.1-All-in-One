@@ -15,12 +15,10 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import rotp.core.client.entityanim.barrage.AfterimageArmRoll;
 import rotp.core.client.entityanim.barrage.AfterimageBodyTwist;
 import rotp.core.core.JojoMod;
 
@@ -51,7 +49,6 @@ public final class PlayerBarrageAfterimagesGameTests {
 	private static final String MODEL_PART = "net/minecraft/client/model/geom/ModelPart";
 	private static final String TWIST = "rotp/core/client/entityanim/barrage/AfterimageBodyTwist";
 	private static final String TWO_HANDED = "rotp/core/client/entityanim/barrage/TwoHandedBarrageLoopSwing";
-	private static final String ARM_ROLL = "rotp/core/client/entityanim/barrage/AfterimageArmRoll";
 	private static final String ANIM = "rotp/core/client/entityanim/RotpAnimDefinition";
 	private static final String CLOCK = ANIM + "$ClipClock";
 	private static final float HIP_PIVOT_Y = 12 / 16F;
@@ -193,43 +190,24 @@ public final class PlayerBarrageAfterimagesGameTests {
 	}
 
 	/**
-	 * 1.16 ArmBarrageSwing passes its random roll to animateSwing; ArmsBarrageAnimation.animateSwing (the player's) drops
-	 * it, and only StandTwoHandedBarrageAnimation.animateSwing adds it to the arm's zRot.
+	 * The owner asked for the Ultimate Lifeform's straight arms on every Stand, as 1.16 drew a player's afterimage arm
+	 * (ArmsBarrageAnimation.animateSwing drops the spread's roll). 1.16's roll on Stand arms is gone: between the clip's pose
+	 * and the draw, the arm's zRot is written once, from the clip.
 	 */
 	@GameTest(template = "empty", timeoutTicks = 20)
-	public static void playerAfterimageArmsGetNoSpreadRoll(GameTestHelper helper) {
-		// the widest roll of a player's spread (0.625) at the middle of the swing, and two more points
-		float[][] swings = { { 1.0F, Mth.PI }, { 0.5F, -2.1F }, { 0.25F, 0.7F } };
-		for (float[] swing : swings) {
-			float player = AfterimageArmRoll.of(true, swing[0], swing[1]);
-			helper.assertTrue(player == 0.0F, "1.16 does not roll a player's afterimage arm by its spread offset, the port adds "
-					+ deg(player) + " deg to the arm's zRot (swing amount " + swing[0] + ", roll offset " + deg(swing[1]) + " deg)");
-			float stand = AfterimageArmRoll.of(false, swing[0], swing[1]);
-			helper.assertTrue(Math.abs(stand - swing[0] * swing[1]) < 1.0E-6F,
-					"1.16 rolls a Stand's afterimage arm by swing amount x roll offset = " + deg(swing[0] * swing[1])
-							+ " deg, the port adds " + deg(stand) + " deg");
-		}
-
+	public static void afterimageArmsGetNoSpreadRoll(GameTestHelper helper) {
 		MethodNode swing = method(classNode(TWO_HANDED), "poseAndRender");
-		int animate = index(swing, firstCall(swing, ANIM, "animate"));
-		int roll = index(swing, firstCall(swing, ARM_ROLL, "of"));
-		int render = index(swing, firstCall(swing, MODEL_PART, "render"));
-		helper.assertTrue(animate < roll && roll < render,
-				"the afterimage arm's spread roll must come from AfterimageArmRoll, after the clip pose and before the draw");
-		boolean asksForPlayerModel = false;
-		for (AbstractInsnNode insn = swing.instructions.get(animate); insn != swing.instructions.get(roll); insn = insn.getNext()) {
-			asksForPlayerModel |= insn instanceof TypeInsnNode type && type.getOpcode() == Opcodes.INSTANCEOF && type.desc.equals(BEND_MODEL);
-		}
-		helper.assertTrue(asksForPlayerModel, "poseAndRender must tell AfterimageArmRoll whether the model is the player's");
-		int otherRollWrites = 0;
-		for (AbstractInsnNode insn = swing.instructions.get(roll); insn != null; insn = insn.getNext()) {
+		AbstractInsnNode animate = firstCall(swing, ANIM, "animate");
+		AbstractInsnNode render = firstCall(swing, MODEL_PART, "render");
+		int zRotWrites = 0;
+		for (AbstractInsnNode insn = animate; insn != render; insn = insn.getNext()) {
 			if (insn instanceof FieldInsnNode field && field.getOpcode() == Opcodes.PUTFIELD
 					&& field.owner.equals(MODEL_PART) && field.name.equals("zRot")) {
-				otherRollWrites++;
+				zRotWrites++;
 			}
 		}
-		helper.assertTrue(otherRollWrites == 1, "poseAndRender must not add another roll after AfterimageArmRoll: "
-				+ otherRollWrites + " zRot writes");
+		helper.assertTrue(zRotWrites == 1, "the afterimage arm must keep the clip's zRot and take no spread roll: "
+				+ zRotWrites + " zRot writes");
 		helper.succeed();
 	}
 
