@@ -33,6 +33,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.subsystems.target.ActionTarget;
+import rotp.core.subsystems.target.HitResultUtil;
 
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
@@ -73,6 +74,7 @@ public final class StandMeleeReachGameTests {
 		WITHIN_BASE_REACH(8.0D, "punch"),
 		IN_THE_MARGIN(11.5D, "punch"),
 		PAST_THE_MARGIN(13.5D, "punch"),
+		PAST_THE_MARGIN_IN_THE_AIM_HITBOX(13.1D, "punch"),
 		BARRAGE(8.0D, "barrage"),
 		BLOCK_REACH_MOD(14.3D, "punch"),
 		ENTITY_REACH_MOD(14.3D, "punch"),
@@ -94,7 +96,8 @@ public final class StandMeleeReachGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 400, batch = "rotp_t2_melee_reach")
 	public static void theWorldStrikesAMobItsUserAimsAtPastItsUsersReachWeakerInTheMargin(GameTestHelper helper) {
-		Run run = new Run(helper, List.of(Row.WITHIN_BASE_REACH, Row.IN_THE_MARGIN, Row.PAST_THE_MARGIN, Row.BARRAGE));
+		Run run = new Run(helper, List.of(Row.WITHIN_BASE_REACH, Row.IN_THE_MARGIN, Row.PAST_THE_MARGIN,
+				Row.PAST_THE_MARGIN_IN_THE_AIM_HITBOX, Row.BARRAGE));
 		helper.onEachTick(run::tick);
 	}
 
@@ -447,6 +450,17 @@ public final class StandMeleeReachGameTests {
 					check(loss == 0, "the punch hit the cow " + fromEyes + " from its user's eyes, past the 12.5 it reaches");
 					check(away <= StandMeleeReach.AWAY_DISTANCE && stand.canStartBlocking(), "the Stand flew out or could not"
 							+ " guard with no target: it is " + away + " from its user");
+				}
+				case PAST_THE_MARGIN_IN_THE_AIM_HITBOX -> {
+					double max = StandMeleeReach.maxReach(stand, user, false);
+					Vec3 eyes = user.getEyePosition();
+					boolean inHitbox = HitResultUtil.standPrecisionTargetHitbox(cow.getBoundingBox().inflate(cow.getPickRadius()),
+							stand.getPrecision()).clip(eyes, eyes.add(user.getLookAngle().scale(max))).isPresent();
+					check(fromEyes > max && inHitbox, "fixture: the cow " + fromEyes + " from the eyes must be past the " + max
+							+ " it reaches, with its grown hitbox on the ray: " + inHitbox);
+					ActionTarget pick = StandEntityPunchAbility.strikeAim(stand, ActionTarget.EMPTY, StandEntityPunchAbility.CrosshairRule.NONE);
+					check(pick.getType() != ActionTarget.TargetType.ENTITY, "the aim assist picked the cow past the reach through its grown hitbox");
+					check(loss == 0, "the punch hit the cow past the reach: " + loss);
 				}
 				case BLOCK_REACH_MOD, ENTITY_REACH_MOD -> {
 					check(fromEyes > 12.5D && fromEyes <= 15.0D && loss > 0
