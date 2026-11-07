@@ -129,6 +129,12 @@ public final class StandMeleeReachGameTests {
 			entities.addTransientModifier(new AttributeModifier(REACH_MODIFIER, 2.0D, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
 			helper.assertTrue(StandEntityPunchAbility.userAimReach(scene.user, scene.stand) == 11.0D,
 					"A mod multiplying entity reach must not also multiply Creative's bonus");
+			blocks.addTransientModifier(new AttributeModifier(REACH_MODIFIER, 1.0D, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+			helper.assertTrue(StandEntityPunchAbility.userAimReach(scene.user, scene.stand) == 11.0D,
+					"Two simultaneous mods must use the larger bonus, not the sum");
+			entities.removeModifier(REACH_MODIFIER);
+			helper.assertTrue(StandEntityPunchAbility.userAimReach(scene.user, scene.stand) == 9.5D,
+					"Removing the larger bonus must reveal the remaining live block bonus");
 		}
 		helper.succeed();
 	}

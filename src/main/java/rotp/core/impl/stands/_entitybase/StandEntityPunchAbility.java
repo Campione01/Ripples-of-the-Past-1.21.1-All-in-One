@@ -47,6 +47,7 @@ import rotp.core.subsystems.target.AimingEntity;
 import rotp.core.subsystems.target.HitResultUtil;
 import rotp.core.subsystems.target.StandPrecisionRay;
 import rotp.core.subsystems.target.ActionTarget.TargetType;
+import rotp.core.util.functions.AttributeUtil;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.compat.v1_21_4.missingmethods._EntitySelector;
 
@@ -1260,7 +1261,10 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		}
 		double userReach = userAimReach(user, stand);
 		double reach = StandMeleeReach.maxReach(stand, user, false);
-		Predicate<Entity> pastUserReach = canTarget.and(entity -> StandMeleeReach.userDistance(user, entity) > userReach);
+		Predicate<Entity> pastUserReach = canTarget.and(entity -> {
+			double distance = StandMeleeReach.userDistance(user, entity);
+			return distance > userReach && distance <= reach;
+		});
 		ActionTarget far = precisionRay
 				? StandPrecisionRay.closestWithPriority(StandPrecisionRay.clipTargets(user, reach, pastUserReach, 0,
 						stand.getPrecision(), true))
@@ -1465,7 +1469,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	 */
 	public static double userAimReach(LivingEntity user, StandEntity stand) {
 		AttributeInstance reach = user.getAttribute(Attributes.BLOCK_INTERACTION_RANGE);
-		if (user instanceof Player && StandMeleeReach.usesMeleeReach(stand)) {
+		if (user instanceof Player && stand != null && StandMeleeReach.usesMeleeReach(stand)) {
 			AttributeInstance entityReach = user.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
 			double blockBonus = reach == null ? 0 : reachWithoutCreative(reach, CREATIVE_BLOCK_RANGE) - 4.5D;
 			double entityBonus = entityReach == null ? 0 : reachWithoutCreative(entityReach, CREATIVE_ENTITY_RANGE) - 3.0D;
@@ -1481,28 +1485,9 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	}
 
 	private static double reachWithoutCreative(AttributeInstance reach, ResourceLocation creativeId) {
-		if (reach.getModifier(creativeId) == null) {
-			return reach.getValue();
-		}
 		// Creative is additive before modded multipliers, not a subtraction from the final value.
-		double base = reach.getBaseValue();
-		for (AttributeModifier modifier : reach.getModifiers(AttributeModifier.Operation.ADD_VALUE).values()) {
-			if (!modifier.id().equals(creativeId)) {
-				base += modifier.amount();
-			}
-		}
-		double value = base;
-		for (AttributeModifier modifier : reach.getModifiers(AttributeModifier.Operation.ADD_MULTIPLIED_BASE).values()) {
-			if (!modifier.id().equals(creativeId)) {
-				value += base * modifier.amount();
-			}
-		}
-		for (AttributeModifier modifier : reach.getModifiers(AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL).values()) {
-			if (!modifier.id().equals(creativeId)) {
-				value *= 1.0D + modifier.amount();
-			}
-		}
-		return reach.getAttribute().value().sanitizeValue(value);
+		return reach.getModifier(creativeId) == null
+				? reach.getValue() : AttributeUtil.calcValueWithoutModifiers(reach, creativeId);
 	}
 
 	public static boolean canStandHit(StandEntity stand, Entity target) {
