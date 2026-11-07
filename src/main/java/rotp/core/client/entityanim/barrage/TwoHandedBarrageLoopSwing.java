@@ -31,6 +31,7 @@ public class TwoHandedBarrageLoopSwing extends BarrageSwing {
 	protected final HumanoidArm side;
 	protected final Vec3 offset;
 	protected final float zRot;
+	private final boolean keepsRoll;
 	
 	public static float loopLen = 4;
 
@@ -48,6 +49,7 @@ public class TwoHandedBarrageLoopSwing extends BarrageSwing {
 		double atan = Mth.atan2(upOffset, leftOffset);
 		zRot = maxOffset == 0 ? 0 : MathUtil.wrapRadians((float) (Math.PI / 2 - atan));
 		offset = new Vec3(leftOffset, upOffset, frontOffset);
+		keepsRoll = entity instanceof StandEntity stand && AfterimageArmRoll.keptBy(stand.getStandType());
 	}
 
 	public static void addSwings(BarrageSwings swings, RotpAnimDefinition barrageAnim, 
@@ -67,7 +69,7 @@ public class TwoHandedBarrageLoopSwing extends BarrageSwing {
 				for (int i = 0; i < swingsToAdd; i++) {
 				float x = ((float) i + (RANDOM.nextFloat() - 0.5F) * 0.4F) / swingsToAdd;
 					float f = x * loopLen * 0.5F;
-					float addTime = (side == HumanoidArm.LEFT ? loopLen * 0.5f : 0) + (animTimeSecs - animTimeSecs % loopLen);
+					float addTime = strokeAtMiddle(barrageAnim, entity, side, animTimeSecs);
 					swings.barrageSwings.add(new TwoHandedBarrageLoopSwing(
 							barrageAnim, entity, f, loopLen, side, maxOffset, addTime));
 					side = side.getOpposite();
@@ -75,6 +77,22 @@ public class TwoHandedBarrageLoopSwing extends BarrageSwing {
 			}
 		}
 		swings.loopLast = loop;
+	}
+
+	/**
+	 * A Stand's swing shows its arm's fist furthest out at its middle, when the swing is furthest out too: the clip's own
+	 * arm keys say when that is. A clip without a stroke of that arm, and a player's clip, keep the 1.16 reckoning: a
+	 * stroke every 4 ticks, right arm first.
+	 */
+	private static float strokeAtMiddle(RotpAnimDefinition barrageAnim, LivingEntity entity, HumanoidArm side, float animTimeSecs) {
+		float middle = loopLen * 0.5F;
+		if (entity instanceof StandEntity) {
+			float stroke = barrageAnim.armStrokeSeconds(side, barrageAnim.clock.elapsed(middle));
+			if (!Float.isNaN(stroke)) {
+				return stroke * 20 / barrageAnim.clock.speed - middle;
+			}
+		}
+		return (side == HumanoidArm.LEFT ? middle : 0) + (animTimeSecs - animTimeSecs % loopLen);
 	}
 
 	private static boolean isPerformingBarrage(LivingEntity entity) {
@@ -94,8 +112,8 @@ public class TwoHandedBarrageLoopSwing extends BarrageSwing {
 	public void poseAndRender(EntityModel<?> model, 
 			PoseStack poseStack, VertexConsumer buffer, 
 			int packedLight, int packedOverlay, int color, float xRot) {
-		BarrageSwings.resetStandPoseForBarrage(model);
-		if (!BarrageSwings.setOnlyOneArmVisible(model, side)) {
+		AfterimageArm standArm = BarrageSwings.standArm(model, side);
+		if (standArm == null && !BarrageSwings.setOnlyOneArmVisible(model, side)) {
 			return;
 		}
 		float loopCompletion = ticks / ticksMax;
@@ -116,16 +134,25 @@ public class TwoHandedBarrageLoopSwing extends BarrageSwing {
 		float seconds = barrageAnim.clock.pingPong
 				? barrageAnim.clock.afterimageSeconds(loopCompletion, side == HumanoidArm.RIGHT)
 				: barrageAnim.getAnimTime(animState);
-		barrageAnim.animate(model, molangVariables, null, seconds, 1);
+		if (standArm != null) {
+			standArm.pose(barrageAnim, molangVariables, seconds);
+		}
+		else {
+			barrageAnim.animate(model, molangVariables, null, seconds, 1);
+		}
 		ModelPart arm = BarrageSwings.getNoXRotArm(model, side);
 		// 1.16 KosmXPlayerBarrageAnim: afterimage arms follow the look pitch as well
 		Vector3f armAngles = new Vector3f(arm.xRot, arm.yRot, arm.zRot);
 		ArmsFollowPitch.tiltArms(barrageAnim.instructionTimelines, xRot, armAngles, null);
+		// a Stand's clip turns the arm with the look through an xrot bone, which a suit worn on a player's model does not have
+		if (model instanceof IPlayerBendModel && barrageAnim.boneChannels(side == HumanoidArm.LEFT ? "left_arm_xrot" : "right_arm_xrot") != null) {
+			ArmsFollowPitch.rotateAngles(armAngles, xRot * MathUtil.DEG_TO_RAD);
+		}
 		arm.xRot = armAngles.x;
 		arm.yRot = armAngles.y;
 		arm.zRot = armAngles.z;
 		
-		arm.zRot += AfterimageArmRoll.of(model instanceof IPlayerBendModel, swingAmount, zRot);
+		arm.zRot += AfterimageArmRoll.of(model instanceof IPlayerBendModel || !keepsRoll, swingAmount, zRot);
 		
 		// a Stand model turns its arms with its own body bone; the player's body bone is outside the model
 		if (model instanceof IPlayerBendModel bends) {
@@ -134,7 +161,8 @@ public class TwoHandedBarrageLoopSwing extends BarrageSwing {
 		
 		// XXX (barrage anim) some layers are not translucent (armor, clothes, mannequin model, etc.)
 		color = RGBUtil.scaleAlpha(color, 0.75F);
-		((Model_1_21_2plus) model).jojo_ripples$root().render(poseStack, buffer, packedLight, packedOverlay, color);
+		ModelPart drawn = standArm != null ? standArm.enter(poseStack) : ((Model_1_21_2plus) model).jojo_ripples$root();
+		drawn.render(poseStack, buffer, packedLight, packedOverlay, color);
 		poseStack.popPose();
 	}
 }
