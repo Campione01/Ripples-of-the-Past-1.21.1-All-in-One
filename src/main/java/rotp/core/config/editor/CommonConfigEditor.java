@@ -29,7 +29,7 @@ public final class CommonConfigEditor {
 	// These are the fields sent by JojoModConfig.Common.SyncedValues, not a new sync policy.
 	private static final Set<String> SYNCED = Set.of(
 			"keepStandOnDeath", "keepVampirismOnDeath", "keepHamonOnDeath", "dropStandDisc",
-			"skipStandProgression", "resolveLvlPoints", "timeStopChunkRange", "standPowerMultiplier",
+			"skipStandProgression", "resolveLvlPoints", "timeStopChunkRange", "timeStopChargeSeconds", "standPowerMultiplier",
 			"standResistanceMultiplier", "standBodyThroughWalls", "hamonPointsMultiplier",
 			"breathingTrainingMultiplier", "breathingTrainingDeterioration", "breathingHamonStatGap",
 			"hamonEnergyTicksDown", "mixHamonTechniques", "techniqueSkillRequirements", "maxBloodMultiplier",
