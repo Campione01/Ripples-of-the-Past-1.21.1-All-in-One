@@ -3,6 +3,7 @@ package rotp.core.config.client.screen;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 import javax.annotation.Nullable;
 
@@ -30,6 +31,8 @@ import rotp.core.config.editor.ConfigEntry;
 import rotp.core.config.editor.CoreConfigPresets;
 import rotp.core.config.editor.client.ConfigStore;
 import rotp.core.config.editor.client.ConfigWidgetRules;
+import rotp.core.config.editor.client.ConfigWidgetRules.Block;
+import rotp.core.config.editor.client.ConfigWidgetRules.Group;
 import rotp.core.config.editor.client.ConfigWidgetRules.Section;
 
 /** The rows of one settings tab. Rows hold keys, not values: each frame they read what the store has accepted. */
@@ -43,7 +46,7 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 		this.host = host;
 	}
 
-	public void rebuild(ConfigEntry.Side side, Set<String> collapsed) {
+	public void rebuild(ConfigEntry.Side side, Set<String> collapsed, Set<String> openBlocks) {
 		double scroll = getScrollAmount();
 		ConfigStore store = host.store();
 		List<Row> rows = new ArrayList<>();
@@ -58,6 +61,28 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 			rows.add(new SectionRow(host, section.id(), keys, collapsed));
 			if (!collapsed.contains(section.id())) {
 				section.entries().forEach(entry -> rows.add(new SettingRow(host, entry)));
+			}
+		}
+		List<Block> blocks = ConfigWidgetRules.blocks(store.entries(), PaperUi::blockName);
+		if (!blocks.isEmpty()) {
+			rows.add(new DividerRow(host));
+		}
+		for (Block block : blocks) {
+			// the same add-on's two pages have different owners, and each keeps its own fold
+			String id = side + "/" + block.modId();
+			rows.add(new SectionRow(host, Component.literal(PaperUi.blockName(block.modId())), block.keys(),
+					() -> openBlocks.contains(id), () -> {
+						if (!openBlocks.remove(id)) {
+							openBlocks.add(id);
+						}
+					}));
+			if (openBlocks.contains(id)) {
+				for (Group group : block.groups()) {
+					if (block.groups().size() > 1 && !group.path().isEmpty()) {
+						rows.add(new GroupRow(host, PaperUi.groupName(block.modId(), group.path())));
+					}
+					group.entries().forEach(entry -> rows.add(new SettingRow(host, entry)));
+				}
 			}
 		}
 		replaceEntries(rows);
@@ -259,22 +284,26 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 
 	static final class SectionRow extends Row {
 		private final ConfigScreenHost host;
-		private final String id;
 		private final List<String> keys;
-		private final Set<String> collapsed;
+		private final BooleanSupplier open;
 		private final HeaderButton header;
 		private final GlyphButton reset;
 
 		SectionRow(ConfigScreenHost host, String id, List<String> keys, Set<String> collapsed) {
+			this(host, Component.translatableWithFallback(ConfigWidgetRules.SECTION_TEXT + id, ConfigWidgetRules.fallbackName(id)), keys,
+					() -> !collapsed.contains(id), () -> {
+						if (!collapsed.remove(id)) {
+							collapsed.add(id);
+						}
+					});
+		}
+
+		SectionRow(ConfigScreenHost host, Component title, List<String> keys, BooleanSupplier open, Runnable toggle) {
 			this.host = host;
-			this.id = id;
 			this.keys = keys;
-			this.collapsed = collapsed;
-			Component title = Component.translatableWithFallback(ConfigWidgetRules.SECTION_TEXT + id, ConfigWidgetRules.fallbackName(id));
+			this.open = open;
 			this.header = new HeaderButton(title, () -> {
-				if (!collapsed.remove(id)) {
-					collapsed.add(id);
-				}
+				toggle.run();
 				host.rowsChanged();
 			});
 			this.reset = new GlyphButton(Glyph.RESET, Component.translatable("jojo_ripples.config.screen.reset_section"), PaperUi.INK_SOFT,
@@ -291,7 +320,7 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 				int mouseX, int mouseY, boolean hovering, float partialTick) {
 			int rowRight = left + width - 4;
 			long modified = modifiedCount();
-			header.open = !collapsed.contains(id);
+			header.open = open.getAsBoolean();
 			header.modified = (int) modified;
 			header.rowHovered = hovering;
 			header.setPosition(left - 2, top - 1);
@@ -365,6 +394,78 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 			protected void updateWidgetNarration(NarrationElementOutput output) {
 				defaultButtonNarrationText(output);
 			}
+		}
+	}
+
+	/** Where the core's sections end and the add-ons' blocks begin: a word on a line, and nothing to press. */
+	static final class DividerRow extends Row {
+		private final ConfigScreenHost host;
+
+		DividerRow(ConfigScreenHost host) {
+			this.host = host;
+		}
+
+		@Override
+		public void render(GuiGraphics graphics, int index, int top, int left, int width, int height,
+				int mouseX, int mouseY, boolean hovering, float partialTick) {
+			Font font = host.font();
+			String text = Component.translatableWithFallback("jojo_ripples.config.screen.addons", "Add-ons").getString();
+			int right = left + width - 4;
+			int textX = left + (right - left - font.width(text)) / 2;
+			int lineY = top + 11;
+			graphics.fill(left + 2, lineY, textX - 6, lineY + 1, PaperUi.LINE);
+			graphics.fill(textX + font.width(text) + 6, lineY, right - 2, lineY + 1, PaperUi.LINE);
+			PaperUi.text(graphics, font, Component.literal(text), textX, top + 7, PaperUi.INK_SOFT);
+		}
+
+		@Override
+		@Nullable AbstractWidget focusedWidget() {
+			return null;
+		}
+
+		@Override
+		public List<? extends GuiEventListener> children() {
+			return List.of();
+		}
+
+		@Override
+		public List<? extends NarratableEntry> narratables() {
+			return List.of();
+		}
+	}
+
+	/** A group inside an add-on's block: lighter than a section, and it folds nothing. */
+	static final class GroupRow extends Row {
+		private final ConfigScreenHost host;
+		private final String name;
+
+		GroupRow(ConfigScreenHost host, String name) {
+			this.host = host;
+			this.name = name;
+		}
+
+		@Override
+		public void render(GuiGraphics graphics, int index, int top, int left, int width, int height,
+				int mouseX, int mouseY, boolean hovering, float partialTick) {
+			Font font = host.font();
+			String shown = PaperUi.oneLine(font, name, width - 12);
+			PaperUi.text(graphics, font, Component.literal(shown), left + 3, top + 9, PaperUi.ACCENT);
+			graphics.fill(left + 3, top + 19, left + 3 + font.width(shown), top + 20, PaperUi.ACCENT_FILL);
+		}
+
+		@Override
+		@Nullable AbstractWidget focusedWidget() {
+			return null;
+		}
+
+		@Override
+		public List<? extends GuiEventListener> children() {
+			return List.of();
+		}
+
+		@Override
+		public List<? extends NarratableEntry> narratables() {
+			return List.of();
 		}
 	}
 

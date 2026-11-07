@@ -3,11 +3,15 @@ package rotp.core.config.editor.client;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 
@@ -15,6 +19,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
 
 import rotp.core.JojoModConfig;
+import rotp.core.config.editor.AddonConfigKeys;
 import rotp.core.config.editor.ConfigEntry;
 import rotp.core.config.editor.ConfigEntry.Bounds;
 import rotp.core.config.editor.ConfigEntry.Kind;
@@ -28,6 +33,16 @@ public final class ConfigWidgetRules {
 	public enum WidgetKind { TOGGLE, SLIDER, NUMBER, CYCLE, TEXT, LIST }
 
 	public record Section(String id, List<ConfigEntry> entries) {}
+
+	/** One add-on's settings on one page, its own groups in the order of its file. */
+	public record Block(String modId, List<Group> groups) {
+		public List<String> keys() {
+			return groups.stream().flatMap(group -> group.entries().stream()).map(ConfigEntry::key).toList();
+		}
+	}
+
+	/** A group's dotted path inside its add-on; empty for the values at the top of the file. */
+	public record Group(String path, List<ConfigEntry> entries) {}
 
 	private record SectionRule(String id, List<String> leaves, @Nullable String prefix) {}
 
@@ -82,6 +97,12 @@ public final class ConfigWidgetRules {
 	private static final Map<String, String> ICONS = Map.of("abilitySelectionWheel", "ability_selection_wheel",
 			"standAimMarker", "stand_aim_marker");
 
+	// What add-on titles wrap their name in, in the languages they ship. A list of names has no use for "... Configuration" on every line.
+	private static final Pattern TITLE_BEFORE = Pattern.compile("^(?:Configuraci[oó]n|Configura[cç][aã]o|Настройки|Налаштування)\\s+(?:de\\s+|do\\s+|da\\s+)?");
+	private static final Pattern TITLE_AFTER = Pattern.compile("\\s*(?:Configuration|附属配置|配置|设置|設定|设定|之設)$");
+	private static final Pattern TITLE_MOD = Pattern.compile("^(?:RotP|PotP)\\s*[-:：]?\\s*");
+	private static final Pattern DISPLAY_NAME_AFTER = Pattern.compile("\\s+(?:RotP\\s+)?(?:Addon|Stand)$");
+
 	private ConfigWidgetRules() {}
 
 	private static SectionRule section(String id, String... leaves) {
@@ -89,7 +110,7 @@ public final class ConfigWidgetRules {
 	}
 
 	public static boolean isShown(ConfigEntry entry) {
-		return !HIDDEN.contains(entry.key());
+		return !HIDDEN.contains(entry.key()) && !AddonConfigKeys.isHidden(entry.key());
 	}
 
 	public static Set<String> hiddenKeys() {
@@ -113,7 +134,8 @@ public final class ConfigWidgetRules {
 			return false;
 		}
 		double range = bounds.maximum() - bounds.minimum();
-		return entry.kind() == Kind.INTEGER ? range <= 200 : range <= 10 || entry.side() == Side.CLIENT;
+		// the client's own wide sliders are percentages this file knows; an add-on's wide range is a rule like the server's
+		return entry.kind() == Kind.INTEGER ? range <= 200 : range <= 10 || entry.side() == Side.CLIENT && !isAddon(entry);
 	}
 
 	public static BigDecimal sliderStep(ConfigEntry entry) {
@@ -213,7 +235,7 @@ public final class ConfigWidgetRules {
 	}
 
 	public static List<Section> sections(Side side, List<ConfigEntry> entries) {
-		List<ConfigEntry> shown = entries.stream().filter(ConfigWidgetRules::isShown).toList();
+		List<ConfigEntry> shown = entries.stream().filter(entry -> isShown(entry) && !isAddon(entry)).toList();
 		Set<String> placed = new LinkedHashSet<>();
 		List<Section> sections = new ArrayList<>();
 		for (SectionRule rule : side == Side.CLIENT ? CLIENT_SECTIONS : SERVER_SECTIONS) {
@@ -239,9 +261,55 @@ public final class ConfigWidgetRules {
 		return List.copyOf(sections);
 	}
 
+	/** The add-ons' blocks of these entries, sorted by the name shown. An add-on whose every row is hidden has none. */
+	public static List<Block> blocks(List<ConfigEntry> entries, Function<String, String> nameOf) {
+		Map<String, Map<String, List<ConfigEntry>>> byMod = new LinkedHashMap<>();
+		for (ConfigEntry entry : entries) {
+			if (isAddon(entry) && isShown(entry)) {
+				byMod.computeIfAbsent(AddonConfigKeys.modId(entry.key()), mod -> new LinkedHashMap<>())
+						.computeIfAbsent(AddonConfigKeys.groupPath(entry.key()), path -> new ArrayList<>()).add(entry);
+			}
+		}
+		List<Block> blocks = new ArrayList<>();
+		byMod.forEach((modId, groups) -> {
+			List<Group> ordered = new ArrayList<>();
+			// the values at the top of a file come first, whatever line they are declared on
+			if (groups.containsKey("")) {
+				ordered.add(new Group("", List.copyOf(groups.get(""))));
+			}
+			groups.forEach((path, rows) -> {
+				if (!path.isEmpty()) {
+					ordered.add(new Group(path, List.copyOf(rows)));
+				}
+			});
+			blocks.add(new Block(modId, List.copyOf(ordered)));
+		});
+		blocks.sort(Comparator.comparing((Block block) -> nameOf.apply(block.modId()), String.CASE_INSENSITIVE_ORDER).thenComparing(Block::modId));
+		return List.copyOf(blocks);
+	}
+
+	/** An add-on's page title as a name in a list: "RotP King Crimson Configuration" reads King Crimson. */
+	public static String blockName(String title) {
+		String name = TITLE_AFTER.matcher(TITLE_BEFORE.matcher(title.trim()).replaceFirst("")).replaceFirst("");
+		name = TITLE_MOD.matcher(name).replaceFirst("").trim();
+		if (name.isEmpty()) {
+			return title.trim();
+		}
+		return name.substring(0, name.offsetByCodePoints(0, 1)).toUpperCase(Locale.ROOT) + name.substring(name.offsetByCodePoints(0, 1));
+	}
+
+	/** The same from a mod's display name, for an add-on that has no title yet. */
+	public static String blockNameFromDisplayName(String displayName) {
+		return blockName(DISPLAY_NAME_AFTER.matcher(displayName.trim()).replaceFirst(""));
+	}
+
+	public static boolean isAddon(ConfigEntry entry) {
+		return AddonConfigKeys.isAddonKey(entry.key());
+	}
+
 	public static String leaf(String key) {
-		int dot = key.lastIndexOf('.');
-		return dot < 0 ? key : key.substring(dot + 1);
+		int cut = Math.max(key.lastIndexOf('.'), key.indexOf('/'));
+		return cut < 0 ? key : key.substring(cut + 1);
 	}
 
 	/** The entry's own key, or the screen's when the store names none. */
@@ -266,7 +334,10 @@ public final class ConfigWidgetRules {
 				name.append(' ');
 			}
 			else {
-				if (Character.isUpperCase(c)) {
+				// "King Crimson" keeps its one space and "maxHP" its letters together
+				boolean startsWord = Character.isUpperCase(c) && leaf.charAt(i - 1) != ' ' && leaf.charAt(i - 1) != '_'
+						&& (!Character.isUpperCase(leaf.charAt(i - 1)) || i + 1 < leaf.length() && Character.isLowerCase(leaf.charAt(i + 1)));
+				if (startsWord) {
 					name.append(' ');
 				}
 				name.append(c);
@@ -275,8 +346,19 @@ public final class ConfigWidgetRules {
 		return name.toString();
 	}
 
+	/** A readable name for a choice that has no text: TICK_RATE reads Tick rate. */
+	public static String fallbackChoice(String choice) {
+		String words = choice.replace('_', ' ').toLowerCase(Locale.ROOT);
+		return words.isEmpty() ? words : Character.toUpperCase(words.charAt(0)) + words.substring(1);
+	}
+
 	public static String optionKey(ConfigEntry entry, String choice) {
 		String lower = choice.toLowerCase(Locale.ROOT);
+		if (isAddon(entry)) {
+			return entry.translationKey() != null && entry.translationKey().endsWith("." + leaf(entry.key()))
+					? entry.translationKey() + "." + lower
+					: AddonConfigKeys.modId(entry.key()) + ".configuration." + leaf(entry.key()) + "." + lower;
+		}
 		return switch (entry.key()) {
 			case "broadcasted.standSide" -> "jojo_ripples.config.client.option.stand_" + lower;
 			case "standAura.mode" -> "jojo_ripples.stand_display.aura_mode." + lower;
@@ -285,11 +367,11 @@ public final class ConfigWidgetRules {
 	}
 
 	public static boolean isByDifficulty(ConfigEntry entry) {
-		return BY_DIFFICULTY.contains(leaf(entry.key()));
+		return !isAddon(entry) && BY_DIFFICULTY.contains(leaf(entry.key()));
 	}
 
 	public static boolean listItemsAreIds(ConfigEntry entry) {
-		return "bannedStands".equals(leaf(entry.key()));
+		return !isAddon(entry) && "bannedStands".equals(leaf(entry.key()));
 	}
 
 	public static @Nullable String listRowLabel(ConfigEntry entry, int index) {

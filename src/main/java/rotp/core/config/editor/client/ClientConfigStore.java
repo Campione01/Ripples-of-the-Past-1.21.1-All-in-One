@@ -83,7 +83,8 @@ public final class ClientConfigStore implements ConfigStore {
 	@Override
 	public boolean resetAll(@Nullable Consumer<ConfigEditResult> done) {
 		Set<String> groups = new LinkedHashSet<>();
-		entries.values().stream().filter(ConfigWidgetRules::isModified).forEach(entry -> groups.add(entry.group()));
+		entries.values().stream().filter(entry -> ConfigWidgetRules.isShown(entry) && ConfigWidgetRules.isModified(entry))
+				.forEach(entry -> groups.add(entry.group()));
 		ConfigEditResult last = ConfigEditResult.ok(List.of());
 		for (String group : groups) {
 			last = finish(ClientConfigEditor.resetGroup(group), null, false);

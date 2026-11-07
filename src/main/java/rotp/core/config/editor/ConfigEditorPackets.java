@@ -13,6 +13,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.DecoderException;
 import net.minecraft.Util;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -44,7 +45,8 @@ public final class ConfigEditorPackets {
 	private static final int NUMBER_CHARS = 64;
 	private static final int LIST_LIMIT = 1024;
 	private static final int SYNCED_LIST_LIMIT = 64;
-	private static final int ENTRY_LIMIT = 128;
+	// about 480 settings with today's add-ons, and a Reset All can change them all
+	private static final int ENTRY_LIMIT = 1024;
 	private static final int CHOICE_LIMIT = 32;
 	private static final int REQUEST_BYTES = 272 * 1024;
 	private static final int REPLY_BYTES = 1024 * 1024;
@@ -170,15 +172,16 @@ public final class ConfigEditorPackets {
 		}
 		if (request.operation() == Operation.READ) {
 			List<ConfigEntry> entries = CommonConfigEditor.entries().stream().filter(ConfigEditorPackets::fitsOrWarns).toList();
-			if (entries.size() > ENTRY_LIMIT) {
+			Reply reply = new Reply(request.id(), request.operation(), canEdit, ConfigEditResult.ok(List.of()), entries);
+			if (entries.size() > ENTRY_LIMIT || !fitsWire(reply, player)) {
 				refuse(request, context, player, canEdit, Status.UNAVAILABLE);
 				return;
 			}
-			context.reply(new Reply(request.id(), request.operation(), canEdit, ConfigEditResult.ok(List.of()), entries));
+			context.reply(reply);
 			return;
 		}
 		if (request.value() instanceof JsonArray list && list.size() > SYNCED_LIST_LIMIT
-				&& !"Stand settings.bannedStands".equals(request.key())) {
+				&& !"Stand settings.bannedStands".equals(request.key()) && !AddonConfigKeys.isAddonKey(request.key())) {
 			refuse(request, context, player, true, Status.INVALID_VALUE);
 			return;
 		}
@@ -188,6 +191,14 @@ public final class ConfigEditorPackets {
 				.anyMatch(entry -> !fitsEntry(entry))) {
 			refuse(request, context, player, true, Status.UNAVAILABLE);
 			return;
+		}
+		// only a whole group can answer with more than the wire takes, and it must find out before anything is written
+		if (group) {
+			ConfigEditResult would = CommonConfigEditor.resetGroup(request.key(), false);
+			if (would.status() == Status.OK && !fitsWire(new Reply(request.id(), request.operation(), true, would, List.of()), player)) {
+				refuse(request, context, player, true, Status.UNAVAILABLE);
+				return;
+			}
 		}
 		ConfigEditResult result = switch (request.operation()) {
 			case SET -> CommonConfigEditor.set(request.key(), request.value());
@@ -252,8 +263,31 @@ public final class ConfigEditorPackets {
 		if (FMLEnvironment.dist.isClient()) ServerConfigClient.accept(reply, context.connection());
 	}
 
+	// An encoder that throws on the way out takes the connection with it, and a reply over REPLY_BYTES is refused by the
+	// client's decoder with the same result, so what cannot arrive is found out here and refused instead.
+	private static boolean fitsWire(Reply reply, ServerPlayer player) {
+		var buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), player.server.registryAccess());
+		try {
+			Reply.CODEC.encode(buf, reply);
+			return buf.readableBytes() <= REPLY_BYTES;
+		}
+		catch (RuntimeException tooMuch) {
+			JojoMod.getLogger().warn("Core config editor could not encode a reply: {}", tooMuch.getMessage());
+			return false;
+		}
+		finally {
+			buf.release();
+		}
+	}
+
 	private static boolean fitsEntry(ConfigEntry entry) {
-		return fitsValue(entry.defaultValue()) && fitsValue(entry.value());
+		return fitsValue(entry.defaultValue()) && fitsValue(entry.value())
+				&& fitsName(entry.key()) && fitsName(entry.group()) && (entry.translationKey() == null || fitsName(entry.translationKey()))
+				&& entry.choices().size() <= CHOICE_LIMIT && entry.choices().stream().allMatch(ConfigEditorPackets::fitsName);
+	}
+
+	private static boolean fitsName(String name) {
+		return name.length() <= KEY_LIMIT;
 	}
 
 	private static boolean fitsOrWarns(ConfigEntry entry) {

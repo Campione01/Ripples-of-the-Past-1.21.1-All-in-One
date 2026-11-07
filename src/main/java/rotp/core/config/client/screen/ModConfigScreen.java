@@ -58,6 +58,8 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 	private static final long ERROR_NOTICE_MILLIS = 7000;
 	// what is folded stays folded while the game runs: the aura's twenty-odd tuning values start folded
 	private static final Set<String> COLLAPSED = new HashSet<>(Set.of("stand_aura"));
+	// an add-on's block is the other way round: hundreds of rows start folded, and what was opened stays open
+	private static final Set<String> OPEN_BLOCKS = new HashSet<>();
 
 	private final @Nullable Screen lastScreen;
 	private final Map<Page, Double> scrollByPage = new HashMap<>();
@@ -197,7 +199,7 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 		retry = addRenderableWidget(new PaperAction(x + 9, buttonY, Math.max(50, font.width(retryText) + 16), PaperUi.CONTROL_HEIGHT,
 				retryText, button -> serverStore().retry(Util.getMillis())));
 
-		list.rebuild(page == Page.CLIENT ? ConfigEntry.Side.CLIENT : ConfigEntry.Side.SERVER, COLLAPSED);
+		list.rebuild(page == Page.CLIENT ? ConfigEntry.Side.CLIENT : ConfigEntry.Side.SERVER, COLLAPSED, OPEN_BLOCKS);
 		list.setScrollAmount(scroll);
 		builtFor = store().access();
 		builtEntries = store().entries().size();
@@ -206,7 +208,7 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 	@Override
 	public void rowsChanged() {
 		if (list != null) {
-			list.rebuild(page == Page.CLIENT ? ConfigEntry.Side.CLIENT : ConfigEntry.Side.SERVER, COLLAPSED);
+			list.rebuild(page == Page.CLIENT ? ConfigEntry.Side.CLIENT : ConfigEntry.Side.SERVER, COLLAPSED, OPEN_BLOCKS);
 		}
 	}
 
@@ -303,7 +305,7 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 		}).toList();
 		ConfigStore target = store();
 		minecraft.setScreen(ConfigDiffScreen.ofChanges(this, Component.translatable(TEXT + "reset_section_title", sectionTitle),
-				Component.translatable(TEXT + "confirm_reset"), toDefaults(target, modified),
+				Component.translatable(TEXT + "confirm_reset"), toDefaults(target, modified, false),
 				done -> target.resetKeys(modified, done)));
 	}
 
@@ -312,7 +314,7 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 		List<String> modified = target.entries().stream().filter(entry -> ConfigWidgetRules.isShown(entry) && ConfigWidgetRules.isModified(entry))
 				.map(ConfigEntry::key).toList();
 		minecraft.setScreen(ConfigDiffScreen.ofChanges(this, Component.translatable(TEXT + "reset_all_title", pageName(page)),
-				Component.translatable(TEXT + "confirm_reset"), toDefaults(target, modified),
+				Component.translatable(TEXT + "confirm_reset"), toDefaults(target, modified, true),
 				done -> target.resetAll(done)));
 	}
 
@@ -332,19 +334,30 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 			return entry != null && ConfigWidgetRules.isModified(entry);
 		}).toList();
 		minecraft.setScreen(ConfigDiffScreen.ofChanges(this, Component.translatable("jojo_ripples.config.preset.defaults_title"),
-				Component.translatable(TEXT + "confirm_reset"), toDefaults(session, modified), done -> {
+				Component.translatable(TEXT + "confirm_reset"), toDefaults(session, modified, false), done -> {
 					for (int i = 0; i < presets.size(); i++) {
 						session.resetPreset(presets.get(i).id(), i == presets.size() - 1 ? done : null);
 					}
 				}));
 	}
 
-	private static List<ConfigDiffScreen.Row> toDefaults(ConfigStore source, List<String> keys) {
+	/** With {@code named}, each add-on's rows come under its name: a row's own name says nothing of whose it is. */
+	private static List<ConfigDiffScreen.Row> toDefaults(ConfigStore source, List<String> keys, boolean named) {
 		List<ConfigDiffScreen.Row> rows = new ArrayList<>();
 		for (String key : keys) {
 			ConfigEntry entry = source.entry(key);
-			if (entry != null) {
+			if (entry != null && !(named && ConfigWidgetRules.isAddon(entry))) {
 				rows.add(ConfigDiffScreen.Row.of(entry, entry.value(), entry.defaultValue(), entry.restart()));
+			}
+		}
+		if (named) {
+			List<ConfigEntry> addons = keys.stream().map(source::entry).filter(entry -> entry != null && ConfigWidgetRules.isAddon(entry)).toList();
+			for (ConfigWidgetRules.Block block : ConfigWidgetRules.blocks(addons, PaperUi::blockName)) {
+				rows.add(ConfigDiffScreen.Row.heading(Component.literal(PaperUi.blockName(block.modId()))));
+				block.keys().forEach(key -> {
+					ConfigEntry entry = source.entry(key);
+					rows.add(ConfigDiffScreen.Row.of(entry, entry.value(), entry.defaultValue(), entry.restart()));
+				});
 			}
 		}
 		return rows;

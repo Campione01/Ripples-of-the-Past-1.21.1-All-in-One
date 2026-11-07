@@ -16,6 +16,7 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FastColor;
 import net.minecraft.util.FormattedCharSequence;
+import net.neoforged.fml.ModList;
 import rotp.core.config.editor.ConfigEntry;
 import rotp.core.config.editor.client.ConfigWidgetRules;
 import rotp.core.core.JojoMod;
@@ -105,7 +106,29 @@ final class PaperUi {
 	}
 
 	static Component optionText(ConfigEntry entry, String choice) {
-		return Component.translatableWithFallback(ConfigWidgetRules.optionKey(entry, choice), ConfigWidgetRules.fallbackName(choice));
+		String fallback = ConfigWidgetRules.isAddon(entry) ? ConfigWidgetRules.fallbackChoice(choice) : ConfigWidgetRules.fallbackName(choice);
+		return Component.translatableWithFallback(ConfigWidgetRules.optionKey(entry, choice), fallback);
+	}
+
+	/** An add-on's name in the list: its config page's title if it has one, else what the mod list calls it. */
+	static String blockName(String modId) {
+		Language language = Language.getInstance();
+		String title = modId + ".configuration.title";
+		if (language.has(title)) {
+			return ConfigWidgetRules.blockName(language.getOrDefault(title));
+		}
+		return ModList.get().getModContainerById(modId)
+				.map(container -> ConfigWidgetRules.blockNameFromDisplayName(container.getModInfo().getDisplayName()))
+				.orElseGet(() -> ConfigWidgetRules.fallbackName(modId));
+	}
+
+	/** A group of an add-on, by the same text as its page in the mod list; a nested one names its whole path. */
+	static String groupName(String modId, String path) {
+		List<String> names = new ArrayList<>();
+		for (String segment : path.split("\\.")) {
+			names.add(Language.getInstance().getOrDefault(modId + ".configuration." + segment, ConfigWidgetRules.fallbackName(segment)));
+		}
+		return String.join(" · ", names);
 	}
 
 	static Component valueText(ConfigEntry entry, JsonElement value) {
