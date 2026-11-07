@@ -40,7 +40,7 @@ import rotp.core.core.JojoMod;
 public final class ConfigEditorPacketsGameTests {
 	private static final String NAMESPACE = CommonConfigEditorGameTests.NAMESPACE;
 	private static final String GROUP = "Stand settings.Time Stop";
-	private static final String RANGE = GROUP + ".timeStopChunkRange";
+	private static final String RANGE = GROUP + ".timeStopRangeChunks";
 	private static final String DAMAGE = GROUP + ".timeStopDamageMultiplier";
 
 	private ConfigEditorPacketsGameTests() {}
@@ -139,7 +139,9 @@ public final class ConfigEditorPacketsGameTests {
 			byte[] beforePreview = Files.readAllBytes(path);
 			Reply preview = exchange(helper, player, new Request(8, Operation.PREVIEW_PRESET, "pvp", null));
 			helper.assertTrue(preview.result().status() == Status.OK && preview.result().changes().stream()
-							.anyMatch(change -> change.key().equals(RANGE) && change.after().getAsInt() == 4)
+							.anyMatch(change -> change.key().equals(DAMAGE) && change.before().getAsDouble() == 1.0D
+									&& change.after().getAsDouble() == 0.75D)
+							&& preview.result().changes().stream().noneMatch(change -> change.key().equals(RANGE))
 							&& range.get().equals(range.getDefault()) && Arrays.equals(beforePreview, Files.readAllBytes(path)),
 					"operator preview must return the real diff without applying it");
 			helper.succeed();

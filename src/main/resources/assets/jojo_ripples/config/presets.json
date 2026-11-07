@@ -7,7 +7,6 @@
       "Stand settings.Hamon settings.breathingTrainingDeterioration": false,
       "Stand settings.Hamon settings.mixHamonTechniques": false,
       "Stand settings.standBodyThroughWalls": "standard",
-      "Stand settings.Time Stop.timeStopChunkRange": 12,
       "Stand settings.Time Stop.timeStopDamageMultiplier": 1.0
     }
   },
@@ -19,7 +18,6 @@
       "Stand settings.Hamon settings.breathingTrainingDeterioration": true,
       "Stand settings.Hamon settings.mixHamonTechniques": false,
       "Stand settings.standBodyThroughWalls": "standard",
-      "Stand settings.Time Stop.timeStopChunkRange": 12,
       "Stand settings.Time Stop.timeStopDamageMultiplier": 1.0
     }
   },
@@ -31,7 +29,6 @@
       "Stand settings.Hamon settings.breathingTrainingDeterioration": true,
       "Stand settings.Hamon settings.mixHamonTechniques": false,
       "Stand settings.standBodyThroughWalls": "standard",
-      "Stand settings.Time Stop.timeStopChunkRange": 4,
       "Stand settings.Time Stop.timeStopDamageMultiplier": 0.75
     }
   }

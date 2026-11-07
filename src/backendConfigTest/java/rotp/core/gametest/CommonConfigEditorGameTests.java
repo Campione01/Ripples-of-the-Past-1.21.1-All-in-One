@@ -27,7 +27,7 @@ import rotp.core.core.JojoMod;
 @PrefixGameTestTemplate(false)
 public final class CommonConfigEditorGameTests {
 	static final String NAMESPACE = "rotp_backend_config";
-	private static final String RANGE = "Stand settings.Time Stop.timeStopChunkRange";
+	private static final String RANGE = "Stand settings.Time Stop.timeStopRangeChunks";
 	private static final String DAMAGE = "Stand settings.Time Stop.timeStopDamageMultiplier";
 	private static final String PROGRESSION = "Stand settings.Stand Progression.standExpMultiplier";
 	private static final String BODY = "Stand settings.standBodyThroughWalls";
@@ -56,7 +56,7 @@ public final class CommonConfigEditorGameTests {
 							&& JojoModConfig.getCommonConfigInstance(false).manualStandPassesThroughBlocks(),
 					"editor must read the legacy value without normalizing its bytes or gameplay");
 			helper.assertTrue(describedRange.kind() == ConfigEntry.Kind.INTEGER && describedRange.bounds().minimum() == 0
-							&& describedRange.defaultValue().getAsInt() == 12 && describedRange.synced()
+							&& describedRange.defaultValue().getAsInt() == 0 && describedRange.synced()
 							&& describedRange.side() == ConfigEntry.Side.SERVER,
 					"metadata must describe the actual Time Stop setting");
 			helper.assertTrue(banned.kind() == ConfigEntry.Kind.LIST && banned.elementKind() == ConfigEntry.Kind.STRING,
@@ -70,6 +70,30 @@ public final class CommonConfigEditorGameTests {
 		finally {
 			body.set(previous);
 			JojoModConfig.COMMON_SPEC.save();
+		}
+	}
+
+	@GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 30)
+	public static void neoForgeCorrectionRetiresLegacyTimeStopRange(GameTestHelper helper) throws IOException {
+		var oldPath = List.of("Stand settings", "Time Stop", "timeStopChunkRange");
+		var newPath = List.of(RANGE.split("\\."));
+		var unrelatedPath = List.of("Stand settings", "arrowDurability");
+		try (var reader = Files.newBufferedReader(configPath())) {
+			var legacy = new TomlParser().parse(reader);
+			legacy.remove(newPath);
+			legacy.set(oldPath, 12);
+			legacy.set(unrelatedPath, 83);
+			var spec = JojoModConfig.COMMON_SPEC;
+			helper.assertTrue(!spec.isCorrect(legacy), "the old persisted key was still accepted");
+			spec.correct(legacy);
+			helper.assertTrue(!legacy.contains(oldPath) && Integer.valueOf(0).equals(legacy.get(newPath))
+					&& Integer.valueOf(83).equals(legacy.get(unrelatedPath)),
+					"NeoForge did not retire the old key, default to the full dimension, and preserve unrelated settings");
+			legacy.set(newPath, 7);
+			spec.correct(legacy);
+			helper.assertTrue(Integer.valueOf(7).equals(legacy.get(newPath)),
+					"NeoForge correction discarded an explicitly configured finite range on the new key");
+			helper.succeed();
 		}
 	}
 

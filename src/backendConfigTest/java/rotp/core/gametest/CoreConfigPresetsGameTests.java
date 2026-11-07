@@ -25,7 +25,7 @@ import rotp.core.core.JojoMod;
 @PrefixGameTestTemplate(false)
 public final class CoreConfigPresetsGameTests {
 	private static final String NAMESPACE = "rotp_backend_config";
-	private static final String RANGE = "Stand settings.Time Stop.timeStopChunkRange";
+	private static final String RANGE = "Stand settings.Time Stop.timeStopRangeChunks";
 	private static final String DAMAGE = "Stand settings.Time Stop.timeStopDamageMultiplier";
 	private static final String SENTINEL = "Stand settings.arrowDurability";
 
@@ -45,11 +45,13 @@ public final class CoreConfigPresetsGameTests {
 			var catalog = CoreConfigPresets.entries();
 			helper.assertTrue(catalog.stream().map(CoreConfigPresets.Preset::id).toList().equals(List.of("adventure", "canon", "pvp")),
 					"preset catalog changed");
-			helper.assertTrue(catalog.stream().allMatch(preset -> preset.values().keySet().equals(catalog.getFirst().values().keySet())),
-					"preset switching must address the same bounded key set");
+			helper.assertTrue(catalog.stream().allMatch(preset -> preset.values().size() == 6
+					&& !preset.values().containsKey(RANGE) && preset.values().keySet().equals(catalog.getFirst().values().keySet())),
+					"each preset must address the same six settings without touching Time Stop range");
 			var preview = CoreConfigPresets.preview("pvp");
 			helper.assertTrue(preview.status() == Status.OK && preview.changes().stream().anyMatch(change ->
-					change.key().equals(RANGE) && change.before().getAsInt() == 17 && change.after().getAsInt() == 4),
+					change.key().equals(DAMAGE) && change.before().getAsDouble() == 0.625D && change.after().getAsDouble() == 0.75D)
+					&& preview.changes().stream().noneMatch(change -> change.key().equals(RANGE)),
 					"preview did not compare the actual current value to the selected preset");
 			helper.assertTrue(CoreConfigPresets.apply("nonexistent").status() == Status.UNKNOWN_PRESET
 							&& CoreConfigPresets.reset("nonexistent").status() == Status.UNKNOWN_PRESET,
@@ -68,23 +70,25 @@ public final class CoreConfigPresetsGameTests {
 	public static void presetTransitionsAndResetOnlyTouchTheirDeclaredKeys(GameTestHelper helper) {
 		var keys = new java.util.HashSet<>(CoreConfigPresets.entries().getFirst().values().keySet());
 		keys.add(SENTINEL);
+		keys.add(RANGE);
 		var before = snapshot(keys);
 		var common = JojoModConfig.getCommonConfigInstance(false);
 		try {
-			helper.assertTrue(CommonConfigEditor.set(SENTINEL, new JsonPrimitive(83)).status() == Status.OK,
-					"could not establish an unrelated sentinel");
+			helper.assertTrue(CommonConfigEditor.apply(Map.of(SENTINEL, new JsonPrimitive(83),
+					RANGE, new JsonPrimitive(17))).status() == Status.OK, "could not establish unrelated settings");
 			helper.assertTrue(CoreConfigPresets.apply("adventure").status() == Status.OK
-							&& common.standExpMultiplier.get() == 1.5D && !common.breathingTrainingDeterioration.get(),
+							&& common.standExpMultiplier.get() == 1.5D && !common.breathingTrainingDeterioration.get()
+							&& common.timeStopChunkRange.get() == 17,
 					"Adventure values did not reach the live gameplay readers");
-			helper.assertTrue(CoreConfigPresets.apply("pvp").status() == Status.OK && common.timeStopChunkRange.get() == 4
+			helper.assertTrue(CoreConfigPresets.apply("pvp").status() == Status.OK && common.timeStopChunkRange.get() == 17
 							&& common.timeStopDamageMultiplier.get() == 0.75D && common.standExpMultiplier.get() == 1.0D
 							&& common.breathingTrainingDeterioration.get(),
-					"PvP did not replace Adventure values and localize new Time Stops");
-			helper.assertTrue(CoreConfigPresets.apply("canon").status() == Status.OK && common.timeStopChunkRange.get() == 12
+					"PvP did not replace Adventure values without changing Time Stop range");
+			helper.assertTrue(CoreConfigPresets.apply("canon").status() == Status.OK && common.timeStopChunkRange.get() == 17
 							&& common.timeStopDamageMultiplier.get() == 1.0D && !common.skipStandProgression.get(),
-					"Canon did not restore the seven stock values");
+					"Canon did not restore the stock preset values without changing Time Stop range");
 			helper.assertTrue(CoreConfigPresets.apply("pvp").status() == Status.OK && CoreConfigPresets.reset("pvp").status() == Status.OK
-							&& common.timeStopChunkRange.get() == 12 && common.timeStopDamageMultiplier.get() == 1.0D
+							&& common.timeStopChunkRange.get() == 17 && common.timeStopDamageMultiplier.get() == 1.0D
 							&& common.arrowDurability.get() == 83,
 					"reset must restore defaults only within the preset");
 			helper.succeed();
