@@ -68,6 +68,7 @@ import rotp.core.client.entityrender.parsemodel.generic.GenericModelFormatSmokeT
 import rotp.core.client.input.controlscheme.HotbarSelectionRulesSmokeTest;
 import rotp.core.client.input.controlscheme.HotbarShiftFallbackSmokeTest;
 import rotp.core.client.input.controlscheme.VariationKeySmokeTest;
+import rotp.core.client.ui.CanonStandPanelsSmokeTest;
 import rotp.core.client.ui.hud_power.StandHotbarShiftDisplaySmokeTest;
 import rotp.core.entityattachment.FrozenAttachmentsRestSmokeTest;
 import rotp.core.resource.StandDamageBlockSubtitleSmokeTest;
@@ -505,6 +506,7 @@ public final class RotpAddonApiSmokeTest {
 		HotbarShiftFallbackSmokeTest.run();
 		HotbarSelectionRulesSmokeTest.run();
 		VariationKeySmokeTest.run();
+		CanonStandPanelsSmokeTest.run();
 		StandHotbarShiftDisplaySmokeTest.run();
 		FrozenAttachmentsRestSmokeTest.run();
 		StandDamageBlockSubtitleSmokeTest.run();
