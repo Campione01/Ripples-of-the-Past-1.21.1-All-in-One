@@ -9,6 +9,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 
 import rotp.core.JojoModConfig;
 import rotp.core.ServerSavedData;
+import rotp.core.api.stand.AutomatedStandGrantVetoes;
 import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.api.stand.StandPowerTransitions.Status;
 import rotp.core.api.stand.StandPowerTransitions.TransitionContext;
@@ -305,11 +306,14 @@ public final class TemporaryStandLoanGameTests {
 				helper.assertFalse(StandArrowItem.onPiercedByArrow(clone, new ItemStack(ModItems.STAND_ARROW.get()),
 								helper.getLevel(), Optional.empty()) || clone.hasEffect(ModStatusEffects.STAND_VIRUS),
 						"A Stand Arrow must refuse a user whose Stand is reserved");
+				helper.assertTrue(AutomatedStandGrantVetoes.isVetoed(SOURCE, clone),
+						"An automated grant such as Hermit Purple's must wait for a user whose Stand is reserved");
 				StandType gained = f.type("crazy_diamond");
 				helper.assertTrue(StandArrowItem.giveStand(helper.getLevel(), clone, gained) && copied.getPowerType() == gained
 								&& f.original.getStandId().equals(f.counts.getHeld(clone.getUUID())),
 						"The grant did not land on the borrowed Stand's place");
 				f.restore(clone, copied, token);
+				helper.assertFalse(AutomatedStandGrantVetoes.isVetoed(SOURCE, clone), "The automated grants' veto outlived the loan");
 			}
 			finally {
 				clone.discard();
