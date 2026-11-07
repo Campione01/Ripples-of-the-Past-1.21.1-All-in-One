@@ -35,6 +35,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 	public boolean noStandAbilityCooldown = false;
 	public boolean standAttackTargetLock = false;
 	public boolean standAimAssist = true;
+	public boolean standBreaksBlocks = true;
+	public boolean standPicksUpItems = true;
+	public boolean standMovesBeyondEffectiveRange = true;
 
 	public PlayerClientBroadcastedSettings() {
 		this.owner = null;
@@ -52,6 +55,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		buf.writeBoolean(noStandAbilityCooldown);
 		buf.writeBoolean(standAttackTargetLock);
 		buf.writeBoolean(standAimAssist);
+		buf.writeBoolean(standBreaksBlocks);
+		buf.writeBoolean(standPicksUpItems);
+		buf.writeBoolean(standMovesBeyondEffectiveRange);
 	}
 
 	public void fromBuf(FriendlyByteBuf buf) {
@@ -60,6 +66,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		noStandAbilityCooldown = buf.readBoolean();
 		standAttackTargetLock = buf.readBoolean();
 		standAimAssist = buf.readBoolean();
+		standBreaksBlocks = buf.readBoolean();
+		standPicksUpItems = buf.readBoolean();
+		standMovesBeyondEffectiveRange = buf.readBoolean();
 	}
 
 	public PlayerClientBroadcastedSettings copy() {
@@ -74,6 +83,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		this.noStandAbilityCooldown = other.noStandAbilityCooldown;
 		this.standAttackTargetLock = other.standAttackTargetLock;
 		this.standAimAssist = other.standAimAssist;
+		this.standBreaksBlocks = other.standBreaksBlocks;
+		this.standPicksUpItems = other.standPicksUpItems;
+		this.standMovesBeyondEffectiveRange = other.standMovesBeyondEffectiveRange;
 	}
 
 
@@ -118,6 +130,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		nbt.putBoolean("NoStandAbilityCooldown", noStandAbilityCooldown);
 		nbt.putBoolean("StandAttackTargetLock", standAttackTargetLock);
 		nbt.putBoolean("StandAimAssist", standAimAssist);
+		nbt.putBoolean("StandBreaksBlocks", standBreaksBlocks);
+		nbt.putBoolean("StandPicksUpItems", standPicksUpItems);
+		nbt.putBoolean("StandMovesBeyondEffectiveRange", standMovesBeyondEffectiveRange);
 		return nbt;
 	}
 
@@ -129,6 +144,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		standAttackTargetLock = nbt.getBoolean("StandAttackTargetLock");
 		// on unless a save says otherwise: the setting came after saves that lack it
 		standAimAssist = !nbt.contains("StandAimAssist") || nbt.getBoolean("StandAimAssist");
+		standBreaksBlocks = !nbt.contains("StandBreaksBlocks") || nbt.getBoolean("StandBreaksBlocks");
+		standPicksUpItems = !nbt.contains("StandPicksUpItems") || nbt.getBoolean("StandPicksUpItems");
+		standMovesBeyondEffectiveRange = !nbt.contains("StandMovesBeyondEffectiveRange") || nbt.getBoolean("StandMovesBeyondEffectiveRange");
 	}
 
 	public static boolean isStandAttackTargetLockEnabled(StandPower standPower) {
@@ -145,6 +163,14 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 	public static boolean isStandAimAssistEnabled(@Nullable LivingEntity user) {
 		if (user instanceof Player player) {
 			return getPlayerSettings(player).map(settings -> settings.standAimAssist).orElse(true);
+		}
+		return true;
+	}
+
+	/** A player Stand user's toggle in the JoJo menu; a mob's Stand keeps every toggle on. */
+	public static boolean isStandToggleOn(StandToggle toggle, @Nullable LivingEntity user) {
+		if (user instanceof Player player) {
+			return getPlayerSettings(player).map(toggle::isOn).orElse(true);
 		}
 		return true;
 	}

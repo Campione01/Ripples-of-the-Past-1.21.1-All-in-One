@@ -1721,12 +1721,25 @@ public class EntityActionInstance implements HeldInput {
 
 	private void runOwnTick() {
 		EntityActionInstance outer = enterOwnTick();
+		EntityActionInstance outerRunning = RUNNING_OWN_TICK.get();
+		RUNNING_OWN_TICK.set(this);
 		try {
 			_onTick();
 		}
 		finally {
 			SILENT_OWN_TICK.set(outer);
+			RUNNING_OWN_TICK.set(outerRunning);
 		}
+	}
+
+	// the action whose own tick runs on this thread: a check that names no entity can ask whose move it is part of
+	private static final ThreadLocal<EntityActionInstance> RUNNING_OWN_TICK = new ThreadLocal<>();
+
+	/** The action whose own tick ({@link #actionTick} and the phase code it runs) runs on this thread, if any. */
+	@ApiStatus.Internal
+	@Nullable
+	public static EntityActionInstance _runningOwnTick() {
+		return RUNNING_OWN_TICK.get();
 	}
 
 	@Nullable

@@ -217,6 +217,7 @@ public class PowerHud {
 		public Finisher finisherBar = 			addElement(new Finisher("stand_finisher",
 				HudElement.SnappingH.CENTER, HudElement.SnappingV.CENTER, -16, -16, 32, 32));
 		public Leap leapIcon = 					addElement(new Leap("leap", Leap.SIZE, Leap.SIZE));
+		public StandTogglesHud standToggles = 	addElement(new StandTogglesHud("stand_toggles", 81, 38));
 
 		@Override
 		public void render(GuiGraphics guiGraphics, DeltaTracker deltaTracker) {

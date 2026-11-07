@@ -17,6 +17,22 @@ public class StandItemInput {
 		SWAP_USER_AND_STAND
 	}
 
+	/**
+	 * Whether the key a player binds for tossing or swapping the Stand's items acts on a press. Outside manual control it
+	 * asks for the hands the vanilla key would act on to be empty, so that key can also be the vanilla one; under manual
+	 * control the vanilla key already acts on the Stand, so a press of that same key must not act twice.
+	 */
+	public static boolean ownKeyActs(Action action, boolean manualControl, boolean sameAsVanillaKey,
+			boolean standHoldsAnItem, boolean mainHandEmpty, boolean offHandEmpty) {
+		if (!standHoldsAnItem) {
+			return false;
+		}
+		if (manualControl) {
+			return !sameAsVanillaKey;
+		}
+		return mainHandEmpty && (action != Action.SWAP_HANDS || offHandEmpty);
+	}
+
 	public static void handlePacket(Action action, StandEntity standEntity, LivingEntity user) {
 		switch (action) {
 			case DROP -> {

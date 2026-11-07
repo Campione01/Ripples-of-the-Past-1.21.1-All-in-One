@@ -26,6 +26,7 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.client_screens.StandDisplaySettingsScreen;
 import rotp.core.powersystem.standpower.client_screens.StandInfoScreen;
 import rotp.core.powersystem.standpower.client_screens.StandSkillsScreen;
+import rotp.core.powersystem.standpower.client_screens.StandTogglesScreen;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.impl.powers.hamon.ClHamonWindowOpenedPacket;
 import rotp.core.impl.powers.hamon.HamonData;
@@ -279,6 +280,11 @@ public class JojoMenuTabs {
 			.withName(Component.translatable("jojo_ripples.menu.stand.display_settings"))
 			.withScreen(tab -> new StandDisplaySettingsScreen(tab.getCategory(), tab))
 			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/visibility.png"), 16, 16));
+
+	public static final Tab STAND_TOGGLES = new Tab(CATEGORY_STAND)
+			.withName(Component.translatable("jojo_ripples.menu.stand.toggles"))
+			.withScreen(tab -> new StandTogglesScreen(tab.getCategory(), tab))
+			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/stand_toggles.png"), 16, 16));
 
 	private static StandInfoScreen createStandInfoScreen(Tab tab) {
 		StandPower standPower = getPowerForMenu(PowerClass.STAND);

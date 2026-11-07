@@ -106,6 +106,11 @@ public class ActionInputBuffer {
 		}
 	}
 
+	/** Forgets the press waiting in this buffer, if any. */
+	public void clear() {
+		buffered = null;
+	}
+
 	public void tickInputBuffer(EntityActionInputState userInput) {
 		LivingEntity user = userInput.user;
 		if (user.level().isClientSide()) return;

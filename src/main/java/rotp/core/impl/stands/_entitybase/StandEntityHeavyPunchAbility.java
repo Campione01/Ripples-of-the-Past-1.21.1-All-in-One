@@ -699,7 +699,7 @@ public class StandEntityHeavyPunchAbility extends StandEntityAbility {
 					aoeDmgSource,
 					pos.x, pos.y, pos.z,
 					explRadius, false,
-					JojoModUtil.breakingBlocksEnabled(level) ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP)
+					JojoModUtil.breakingBlocksEnabled(level, stand) ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP)
 					.aoeDamage(aoeDmg)
 					.createBlockShards(stand.getAttackDamage(), stand.getPrecision());
 			CustomExplosion.explode(explosion);

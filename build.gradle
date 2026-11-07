@@ -572,6 +572,15 @@ tasks.register('manualControlIconSmokeTest', JavaExec) {
     workingDir projectDir
 }
 
+tasks.register('creativeTabSectionsSmokeTest', JavaExec) {
+    group = 'verification'
+    description = 'Verifies the creative tab section layout and that the keys of the toggles and control tweaks have no default.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'rotp.core.init.CreativeTabSectionsSmokeTest'
+    workingDir projectDir
+}
+
 tasks.register('sewingScreenFitSmokeTest', JavaExec) {
     group = 'verification'
     description = 'Verifies sewing viewport bounds, inverse mouse coordinates, preview anchors and unscaled parity.'
@@ -641,6 +650,7 @@ tasks.named('check').configure {
     dependsOn tasks.named('standRangeLayoutSmokeTest')
     dependsOn tasks.named('unusableAbilityIconTintSmokeTest')
     dependsOn tasks.named('manualControlIconSmokeTest')
+    dependsOn tasks.named('creativeTabSectionsSmokeTest')
     dependsOn tasks.named('sewingScreenFitSmokeTest')
     dependsOn tasks.named('clothesModelLoaderSmokeTest')
     dependsOn tasks.named('firstPersonExtraArmContractSmokeTest')
