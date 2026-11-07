@@ -796,13 +796,13 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	}
 	
 	/*
-	 * Server, owner 2026-11-01: a close-range Stand flies out to strike and back at its own speed (StandMeleeReach), so
+	 * Server, owner 2026-11-01: a Stand that reaches out flies out to strike and back at its own speed (StandMeleeReach), so
 	 * while it is going to or coming from a place past its usual ones it moves that far a tick relative to its user; its
 	 * clients glide between offsets as before (StandOffsetFromUser.LERP_TIME)
 	 */
 	private Vec3 limitStrikeFlight(LivingEntity user, Vec3 pos) {
 		Vec3 current = _offsetFromUserVec;
-		if (level().isClientSide() || current == null || !StandMeleeReach.isCloseRange(this)) {
+		if (level().isClientSide() || current == null || !StandMeleeReach.usesMeleeReach(this)) {
 			return pos;
 		}
 		Vec3 userPos = user.position();

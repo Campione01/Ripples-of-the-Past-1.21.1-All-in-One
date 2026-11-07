@@ -235,15 +235,15 @@ public final class StandMeleeReach {
 		return Math.max(stand.getAttributeValue(Attributes.MOVEMENT_SPEED) * 10, 0.5);
 	}
 
-	/** How far from its user a close-range Stand counts as away: past its offsets of 1.16 and its idle place. */
+	/** How far from its user a Stand that reaches out counts as away: past its offsets of 1.16 and its idle place. */
 	public static double awayDistance(StandEntity stand) {
 		return Math.max(AWAY_DISTANCE, stand.offsetFromUser.idleOffset.length() + 1);
 	}
 
-	/** Whether a close-range Stand that follows its user is away from it to strike, or not back yet. */
+	/** Whether a Stand that reaches out and follows its user is away from it to strike, or not back yet. */
 	public static boolean isAwayToStrike(StandEntity stand) {
 		LivingEntity user = stand.getUser();
-		if (user == null || !isCloseRange(stand) || !stand.isFollowingUser() || stand.isArmsOnlyMode()) {
+		if (user == null || !usesMeleeReach(stand) || !stand.isFollowingUser() || stand.isArmsOnlyMode()) {
 			return false;
 		}
 		double away = awayDistance(stand);

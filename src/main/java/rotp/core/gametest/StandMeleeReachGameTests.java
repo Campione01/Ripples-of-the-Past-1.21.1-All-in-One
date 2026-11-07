@@ -80,7 +80,8 @@ public final class StandMeleeReachGameTests {
 		KISS_BASE(12.44D, "punch"),
 		KISS_MARGIN(14.3D, "punch"),
 		GREEN_DAY_NEAR(6.4D, "punch"),
-		GREEN_DAY_FAR(9.0D, "punch");
+		GREEN_DAY_FAR(9.0D, "punch"),
+		GREEN_DAY_REACH_MOD(13.0D, "punch");
 
 		final double distance;
 		final String ability;
@@ -103,10 +104,10 @@ public final class StandMeleeReachGameTests {
 		helper.onEachTick(run::tick);
 	}
 
-	@GameTest(template = "empty", timeoutTicks = 210, batch = "rotp_owner_melee_reach_groups")
+	@GameTest(template = "empty", timeoutTicks = 260, batch = "rotp_owner_melee_reach_groups")
 	public static void realPunchUsesTheOwnersTwoExplicitMeleeGroups(GameTestHelper helper) {
 		// Core bodies with the actual add-on IDs and declared ranges; no add-on assets or registries are installed here.
-		Run run = new Run(helper, List.of(Row.KISS_BASE, Row.KISS_MARGIN, Row.GREEN_DAY_NEAR, Row.GREEN_DAY_FAR));
+		Run run = new Run(helper, List.of(Row.KISS_BASE, Row.KISS_MARGIN, Row.GREEN_DAY_NEAR, Row.GREEN_DAY_FAR, Row.GREEN_DAY_REACH_MOD));
 		helper.onEachTick(run::tick);
 	}
 
@@ -315,6 +316,11 @@ public final class StandMeleeReachGameTests {
 		int ticks;
 		boolean movedAway;
 		int ticksAway;
+		Vec3 lastOffset;
+		double longestStep;
+		double farthest;
+		boolean guardedWhileAway;
+		int ticksSinceStrike;
 		boolean done;
 		boolean closed;
 
@@ -337,7 +343,7 @@ public final class StandMeleeReachGameTests {
 			power = PowerClass.STAND.attachGet(user);
 			type = switch (row) {
 				case KISS_BASE, KISS_MARGIN -> testMeleeStand("kiss:kiss", 4.0D, 12.0D, 17.0D, 17.0D);
-				case GREEN_DAY_NEAR, GREEN_DAY_FAR -> testMeleeStand("rotp_zgd:green_day", 2.0D, 128.0D, 15.7D, 10.0D);
+				case GREEN_DAY_NEAR, GREEN_DAY_FAR, GREEN_DAY_REACH_MOD -> testMeleeStand("rotp_zgd:green_day", 2.0D, 128.0D, 15.7D, 10.0D);
 				default -> JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("the_world"));
 			};
 			premise(type != null && StandPowerTransitions.insert(power, new StandInstance(type)).status()
@@ -363,6 +369,9 @@ public final class StandMeleeReachGameTests {
 			user.yRotO = user.getYRot();
 			user.xRotO = user.getXRot();
 			stand.updatePosition(user);
+			// the flight starts from the offset a Stand holds once it has ticked; this one was summoned just now
+			stand.resetManualOffset();
+			lastOffset = stand.position().subtract(user.position());
 			// a client's aims stop at the user's reach, so they met nothing
 			LivingComponentAction.getComponent(user).entityAim.setTarget(ActionTarget.EMPTY);
 			LivingComponentAction.getComponent(stand).entityAim.setTarget(ActionTarget.EMPTY);
@@ -371,8 +380,9 @@ public final class StandMeleeReachGameTests {
 				premise(StandMeleeReach.isCloseRange(stand) && StandMeleeReach.baseReach(stand, user) == 10.0D,
 						"The World's base reach must remain 10");
 			}
-			if (row == Row.BLOCK_REACH_MOD || row == Row.ENTITY_REACH_MOD || row == Row.REMOVED_ENTITY_REACH_MOD) {
-				var reach = user.getAttribute(row == Row.BLOCK_REACH_MOD
+			if (row == Row.BLOCK_REACH_MOD || row == Row.ENTITY_REACH_MOD || row == Row.REMOVED_ENTITY_REACH_MOD
+					|| row == Row.GREEN_DAY_REACH_MOD) {
+				var reach = user.getAttribute(row == Row.BLOCK_REACH_MOD || row == Row.GREEN_DAY_REACH_MOD
 						? Attributes.BLOCK_INTERACTION_RANGE : Attributes.ENTITY_INTERACTION_RANGE);
 				reach.addTransientModifier(new AttributeModifier(REACH_MODIFIER, 7.0D, AttributeModifier.Operation.ADD_VALUE));
 				if (row == Row.REMOVED_ENTITY_REACH_MOD) {
@@ -400,7 +410,10 @@ public final class StandMeleeReachGameTests {
 				done = true;
 				return;
 			}
-			if (row == Row.BARRAGE) {
+			if (row == Row.GREEN_DAY_REACH_MOD) {
+				flightTick();
+			}
+			else if (row == Row.BARRAGE) {
 				barrageTick();
 			}
 			else if (action.punchedTarget != null) {
@@ -467,6 +480,33 @@ public final class StandMeleeReachGameTests {
 				}
 				default -> {}
 			}
+			done = true;
+		}
+
+		/*
+		 * A reach mod is what puts this group's strikes further than a tick of its flight. Green Day strikes on its first tick
+		 * and flies out to the cow after it, a tick at most at its own speed; while away it cannot guard.
+		 */
+		private void flightTick() {
+			Vec3 offset = stand.position().subtract(user.position());
+			if (lastOffset != null) {
+				longestStep = Math.max(longestStep, offset.distanceTo(lastOffset));
+			}
+			lastOffset = offset;
+			farthest = Math.max(farthest, offset.length());
+			guardedWhileAway |= offset.length() > StandMeleeReach.awayDistance(stand) && stand.canStartBlocking();
+			if (action.punchedTarget == null || ++ticksSinceStrike < 4) {
+				return;
+			}
+			float loss = COW_HEALTH - cow.getHealth();
+			double speed = StandMeleeReach.flightSpeed(stand);
+			JojoMod.getLogger().info("MELEE-REACH row={} distance={} base={} damage={} farthest={} longestStep={} speed={}",
+					row, StandMeleeReach.userDistance(user, cow), StandMeleeReach.baseReach(stand, user), loss, farthest, longestStep, speed);
+			check(StandMeleeReach.baseReach(stand, user) == 12.0D && !StandMeleeReach.isCloseRange(stand) && loss > 0,
+					"the fixture's Green Day did not strike by the holder's modified reach: damage " + loss);
+			check(farthest > speed && longestStep <= speed + 1.0E-6D, "Green Day must fly out at its own speed, " + speed
+					+ " a tick: it reached " + farthest + " from its user, with a tick of " + longestStep);
+			check(farthest > StandMeleeReach.awayDistance(stand) && !guardedWhileAway, "Green Day away to strike could guard");
 			done = true;
 		}
 
