@@ -18,6 +18,7 @@ import rotp.core.client.standskin.StandSkin;
 import rotp.core.core.JojoMod;
 import rotp.core.powersystem.Moveset;
 import rotp.core.powersystem.Power;
+import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.unlockableskill.UnlockableSkill;
 
@@ -120,7 +121,12 @@ public class AbilityIconSprites implements AutoCloseable {
 
 
 	public TextureAtlasSprite getAbilityIcon(Ability ability, Power<?> context, @Nullable StandSkin curStandSkin) {
-		return getAbilityIcon(ability.getSpriteId(context), curStandSkin);
+		return getAbilityIcon(ability.getSpriteId(context), skinOfPower(ability.abilityId.powerClass(), PowerClass.STAND, curStandSkin));
+	}
+
+	/** A Stand skin's icons are its Stand's: a move of another power with the same name keeps its own icon. */
+	static <S> S skinOfPower(@Nullable Object power, Object standPower, @Nullable S standSkin) {
+		return power == null || power == standPower ? standSkin : null;
 	}
 
 	public TextureAtlasSprite getAbilityIcon(String abilitySpriteName, @Nullable StandSkin curStandSkin) {
@@ -137,7 +143,7 @@ public class AbilityIconSprites implements AutoCloseable {
 				hasPower ? power.getMoveset() : null,
 				hasPower ? power.getPowerType().getId() : null,
 				power,
-				spriteId -> getAbilityIcon(spriteId, curStandSkin),
+				spriteId -> getAbilityIcon(spriteId, skinOfPower(power != null ? power.getPowerClass() : null, PowerClass.STAND, curStandSkin)),
 				textureAtlas.missingSprite);
 	}
 
