@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.customobjects.entity_projectile.OwnerBoundProjectileEntity;
 import rotp.core.init.ModEntityTypes;
 import rotp.core.init.ModSoundEvents;
@@ -198,7 +199,7 @@ public class HGGrappleEntity extends OwnerBoundProjectileEntity {
 				}
 			}
 			entity = entity.getRootVehicle();
-			entity.setDeltaMovement(grappleVec);
+			entity.setDeltaMovement(scalePull(entity, grappleVec, false));
 			entity.fallDistance = 0;
 			entity.hurtMarked = true;
 		}
@@ -361,15 +362,27 @@ public class HGGrappleEntity extends OwnerBoundProjectileEntity {
 			for (Holder<MobEffect> effect : living.getActiveEffectsMap().keySet()) {
 				if (effect.is(ModStatusEffects.IMMOBILIZE) && effect.value() instanceof ImmobilizeEffect immobilize
 						&& immobilize.resetsDeltaMovement()) {
-					entity.move(MoverType.PLAYER, impulse);
+					entity.move(MoverType.PLAYER, scalePull(living, impulse, true));
 					return;
 				}
 			}
 		}
-		entity.setDeltaMovement(impulse);
+		entity.setDeltaMovement(scalePull(entity, impulse, false));
 		dragged.add(entity);
 		entity.fallDistance = 0;
 		entity.hurtMarked = true;
+	}
+
+	private static Vec3 scalePull(Entity moved, Vec3 impulse, boolean bypassesEntityTick) {
+		if (!(moved instanceof LivingEntity)) {
+			return impulse;
+		}
+		float rate = EntityTimeRates.rate(EntityTimeRates.Channel.MOTION, moved);
+		if (bypassesEntityTick) {
+			// A direct move is not held back by the target's skipped ticks.
+			rate = Math.min(rate, EntityTimeRates.rate(EntityTimeRates.Channel.BEING, moved));
+		}
+		return rate < 1.0F ? impulse.scale(rate) : impulse;
 	}
 
 	private void clearDraggedMotion() {
