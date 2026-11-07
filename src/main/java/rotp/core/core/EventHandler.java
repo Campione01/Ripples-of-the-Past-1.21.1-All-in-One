@@ -233,7 +233,9 @@ public class EventHandler {
 
 	private static void dropStandDiscOnDeath(LivingEntity dead, StandPower standPower) {
 		JojoModConfig.Common config = JojoModConfig.getCommonConfigInstance(false);
-		if (config.dropStandDisc.get() && !config.keepStandOnDeath.get() && standPower.hasPower()) {
+		// during a temporary loan the Stand on hand is borrowed: its one disc is in escrow and comes back at the restore
+		if (config.dropStandDisc.get() && !config.keepStandOnDeath.get() && standPower.hasPower()
+				&& standPower.temporaryLoanId() == null) {
 			standPower.getStandInstance().ifPresent(stand -> dead.spawnAtLocation(StandDiscItem.withStand(stand)));
 		}
 	}

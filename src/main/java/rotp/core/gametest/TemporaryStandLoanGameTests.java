@@ -22,6 +22,7 @@ import rotp.core.init.ModEntityTypes;
 import rotp.core.init.ModItems;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.mechanics.standarrow.StandArrowItem;
+import rotp.core.mechanics.standdisc.StandDiscItem;
 import rotp.core.network.c2s.ClRPSGameInputPacket;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.standpower.StandInstance;
@@ -41,9 +42,14 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.ModConfigSpec;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.common.util.FakePlayer;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -279,6 +285,58 @@ public final class TemporaryStandLoanGameTests {
 			keep.set(previousKeep);
 		}
 		helper.succeed();
+	}
+
+	/**
+	 * keepStandOnDeath off and dropStandDisc on, the real event: the borrowed Stand's one disc is in escrow, so a death during
+	 * a loan drops none and the restore leaves one. A death with no loan still drops its disc.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 20, batch = "rotp_temporary_loan_clone")
+	public static void aDeathDuringALoanDropsNoSecondDisc(GameTestHelper helper) {
+		ModConfigSpec.BooleanValue keep = deathConfig("keepStandOnDeath");
+		ModConfigSpec.BooleanValue drop = deathConfig("dropStandDisc");
+		boolean previousKeep = keep.get();
+		boolean previousDrop = drop.get();
+		Vec3 at = helper.absoluteVec(new Vec3(2.5D, 2.0D, 2.5D));
+		AABB area = new AABB(at, at).inflate(4.0D);
+		try (Fixture f = new Fixture(helper)) {
+			keep.set(false);
+			drop.set(true);
+			f.player.moveTo(at.x, at.y, at.z);
+			UUID token = f.begin();
+			NeoForge.EVENT_BUS.post(new LivingDeathEvent(f.player, f.player.damageSources().generic()));
+			FakePlayer clone = new FakePlayer(helper.getLevel(), f.player.getGameProfile());
+			FakePlayer noLoan = new FakePlayer(helper.getLevel(), new GameProfile(UUID.randomUUID(), "TemporaryStandNoLoan"));
+			try {
+				EventHandler.onPlayerClone(new PlayerEvent.Clone(clone, f.player, true));
+				f.restore(clone, StandPower.get(clone), token);
+				int escrowed = 1;
+				helper.assertTrue(discsIn(helper, area) + escrowed == 1,
+						"A death during a loan left " + (discsIn(helper, area) + escrowed) + " discs of a Stand with one");
+
+				noLoan.moveTo(at.x, at.y, at.z);
+				helper.assertTrue(StandPowerTransitions.insert(PowerClass.STAND.attachGet(noLoan), new StandInstance(f.borrowed)).applied(),
+						"Could not give the Stand with no loan");
+				NeoForge.EVENT_BUS.post(new LivingDeathEvent(noLoan, noLoan.damageSources().generic()));
+				helper.assertTrue(discsIn(helper, area) == 1, "A death with no loan must still drop the Stand's disc");
+			}
+			finally {
+				f.counts.setHeld(noLoan.getUUID(), null);
+				noLoan.discard();
+				clone.discard();
+			}
+		}
+		finally {
+			keep.set(previousKeep);
+			drop.set(previousDrop);
+			helper.getLevel().getEntitiesOfClass(ItemEntity.class, area).forEach(ItemEntity::discard);
+		}
+		helper.succeed();
+	}
+
+	private static int discsIn(GameTestHelper helper, AABB area) {
+		return helper.getLevel().getEntitiesOfClass(ItemEntity.class, area, item -> item.getItem().getItem() instanceof StandDiscItem).stream()
+				.mapToInt(item -> item.getItem().getCount()).sum();
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 20)
