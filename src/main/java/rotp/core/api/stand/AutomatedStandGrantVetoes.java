@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import rotp.core.core.JojoMod;
+import rotp.core.powersystem.standpower.StandPower;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -31,6 +32,11 @@ public final class AutomatedStandGrantVetoes {
 	public static boolean isVetoed(
 			ResourceLocation source,
 			ServerPlayer player) {
+		// a Stand reserved during a temporary loan is theirs, and would end whatever such a grant gave at the restore
+		StandPower power = StandPower.get(Objects.requireNonNull(player, "player"));
+		if (power != null && power.temporaryLoanId() != null) {
+			return true;
+		}
 		return evaluate(new AutomatedStandGrantQuery(
 				Objects.requireNonNull(source, "source"),
 				Objects.requireNonNull(player, "player")));

@@ -2,8 +2,11 @@ package rotp.core.config.editor;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import javax.annotation.Nullable;
 
 import com.google.gson.JsonArray;
@@ -11,11 +14,15 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.handler.codec.DecoderException;
+import net.minecraft.Util;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
@@ -30,6 +37,7 @@ import rotp.core.config.editor.client.ServerConfigClient;
 import rotp.core.core.JojoMod;
 import rotp.core.network.NetworkPayloadValidation;
 
+@EventBusSubscriber(modid = JojoMod.MOD_ID)
 public final class ConfigEditorPackets {
 	private static final int KEY_LIMIT = 160;
 	private static final int TEXT_BYTES = 256;
@@ -40,6 +48,9 @@ public final class ConfigEditorPackets {
 	private static final int CHOICE_LIMIT = 32;
 	private static final int REQUEST_BYTES = 272 * 1024;
 	private static final int REPLY_BYTES = 1024 * 1024;
+	private static final long GAP_WITHOUT_EDIT_MILLIS = 250L;
+	// main thread only, as the requests are handled
+	private static final Map<UUID, Long> lastRequestWithoutEdit = new HashMap<>();
 
 	private ConfigEditorPackets() {}
 
@@ -150,13 +161,16 @@ public final class ConfigEditorPackets {
 			return;
 		}
 		boolean canEdit = canEdit(player, context);
+		if (!canEdit && tooSoonWithoutEdit(player)) {
+			return;
+		}
 		if (request.operation() != Operation.READ && !canEdit) {
 			refuse(request, context, player, false, Status.FORBIDDEN);
 			return;
 		}
 		if (request.operation() == Operation.READ) {
-			List<ConfigEntry> entries = CommonConfigEditor.entries();
-			if (entries.size() > ENTRY_LIMIT || entries.stream().anyMatch(entry -> !fitsEntry(entry))) {
+			List<ConfigEntry> entries = CommonConfigEditor.entries().stream().filter(ConfigEditorPackets::fitsOrWarns).toList();
+			if (entries.size() > ENTRY_LIMIT) {
 				refuse(request, context, player, canEdit, Status.UNAVAILABLE);
 				return;
 			}
@@ -202,9 +216,25 @@ public final class ConfigEditorPackets {
 		return op != null && op.getLevel() >= 2;
 	}
 
+	// A denied request costs a log line and a READ a whole catalog, so one who may not edit gets one a gap and no answer between.
+	private static boolean tooSoonWithoutEdit(ServerPlayer player) {
+		long now = Util.getMillis();
+		Long last = lastRequestWithoutEdit.get(player.getUUID());
+		if (last != null && now - last < GAP_WITHOUT_EDIT_MILLIS) {
+			return true;
+		}
+		lastRequestWithoutEdit.put(player.getUUID(), now);
+		return false;
+	}
+
+	@SubscribeEvent
+	public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+		lastRequestWithoutEdit.remove(event.getEntity().getUUID());
+	}
+
 	private static void refuse(Request request, IPayloadContext context, ServerPlayer player, boolean canEdit, Status status) {
 		logRefusal(request, player, status);
-		context.reply(new Reply(request.id(), request.operation(), canEdit, ConfigEditResult.error(status, null), List.of()));
+		context.reply(new Reply(request.id(), request.operation(), canEdit, ConfigEditResult.error(status, request.key()), List.of()));
 	}
 
 	private static void logRefusal(Request request, ServerPlayer player, Status status) {
@@ -224,6 +254,14 @@ public final class ConfigEditorPackets {
 
 	private static boolean fitsEntry(ConfigEntry entry) {
 		return fitsValue(entry.defaultValue()) && fitsValue(entry.value());
+	}
+
+	private static boolean fitsOrWarns(ConfigEntry entry) {
+		boolean fits = fitsEntry(entry);
+		if (!fits) {
+			JojoMod.getLogger().warn("Core config editor leaves {} out of the catalog: its value does not fit the wire", entry.key());
+		}
+		return fits;
 	}
 
 	private static void writeEntry(RegistryFriendlyByteBuf buf, ConfigEntry entry) {

@@ -61,7 +61,7 @@ public final class ConfigWidgetRules {
 					"standResistanceMultiplier", "standStamina", "standBodyThroughWalls", "soulAscension"),
 			section("arrows", "standArrowMode", "bannedStands", "standXpCostInitial", "standXpCostIncrease",
 					"arrowDurability", "arrowDurabilityBeetle"),
-			section("time_stop", "timeStopChunkRange", "timeStopChargeSeconds", "timeStopDamageMultiplier",
+			section("time_stop", "timeStopRangeChunks", "timeStopChargeSeconds", "timeStopDamageMultiplier",
 					"endermenBeyondTimeSpace"),
 			section("hamon", "hamonPointsMultiplier", "hamonDamageMultiplier", "breathingTrainingMultiplier",
 					"breathingTrainingDeterioration", "breathingHamonStatGap", "hamonEnergyTicksDown", "mixHamonTechniques",
@@ -253,7 +253,7 @@ public final class ConfigWidgetRules {
 		return labelKey(entry) + ".tooltip";
 	}
 
-	/** A readable name for a key that has no text yet: timeStopChunkRange reads Time Stop Chunk Range. */
+	/** A readable name for a key that has no text yet: timeStopRangeChunks reads Time Stop Range Chunks. */
 	public static String fallbackName(String key) {
 		String leaf = leaf(key);
 		StringBuilder name = new StringBuilder();

@@ -392,8 +392,16 @@ public class StandStatsRenderer {
 
 		public static final CosmeticStandStats DEFAULT = new CosmeticStandStats() {};
 		public static CosmeticStandStats getHandler(StandPower standData) {
-			CosmeticStandStats handler = standData.hasPower() ? OVERRIDE_STAT.getOrDefault(standData.getPowerType().getId(), DEFAULT) : DEFAULT;
-			return handler;
+			return standData.hasPower() ? getHandlerForStandId(standData.getPowerType().getId()) : DEFAULT;
+		}
+
+		static CosmeticStandStats getHandlerForStandId(ResourceLocation standId) {
+			CosmeticStandStats custom = OVERRIDE_STAT.get(standId);
+			if (custom != null) {
+				return custom;
+			}
+			CosmeticStandStats canon = CanonStandPanels.find(standId);
+			return canon != null ? canon : DEFAULT;
 		}
 	}
 

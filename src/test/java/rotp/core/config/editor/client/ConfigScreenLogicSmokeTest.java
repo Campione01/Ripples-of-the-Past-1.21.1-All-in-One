@@ -29,7 +29,7 @@ import rotp.core.config.editor.client.ConfigWidgetRules.WidgetKind;
  * preview changes nothing, that a value counts only once accepted, and that there is one request at a time.
  */
 public final class ConfigScreenLogicSmokeTest {
-	private static final String RANGE = "Stand settings.Time Stop.timeStopChunkRange";
+	private static final String RANGE = "Stand settings.Time Stop.timeStopRangeChunks";
 	private static final String DAMAGE = "Stand settings.Time Stop.timeStopDamageMultiplier";
 
 	private ConfigScreenLogicSmokeTest() {}

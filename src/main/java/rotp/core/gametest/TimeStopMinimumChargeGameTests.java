@@ -101,6 +101,46 @@ public final class TimeStopMinimumChargeGameTests {
 
 	private TimeStopMinimumChargeGameTests() {}
 
+	@GameTest(template = "empty", timeoutTicks = 50, batch = "jojo_ripples_timestop_default_dimension")
+	public static void aRealTimeStopCoversDistantChunksByDefault(GameTestHelper helper) {
+		helper.assertTrue(JojoModConfig.getCommonConfigInstance(false).timeStopChunkRange.get() == 0,
+				"The loaded default must stop the entire current dimension");
+		assertRangeFromRealPress(helper, 0);
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 50, batch = "jojo_ripples_timestop_explicit_range")
+	public static void aRealTimeStopHonorsAnExplicitChunkLimit(GameTestHelper helper) {
+		ModConfigSpec.IntValue range = JojoModConfig.COMMON_SPEC.getValues()
+				.get(List.of("Stand settings", "Time Stop", "timeStopRangeChunks"));
+		int original = range.get();
+		helper.testInfo.addListener(new CloseOnEnd(() -> range.set(original)));
+		range.set(12);
+		assertRangeFromRealPress(helper, 12);
+	}
+
+	private static void assertRangeFromRealPress(GameTestHelper helper, int expectedRange) {
+		Scene s = new Scene(helper, "star_platinum", 4, false);
+		s.guarded(() -> helper.assertTrue(s.press() != null, "The real Time Stop charge was not admitted"));
+		helper.runAfterDelay(15, () -> s.guarded(() -> {
+			s.assertChargedFor(15);
+			s.release();
+			TimeStopState.Instance instance = s.instance();
+			helper.assertTrue(instance != null && instance.chunkRange() == expectedRange,
+					"The real charge did not use the loaded range " + expectedRange + ": " + instance);
+			ChunkPos center = instance.centerPos();
+			ChunkPos near = new ChunkPos(center.x + 11, center.z);
+			ChunkPos edge = new ChunkPos(center.x + 12, center.z);
+			ChunkPos distant = new ChunkPos(center.x + 64, center.z + 64);
+			boolean wholeDimension = expectedRange == 0;
+			helper.assertTrue(s.state.isTimeStopped(near)
+							&& s.state.isTimeStopped(edge) == wholeDimension
+							&& s.state.isTimeStopped(distant) == wholeDimension,
+					"Time Stop coverage did not match the configured dimension/finite boundary");
+			s.close();
+			helper.succeed();
+		}));
+	}
+
 	@GameTest(template = "empty", timeoutTicks = 40, batch = GameTestBatches.TIME_STOP)
 	public static void aTapOfStarPlatinumsTimeStopStartsNothingAndPaysNothing(GameTestHelper helper) {
 		aTapStartsNothing(helper, "star_platinum", 4);
@@ -692,6 +732,10 @@ public final class TimeStopMinimumChargeGameTests {
 		private boolean closed;
 
 		private Scene(GameTestHelper helper, String standId, int resolve) {
+			this(helper, standId, resolve, true);
+		}
+
+		private Scene(GameTestHelper helper, String standId, int resolve, boolean isolate) {
 			this.helper = helper;
 			level = helper.getLevel();
 			state = level.getData(ModDataAttachmentTypes.TIME_STOP.get());
@@ -716,11 +760,15 @@ public final class TimeStopMinimumChargeGameTests {
 			helper.assertTrue(TimeStopLearning.getTimeStopTicks(power, TIME_STOP) == TRAINED,
 					"setup: not a " + TRAINED + "-tick stop: " + TimeStopLearning.getTimeStopTicks(power, TIME_STOP));
 			ChunkPos farAway = new ChunkPos(51100 + user.getId() * 2, 51100);
-			Consumer<TimeStopLifecycleEvent.PreStart> isolate = event -> {
-				if (owns(event)) {
-					event.setInstance(event.getInstance().withArea(farAway, 1));
-				}
-			};
+			if (isolate) {
+				Consumer<TimeStopLifecycleEvent.PreStart> isolateStop = event -> {
+					if (owns(event)) {
+						event.setInstance(event.getInstance().withArea(farAway, 1));
+					}
+				};
+				listeners.add(isolateStop);
+				NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, false, TimeStopLifecycleEvent.PreStart.class, isolateStop);
+			}
 			Consumer<TimeStopLifecycleEvent.Removed> ended = event -> {
 				if (owns(event)) {
 					removed = event.getInstance();
@@ -731,10 +779,8 @@ public final class TimeStopMinimumChargeGameTests {
 					heard.add(event.getSound().value().getLocation().getPath() + "@" + event.getSource().getName());
 				}
 			};
-			listeners.add(isolate);
 			listeners.add(ended);
 			listeners.add(sound);
-			NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, false, TimeStopLifecycleEvent.PreStart.class, isolate);
 			NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, false, TimeStopLifecycleEvent.Removed.class, ended);
 			NeoForge.EVENT_BUS.addListener(sound);
 			helper.testInfo.addListener(new CloseOnEnd(this::close));

@@ -27,13 +27,14 @@ public final class StandRemoveResolveSmokeTest {
 		check(!remove.contains("setStand(null)"), "/jojo_ripples stand remove only takes the Stand away again");
 
 		String give = between(command, "privatestaticintsetStand(", "privatestaticvoidclearBeforeReplace(");
-		check(give.contains("if(stand!=null&&(replace||!stand.hasPower())){clearBeforeReplace(stand);stand.setStand(standType);"),
+		check(give.contains("if(stand!=null&&(replace||!holdsAStand(stand))){clearBeforeReplace(stand);stand.setStand(standType);"),
 				"/jojo_ripples stand give ... true must clear the power first, as 1.16 did");
 		String random = between(command, "privatestaticintsetRandomStand(", "privatestaticintremoveStand(");
 		check(random.contains("if(standType!=null){clearBeforeReplace(stand);stand.setStand(standType);"),
 				"/jojo_ripples stand random ... true must clear the power first, as 1.16 did");
-		check(command.contains("privatestaticvoidclearBeforeReplace(StandPowerstand){if(stand.hasPower()){"
-				+ "stand.applyDestructiveTransition(false);}}"), "the replace clear is 1.16 power.clear()");
+		check(command.contains("privatestaticvoidclearBeforeReplace(StandPowerstand){"
+				+ "StandPowerTransitions.abortTemporaryLoan(stand);if(stand.hasPower()){"
+				+ "stand.applyDestructiveTransition(false);}}"), "the replace clear is 1.16 power.clear(), of the reserved Stand during a loan");
 
 		// the transition both commands share with the stand remover items
 		String power = compact(source(STAND_POWER));

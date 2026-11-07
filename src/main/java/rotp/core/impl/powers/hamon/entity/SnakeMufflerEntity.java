@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.init.ModEntityTypes;
 import rotp.core.impl.powers.pillarman.PillarmanExtendingBodyPartEntity;
 
@@ -17,6 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -81,7 +83,7 @@ public class SnakeMufflerEntity extends PillarmanExtendingBodyPartEntity {
 			return;
 		}
 		resolveJumpTarget();
-		if (tickCount < 5) {
+		if (ownerTicks() - ownerTimeStep() < 4.0D) {
 			Vec3 jumpVec = new Vec3(0.0D, 0.45D, 0.0D);
 			if (entityToJumpOver != null && entityToJumpOver.isAlive()) {
 				Vec3 posDiff = entityToJumpOver.position().subtract(owner.position());
@@ -94,7 +96,8 @@ public class SnakeMufflerEntity extends PillarmanExtendingBodyPartEntity {
 					jumpVec = posDiff.add(0.0D, (entityToJumpOver.getBbHeight() + 0.5D) / ticksLifespan(), 0.0D);
 				}
 			}
-			owner.setDeltaMovement(jumpVec);
+			float motionRate = EntityTimeRates.rate(EntityTimeRates.Channel.MOTION, owner);
+			owner.setDeltaMovement(motionRate < 1.0F ? jumpVec.scale(motionRate) : jumpVec);
 			owner.hurtMarked = true;
 		}
 		owner.fallDistance = 0.0F;
@@ -106,10 +109,18 @@ public class SnakeMufflerEntity extends PillarmanExtendingBodyPartEntity {
 		}
 	}
 
-	// its leap sets its owner's velocity in the world's ticks (tick), which owner time alone would not slow
+	// Only inherit an owner slowdown; otherwise keep each world tick of this part as one step.
 	@Override
 	protected boolean runsInOwnerTime() {
-		return false;
+		LivingEntity owner = getOwner();
+		return owner != null && (EntityTimeRates.rate(EntityTimeRates.Channel.STAND_ACTIONS, owner) < 1.0F
+				|| owner instanceof Mob && EntityTimeRates.rate(EntityTimeRates.Channel.BEING, owner) < 1.0F);
+	}
+
+	@Override
+	protected boolean shouldExpire(@Nullable Entity owner) {
+		// Retain accumulated age if the owner stops being slowed partway through the leap.
+		return ownerTicks() > ticksLifespan() || owner != null && !owner.isAlive();
 	}
 
 	@Override

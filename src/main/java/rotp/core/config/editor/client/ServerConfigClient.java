@@ -36,7 +36,10 @@ public final class ServerConfigClient {
 	public static long applyPreset(String id) { return request(Operation.APPLY_PRESET, id, null); }
 	public static long resetPreset(String id) { return request(Operation.RESET_PRESET, id, null); }
 
-	/** Returns the correlation ID, or zero when the server does not support the editor. */
+	/**
+	 * Returns the correlation ID, or zero when the server does not support the editor. Throws IllegalArgumentException
+	 * for a value the wire cannot carry; the screen's transport (ServerConfigStores) turns that into -1.
+	 */
 	public static long request(Operation operation, String key, @Nullable JsonElement value) {
 		var listener = negotiated();
 		if (listener == null) return 0;

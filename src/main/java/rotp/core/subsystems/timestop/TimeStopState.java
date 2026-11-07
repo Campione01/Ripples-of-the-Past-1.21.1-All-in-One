@@ -19,6 +19,7 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import rotp.core.JojoModConfig;
 import rotp.core.api.timestop.TimeStopAudioContext;
 import rotp.core.api.timestop.TimeStopAudioCue;
@@ -114,6 +115,7 @@ public class TimeStopState {
     private final Map<Integer, FrozenEntityState> frozenEntities = new HashMap<>();
     private final Map<Integer, List<Runnable>> onTimeResume = new HashMap<>();
     private final Set<UUID> playersVisionFrozen = new HashSet<>();
+    private final IntOpenHashSet dirtyEntityData = new IntOpenHashSet();
     private final Map<UUID, Map<Integer, Map<Integer, SynchedEntityData.DataValue<?>>>> delayedEntityData = new HashMap<>();
     private final TimeStopRedstoneHold redstoneHold;
 
@@ -635,6 +637,9 @@ public class TimeStopState {
     }
 
     public void reconcileFrozenEntity(Entity entity) {
+        if (entity.level() == level && entity.getEntityData().isDirty() && !playersVisionFrozen.isEmpty()) {
+            dirtyEntityData.add(entity.getId());
+        }
         if (!isFreezable(entity)) {
             unfreezeEntity(entity);
             return;
@@ -681,7 +686,15 @@ public class TimeStopState {
             restoreTimeStopGamerulesIfNoActiveInstances();
             syncRemovedInstanceToAll(id);
             updateAllPlayerAwareness();
+            pruneViewersIfNoStopLeft();
             ModEventHooks.onTimeStopRemoved(level, removed, reason);
+        }
+    }
+
+    // a viewer gone before the last stop ended meets neither the awareness pass above nor the data sync, which needs a stop
+    private void pruneViewersIfNoStopLeft() {
+        if (instances.isEmpty() && !playersVisionFrozen.isEmpty()) {
+            pruneFrozenVisionPlayers();
         }
     }
 
@@ -800,6 +813,7 @@ public class TimeStopState {
         if (!instances.isEmpty() && !playersVisionFrozen.isEmpty()) {
             manualEntitiesDataSync();
         }
+        pruneViewersIfNoStopLeft();
         for (PendingRemoval removal : pendingRemovals) {
             ModEventHooks.onTimeStopRemoved(
                     level, removal.instance(), removal.reason());
@@ -879,29 +893,63 @@ public class TimeStopState {
             unfreezePlayerVision(player);
         }
         else {
-            playersVisionFrozen.add(player.getUUID());
+            if (playersVisionFrozen.add(player.getUUID()) && playersVisionFrozen.size() == 1) {
+                // Capture data that was already dirty when the first viewer froze.
+                for (Entity entity : level.getAllEntities()) {
+                    if (entity.getEntityData().isDirty()) {
+                        dirtyEntityData.add(entity.getId());
+                    }
+                }
+            }
         }
     }
 
     private void unfreezePlayerVision(ServerPlayer player) {
         UUID playerId = player.getUUID();
-        if (playersVisionFrozen.remove(playerId) || delayedEntityData.containsKey(playerId)) {
+        if (removeFrozenViewer(playerId) || delayedEntityData.containsKey(playerId)) {
             sendDataOnTimeStopUnfreeze(player);
         }
     }
 
     private void clearFrozenVisionForPlayer(ServerPlayer player) {
         UUID playerId = player.getUUID();
-        playersVisionFrozen.remove(playerId);
+        removeFrozenViewer(playerId);
         delayedEntityData.remove(playerId);
+    }
+
+    private boolean removeFrozenViewer(UUID playerId) {
+        boolean removed = playersVisionFrozen.remove(playerId);
+        if (playersVisionFrozen.isEmpty()) {
+            dirtyEntityData.clear();
+        }
+        return removed;
+    }
+
+    @ApiStatus.Internal
+    public static void onEntityDataDirty(Entity entity) {
+        if (entity.level() instanceof ServerLevel level && level.getServer().isSameThread()) {
+            var key = ModDataAttachmentTypes.TIME_STOP.get();
+            if (level.hasData(key)) {
+                TimeStopState state = level.getData(key);
+                if (!state.playersVisionFrozen.isEmpty()) {
+                    state.dirtyEntityData.add(entity.getId());
+                }
+            }
+        }
     }
 
     private void manualEntitiesDataSync() {
         pruneFrozenVisionPlayers();
-        if (playersVisionFrozen.isEmpty()) {
+        if (dirtyEntityData.isEmpty()) {
             return;
         }
-        for (Entity entity : UtilFunctions.getEntities(level)) {
+        int[] pending = dirtyEntityData.toIntArray();
+        dirtyEntityData.clear();
+        for (int entityId : pending) {
+            Entity entity = level.getEntity(entityId);
+            if (entity == null || entity.isRemoved()) {
+                continue;
+            }
             SynchedEntityData entityData = entity.getEntityData();
             if (!entityData.isDirty()) {
                 continue;
@@ -910,6 +958,8 @@ public class TimeStopState {
                     .map(connection -> connection.getPlayer())
                     .toList();
             if (trackingPlayers.stream().noneMatch(player -> playersVisionFrozen.contains(player.getUUID()))) {
+                // A viewer may start tracking this still-dirty entity before the stop ends.
+                dirtyEntityData.add(entityId);
                 continue;
             }
             List<SynchedEntityData.DataValue<?>> packedData = entityData.packDirty();
@@ -953,6 +1003,9 @@ public class TimeStopState {
     private void pruneFrozenVisionPlayers() {
         playersVisionFrozen.removeIf(playerId -> !isPlayerInLevel(playerId));
         delayedEntityData.keySet().removeIf(playerId -> !isPlayerInLevel(playerId));
+        if (playersVisionFrozen.isEmpty()) {
+            dirtyEntityData.clear();
+        }
     }
 
     private boolean isPlayerInLevel(UUID playerId) {
@@ -1424,6 +1477,12 @@ public class TimeStopState {
         TimeStopState state = serverLevel.getData(attachmentType);
         return !state.instances.isEmpty() && state.isTimeStopped(new ChunkPos(pos))
                 && state.redstoneHold.hold(receiver, pos, source, sourcePos, movedByPiston);
+    }
+
+    /** How many entities' data changes wait for a frozen viewer. */
+    @ApiStatus.Internal
+    public int heldEntityDataCount() {
+        return dirtyEntityData.size();
     }
 
     /** The held neighbour updates' blocks, in the order they will run. */

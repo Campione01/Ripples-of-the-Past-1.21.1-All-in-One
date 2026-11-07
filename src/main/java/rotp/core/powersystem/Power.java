@@ -82,6 +82,10 @@ public abstract class Power<P extends Power<P>> implements SynchronizablePlayerD
 	public abstract PowerType getPowerType();
 	
 	protected void onSetPowerType(@Nullable PowerType oldPower, @Nullable PowerType newPower) {
+		onSetPowerType(oldPower, newPower, true);
+	}
+
+	protected void onSetPowerType(@Nullable PowerType oldPower, @Nullable PowerType newPower, boolean runGrant) {
 		boolean powerChanged = oldPower != newPower;
 		PowerData oldData = null;
 		if (powerChanged && oldPower != null && !user.level().isClientSide()) {
@@ -94,7 +98,7 @@ public abstract class Power<P extends Power<P>> implements SynchronizablePlayerD
 		if (!user.level().isClientSide()) {
 			PowerData curData = getCurTypeData();
 			if (curData != null) {
-				if (powerChanged) {
+				if (powerChanged && runGrant) {
 					curData.onPowerGiven(this, oldPower, oldData);
 				}
 				curData.syncToAllTracking(user);

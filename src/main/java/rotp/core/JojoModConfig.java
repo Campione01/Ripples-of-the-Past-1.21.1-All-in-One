@@ -232,12 +232,12 @@ public class JojoModConfig {
 					.defineInRange("arrowDurabilityBeetle", 250, 1, Integer.MAX_VALUE), 250);
 
 			builder.push("Time Stop");
+			// A new TOML key lets NeoForge replace the old finite range on existing installs.
 			timeStopChunkRange = ConfigValue.fromSpec(
-					builder.comment("Range of Time Stop ability in chunks.",
-							"If set to 0, the whole dimension is frozen in time.",
-							"Defaults to 12.")
+					builder.comment("0 (default): stops time throughout the current dimension.",
+							"A positive value limits the range in chunks.")
 					.translation("jojo.config.timeStopChunkRange")
-					.defineInRange("timeStopChunkRange", 12, 0, Integer.MAX_VALUE), 12);
+					.defineInRange("timeStopRangeChunks", 0, 0, Integer.MAX_VALUE), 0);
 			timeStopDamageMultiplier = ConfigValue.fromSpec(
 					builder.comment("Damage multiplier for entities frozen in time.")
 					.translation("jojo.config.timeStopDamageMultiplier")
@@ -387,7 +387,7 @@ public class JojoModConfig {
 			skipStandProgression = ConfigValue.synced(false);
 			resolveLvlPoints = ConfigValue.synced(defaultResolveLvlPoints());
 			standExpMultiplier = ConfigValue.synced(1.0D);
-			timeStopChunkRange = ConfigValue.synced(12);
+			timeStopChunkRange = ConfigValue.synced(0);
 			timeStopDamageMultiplier = ConfigValue.synced(1.0D);
 			timeStopChargeSeconds = ConfigValue.synced(TIME_STOP_CHARGE_SECONDS_DEFAULT);
 			standDamageMultiplier = ConfigValue.synced(1.0D);

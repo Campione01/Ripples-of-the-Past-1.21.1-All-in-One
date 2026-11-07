@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,7 +24,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.ServerOpListEntry;
 import net.neoforged.fml.config.ModConfigs;
 import net.neoforged.neoforge.common.ModConfigSpec;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.common.extensions.ICommonPacketListener;
+import net.neoforged.neoforge.common.util.FakePlayer;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
@@ -40,7 +44,7 @@ import rotp.core.core.JojoMod;
 public final class ConfigEditorPacketsGameTests {
 	private static final String NAMESPACE = CommonConfigEditorGameTests.NAMESPACE;
 	private static final String GROUP = "Stand settings.Time Stop";
-	private static final String RANGE = GROUP + ".timeStopChunkRange";
+	private static final String RANGE = GROUP + ".timeStopRangeChunks";
 	private static final String DAMAGE = GROUP + ".timeStopDamageMultiplier";
 
 	private ConfigEditorPacketsGameTests() {}
@@ -67,15 +71,17 @@ public final class ConfigEditorPacketsGameTests {
 			helper.assertTrue(read.result().status() == Status.OK && !read.canEdit()
 					&& read.entries().stream().anyMatch(entry -> entry.key().equals(RANGE)),
 					"ordinary players may read the server descriptors but cannot edit them");
+			gapPassed(guest);
 			Reply set = exchange(helper, guest, new Request(2, Operation.SET, RANGE,
 					new JsonPrimitive(original == 7 ? 8 : 7)));
-			helper.assertTrue(set.result().status() == Status.FORBIDDEN && !set.canEdit(),
+			helper.assertTrue(set.result().status() == Status.FORBIDDEN && !set.canEdit() && RANGE.equals(set.result().key()),
 					"unlisted LAN-cheats guest was allowed to write through the real config packet");
 			for (Request request : List.of(new Request(3, Operation.RESET, RANGE, null),
 					new Request(4, Operation.RESET_GROUP, GROUP, null),
 					new Request(5, Operation.PREVIEW_PRESET, "pvp", null),
 					new Request(6, Operation.APPLY_PRESET, "pvp", null),
 					new Request(7, Operation.RESET_PRESET, "pvp", null))) {
+				gapPassed(guest);
 				helper.assertTrue(exchange(helper, guest, request).result().status() == Status.FORBIDDEN,
 						"unlisted LAN-cheats guest was allowed to use " + request.operation());
 			}
@@ -117,6 +123,7 @@ public final class ConfigEditorPacketsGameTests {
 
 			Reply invalid = exchange(helper, player, new Request(2, Operation.SET, RANGE, new JsonPrimitive("9")));
 			helper.assertTrue(invalid.result().status() == Status.INVALID_VALUE && invalid.canEdit()
+					&& RANGE.equals(invalid.result().key())
 					&& Arrays.equals(before, Files.readAllBytes(path)), "typed string was coerced into a server integer");
 			Reply set = exchange(helper, player, new Request(3, Operation.SET, RANGE, new JsonPrimitive(nextRange)));
 			helper.assertTrue(set.result().status() == Status.OK && set.canEdit() && set.result().changes().size() == 1
@@ -139,7 +146,9 @@ public final class ConfigEditorPacketsGameTests {
 			byte[] beforePreview = Files.readAllBytes(path);
 			Reply preview = exchange(helper, player, new Request(8, Operation.PREVIEW_PRESET, "pvp", null));
 			helper.assertTrue(preview.result().status() == Status.OK && preview.result().changes().stream()
-							.anyMatch(change -> change.key().equals(RANGE) && change.after().getAsInt() == 4)
+							.anyMatch(change -> change.key().equals(DAMAGE) && change.before().getAsDouble() == 1.0D
+									&& change.after().getAsDouble() == 0.75D)
+							&& preview.result().changes().stream().noneMatch(change -> change.key().equals(RANGE))
 							&& range.get().equals(range.getDefault()) && Arrays.equals(beforePreview, Files.readAllBytes(path)),
 					"operator preview must return the real diff without applying it");
 			helper.succeed();
@@ -187,6 +196,61 @@ public final class ConfigEditorPacketsGameTests {
 		helper.assertTrue(client.replies.isEmpty() && Arrays.equals(before, Files.readAllBytes(path)),
 				"malformed payload produced a reply or touched the TOML");
 		helper.succeed();
+	}
+
+	/** One who may not edit gets one request a gap, whatever it asks; an operator is not limited (the test above). */
+	@GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 30)
+	public static void aPlayerWhoCannotEditGetsOneRequestInAGap(GameTestHelper helper) throws InterruptedException {
+		FakePlayer flooder = new FakePlayer(helper.getLevel(), new GameProfile(UUID.randomUUID(), "config_flood"));
+		FakePlayer other = new FakePlayer(helper.getLevel(), new GameProfile(UUID.randomUUID(), "config_other"));
+		try {
+			var client = new Exchange(flooder, true);
+			Request read = new Request(1, Operation.READ, "", null);
+			ConfigEditorPackets.handleRequest(read, client.context);
+			ConfigEditorPackets.handleRequest(read, client.context);
+			ConfigEditorPackets.handleRequest(new Request(2, Operation.SET, RANGE, new JsonPrimitive(7)), client.context);
+			helper.assertTrue(client.replies.size() == 1, "a flood was answered: " + client.replies.size() + " replies");
+			var neighbour = new Exchange(other, true);
+			ConfigEditorPackets.handleRequest(read, neighbour.context);
+			helper.assertTrue(neighbour.replies.size() == 1, "one player's requests used up another's gap");
+
+			NeoForge.EVENT_BUS.post(new PlayerEvent.PlayerLoggedOutEvent(flooder));
+			ConfigEditorPackets.handleRequest(read, client.context);
+			helper.assertTrue(client.replies.size() == 2, "a logout did not clear the player's last request");
+			Thread.sleep(260L);
+			ConfigEditorPackets.handleRequest(read, client.context);
+			helper.assertTrue(client.replies.size() == 3, "a request after the gap was not answered");
+			helper.succeed();
+		}
+		finally {
+			flooder.discard();
+			other.discard();
+		}
+	}
+
+	/** One list hand-edited past the wire limit must not blank the whole page for everyone. */
+	@GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 30)
+	public static void anOversizedListLeavesOnlyItsOwnRowOutOfTheCatalog(GameTestHelper helper) {
+		String key = "Stand settings.bannedStands";
+		ModConfigSpec.ConfigValue<List<String>> banned = raw(key);
+		List<String> original = banned.get();
+		try {
+			banned.set(Collections.nCopies(1025, "jojo_ripples:the_world"));
+			Reply read = exchange(helper, player(helper, "config_oversized"), new Request(1, Operation.READ, "", null));
+			helper.assertTrue(read.result().status() == Status.OK, "the oversized list blanked the page: " + read.result().status());
+			helper.assertTrue(read.entries().stream().noneMatch(entry -> entry.key().equals(key))
+							&& read.entries().stream().anyMatch(entry -> entry.key().equals(RANGE)),
+					"only the oversized row may be left out of the catalog");
+		}
+		finally {
+			banned.set(original);
+		}
+		helper.succeed();
+	}
+
+	// the gap a real client's next request would come after, without the wait
+	private static void gapPassed(ServerPlayer player) {
+		ConfigEditorPackets.onPlayerLoggedOut(new PlayerEvent.PlayerLoggedOutEvent(player));
 	}
 
 	private static Reply exchange(GameTestHelper helper, ServerPlayer player, Request request) {
