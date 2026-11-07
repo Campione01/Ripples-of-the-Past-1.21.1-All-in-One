@@ -39,6 +39,13 @@ public final class AbilityIconSpritesCompatibilitySmokeTest {
 		check("ability/heavy_punch".equals(namespaced.getPath()),
 				"namespaced icon cache must use the standard ability path");
 
+		// The Ultimate Lifeform's heavy_punch showed the user's Stand's heavy_punch icon.
+		Object standPower = "stand";
+		check("skin".equals(AbilityIconSprites.skinOfPower(standPower, standPower, "skin")),
+				"a Stand's move must take its icon from its skin");
+		check(AbilityIconSprites.skinOfPower("player", standPower, "skin") == null,
+				"another power's move must not take its icon from the user's Stand skin");
+
 		AbilityType<StandEntityGrabReleaseAbility> releaseType = new AbilityType<>(
 				ResourceLocation.fromNamespaceAndPath("jojo_ripples", "stand_grab_release"),
 				StandEntityGrabReleaseAbility::new);
