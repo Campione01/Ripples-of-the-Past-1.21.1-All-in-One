@@ -10,21 +10,26 @@ import net.minecraft.resources.ResourceLocation;
 
 record TemporaryStandLoan(
 		UUID token, StandInstance originalStand, CompoundTag originalProgression, boolean originalSkipped,
-		ResourceLocation borrowedId, int borrowedResolveLevel, boolean conflicted, boolean borrowedLostOnClone) {
+		ResourceLocation borrowedId, int borrowedResolveLevel, boolean borrowedLostOnClone) {
 
 	TemporaryStandLoan withBorrowedResolveLevel(int level) {
 		return new TemporaryStandLoan(token, originalStand, originalProgression, originalSkipped, borrowedId, level,
-				conflicted, borrowedLostOnClone);
+				borrowedLostOnClone);
 	}
 
-	TemporaryStandLoan withConflict() {
-		return conflicted ? this : new TemporaryStandLoan(token, originalStand, originalProgression, originalSkipped,
-				borrowedId, borrowedResolveLevel, true, borrowedLostOnClone);
+	TemporaryStandLoan withBorrowedForm(ResourceLocation form, int ownResolveLevel) {
+		return new TemporaryStandLoan(token, originalStand, originalProgression, originalSkipped, form, ownResolveLevel,
+				false);
+	}
+
+	TemporaryStandLoan withBorrowedLost(boolean lost) {
+		return new TemporaryStandLoan(token, originalStand, originalProgression, originalSkipped, borrowedId,
+				borrowedResolveLevel, lost);
 	}
 
 	TemporaryStandLoan copyForClone(boolean lostOnThisClone) {
 		return new TemporaryStandLoan(token, originalStand.copy(), originalProgression.copy(), originalSkipped,
-				borrowedId, borrowedResolveLevel, conflicted, borrowedLostOnClone || lostOnThisClone);
+				borrowedId, borrowedResolveLevel, borrowedLostOnClone || lostOnThisClone);
 	}
 
 	StandInstance copyOriginal() {
@@ -45,7 +50,6 @@ record TemporaryStandLoan(
 		tag.putBoolean("OriginalSkipped", originalSkipped);
 		tag.putString("BorrowedStand", borrowedId.toString());
 		tag.putInt("BorrowedResolveLevel", borrowedResolveLevel);
-		tag.putBoolean("Conflicted", conflicted);
 		tag.putBoolean("BorrowedLostOnClone", borrowedLostOnClone);
 		return tag;
 	}
@@ -60,6 +64,6 @@ record TemporaryStandLoan(
 		return StandInstance.CODEC.parse(NbtOps.INSTANCE, tag.getCompound("OriginalStand")).result()
 				.map(original -> new TemporaryStandLoan(tag.getUUID("Token"), original,
 						tag.getCompound("OriginalProgression").copy(), tag.getBoolean("OriginalSkipped"), borrowed,
-						tag.getInt("BorrowedResolveLevel"), tag.getBoolean("Conflicted"), tag.getBoolean("BorrowedLostOnClone")));
+						tag.getInt("BorrowedResolveLevel"), tag.getBoolean("BorrowedLostOnClone")));
 	}
 }

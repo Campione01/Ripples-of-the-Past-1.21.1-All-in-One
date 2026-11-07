@@ -187,11 +187,13 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 
 	private void setStandInstance(Optional<StandInstance> standInstance, StandChange change, boolean restoredSkipped) {
 		Optional<StandInstance> newStandInstance = copyStandInstance(standInstance);
-		if (!standInstanceChanged(this.standInstance, newStandInstance)) {
+		boolean restoring = change == StandChange.RESTORE_LOAN;
+		// a form of the borrowed Stand may equal the reserved one, and the restore still owes its progression and flag
+		if (!restoring && !standInstanceChanged(this.standInstance, newStandInstance)) {
 			return;
 		}
 		if (change == StandChange.ORDINARY && temporaryStandLoan != null) {
-			temporaryStandLoan = temporaryStandLoan.withConflict();
+			temporaryStandLoan = followDirectChange(temporaryStandLoan, newStandInstance);
 		}
 
 		StandType oldStand = getPowerType();
@@ -220,23 +222,23 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 				// server-wide taken count for standArrowMode
 				StandUtil.trackTakenStand(holder, newStand);
 			}
-			if (change != StandChange.RESTORE_LOAN && newStand != null && user instanceof ServerPlayer player) {
+			if (!restoring && newStand != null && user instanceof ServerPlayer player) {
 				if (standChanged) {
 					JojoControlsCommand.sendPowerControlsHint(player);
 				}
 				ModCriteriaTriggers.triggerGetPower(player, this);
 			}
 		}
-		
+
 		if (newStand == null) {
 			setStamina(0);
 		}
-		if (standChanged) {
+		if (standChanged || restoring) {
 			// 1.16 clear() dropped the flag with the Stand
-			skippedProgression = change == StandChange.RESTORE_LOAN && restoredSkipped;
+			skippedProgression = restoring && restoredSkipped;
 			cachedMovesThisTick = false;
 		}
-		if (change == StandChange.RESTORE_LOAN) {
+		if (restoring) {
 			onSetPowerType(oldStand, newStand, false);
 		}
 		else {
@@ -247,13 +249,36 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 				&& playerSkipsActionTraining(user)) {
 			skipProgression();
 		}
-		else if (standChanged) {
+		else if (standChanged || restoring) {
 			syncSkippedProgression();
 		}
 	}
 
 	private enum StandChange {
 		ORDINARY, BEGIN_LOAN, RESTORE_LOAN
+	}
+
+	/**
+	 * Whatever changes the Stand directly during a loan changes the borrowed one: another Stand is a form of it, none means
+	 * it is lost. The reservation stays whole and the restore still finds its way back. A form it leaves gets its own
+	 * Resolve level back now, as the last one does at the restore.
+	 */
+	private TemporaryStandLoan followDirectChange(TemporaryStandLoan loan, Optional<StandInstance> replacement) {
+		if (replacement.isEmpty()) {
+			return loan.withBorrowedLost(true);
+		}
+		ResourceLocation form = replacement.orElseThrow().getStandId();
+		if (form.equals(loan.borrowedId())) {
+			return loan.withBorrowedLost(false);
+		}
+		restoreBorrowedResolveLevel(loan);
+		return loan.withBorrowedForm(form, storedResolveLevel(form));
+	}
+
+	private int storedResolveLevel(ResourceLocation standId) {
+		var data = powerData.get(standId);
+		return data == null ? 0 : data.map(stored -> ((StandTypePersistentData) stored).getResolveLevel(),
+				nbt -> nbt.getInt("ResolveLevel"));
 	}
 
 	@ApiStatus.Internal
@@ -278,7 +303,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	@ApiStatus.Internal
 	public boolean canRestoreTemporaryLoan(UUID token) {
 		TemporaryStandLoan loan = temporaryStandLoan;
-		return loan != null && loan.token().equals(token) && !loan.conflicted()
+		return loan != null && loan.token().equals(token)
 				&& standInstance.map(stand -> loan.borrowedId().equals(stand.getStandId()))
 						.orElse(loan.borrowedLostOnClone());
 	}
@@ -296,11 +321,8 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		}
 		temporaryStandLoan = new TemporaryStandLoan(token, original.copy(),
 				originalProgression.serializeNBT(user.registryAccess()).copy(), skippedProgression,
-				borrowed.getStandId(), 0, false, false);
+				borrowed.getStandId(), 0, false);
 		setStandInstance(Optional.of(borrowed), StandChange.BEGIN_LOAN, false);
-		if (!canRestoreTemporaryLoan(token)) {
-			return;
-		}
 		StandTypePersistentData borrowedProgression = getCurTypeData();
 		if (borrowedProgression != null) {
 			temporaryStandLoan = temporaryStandLoan.withBorrowedResolveLevel(borrowedProgression.getResolveLevel());
@@ -316,20 +338,25 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		if (!canRestoreTemporaryLoan(token) || original == null || !original.standExists()) {
 			throw new IllegalStateException("Invalid preflighted temporary Stand restore");
 		}
+		endTemporaryLoan(temporaryStandLoan, original);
+	}
+
+	/** Ends the loan now with no token and no veto. The reserved Stand comes back, as a load keeps one whose add-on is gone. */
+	@ApiStatus.Internal
+	public void abortTemporaryLoan() {
+		requireLoanServerThread();
 		TemporaryStandLoan loan = temporaryStandLoan;
-		restoreBorrowedResolveLevel(loan);
-		if (temporaryStandLoan != loan) {
-			return;
+		if (loan != null) {
+			endTemporaryLoan(loan, loan.copyOriginal());
 		}
+	}
+
+	private void endTemporaryLoan(TemporaryStandLoan loan, StandInstance original) {
+		restoreBorrowedResolveLevel(loan);
 		powerData.put(original.getStandId(), Either.right(loan.originalProgression().copy()));
 		setStandInstance(Optional.of(original), StandChange.RESTORE_LOAN, loan.originalSkipped());
-		if (temporaryStandLoan != loan) {
-			return;
-		}
 		resetTemporaryLoanTransientState();
-		if (temporaryStandLoan == loan) {
-			temporaryStandLoan = null;
-		}
+		temporaryStandLoan = null;
 	}
 
 	private void resetTemporaryLoanTransientState() {
@@ -1183,9 +1210,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		super.onPlayerCloneData(newEntityData, wasDeath);
 		StandType standType = getPowerType();
 		boolean losesStand = standType == null || wasDeath && !standType.keepOnDeath(this);
-		TemporaryStandLoan loan = temporaryStandLoan;
-		newEntityData.temporaryStandLoan = loan != null
-				? loan.copyForClone(losesStand && canRestoreTemporaryLoan(loan.token())) : null;
+		newEntityData.temporaryStandLoan = temporaryStandLoan != null ? temporaryStandLoan.copyForClone(losesStand) : null;
 		if (losesStand) {
 			clearClonedStandData(newEntityData);
 			return;

@@ -226,7 +226,8 @@ public class StandArrowItem extends ArrowItem implements ProjectileItem {
 
     	if (livingEntity instanceof Player player) {
     		StandPower stand = PowerClass.STAND.attachGet(player);
-    		if (stand.hasPower()) {
+    		// a Stand reserved during a temporary loan is theirs, and would end whatever the Arrow gave at the restore
+    		if (stand.hasPower() || stand.temporaryLoanId() != null) {
     			player.displayClientMessage(Component.translatable("jojo.chat.message.already_have_stand"), true);
     			return false;
     		}

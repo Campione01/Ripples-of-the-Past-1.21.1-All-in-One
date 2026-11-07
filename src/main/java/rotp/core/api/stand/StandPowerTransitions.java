@@ -161,9 +161,6 @@ public final class StandPowerTransitions {
 		boolean originalSkipped = power.wasProgressionSkipped();
 		UUID token = UUID.randomUUID();
 		power.beginTemporaryLoan(token, borrowed);
-		if (!power.canRestoreTemporaryLoan(token)) {
-			return TemporaryLoanResult.failed(Status.SOURCE_MISMATCH);
-		}
 		return new TemporaryLoanResult(Status.APPLIED, token, originalResolveLevel, originalSkipped);
 	}
 
@@ -186,10 +183,34 @@ public final class StandPowerTransitions {
 			return Result.failed(failure);
 		}
 		power.restoreTemporaryLoan(token);
-		if (power.temporaryLoanId() != null) {
+		return Result.applied(current, Optional.of(original));
+	}
+
+	/**
+	 * Ends a loan now, for an authority above it such as an operator's command: no token, no veto, whatever happened to
+	 * the borrowed Stand. The reserved Stand comes back as on a restore. The disc stays with whoever holds it:
+	 * {@link #isTemporaryLoanActive} turning false is that holder's signal to hand it back.
+	 */
+	public static Result abortTemporaryLoan(StandPower power) {
+		Objects.requireNonNull(power, "power");
+		StandPowerAccess access = new StandPowerAccess(power);
+		if (!access.isServerSide()) {
+			return Result.failed(Status.NOT_SERVER_SIDE);
+		}
+		if (!access.isServerThread()) {
+			return Result.failed(Status.NOT_SERVER_THREAD);
+		}
+		if (!access.hasTemporaryLoan()) {
 			return Result.failed(Status.SOURCE_MISMATCH);
 		}
-		return Result.applied(current, Optional.of(original));
+		Optional<StandInstance> current = power.getStandInstance().map(StandInstance::copy);
+		power.abortTemporaryLoan();
+		return Result.applied(current, power.getStandInstance());
+	}
+
+	/** False once this token's loan is over, by a restore or by an abort. */
+	public static boolean isTemporaryLoanActive(StandPower power, @Nullable UUID token) {
+		return token != null && token.equals(Objects.requireNonNull(power, "power").temporaryLoanId());
 	}
 
 	@Nullable
