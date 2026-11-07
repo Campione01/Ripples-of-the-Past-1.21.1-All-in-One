@@ -20,7 +20,6 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelPart;
-import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
@@ -30,8 +29,6 @@ public class TwoHandedBarrageLoopSwing extends BarrageSwing {
 	protected float animTimeOffset;
 	protected final HumanoidArm side;
 	protected final Vec3 offset;
-	protected final float zRot;
-	private final boolean keepsRoll;
 	
 	public static float loopLen = 4;
 
@@ -46,10 +43,7 @@ public class TwoHandedBarrageLoopSwing extends BarrageSwing {
 		if (side == HumanoidArm.RIGHT) {
 			leftOffset *= -1;
 		}
-		double atan = Mth.atan2(upOffset, leftOffset);
-		zRot = maxOffset == 0 ? 0 : MathUtil.wrapRadians((float) (Math.PI / 2 - atan));
 		offset = new Vec3(leftOffset, upOffset, frontOffset);
-		keepsRoll = entity instanceof StandEntity stand && AfterimageArmRoll.keptBy(stand.getStandType());
 	}
 
 	public static void addSwings(BarrageSwings swings, RotpAnimDefinition barrageAnim, 
@@ -151,8 +145,6 @@ public class TwoHandedBarrageLoopSwing extends BarrageSwing {
 		arm.xRot = armAngles.x;
 		arm.yRot = armAngles.y;
 		arm.zRot = armAngles.z;
-		
-		arm.zRot += AfterimageArmRoll.of(model instanceof IPlayerBendModel || !keepsRoll, swingAmount, zRot);
 		
 		// a Stand model turns its arms with its own body bone; the player's body bone is outside the model
 		if (model instanceof IPlayerBendModel bends) {

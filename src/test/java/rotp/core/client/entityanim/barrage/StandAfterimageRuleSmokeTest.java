@@ -33,7 +33,6 @@ import net.minecraft.client.model.geom.builders.CubeListBuilder;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.client.model.geom.builders.MeshDefinition;
 import net.minecraft.client.model.geom.builders.PartDefinition;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.HumanoidArm;
 
 /**
@@ -114,7 +113,6 @@ public final class StandAfterimageRuleSmokeTest {
 		verifyHiddenBonesShowOnlyWhileKeyed();
 		verifyStrokeTimingComesFromTheClip();
 		verifySwingRule();
-		verifyRollRule();
 		verifyWiring();
 		verifySkinTable(args.length > 0 ? Path.of(args[0]) : null);
 		System.out.println("Stand afterimage rule checks passed; the picture itself is for the in-game pass");
@@ -286,17 +284,6 @@ public final class StandAfterimageRuleSmokeTest {
 		check(AfterimageRule.swingName(null, true, true) == null, "a clip that names its swing later draws none before it");
 		check("null".equals(AfterimageRule.swingName("null", true, true)), "a clip's own barrage = null stands");
 		check("ONE_HANDED_MAIN".equals(AfterimageRule.swingName("ONE_HANDED_MAIN", true, true)), "a one-handed clip stays one-handed");
-	}
-
-	private static void verifyRollRule() {
-		for (String[] accepted : new String[][] { { "rotp_cream", "cream" }, { "highwaystar", "highway_star" } }) {
-			check(AfterimageArmRoll.keptBy(ResourceLocation.fromNamespaceAndPath(accepted[0], accepted[1])),
-					accepted[1] + " was accepted on video and keeps its look");
-		}
-		check(!AfterimageArmRoll.keptBy(ResourceLocation.fromNamespaceAndPath("rotp_zkq", "killer_queen")),
-				"the other Stands' arms thrust straight, as the Ultimate Lifeform's");
-		check(!AfterimageArmRoll.keptBy(null), "no Stand, no roll");
-		check(AfterimageArmRoll.of(true, 1, 2) == 0 && AfterimageArmRoll.of(false, 0.5F, 2) == 1, "the roll's numbers");
 	}
 
 	// ---- the wiring, from the class files: the render itself has no test
