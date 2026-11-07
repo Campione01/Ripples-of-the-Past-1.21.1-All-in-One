@@ -35,6 +35,15 @@ final class ConfigDiffScreen extends PaperDialog {
 		static Row of(ConfigEntry entry, JsonElement before, JsonElement after, ConfigEntry.Restart restart) {
 			return new Row(PaperUi.label(entry), PaperUi.valueText(entry, before), PaperUi.valueText(entry, after), restart);
 		}
+
+		/** The name the rows after it come under; no value of its own. */
+		static Row heading(Component name) {
+			return new Row(name, CommonComponents.EMPTY, CommonComponents.EMPTY, ConfigEntry.Restart.NONE);
+		}
+
+		boolean isHeading() {
+			return before == CommonComponents.EMPTY;
+		}
 	}
 
 	private enum State { ASKING, READY, WORKING, FAILED }
@@ -205,6 +214,11 @@ final class ConfigDiffScreen extends PaperDialog {
 				int mouseX, int mouseY, boolean hovering, float partialTick) {
 			var font = Minecraft.getInstance().font;
 			int right = left + width - 8;
+			if (row.isHeading()) {
+				String name = PaperUi.oneLine(font, row.label().getString(), right - left - 2);
+				PaperUi.text(graphics, font, Component.literal(name).withStyle(net.minecraft.ChatFormatting.BOLD), left + 1, top + 3, PaperUi.INK_SOFT);
+				return;
+			}
 			int afterX = right - afterWidth;
 			int arrowX = afterX - 12;
 			int beforeRight = arrowX - 3;

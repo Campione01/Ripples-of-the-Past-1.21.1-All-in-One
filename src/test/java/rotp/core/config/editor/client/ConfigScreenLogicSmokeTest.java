@@ -50,6 +50,10 @@ public final class ConfigScreenLogicSmokeTest {
 		everyKnownKeyHasItsSectionAndAnUnknownOneStillShows();
 		deadSwitchesAreNotShown();
 		aPresetIsNamedCurrentOnlyByItsValues();
+		anAddonGetsABlockAndNeverTheCoresRules();
+		addonBlocksSortByNameAndKeepTheirGroupsInFileOrder();
+		addonTitlesReadAsNames();
+		hiddenAddonValuesAreNotShownNorResetByResetAll();
 		System.out.println("Config screen logic smoke test passed");
 	}
 
@@ -237,6 +241,80 @@ public final class ConfigScreenLogicSmokeTest {
 		check(!ConfigWidgetRules.holdsValues(Map.of(RANGE, new JsonPrimitive(4)), entries), "another value, so it is not");
 		check(!ConfigWidgetRules.holdsValues(Map.of("no.such.key", new JsonPrimitive(4)), entries), "an unknown key cannot be held");
 		check(!ConfigWidgetRules.holdsValues(Map.of(), entries), "an empty preset is nobody's current");
+	}
+
+	private static void anAddonGetsABlockAndNeverTheCoresRules() {
+		List<ConfigEntry> entries = new ArrayList<>(catalog());
+		ConfigEntry power = addon("rotp_x/Stand settings.standPowerMultiplier", Kind.DECIMAL, new JsonPrimitive(1.0), new Bounds(0, 5000));
+		ConfigEntry blood = addon("rotp_x/maxBloodMultiplier", Kind.LIST, new JsonArray(), null);
+		ConfigEntry banned = addon("rotp_x/bannedStands", Kind.LIST, new JsonArray(), null);
+		ConfigEntry mode = new ConfigEntry("rotp_x/accelerationMode", "rotp_x/", Side.SERVER, Kind.ENUM, null, new JsonPrimitive("TICK_RATE"),
+				new JsonPrimitive("TICK_RATE"), null, null, List.of("TICK_RATE", "SPEED"), Restart.NONE, false, "rotp_x.configuration.accelerationMode");
+		entries.addAll(List.of(power, blood, banned, mode));
+		List<Section> sections = ConfigWidgetRules.sections(Side.SERVER, entries);
+		check(sections.stream().flatMap(section -> section.entries().stream()).noneMatch(ConfigWidgetRules::isAddon),
+				"an add-on's value must never land in a core section or in Other: " + sections);
+		check(sections.stream().noneMatch(section -> section.id().equals(ConfigWidgetRules.OTHER_SECTION)), "no add-on in Other");
+		List<ConfigWidgetRules.Block> blocks = ConfigWidgetRules.blocks(entries, mod -> mod);
+		check(blocks.size() == 1 && blocks.getFirst().keys().size() == 4, "the add-on's values must be its block: " + blocks);
+		check(!ConfigWidgetRules.isByDifficulty(blood) && !ConfigWidgetRules.listItemsAreIds(banned),
+				"a leaf named as a core one must not take the core's rule");
+		check(ConfigWidgetRules.optionKey(mode, "TICK_RATE").equals("rotp_x.configuration.accelerationMode.tick_rate"),
+				"an add-on's choice has its own text: " + ConfigWidgetRules.optionKey(mode, "TICK_RATE"));
+		check(ConfigWidgetRules.fallbackChoice("TICK_RATE").equals("Tick rate"), "a choice without text still reads");
+		check(ConfigWidgetRules.leaf("rotp_x/top").equals("top") && ConfigWidgetRules.fallbackName("rotp_x/top").equals("Top"),
+				"a top-level add-on key reads by its leaf");
+		check(ConfigWidgetRules.fallbackName("rotp_x/King Crimson Time Erase Config").equals("King Crimson Time Erase Config"),
+				"a name with spaces keeps one: " + ConfigWidgetRules.fallbackName("rotp_x/King Crimson Time Erase Config"));
+		check(ConfigWidgetRules.fallbackName("maxHP").equals("Max HP"), "an acronym stays whole: " + ConfigWidgetRules.fallbackName("maxHP"));
+		ConfigEntry wide = new ConfigEntry("rotp_x/wide", "rotp_x/", Side.CLIENT, Kind.DECIMAL, null, new JsonPrimitive(1.0),
+				new JsonPrimitive(1.0), new Bounds(0, 5000), null, List.of(), Restart.NONE, false, null);
+		check(ConfigWidgetRules.widgetKind(wide) == WidgetKind.NUMBER, "an add-on's wide client range is typed, not a slider");
+	}
+
+	private static void addonBlocksSortByNameAndKeepTheirGroupsInFileOrder() {
+		// the catalog's order and the ids' both put rotp_a first; only the names put it last
+		List<ConfigEntry> entries = List.of(
+				addon("rotp_a/only.one", Kind.BOOLEAN, new JsonPrimitive(true), null),
+				addon("rotp_z/b.one", Kind.BOOLEAN, new JsonPrimitive(true), null),
+				addon("rotp_z/a.two", Kind.BOOLEAN, new JsonPrimitive(true), null),
+				addon("rotp_z/top", Kind.BOOLEAN, new JsonPrimitive(true), null));
+		Map<String, String> names = Map.of("rotp_z", "Alpha", "rotp_a", "Zulu");
+		List<ConfigWidgetRules.Block> blocks = ConfigWidgetRules.blocks(entries, names::get);
+		check(blocks.size() == 2 && blocks.getFirst().modId().equals("rotp_z"), "blocks sort by the name shown, not the id");
+		List<String> groups = blocks.getFirst().groups().stream().map(ConfigWidgetRules.Group::path).toList();
+		check(groups.equals(List.of("", "b", "a")), "the top of the file first, then the file's own order: " + groups);
+	}
+
+	private static void addonTitlesReadAsNames() {
+		Map<String, String> titles = Map.ofEntries(Map.entry("RotP King Crimson Configuration", "King Crimson"),
+				Map.entry("RotP - Lovers Configuration", "Lovers"), Map.entry("RotP: Sex Pistols Configuration", "Sex Pistols"),
+				Map.entry("The Grateful Dead", "The Grateful Dead"), Map.entry("NextAlbum", "NextAlbum"),
+				Map.entry("Configuración de RotP Made in Heaven", "Made in Heaven"), Map.entry("Настройки RotP King Crimson", "King Crimson"),
+				Map.entry("Настройки бутылочки с кровью", "Бутылочки с кровью"), Map.entry("RotP：性感手枪配置", "性感手枪"),
+				Map.entry("天堂製造設定", "天堂製造"), Map.entry("暗藍之月之設", "暗藍之月"), Map.entry("Tournament 附属配置", "Tournament"),
+				Map.entry("Ripples of the Past Reworked 配置", "Ripples of the Past Reworked"), Map.entry("Configuration", "Configuration"));
+		titles.forEach((title, name) -> check(ConfigWidgetRules.blockName(title).equals(name),
+				title + " must read " + name + ", not " + ConfigWidgetRules.blockName(title)));
+		check(ConfigWidgetRules.blockNameFromDisplayName("RotP Spin").equals("Spin")
+				&& ConfigWidgetRules.blockNameFromDisplayName("Blood Bottle RotP Addon").equals("Blood Bottle"), "a display name reads as a name too");
+	}
+
+	private static void hiddenAddonValuesAreNotShownNorResetByResetAll() {
+		String hidden = "rotp_kingcrimson/King Crimson Time Erase Config.timeEraseDynamicCooldown";
+		ConfigEntry dead = new ConfigEntry(hidden, "rotp_kingcrimson/King Crimson Time Erase Config", Side.SERVER, Kind.BOOLEAN, null,
+				new JsonPrimitive(true), new JsonPrimitive(false), null, null, List.of(), Restart.NONE, false, null);
+		check(!ConfigWidgetRules.isShown(dead) && ConfigWidgetRules.blocks(List.of(dead), mod -> mod).isEmpty(), "a dead add-on switch must not show");
+		FakeServer server = new FakeServer();
+		ConfigEditSession session = new ConfigEditSession(server, List::of);
+		session.open(0);
+		server.answer(session, true, ConfigEditResult.ok(List.of()), List.of(dead));
+		check(!session.resetAll(null) && server.sent.size() == 1, "Reset All must not send a reset for what it never listed");
+	}
+
+	private static ConfigEntry addon(String key, Kind kind, JsonElement value, @Nullable Bounds bounds) {
+		return new ConfigEntry(key, rotp.core.config.editor.AddonConfigKeys.group(key), Side.SERVER, kind, kind == Kind.LIST ? Kind.STRING : null,
+				value, value, bounds, null, List.of(), Restart.NONE, false, null);
 	}
 
 	private static ConfigEditSession opened(FakeServer server, boolean canEdit) {

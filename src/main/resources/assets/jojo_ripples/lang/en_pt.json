@@ -167,6 +167,7 @@
   "jojo_ripples.options.client.hamon": "Hamon",
   "jojo_ripples.options.client.vampirism": "Vampirism",
   "jojo_ripples.config.screen.title": "Ripples of the Past settings",
+  "jojo_ripples.config.screen.addons": "Add-ons",
   "jojo_ripples.config.screen.category": "Settings",
   "jojo_ripples.config.screen.page.client": "Client",
   "jojo_ripples.config.screen.page.client.desc": "Kept on this computer.",

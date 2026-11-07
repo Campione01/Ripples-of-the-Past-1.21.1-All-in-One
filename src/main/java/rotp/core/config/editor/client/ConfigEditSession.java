@@ -149,7 +149,8 @@ public final class ConfigEditSession implements ConfigStore {
 			return false;
 		}
 		Set<String> groups = new LinkedHashSet<>();
-		entries.values().stream().filter(ConfigWidgetRules::isModified).forEach(entry -> groups.add(entry.group()));
+		entries.values().stream().filter(entry -> ConfigWidgetRules.isShown(entry) && ConfigWidgetRules.isModified(entry))
+				.forEach(entry -> groups.add(entry.group()));
 		List<String> ordered = new ArrayList<>(groups);
 		for (int i = 0; i < ordered.size(); i++) {
 			String group = ordered.get(i);

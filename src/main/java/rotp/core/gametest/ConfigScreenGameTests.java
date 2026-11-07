@@ -57,10 +57,15 @@ public final class ConfigScreenGameTests {
 
 	private ConfigScreenGameTests() {}
 
+	// the core's own: an add-on's text lives in that add-on and is checked there
 	private static List<ConfigEntry> shownEntries() {
-		List<ConfigEntry> entries = new ArrayList<>(CommonConfigEditor.entries());
-		ClientConfigEditor.catalog().stream().filter(ConfigWidgetRules::isShown).forEach(entries::add);
+		List<ConfigEntry> entries = new ArrayList<>(coreOnly(CommonConfigEditor.entries()));
+		coreOnly(ClientConfigEditor.catalog()).stream().filter(ConfigWidgetRules::isShown).forEach(entries::add);
 		return entries;
+	}
+
+	private static List<ConfigEntry> coreOnly(List<ConfigEntry> entries) {
+		return entries.stream().filter(entry -> !ConfigWidgetRules.isAddon(entry)).toList();
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 20)
@@ -68,7 +73,8 @@ public final class ConfigScreenGameTests {
 		List<ConfigEntry> entries = shownEntries();
 		helper.assertTrue(entries.stream().anyMatch(entry -> ConfigWidgetRules.leaf(entry.key()).equals("timeStopChargeSeconds")),
 				"timeStopChargeSeconds must be in the catalog");
-		helper.assertTrue(entries.size() == CommonConfigEditor.entries().size() + ClientConfigEditor.catalog().size() - ConfigWidgetRules.hiddenKeys().size(),
+		helper.assertTrue(entries.size() == coreOnly(CommonConfigEditor.entries()).size() + coreOnly(ClientConfigEditor.catalog()).size()
+				- ConfigWidgetRules.hiddenKeys().size(),
 				"the hidden keys must name real settings: " + ConfigWidgetRules.hiddenKeys());
 		List<String> missing = new ArrayList<>();
 		for (String locale : LOCALES) {

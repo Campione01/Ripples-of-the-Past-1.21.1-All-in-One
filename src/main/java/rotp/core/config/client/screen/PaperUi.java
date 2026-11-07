@@ -16,6 +16,7 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FastColor;
 import net.minecraft.util.FormattedCharSequence;
+import net.neoforged.fml.ModList;
 import rotp.core.config.editor.ConfigEntry;
 import rotp.core.config.editor.client.ConfigWidgetRules;
 import rotp.core.core.JojoMod;
@@ -23,6 +24,8 @@ import rotp.core.core.JojoMod;
 /** The paper window's colours, glyphs and text fitting, shared by the settings screen and its dialogs. */
 final class PaperUi {
 	static final int PAPER_LIGHT = 0xFFF8F9FA;
+	// the window sprite's own fill, for what is drawn over the list and must look like the page
+	static final int PAPER = 0xFFEEF0F2;
 	static final int PANEL = 0xFFD1D6E0;
 	static final int LINE = 0xFF989EAB;
 	static final int LINE_SOFT = 0xFFC7CAD4;
@@ -105,7 +108,29 @@ final class PaperUi {
 	}
 
 	static Component optionText(ConfigEntry entry, String choice) {
-		return Component.translatableWithFallback(ConfigWidgetRules.optionKey(entry, choice), ConfigWidgetRules.fallbackName(choice));
+		String fallback = ConfigWidgetRules.isAddon(entry) ? ConfigWidgetRules.fallbackChoice(choice) : ConfigWidgetRules.fallbackName(choice);
+		return Component.translatableWithFallback(ConfigWidgetRules.optionKey(entry, choice), fallback);
+	}
+
+	/** An add-on's name in the list: its config page's title if it has one, else what the mod list calls it. */
+	static String blockName(String modId) {
+		Language language = Language.getInstance();
+		String title = modId + ".configuration.title";
+		if (language.has(title)) {
+			return ConfigWidgetRules.blockName(language.getOrDefault(title));
+		}
+		return ModList.get().getModContainerById(modId)
+				.map(container -> ConfigWidgetRules.blockNameFromDisplayName(container.getModInfo().getDisplayName()))
+				.orElseGet(() -> ConfigWidgetRules.fallbackName(modId));
+	}
+
+	/** A group of an add-on, by the same text as its page in the mod list; a nested one names its whole path. */
+	static String groupName(String modId, String path) {
+		List<String> names = new ArrayList<>();
+		for (String segment : path.split("\\.")) {
+			names.add(Language.getInstance().getOrDefault(modId + ".configuration." + segment, ConfigWidgetRules.fallbackName(segment)));
+		}
+		return String.join(" / ", names);
 	}
 
 	static Component valueText(ConfigEntry entry, JsonElement value) {

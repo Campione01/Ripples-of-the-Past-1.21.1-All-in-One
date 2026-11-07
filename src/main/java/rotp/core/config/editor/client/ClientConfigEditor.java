@@ -3,6 +3,7 @@ package rotp.core.config.editor.client;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -24,6 +25,8 @@ import rotp.core.config.client.ClientModSettings;
 import rotp.core.config.client.ClientModSettings.Settings;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.config.client.StandAuraSettings;
+import rotp.core.config.editor.AddonConfigCatalog;
+import rotp.core.config.editor.AddonConfigKeys;
 import rotp.core.config.editor.ConfigEditResult;
 import rotp.core.config.editor.ConfigEditResult.Change;
 import rotp.core.config.editor.ConfigEditResult.Status;
@@ -32,6 +35,7 @@ import rotp.core.config.editor.ConfigEntry.Bounds;
 import rotp.core.config.editor.ConfigEntry.Kind;
 import rotp.core.config.editor.ConfigEntry.Restart;
 import rotp.core.config.editor.ConfigEntry.Side;
+import rotp.core.config.editor.SpecValues;
 import rotp.core.network.c2s.ClBroadcastedModSettingsPacket;
 
 /** Validated access to the client settings' persisted JSON field paths. */
@@ -58,15 +62,22 @@ public final class ClientConfigEditor {
 			return List.of();
 		}
 		Settings settings = ClientModSettings.getSettingsReadOnly();
-		return FIELDS.stream().map(field -> field.entry(settings)).toList();
+		List<ConfigEntry> entries = new ArrayList<>(FIELDS.stream().map(field -> field.entry(settings)).toList());
+		entries.addAll(AddonConfigCatalog.describe(AddonConfigCatalog.client(), Side.CLIENT, false));
+		return entries;
 	}
 
 	/** Every setting at its default, for what must not depend on a loaded settings file. */
 	public static List<ConfigEntry> catalog() {
-		return FIELDS.stream().map(field -> field.entry(DEFAULTS)).toList();
+		List<ConfigEntry> entries = new ArrayList<>(FIELDS.stream().map(field -> field.entry(DEFAULTS)).toList());
+		entries.addAll(AddonConfigCatalog.describe(AddonConfigCatalog.client(), Side.CLIENT, true));
+		return entries;
 	}
 
 	public static ConfigEditResult set(String key, JsonElement value) {
+		if (AddonConfigKeys.isAddonKey(key)) {
+			return editAddon(Collections.singletonMap(key, value));
+		}
 		ClientModSettings store = ClientModSettings.getInstance();
 		if (store == null) {
 			return ConfigEditResult.error(Status.UNAVAILABLE, key);
@@ -83,6 +94,11 @@ public final class ClientConfigEditor {
 	}
 
 	public static ConfigEditResult reset(String key) {
+		if (AddonConfigKeys.isAddonKey(key)) {
+			var target = AddonConfigCatalog.client().get(key);
+			return target == null ? ConfigEditResult.error(Status.UNKNOWN_KEY, key)
+					: editAddon(Collections.singletonMap(key, SpecValues.json(target.value().getDefault())));
+		}
 		ClientModSettings store = ClientModSettings.getInstance();
 		if (store == null) {
 			return ConfigEditResult.error(Status.UNAVAILABLE, key);
@@ -95,6 +111,10 @@ public final class ClientConfigEditor {
 	}
 
 	public static ConfigEditResult resetGroup(String group) {
+		if (AddonConfigKeys.isAddonKey(group)) {
+			Map<String, JsonElement> defaults = AddonConfigCatalog.groupDefaults(AddonConfigCatalog.client(), group);
+			return defaults.isEmpty() ? ConfigEditResult.error(Status.UNKNOWN_GROUP, group) : editAddon(defaults);
+		}
 		ClientModSettings store = ClientModSettings.getInstance();
 		if (store == null) {
 			return ConfigEditResult.error(Status.UNAVAILABLE, group);
@@ -104,6 +124,10 @@ public final class ClientConfigEditor {
 			return ConfigEditResult.error(Status.UNKNOWN_GROUP, group);
 		}
 		return apply(store, group, resets);
+	}
+
+	private static ConfigEditResult editAddon(Map<String, JsonElement> values) {
+		return SpecValues.edit(values, AddonConfigCatalog.client()::get, true);
 	}
 
 	private static ConfigEditResult apply(ClientModSettings store, String key, List<Assignment> assignments) {
