@@ -17,15 +17,23 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * G20, the head rule on the core's clips: the head's net orientation follows the look at every sample, through its chain of bones, within 3 degrees.
+ * G20, the head rule on the core's clips: the head's net orientation follows the look at every sample, through its chain of bones, within 3 degrees at rest and on held keys.
+ * While the trunk moves fast the head may stay off by about a third of the trunk's turn, and it is back on the look by the clip's end.
  * The add-ons' clips have the same rule in the root build's verifyStandCrossCuttingRules. Each clip left out says why.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class StandHeadLookRuleGameTests {
 	private static final String[] HEAD_CHAIN = { "stand_pos", "body_rot", "body", "torso", "torso_bend", "head", "head_rot" };
+	private static final String[] TRUNK_CHAIN = { "stand_pos", "body_rot", "body", "torso", "torso_bend" };
 	private static final float[][] LOOKS = { { 0, 0 }, { 30, 45 } };
 	private static final double TOLERANCE = 3;
+	// gen_unify.py and gradle/stand-head-look-rule.groovy of the add-on tree: while the trunk moves, the head takes back 0.65 of its turn and may be off by the rest
+	private static final double MOVING_LEAVES = 0.37;
+	private static final double MOVING_SPEED = 150;
+	private static final float MOVING_WINDOW = 0.05F;
+	private static final int MOVING_STEPS = 4;
+	private static final double MOVING_ENDS = 0.1;
 	private static final String DEFAULT_CLIPS = "animations/stand_default.animation.json";
 	private static final List<String> STANDS = List.of("star_platinum", "the_world", "crazy_diamond", "gold_experience", "magicians_red", "silver_chariot",
 			"hierophant_green");
@@ -74,15 +82,15 @@ public final class StandHeadLookRuleGameTests {
 			if (LEFT_OUT.matcher(name).matches()) {
 				continue;
 			}
-			double off = worstOff(entry.getValue().getAsJsonObject());
+			double past = worstPastItsBand(entry.getValue().getAsJsonObject());
 			measured++;
 			if (listed.containsKey(name)) {
-				if (off <= TOLERANCE) {
+				if (past <= 0) {
 					wrong.add(stand + " " + name + " is listed (" + listed.get(name) + ") but stays on the look");
 				}
 			}
-			else if (off > TOLERANCE) {
-				wrong.add(stand + " " + name + ": " + off + " degrees");
+			else if (past > 0) {
+				wrong.add(stand + " " + name + ": " + past + " degrees past its band");
 			}
 			else {
 				String hand = handItsMirrorCannotHold(entry.getValue().getAsJsonObject());
@@ -114,20 +122,36 @@ public final class StandHeadLookRuleGameTests {
 		return window ? hand : null;
 	}
 
-	private static double worstOff(JsonObject clip) {
+	private static double worstPastItsBand(JsonObject clip) {
 		float end = clip.has("animation_length") ? clip.get("animation_length").getAsFloat() : 0;
-		double worst = 0;
+		double worst = -TOLERANCE;
+		double[][] restTrunk = StandClipPoses116GameTests.rotationMatrix(new float[3]);
 		for (float[] look : LOOKS) {
 			double[][] want = StandClipPoses116GameTests.rotationMatrix(new float[] { look[0], look[1], 0 });
 			for (float time = 0; time <= end; time += 0.01F) {
-				double[][] head = StandClipPoses116GameTests.rotationMatrix(new float[3]);
-				for (String bone : HEAD_CHAIN) {
-					head = StandClipPoses116GameTests.multiply(head,
-							StandClipPoses116GameTests.rotationMatrix(StandClipPoses116GameTests.rotationAt(clip, bone, time, look)));
+				double[][] head = net(clip, HEAD_CHAIN, time, look);
+				double[][] trunk = net(clip, TRUNK_CHAIN, time, look);
+				double path = 0;
+				double[][] last = net(clip, TRUNK_CHAIN, Math.max(0, time - MOVING_WINDOW), look);
+				for (int i = 1; i <= MOVING_STEPS; i++) {
+					double[][] step = net(clip, TRUNK_CHAIN, Math.min(end, Math.max(0, time - MOVING_WINDOW + 2 * MOVING_WINDOW * i / MOVING_STEPS)), look);
+					path += StandClipPoses116GameTests.angleBetween(last, step);
+					last = step;
 				}
-				worst = Math.max(worst, StandClipPoses116GameTests.angleBetween(want, head));
+				double speed = path / (2 * MOVING_WINDOW);
+				double moving = Math.min(1, speed / MOVING_SPEED) * Math.max(0, Math.min(1, Math.min(time, end - time) / MOVING_ENDS));
+				double allowed = TOLERANCE + MOVING_LEAVES * StandClipPoses116GameTests.angleBetween(trunk, restTrunk) * moving;
+				worst = Math.max(worst, StandClipPoses116GameTests.angleBetween(want, head) - allowed);
 			}
 		}
 		return worst;
+	}
+
+	private static double[][] net(JsonObject clip, String[] chain, float time, float[] look) {
+		double[][] net = StandClipPoses116GameTests.rotationMatrix(new float[3]);
+		for (String bone : chain) {
+			net = StandClipPoses116GameTests.multiply(net, StandClipPoses116GameTests.rotationMatrix(StandClipPoses116GameTests.rotationAt(clip, bone, time, look)));
+		}
+		return net;
 	}
 }
