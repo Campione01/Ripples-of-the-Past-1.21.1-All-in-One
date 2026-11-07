@@ -188,6 +188,25 @@ public final class TemporaryStandLoanGameTests {
 		helper.succeed();
 	}
 
+	/** changeForm with the Stand out: the form is summoned in place, and the restore puts it away. */
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void aFormSummonedInPlaceIsPutAwayByTheRestore(GameTestHelper helper) {
+		try (Fixture f = new Fixture(helper)) {
+			Vec3 at = helper.absoluteVec(new Vec3(2.5D, 2.0D, 2.5D));
+			f.player.moveTo(at.x, at.y, at.z);
+			helper.assertTrue(helper.getLevel().addFreshEntity(f.player), "Could not add the user");
+			UUID token = f.begin();
+			StandType form = f.type("crazy_diamond");
+			helper.assertTrue(f.borrowed.summon(f.player, f.power), "Could not summon the borrowed Stand");
+			f.power.setStand(form);
+			helper.assertTrue(!f.power.isSummoned() && form.summon(f.player, f.power) && f.power.isSummoned(),
+					"The form did not take the summoned Stand's place");
+			f.restore(f.player, f.power, token);
+			helper.assertTrue(!f.power.isSummoned(), "The restore left the form's Stand out");
+		}
+		helper.succeed();
+	}
+
 	/** Echoes ACT3 borrowing ACT1 and picking ACT3 again: nothing seems to change, yet the restore still owes the original's state. */
 	@GameTest(template = "empty", timeoutTicks = 20)
 	public static void aFormEqualToTheReservedStandStillRestoresItsState(GameTestHelper helper) {
