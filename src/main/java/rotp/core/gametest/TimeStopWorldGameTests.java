@@ -38,11 +38,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -83,6 +85,7 @@ public final class TimeStopWorldGameTests {
 	private static final PowerSkillUnlocks.Owner TEST_UNLOCKS =
 			PowerSkillUnlocks.register(JojoMod.resLoc("time_stop_world_gametest"));
 	private static int nextStopId = -7_340_000;
+	private static final int[] START_END_MOBS = { 1000, 3000 };
 
 	private TimeStopWorldGameTests() {}
 
@@ -266,6 +269,123 @@ public final class TimeStopWorldGameTests {
 						+ "serverSamples={} meanMs={} p95Ms={} lifecycleSamples=100 lifecycleMeanUs={}",
 				range, actorCount, s.level.getChunkSource().getLoadedChunksCount(), elapsed.length,
 				Arrays.stream(elapsed).average().orElseThrow() / 1e6, elapsed[75] / 1e6, lifecycle / 1e5);
+	}
+
+	/**
+	 * What a whole-dimension stop costs at its two moments of whole-level work, with real mobs ticking: its first tick holds
+	 * the first-freeze seed and the pass over every entity, its last the pass over the frozen ones and the data flush. A
+	 * frozen observer tracks every mob and every mob holds a data change for it, the largest flush a viewer can cause.
+	 * Numbers for the log, in TIME-STOP-START-END lines; nothing here limits them.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 200, batch = GameTestBatches.WORLD_START_END_COST)
+	public static void wholeDimensionStopStartAndEndTicksWithRealMobs(GameTestHelper helper) {
+		Scene s = start(helper);
+		GameTestChunkTickets tickets = new GameTestChunkTickets(helper);
+		List<Mob> mobs = new ArrayList<>();
+		FakePlayer viewer = new FakePlayer(s.level, new GameProfile(UUID.randomUUID(), "StartEndViewer"));
+		Connection connection = new Connection(PacketFlow.SERVERBOUND);
+		EmbeddedChannel channel = new EmbeddedChannel(connection);
+		int[] flushed = new int[1];
+		helper.testInfo.addListener(new GameTestListener() {
+			private void close() {
+				mobs.forEach(Entity::discard);
+				viewer.discard();
+				channel.finishAndReleaseAll();
+			}
+
+			@Override public void testStructureLoaded(GameTestInfo test) {}
+			@Override public void testPassed(GameTestInfo test, GameTestRunner runner) { close(); }
+			@Override public void testFailed(GameTestInfo test, GameTestRunner runner) { close(); }
+			@Override public void testAddedForRerun(GameTestInfo oldTest, GameTestInfo newTest, GameTestRunner runner) { close(); }
+		});
+		viewer.connection = new ServerGamePacketListenerImpl(s.level.getServer(), connection, viewer,
+				CommonListenerCookie.createInitial(viewer.getGameProfile(), false)) {
+			@Override
+			public void send(Packet<?> packet, @Nullable PacketSendListener listener) {
+				if (packet instanceof ClientboundCustomPayloadPacket payload && payload.payload() instanceof TrDirectEntityDataPacket) {
+					flushed[0]++;
+				}
+			}
+		};
+		Vec3 at = Vec3.atBottomCenterOf(s.abs(3, 5, 3));
+		viewer.moveTo(at.x, at.y, at.z);
+		viewer.setNoGravity(true);
+		s.level.addNewPlayer(viewer);
+		ChunkPos first = new ChunkPos(s.abs(2, 2, 2));
+		ChunkPos last = new ChunkPos(first.x + 8, first.z + 7);
+		tickets.hold(new Vec3(first.getMinBlockX() + 4, at.y, first.getMinBlockZ() + 4),
+				new Vec3(last.getMinBlockX() + 11, at.y, last.getMinBlockZ() + 11));
+		List<ChunkPos> chunks = new ArrayList<>();
+		for (int x = first.x; x <= last.x; x++) {
+			for (int z = first.z; z <= last.z; z++) {
+				chunks.add(new ChunkPos(x, z));
+			}
+		}
+		startEndRound(s, viewer, mobs, chunks, flushed, 0);
+	}
+
+	private static void startEndRound(Scene s, FakePlayer viewer, List<Mob> mobs, List<ChunkPos> chunks, int[] flushed, int round) {
+		GameTestHelper helper = s.helper;
+		var server = s.level.getServer();
+		int y = s.abs(0, 2, 0).getY();
+		for (int i = mobs.size(); i < START_END_MOBS[round]; i++) {
+			ChunkPos chunk = chunks.get(i % chunks.size());
+			int spot = i / chunks.size();
+			Mob mob = i % 2 == 0 ? EntityType.ZOMBIE.create(s.level) : EntityType.COW.create(s.level);
+			mob.moveTo(chunk.getMinBlockX() + 1.5D + 2.5D * (spot % 6), y, chunk.getMinBlockZ() + 1.5D + 2.0D * (spot / 6), 0.0F, 0.0F);
+			mob.setPersistenceRequired();
+			mobs.add(mob);
+			helper.assertTrue(s.level.addFreshEntity(mob), "Start and end fixture could not add a mob");
+		}
+		helper.runAfterDelay(8, () -> s.guarded(() -> {
+			long baseline = medianOfLastTicks(server, 5);
+			for (Mob mob : mobs) {
+				s.level.getChunkSource().chunkMap.entityMap.get(mob.getId()).seenBy.add(viewer.connection);
+			}
+			long before = System.nanoTime();
+			int stop = s.stop(400, 0);
+			long startCall = System.nanoTime() - before;
+			int startTick = server.getTickCount();
+			helper.assertTrue(mobs.stream().allMatch(mob -> s.level.getEntity(mob.getId()) == mob && s.state.shouldFreeze(mob))
+							&& !s.state.canPlayerSeeAndMove(viewer).canSee(),
+					"Start and end premises: every mob loaded and frozen, the observer frozen");
+			mobs.forEach(mob -> mob.setCustomName(Component.literal("held for the frozen viewer")));
+			helper.runAfterDelay(6, () -> s.guarded(() -> {
+				long frozen = medianOfLastTicks(server, 4);
+				flushed[0] = 0;
+				long beforeEnd = System.nanoTime();
+				s.state.removeInstance(stop);
+				long endCall = System.nanoTime() - beforeEnd;
+				int endTick = server.getTickCount();
+				helper.assertTrue(flushed[0] == mobs.size() && mobs.stream().noneMatch(s.state::shouldFreeze),
+						"Start and end premises: held data packets " + flushed[0] + " for " + mobs.size() + " mobs, every mob free");
+				helper.runAfterDelay(4, () -> s.guarded(() -> {
+					long[] ring = server.getTickTimesNanos();
+					JojoMod.getLogger().info("TIME-STOP-START-END mobs={} zombiesAndCowsEven=true loadedChunks={} baselineTickMs={} "
+									+ "startCallMs={} startTickMs={} frozenTickMs={} endCallMs={} endTickMs={} nextTickMs={} afterTickMs={} "
+									+ "heldDataPackets={}",
+							mobs.size(), s.level.getChunkSource().getLoadedChunksCount(), baseline / 1e6, startCall / 1e6,
+							ring[startTick % ring.length] / 1e6, frozen / 1e6, endCall / 1e6, ring[endTick % ring.length] / 1e6,
+							ring[(endTick + 1) % ring.length] / 1e6, medianOfLastTicks(server, 3) / 1e6, flushed[0]);
+					if (round + 1 < START_END_MOBS.length) {
+						startEndRound(s, viewer, mobs, chunks, flushed, round + 1);
+					}
+					else {
+						helper.succeed();
+					}
+				}));
+			}));
+		}));
+	}
+
+	private static long medianOfLastTicks(MinecraftServer server, int count) {
+		long[] ring = server.getTickTimesNanos();
+		long[] last = new long[count];
+		for (int i = 0; i < count; i++) {
+			last[i] = ring[Math.floorMod(server.getTickCount() - 1 - i, ring.length)];
+		}
+		Arrays.sort(last);
+		return last[count / 2];
 	}
 
 	/** Leaves with no log decay on any random tick, so 4096 ticks of a section hit one of 16 for certain. */

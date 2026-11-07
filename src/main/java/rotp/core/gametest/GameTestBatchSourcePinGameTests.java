@@ -70,6 +70,7 @@ public final class GameTestBatchSourcePinGameTests {
 					GameTestBatches.HELD_TIME_STOP_EYE_BEAM),
 			Map.entry("TimeStopWorldGameTests.randomTicksWaitInStoppedTime", GameTestBatches.WORLD_RANDOM_TICKS),
 			Map.entry("TimeStopWorldGameTests.timeStopRangeCostInLoadedWorld", GameTestBatches.WORLD_RANGE_COST),
+			Map.entry("TimeStopWorldGameTests.wholeDimensionStopStartAndEndTicksWithRealMobs", GameTestBatches.WORLD_START_END_COST),
 			Map.entry("TimeStopWorldGameTests.entityDataChangesWaitForTheFrozenViewer", GameTestBatches.WORLD_DIRTY_DATA),
 			Map.entry("TimeStopWorldGameTests.aViewerGoneBeforeTheLastStopEndedLeavesNoDirtyIndex", GameTestBatches.WORLD_VIEWER_LEFT),
 			Map.entry("TimeStopWorldGameTests.blockEventsWaitForResumeAndAMovingPistonSurvivesTheStop",
