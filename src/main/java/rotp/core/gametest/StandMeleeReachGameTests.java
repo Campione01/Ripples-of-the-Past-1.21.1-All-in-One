@@ -8,8 +8,11 @@ import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility.StandEntityBarrage;
+import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.impl.stands._entitybase.StandMeleeReach;
 import rotp.core.impl.stands.magiciansred.MagiciansRedKickAbility.MagiciansRedKick;
+import rotp.core.init.power.ModStandAbilities;
+import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.controls.InputMethod;
@@ -22,6 +25,10 @@ import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandStats;
+import rotp.core.powersystem.standpower.StandUnlockableSkill;
+import rotp.core.powersystem.standpower.entity.EntityStandType;
+import rotp.core.powersystem.standpower.entity.StandControlType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.powersystem.standpower.type.StandType;
@@ -34,8 +41,10 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.GameTestInfo;
 import net.minecraft.gametest.framework.GameTestListener;
 import net.minecraft.gametest.framework.GameTestRunner;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
@@ -56,6 +65,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class StandMeleeReachGameTests {
 	private static final short KEY = 121;
 	private static final float COW_HEALTH = 500.0F;
+	private static final ResourceLocation REACH_MODIFIER = JojoMod.resLoc("gametest_melee_reach");
 
 	private StandMeleeReachGameTests() {}
 
@@ -63,7 +73,14 @@ public final class StandMeleeReachGameTests {
 		WITHIN_BASE_REACH(8.0D, "punch"),
 		IN_THE_MARGIN(11.5D, "punch"),
 		PAST_THE_MARGIN(13.5D, "punch"),
-		BARRAGE(8.0D, "barrage");
+		BARRAGE(8.0D, "barrage"),
+		BLOCK_REACH_MOD(14.3D, "punch"),
+		ENTITY_REACH_MOD(14.3D, "punch"),
+		REMOVED_ENTITY_REACH_MOD(14.3D, "punch"),
+		KISS_BASE(12.44D, "punch"),
+		KISS_MARGIN(14.3D, "punch"),
+		GREEN_DAY_NEAR(6.4D, "punch"),
+		GREEN_DAY_FAR(9.0D, "punch");
 
 		final double distance;
 		final String ability;
@@ -76,8 +93,44 @@ public final class StandMeleeReachGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 400, batch = "rotp_t2_melee_reach")
 	public static void theWorldStrikesAMobItsUserAimsAtPastItsUsersReachWeakerInTheMargin(GameTestHelper helper) {
-		Run run = new Run(helper);
+		Run run = new Run(helper, List.of(Row.WITHIN_BASE_REACH, Row.IN_THE_MARGIN, Row.PAST_THE_MARGIN, Row.BARRAGE));
 		helper.onEachTick(run::tick);
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 200, batch = "rotp_live_melee_reach")
+	public static void realPunchFollowsLiveBlockAndEntityReachModifiers(GameTestHelper helper) {
+		Run run = new Run(helper, List.of(Row.BLOCK_REACH_MOD, Row.ENTITY_REACH_MOD, Row.REMOVED_ENTITY_REACH_MOD));
+		helper.onEachTick(run::tick);
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 210, batch = "rotp_owner_melee_reach_groups")
+	public static void realPunchUsesTheOwnersTwoExplicitMeleeGroups(GameTestHelper helper) {
+		// Core bodies with the actual add-on IDs and declared ranges; no add-on assets or registries are installed here.
+		Run run = new Run(helper, List.of(Row.KISS_BASE, Row.KISS_MARGIN, Row.GREEN_DAY_NEAR, Row.GREEN_DAY_FAR));
+		helper.onEachTick(run::tick);
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20, batch = "rotp_creative_melee_reach")
+	public static void vanillaCreativeBonusesDoNotMultiplyModdedReach(GameTestHelper helper) {
+		try (Scene scene = new Scene(new Run(helper, List.of()), Row.WITHIN_BASE_REACH)) {
+			scene.start();
+			var blocks = scene.user.getAttribute(Attributes.BLOCK_INTERACTION_RANGE);
+			var entities = scene.user.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
+			blocks.addTransientModifier(new AttributeModifier(ResourceLocation.withDefaultNamespace("creative_mode_block_range"),
+					0.5D, AttributeModifier.Operation.ADD_VALUE));
+			entities.addTransientModifier(new AttributeModifier(ResourceLocation.withDefaultNamespace("creative_mode_entity_range"),
+					2.0D, AttributeModifier.Operation.ADD_VALUE));
+			helper.assertTrue(StandEntityPunchAbility.userAimReach(scene.user, scene.stand) == 5.0D,
+					"Creative alone raised the holder's five-block melee aim");
+			blocks.addTransientModifier(new AttributeModifier(REACH_MODIFIER, 1.0D, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+			helper.assertTrue(StandEntityPunchAbility.userAimReach(scene.user, scene.stand) == 9.5D,
+					"A mod multiplying block reach must not also multiply Creative's bonus");
+			blocks.removeModifier(REACH_MODIFIER);
+			entities.addTransientModifier(new AttributeModifier(REACH_MODIFIER, 2.0D, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+			helper.assertTrue(StandEntityPunchAbility.userAimReach(scene.user, scene.stand) == 11.0D,
+					"A mod multiplying entity reach must not also multiply Creative's bonus");
+		}
+		helper.succeed();
 	}
 
 	/*
@@ -187,14 +240,16 @@ public final class StandMeleeReachGameTests {
 
 	private static final class Run implements GameTestListener {
 		final GameTestHelper helper;
+		final List<Row> rows;
 		final List<String> wrong = new ArrayList<>();
 		Scene scene;
 		int index;
 		float fullLoss = Float.NaN;
 		boolean closed;
 
-		Run(GameTestHelper helper) {
+		Run(GameTestHelper helper, List<Row> rows) {
 			this.helper = helper;
+			this.rows = rows;
 			helper.testInfo.addListener(this);
 		}
 
@@ -208,13 +263,13 @@ public final class StandMeleeReachGameTests {
 					scene = null;
 				}
 				if (scene == null) {
-					if (index == Row.values().length) {
+					if (index == rows.size()) {
 						close();
-						helper.assertTrue(wrong.isEmpty(), "The World's reach out: " + String.join("; ", wrong));
+						helper.assertTrue(wrong.isEmpty(), "Melee reach: " + String.join("; ", wrong));
 						helper.succeed();
 						return;
 					}
-					scene = new Scene(this, Row.values()[index++]);
+					scene = new Scene(this, rows.get(index++));
 					scene.start();
 					return;
 				}
@@ -274,9 +329,13 @@ public final class StandMeleeReachGameTests {
 			user.moveTo(origin.x, origin.y, origin.z, 0.0F, 0.0F);
 			premise(helper.getLevel().addFreshEntity(user), "the user could not be added");
 			power = PowerClass.STAND.attachGet(user);
-			type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("the_world"));
+			type = switch (row) {
+				case KISS_BASE, KISS_MARGIN -> testMeleeStand("kiss:kiss", 4.0D, 12.0D, 17.0D, 17.0D);
+				case GREEN_DAY_NEAR, GREEN_DAY_FAR -> testMeleeStand("rotp_zgd:green_day", 2.0D, 128.0D, 15.7D, 10.0D);
+				default -> JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("the_world"));
+			};
 			premise(type != null && StandPowerTransitions.insert(power, new StandInstance(type)).status()
-					== StandPowerTransitions.Status.APPLIED && type.summon(user, power), "could not give and summon The World");
+					== StandPowerTransitions.Status.APPLIED && type.summon(user, power), "could not give and summon the fixture Stand");
 			stand = power.getSummonedStandEntity();
 			premise(stand != null && stand.getUser() == user, "the summoned Stand is missing");
 			stand.summonLockTicks = 0;
@@ -290,7 +349,8 @@ public final class StandMeleeReachGameTests {
 			cow.setNoAi(true);
 			cow.setNoGravity(true);
 			cow.noPhysics = true;
-			cow.moveTo(origin.x, origin.y, origin.z + row.distance, 0.0F, 0.0F);
+			cow.moveTo(origin.x, origin.y + (row == Row.KISS_BASE ? 0.35D : 0.0D),
+					origin.z + row.distance, 0.0F, 0.0F);
 			premise(helper.getLevel().addFreshEntity(cow), "the cow could not be added");
 			user.lookAt(EntityAnchorArgument.Anchor.EYES, cow.getBoundingBox().getCenter());
 			user.setYHeadRot(user.getYRot());
@@ -300,10 +360,20 @@ public final class StandMeleeReachGameTests {
 			// a client's aims stop at the user's reach, so they met nothing
 			LivingComponentAction.getComponent(user).entityAim.setTarget(ActionTarget.EMPTY);
 			LivingComponentAction.getComponent(stand).entityAim.setTarget(ActionTarget.EMPTY);
-			premise(StandMeleeReach.isCloseRange(stand) && Math.abs(StandMeleeReach.baseReach(stand, user) - 10.0D) < 1.0E-6
-					&& StandMeleeReach.userDistance(user, cow) > 5.0D,
-					"The World's base reach is " + StandMeleeReach.baseReach(stand, user) + ", the cow "
-							+ StandMeleeReach.userDistance(user, cow) + " from the user's eyes");
+			premise(StandMeleeReach.userDistance(user, cow) > 5.0D, "Expected a cow beyond the holder's unaided five blocks");
+			if (type.getId().equals(JojoMod.resLoc("the_world"))) {
+				premise(StandMeleeReach.isCloseRange(stand) && StandMeleeReach.baseReach(stand, user) == 10.0D,
+						"The World's base reach must remain 10");
+			}
+			if (row == Row.BLOCK_REACH_MOD || row == Row.ENTITY_REACH_MOD || row == Row.REMOVED_ENTITY_REACH_MOD) {
+				var reach = user.getAttribute(row == Row.BLOCK_REACH_MOD
+						? Attributes.BLOCK_INTERACTION_RANGE : Attributes.ENTITY_INTERACTION_RANGE);
+				reach.addTransientModifier(new AttributeModifier(REACH_MODIFIER, 7.0D, AttributeModifier.Operation.ADD_VALUE));
+				if (row == Row.REMOVED_ENTITY_REACH_MOD) {
+					check(StandMeleeReach.baseReach(stand, user) == 12.0D, "the added entity bonus was not visible before removal");
+					reach.removeModifier(REACH_MODIFIER);
+				}
+			}
 			Ability base = power.getAbility(row.ability);
 			var selected = power.updateAvailableMoves().getContextVariationContainer(base);
 			premise(selected != null, "no " + row.ability + " to press");
@@ -336,6 +406,10 @@ public final class StandMeleeReachGameTests {
 			float loss = COW_HEALTH - cow.getHealth();
 			double away = stand.distanceTo(user);
 			double fromEyes = StandMeleeReach.userDistance(user, cow);
+			if (row.ordinal() > Row.BARRAGE.ordinal()) {
+				JojoMod.getLogger().info("MELEE-REACH row={} distance={} base={} damage={}",
+						row, fromEyes, StandMeleeReach.baseReach(stand, user), loss);
+			}
 			switch (row) {
 				case WITHIN_BASE_REACH -> {
 					check(loss > 0, "the punch did not hit the cow " + fromEyes + " from its user's eyes");
@@ -354,6 +428,36 @@ public final class StandMeleeReachGameTests {
 					check(loss == 0, "the punch hit the cow " + fromEyes + " from its user's eyes, past the 12.5 it reaches");
 					check(away <= StandMeleeReach.AWAY_DISTANCE && stand.canStartBlocking(), "the Stand flew out or could not"
 							+ " guard with no target: it is " + away + " from its user");
+				}
+				case BLOCK_REACH_MOD, ENTITY_REACH_MOD -> {
+					check(fromEyes > 12.5D && fromEyes <= 15.0D && loss > 0
+									&& StandMeleeReach.baseReach(stand, user) == 12.0D,
+							"the live reach modifier did not extend the actual punch: distance " + fromEyes + ", damage " + loss);
+				}
+				case REMOVED_ENTITY_REACH_MOD -> {
+					check(loss == 0 && StandMeleeReach.baseReach(stand, user) == 10.0D,
+							"the punch still used removed reach: distance " + fromEyes + ", damage " + loss);
+				}
+				case KISS_BASE -> {
+					check(fromEyes >= 11.9D && fromEyes <= 12.0D && loss > 0
+									&& StandMeleeReach.baseReach(stand, user) == 12.0D
+									&& StandMeleeReach.strikeFactor(stand, cow) == 1.0F,
+							"Kiss did not land a full punch at its declared reach: " + fromEyes + ", damage " + loss);
+					run.fullLoss = loss;
+				}
+				case KISS_MARGIN -> {
+					float expected = StandStatFormulas.meleeReachStrengthFactor(fromEyes, 12.0D, 3.0D);
+					check(expected > 0.25F && expected < 1.0F && loss > 0
+									&& Math.abs(loss - run.fullLoss * expected) < 1.0E-3F,
+							"Kiss did not weaken through its normal margin: " + fromEyes + ", damage " + loss);
+				}
+				case GREEN_DAY_NEAR, GREEN_DAY_FAR -> {
+					boolean inside = row == Row.GREEN_DAY_NEAR;
+					check(StandMeleeReach.baseReach(stand, user) == 5.0D && !StandMeleeReach.isCloseRange(stand)
+									&& stand.getMaxRange() == 128.0D && stand.getEffectiveRange() == 2.0D
+									&& (fromEyes <= 6.25D) == inside && (loss > 0) == inside,
+							"Green Day must use the holder's margin, not its ability/control distance: "
+									+ fromEyes + ", damage " + loss);
 				}
 				default -> {}
 			}
@@ -387,6 +491,15 @@ public final class StandMeleeReachGameTests {
 			if (!passed) {
 				run.wrong.add(row + ": " + detail);
 			}
+		}
+
+		private static EntityStandType testMeleeStand(String id, double effective, double max, double power, double speed) {
+			MovesetBuilder moveset = new MovesetBuilder().addHumanoidStandStuff()
+					.addAbility("punch", ModStandAbilities.PUNCH)
+					.addSkill(StandUnlockableSkill.startingAbility("punch"));
+			return new EntityStandType(new StandStats.Builder().power(power).speed(speed)
+					.range(effective, max).durability(12.0D).precision(8.0D).build(), moveset,
+					ResourceLocation.parse(id), StandControlType.CLOSE_RANGE_DIRECT, effective, max, true, true);
 		}
 
 		private void premise(boolean passed, String detail) {

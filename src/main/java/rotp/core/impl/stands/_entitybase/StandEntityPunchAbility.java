@@ -79,6 +79,7 @@ import net.minecraft.world.phys.Vec3;
 public class StandEntityPunchAbility extends StandEntityAbility {
 	// ServerPlayer.CREATIVE_BLOCK_INTERACTION_RANGE_MODIFIER
 	private static final ResourceLocation CREATIVE_BLOCK_RANGE = ResourceLocation.withDefaultNamespace("creative_mode_block_range");
+	private static final ResourceLocation CREATIVE_ENTITY_RANGE = ResourceLocation.withDefaultNamespace("creative_mode_entity_range");
 	// 1.16 harvest levels by (int) strength / 4. Level 0 covered every pickaxe, axe and shovel block, so below
 	// strength 4 only blocks no tool type is made for pass.
 	private static final BlockMiningTier[] LEGACY_HARVEST_TIERS = {
@@ -1459,11 +1460,17 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	}
 
 	/**
-	 * 1.16 StandEntity.getAimDistance: the user's REACH_DISTANCE, 5 in either game mode: the 1.21 Survival attribute
-	 * and half a block, without the Creative half block a server player gets on top.
+	 * Keep 1.16's five-block aim. Melee follows the greater live bonus to the holder's block or entity reach,
+	 * without either of vanilla's Creative modifiers. Other Stands retain the original block-reach calculation.
 	 */
 	public static double userAimReach(LivingEntity user, StandEntity stand) {
 		AttributeInstance reach = user.getAttribute(Attributes.BLOCK_INTERACTION_RANGE);
+		if (user instanceof Player && StandMeleeReach.usesMeleeReach(stand)) {
+			AttributeInstance entityReach = user.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
+			double blockBonus = reach == null ? 0 : reachWithoutCreative(reach, CREATIVE_BLOCK_RANGE) - 4.5D;
+			double entityBonus = entityReach == null ? 0 : reachWithoutCreative(entityReach, CREATIVE_ENTITY_RANGE) - 3.0D;
+			return 5.0D + Math.max(0.0D, Math.max(blockBonus, entityBonus));
+		}
 		if (reach == null) {
 			return stand.getAttributeValue(Attributes.BLOCK_INTERACTION_RANGE);
 		}
@@ -1471,6 +1478,31 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		double creativeBonus = creative != null && creative.operation() == AttributeModifier.Operation.ADD_VALUE
 				? creative.amount() : 0;
 		return reach.getValue() - creativeBonus + 0.5D;
+	}
+
+	private static double reachWithoutCreative(AttributeInstance reach, ResourceLocation creativeId) {
+		if (reach.getModifier(creativeId) == null) {
+			return reach.getValue();
+		}
+		// Creative is additive before modded multipliers, not a subtraction from the final value.
+		double base = reach.getBaseValue();
+		for (AttributeModifier modifier : reach.getModifiers(AttributeModifier.Operation.ADD_VALUE).values()) {
+			if (!modifier.id().equals(creativeId)) {
+				base += modifier.amount();
+			}
+		}
+		double value = base;
+		for (AttributeModifier modifier : reach.getModifiers(AttributeModifier.Operation.ADD_MULTIPLIED_BASE).values()) {
+			if (!modifier.id().equals(creativeId)) {
+				value += base * modifier.amount();
+			}
+		}
+		for (AttributeModifier modifier : reach.getModifiers(AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL).values()) {
+			if (!modifier.id().equals(creativeId)) {
+				value *= 1.0D + modifier.amount();
+			}
+		}
+		return reach.getAttribute().value().sanitizeValue(value);
 	}
 
 	public static boolean canStandHit(StandEntity stand, Entity target) {
