@@ -126,8 +126,9 @@ public class StandEntityModel<T extends StandEntity, S extends StandEntityRender
 			RotpAnimDefinition.animate(this, renderState.action.pose);
 		}
 		else if (head != null) {
-			head.xRot = renderState.xRot * MathUtil.DEG_TO_RAD;
-			head.yRot = renderState.yRot * MathUtil.DEG_TO_RAD;
+			float[] headLookLimit = renderState.skin != null ? renderState.skin.getHeadLookLimit() : null;
+			head.xRot = RotpAnimDefinition.limitedLook(renderState.xRot, headLookLimit, 0) * MathUtil.DEG_TO_RAD;
+			head.yRot = RotpAnimDefinition.limitedLook(renderState.yRot, headLookLimit, 1) * MathUtil.DEG_TO_RAD;
 		}
 		swayHair(renderState.ageInTicks);
 		applySilverChariotVisualState(renderState);
