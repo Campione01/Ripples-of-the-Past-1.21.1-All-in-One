@@ -50,10 +50,20 @@ public class GuiIcon {
 	public void render(PoseStack poseStack, float x, float y, float width, float height, int color) {
 		BlitFloat.blit(poseStack, Minecraft.getInstance(), file, 
 				x, y, width, height, 0, 
-				minU, minV, widthU, heightV, 1, 1, 
+				minU, minV, widthU, heightV, 1, 1,
 				color);
 	}
-	
+
+	/** Draws a part of the icon; the part's bounds are fractions of the icon, 0 to 1. */
+	public void renderPart(PoseStack poseStack, float x, float y, float width, float height,
+			float partMinU, float partMinV, float partMaxU, float partMaxV, int color) {
+		BlitFloat.blit(poseStack, Minecraft.getInstance(), file,
+				x, y, width, height, 0,
+				minU + partMinU * widthU, minV + partMinV * heightV,
+				(partMaxU - partMinU) * widthU, (partMaxV - partMinV) * heightV, 1, 1,
+				color);
+	}
+
 	@Override
 	public boolean equals(Object obj) {
 		return obj instanceof GuiIcon other && 

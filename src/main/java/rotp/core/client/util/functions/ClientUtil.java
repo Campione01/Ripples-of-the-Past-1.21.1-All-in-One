@@ -109,22 +109,27 @@ public class ClientUtil {
 
 	public static final float OUTER_LAYER_SCALE = 9f/8f;
 	public static void renderPlayerFace(PoseStack poseStack, int x, int y, AbstractClientPlayer player) {
+		renderPlayerFace(poseStack, x, y, 16, player, BlitFloat.NO_TINT, true);
+	}
+
+	public static void renderPlayerFace(PoseStack poseStack, float x, float y, float size, AbstractClientPlayer player, int color, boolean showHat) {
 		Minecraft mc = Minecraft.getInstance();
 		PlayerSkin playerSkin = player.getSkin();
 		ResourceLocation playerFace = playerSkin.texture();
-		BlitFloat.blit(poseStack, mc, playerFace, 
-				x, y, 16, 16, 0, 
-				8, 8, 8, 8, 64, 64, 
-				BlitFloat.NO_TINT);
-		if (player.isModelPartShown(PlayerModelPart.HAT)) {
+		BlitFloat.blit(poseStack, mc, playerFace,
+				x, y, size, size, 0,
+				8, 8, 8, 8, 64, 64,
+				color);
+		if (showHat && player.isModelPartShown(PlayerModelPart.HAT)) {
+			float half = size / 2;
 			poseStack.pushPose();
-			poseStack.translate(x + 8, y + 8, 0);
+			poseStack.translate(x + half, y + half, 0);
 			poseStack.scale(OUTER_LAYER_SCALE, OUTER_LAYER_SCALE, 0);
-			poseStack.translate(-x - 8, -y - 8, 0);
-			BlitFloat.blit(poseStack, mc, playerFace, 
-					x, y, 16, 16, 0, 
-					40, 8, 8, 8, 64, 64, 
-					BlitFloat.NO_TINT);
+			poseStack.translate(-x - half, -y - half, 0);
+			BlitFloat.blit(poseStack, mc, playerFace,
+					x, y, size, size, 0,
+					40, 8, 8, 8, 64, 64,
+					color);
 			poseStack.popPose();
 		}
 	}

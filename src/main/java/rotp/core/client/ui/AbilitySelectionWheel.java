@@ -264,8 +264,11 @@ public class AbilitySelectionWheel extends Screen implements ScreenLetsUseWASD {
 				float iconWidth = 16;
 				float iconHeight = 16;
 				int iconColor = PowerHudControlsElement.abilityColor(BlitFloat.NO_TINT, ability);
-				BlitFloat.blit(pose, minecraft, abilitySprite, 
-						iconPos[0] - iconWidth / 2, iconPos[1] - iconHeight / 2, iconWidth, iconHeight, 0, iconColor);
+				ability.ability.renderAbilityIcon(abilityCtx, guiGraphics, abilitySprite,
+						iconPos[0] - iconWidth / 2, iconPos[1] - iconHeight / 2, iconColor);
+				// an icon drawn from an item ends with blending off, as on the HUD
+				RenderSystem.enableBlend();
+				RenderSystem.defaultBlendFunc();
 				tooltipObstacles.add(new ScreenRectangle(
 						iconPos[0] - (int) iconWidth / 2, iconPos[1] - (int) iconHeight / 2,
 						(int) iconWidth, (int) iconHeight));
