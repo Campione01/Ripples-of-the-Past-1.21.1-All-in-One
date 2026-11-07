@@ -933,10 +933,11 @@ public final class HoldTypeActionPress116GameTests {
 		 */
 		private void goesThrough(String holdName, String otherName, InputMethod otherInput) {
 			EntityActionInstance hold = hold(holdName);
+			Ability onTheKey = onTheKey(otherName);
 			BufferingState pressed = press(otherName, otherInput, OTHER_KEY);
 			EntityActionInstance now = standAction.getAction();
 			helper.assertTrue(pressed.isActionSuccess && !pressed.shouldBuffer && now != null && now != hold
-					&& now.ability == power.getAbility(otherName) && hold.isOver(),
+					&& now.ability == onTheKey && hold.isOver(),
 					"1.16 let " + otherName + " pressed during the hold-type " + holdName + " through at once"
 							+ " (heldAllowsOtherAction, isCancelable): started " + pressed.isActionSuccess + ", buffered "
 							+ pressed.shouldBuffer + ", the Stand's action " + now + ", the " + holdName + " over "
@@ -1135,10 +1136,11 @@ public final class HoldTypeActionPress116GameTests {
 			charge.setPhase(phase, tick);
 			helper.assertTrue(charge.getPhase() == phase && standAction.getAction() == charge, "setup: the fired Crossfire"
 					+ " Hurricane is in " + charge.getPhase());
+			Ability onTheKey = onTheKey("punch");
 			BufferingState pressed = press("punch", InputMethod.CLICK, OTHER_KEY);
 			EntityActionInstance now = standAction.getAction();
 			boolean replaced = pressed.isActionSuccess && !pressed.shouldBuffer && now != charge && charge.isOver()
-					&& now != null && now.ability == power.getAbility("punch");
+					&& now != null && now.ability == onTheKey;
 			boolean waits = pressed.shouldBuffer && !pressed.isActionSuccess && now == charge && !charge.isOver();
 			helper.assertTrue(goesThrough ? replaced : waits, (goesThrough
 					? "1.16 let a punch replace a hold-to-fire Stand action that had fired and had no recovery, at once (isCancelable)"
@@ -1246,10 +1248,11 @@ public final class HoldTypeActionPress116GameTests {
 					&& phases.contains(ActionPhase.WINDUP) == windup > 0, "setup: Crossfire Hurricane with a windup of " + windup
 							+ ", held to its full charge, is not at its perform's start before its shot: phases " + phases + ", "
 							+ charge.getPhase() + " tick " + charge.getPhaseTick() + ", shots " + shots().size());
+			Ability onTheKey = onTheKey("punch");
 			BufferingState pressed = press("punch", InputMethod.CLICK, OTHER_KEY);
 			EntityActionInstance now = standAction.getAction();
 			boolean replaced = pressed.isActionSuccess && !pressed.shouldBuffer && now != charge && charge.isOver()
-					&& now != null && now.ability == power.getAbility("punch");
+					&& now != null && now.ability == onTheKey;
 			boolean waits = pressed.shouldBuffer && !pressed.isActionSuccess && now == charge && !charge.isOver();
 			standAction.tick();
 			int shots = shots().size();
@@ -1371,6 +1374,12 @@ public final class HoldTypeActionPress116GameTests {
 				throw new IllegalStateException("Power.cachedMovesThisTick is not reachable", e);
 			}
 			return power.updateAvailableMoves().getContextVariationContainer(power.getAbility(name));
+		}
+
+		// what the ability's key gives now: after a punch ended, a slow press of the punch key gives the other of its first two
+		private Ability onTheKey(String name) {
+			AbilityConditionCheck key = resolve(name);
+			return key != null ? key.ability : power.getAbility(name);
 		}
 
 		@Override

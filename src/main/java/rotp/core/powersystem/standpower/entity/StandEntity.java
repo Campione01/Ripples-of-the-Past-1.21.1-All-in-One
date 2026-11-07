@@ -2,6 +2,7 @@ package rotp.core.powersystem.standpower.entity;
 
 import java.lang.ref.WeakReference;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -231,6 +232,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	private Optional<Entity> barrageClashOpponent = Optional.empty();
 	private int lastStandSwingTick;
 	private boolean alternateAdditionalSwing;
+	// Per light punch, the first or second punch of its combo this Stand played last. Neither saved nor synced: the server and the
+	// user's client both run every punch action, and each fills it from those.
+	private final Map<String, String> lastOpeningPunch = new HashMap<>();
 	private static final Map<LivingEntity, StandAttackInvulState> STAND_ATTACK_INVUL = Collections.synchronizedMap(new WeakHashMap<>());
 	
 	public ClientStandEntityStuff clientStuff;
@@ -1382,6 +1386,15 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 
 	public boolean canAlternatePunchHands() {
 		return !usesSilverChariotRapierHand();
+	}
+
+	public void rememberOpeningPunch(String punchName, String openingName) {
+		lastOpeningPunch.put(punchName, openingName);
+	}
+
+	@Nullable
+	public String lastOpeningPunch(String punchName) {
+		return lastOpeningPunch.get(punchName);
 	}
 
 	public void applySyncedPunchingHand(InteractionHand hand) {

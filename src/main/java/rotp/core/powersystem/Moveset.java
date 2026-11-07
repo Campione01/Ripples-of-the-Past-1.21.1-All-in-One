@@ -72,7 +72,7 @@ public class Moveset {
 		JsonArray disable = movesetJson.getAsJsonArray("disable");
 		if (disable != null) {
 			for (JsonElement element : disable) {
-				moveset.abilities.remove(element.getAsString());
+				moveset.disableByConfig(element.getAsString());
 			}
 		}
 		

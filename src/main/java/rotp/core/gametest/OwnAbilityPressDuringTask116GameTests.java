@@ -606,9 +606,11 @@ public final class OwnAbilityPressDuringTask116GameTests {
 						"1.16 let any other action replace the uppercut (the finisher variation) in its recovery at a finisher meter of "
 								+ meter + " (isFreeRecovery: isFinisher): phase " + uppercut.getPhase() + ", cancelled into a punch "
 								+ uppercut.canBeCancelledInto(punch));
+				// the second pass is a slow press of the punch key: the other of the first two punches
+				Ability onTheKey = s.resolve("punch").ability;
 				BufferingState replaced = s.press("punch", InputMethod.CLICK);
 				EntityActionInstance next = s.standAction.getAction();
-				helper.assertTrue(replaced.isActionSuccess && next != null && next != uppercut && next.ability == punch,
+				helper.assertTrue(replaced.isActionSuccess && next != null && next != uppercut && next.ability == onTheKey,
 						"1.16 started a punch pressed in the uppercut's recovery at once (meter " + meter + "): started "
 								+ replaced.isActionSuccess + ", the Stand's action " + next);
 				s.standAction.setAction(null, s.user, SyncType.NO_SYNC);
@@ -1027,7 +1029,9 @@ public final class OwnAbilityPressDuringTask116GameTests {
 		// as the client of a key that carries a click and a hold ability judges the press at the key's press
 		private void atPress(String name, boolean refused, String when) {
 			AbilityConditionCheck resolved = resolve(name);
-			helper.assertTrue(resolved != null && resolved.ability == power.getAbility(name),
+			// the user's own instance of the move the key gives, which for the punch key may be a later punch of its combo
+			helper.assertTrue(resolved != null && resolved.ability.name().matches(java.util.regex.Pattern.quote(name) + "\\d?")
+					&& resolved.ability == power.getAbility(resolved.ability.name()),
 					"setup: " + name + " " + when + " does not resolve to the user's own: " + describe(resolved));
 			boolean answer = AvailableAbilities.refusesOwnPressOfReleasedAction(power, resolved);
 			helper.assertTrue(answer == refused && (!refused || !resolved.conditionCheck.isPositive()),
