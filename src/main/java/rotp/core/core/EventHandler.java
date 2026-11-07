@@ -836,6 +836,7 @@ public class EventHandler {
 		else if (!event.getLevel().isClientSide() && event.getLevel() instanceof ServerLevel level) {
 			if (event.getEntity() instanceof Mob mob) {
 				VampirismUtil.editMobAiGoals(mob);
+				TimeStopState.restoreLoadedMobIfNoStopHoldsIt(mob, level);
 			}
 			if (!event.loadedFromDisk() && event.getEntity() instanceof Projectile projectile) {
 				HamonUtil.tryChargeProjectile(projectile);

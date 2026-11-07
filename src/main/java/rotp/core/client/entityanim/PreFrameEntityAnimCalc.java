@@ -34,6 +34,7 @@ import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.entity.HamonMasterEntity;
 import rotp.core.impl.powers.pillarman.PillarmanData;
 import rotp.core.impl.powers.pillarman.PillarmanPowerType;
+import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility.StandEntityBarrage;
 import rotp.core.impl.stands._entitybase.StandEntityGrabAbility.StandEntityGrab;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility.StandEntityPunch;
 
@@ -79,6 +80,7 @@ public class PreFrameEntityAnimCalc {
 	private static final ActionAnimIdentifier SC_NO_ARMOR_IDLE_ANIM = ActionAnimIdentifier.getOrCreate("no_armor_idle", true);
 	private static final ActionAnimIdentifier GRAB_ANIM = ActionAnimIdentifier.getOrCreate("grab", false);
 	private static final ActionAnimIdentifier GRAB_MISS_ANIM = ActionAnimIdentifier.getOrCreate("grab_miss", false);
+	private static final ActionAnimIdentifier GENERIC_BARRAGE_ANIM = ActionAnimIdentifier.getOrCreate("barrage", false);
 
 	public static void onBeforeEntitiesRender(ClientLevel level) {
 		Minecraft mc = Minecraft.getInstance();
@@ -357,7 +359,8 @@ public class PreFrameEntityAnimCalc {
 				if (newFrame) {
 					BarrageSwings barrageSwings = getBarrageSwings(living);
 					if (barrageSwings != null) {
-						barrageSwings.frameStandBarrage(Minecraft.getInstance(), anim, timeSeconds, living, living.tickCount + partialTick);
+						barrageSwings.frameStandBarrage(Minecraft.getInstance(), anim, timeSeconds, living, living.tickCount + partialTick,
+								stand != null && action instanceof StandEntityBarrage);
 					}
 					swingsFramed = true;
 				}
@@ -647,6 +650,13 @@ public class PreFrameEntityAnimCalc {
 	private static AnimationSet defaultStandAnims() {
 		AnimationLoader loader = AnimationLoader.getInstance();
 		return loader != null ? loader.getAnimSet(DEFAULT_STAND_ANIMS) : null;
+	}
+
+	/** stand_default's barrage: the arms of a Stand whose own barrage clip does not move them. */
+	@Nullable
+	public static RotpAnimDefinition genericBarrageClip() {
+		AnimationSet defaults = defaultStandAnims();
+		return defaults != null ? defaults.getOwnNamedAnim(GENERIC_BARRAGE_ANIM, false) : null;
 	}
 
 	public static AnimWithId getStandAnim(StandSkin skin, ActionAnimIdentifier animId, ActionAnimIdentifier curIdleAnim) {

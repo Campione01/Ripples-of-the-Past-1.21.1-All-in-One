@@ -116,6 +116,8 @@
 	"timestop.TimeStopBlockEntityTickMixin",
 	"timestop.ServerPlayerTimeStopTickMixin",
 	"timestop.TimeStopItemEntityMixin",
+	"timestop.TimeStopNeighborUpdateMixin",
+	"timestop.ServerLevelBlockEventsInvoker",
 	"mrpresident.ServerGamePacketListenerCocoCarryMixin",
 	"control.ServerGamePacketListenerCarriedPassengerActionMixin",
 	"control.CreeperFuseSuppressionMixin",

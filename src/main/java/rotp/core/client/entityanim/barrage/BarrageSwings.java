@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import rotp.core.client.entityanim.PreFrameEntityAnimCalc;
 import rotp.core.client.entityanim.RotpAnimDefinition;
 import rotp.core.client.entityanim.RotpAnimDefinition.TimelineKeys;
 import rotp.core.client.entityanim.playerbend.IPlayerBendModel;
@@ -53,8 +54,12 @@ public class BarrageSwings {
 	protected float lastTicks = -1;
 
 
+	/**
+	 * @param meleeBarrage the entity is a Stand performing a melee barrage: it draws afterimages whatever its clip was made
+	 *        for, the shared swing when the clip names none, posed by the core's generic clip when the clip does not move its arms
+	 */
 	public void frameStandBarrage(Minecraft mc, RotpAnimDefinition barrageAnim, 
-			float curAnimTimeSecs, LivingEntity entity, float ticks) {
+			float curAnimTimeSecs, LivingEntity entity, float ticks, boolean meleeBarrage) {
 		if (this.lastTicks == ticks) return;
 		this.lastTicks = ticks;
 		
@@ -63,10 +68,19 @@ public class BarrageSwings {
 			barragePrecision = (float) stand.getPrecision();
 		}
 		frameUpdateSwings(mc);
-		String barrageTypeName = barrageAnim.instructionTimelines.getStringTimelineVal(TimelineKeys.BARRAGE, curAnimTimeSecs);
+		String clipValue = barrageAnim.instructionTimelines.getStringTimelineVal(TimelineKeys.BARRAGE, curAnimTimeSecs);
+		boolean clipNamesSwing = !meleeBarrage || barrageAnim.instructionTimelines.hasStringTimeline(TimelineKeys.BARRAGE);
+		String barrageTypeName = AfterimageRule.swingName(clipValue, clipNamesSwing, meleeBarrage);
 		frameUpdateBarrageType(barrageTypeName);
 		if (isBarragingAnim) {
-				frameSetValuesAndAddNewSwings(barrageAnim, entity, ticks, curAnimTimeSecs);
+			RotpAnimDefinition armClip = barrageAnim;
+			if (!clipNamesSwing && !barrageAnim.strokesArms()) {
+				RotpAnimDefinition generic = PreFrameEntityAnimCalc.genericBarrageClip();
+				if (generic != null) {
+					armClip = generic;
+				}
+			}
+			frameSetValuesAndAddNewSwings(armClip, entity, ticks, curAnimTimeSecs);
 		}
 	}
 
@@ -274,6 +288,12 @@ public class BarrageSwings {
 				int packedLight, int packedOverlay, int color, float xRot);
 	}
 
+
+	/** The arm a Stand's afterimages draw; null for any other model and for a rig without that arm. */
+	@Nullable
+	public static AfterimageArm standArm(EntityModel<?> model, HumanoidArm side) {
+		return model instanceof StandEntityModel<?, ?> standModel ? standModel.afterimageArm(side) : null;
+	}
 
 	public static ModelPart getNoXRotArm(EntityModel<?> model, HumanoidArm side) {
 		return switch (model) {

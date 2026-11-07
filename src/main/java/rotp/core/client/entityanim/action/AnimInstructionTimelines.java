@@ -26,6 +26,10 @@ public class AnimInstructionTimelines {
 		}
 		return timeline.getCurValue(animTime);
 	}
+
+	public boolean hasStringTimeline(String key) {
+		return stringVals != null && stringVals.containsKey(key);
+	}
 	
 	public double getNumericTimelineVal(String key, float animTime) {
 		if (numericVals == null) {

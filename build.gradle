@@ -277,6 +277,16 @@ tasks.register('addonApiSmokeTest', JavaExec) {
     mainClass = 'rotp.core.api.RotpAddonApiSmokeTest'
 }
 
+tasks.register('standAfterimageRuleSmokeTest', JavaExec) {
+    group = 'verification'
+    description = 'Checks that barrage afterimages draw each Stand skin\'s own arm; the add-on tree part runs where the tree is.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass = 'rotp.core.client.entityanim.barrage.StandAfterimageRuleSmokeTest'
+    workingDir = projectDir
+    args providers.gradleProperty('rotpAddonsDir').orElse('E:/ws/ws1211/addons').get()
+}
+
 tasks.register('theWorldTsPunchSmokeTest', JavaExec) {
     group = 'verification'
     description = 'Checks time-skip punch travel budget boundaries.'
@@ -668,6 +678,7 @@ tasks.withType(JavaExec).configureEach {
 }
 
 tasks.named('check').configure {
+    dependsOn tasks.named('standAfterimageRuleSmokeTest')
     dependsOn tasks.named('suspiciousArrowParticleSmokeTest')
     dependsOn tasks.named('rebuffFadePoseSmokeTest')
     dependsOn tasks.named('hierophantGreenGuardPoseSmokeTest')

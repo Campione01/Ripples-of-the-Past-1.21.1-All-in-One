@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 import org.joml.Vector3f;
 
 import rotp.core.client.entityanim.RotpAnimDefinition;
+import rotp.core.client.entityanim.barrage.AfterimageArm;
 import rotp.core.client.entityanim.barrage.BarrageSwings;
 import rotp.core.client.entityanim.pose.AnimFramePose;
 import rotp.core.client.entityanim.pose.AnimFramePose.ModelPartFrame;
@@ -55,6 +56,8 @@ public class StandEntityModel<T extends StandEntity, S extends StandEntityRender
 	public ModelPart right_leg;
 	public ModelPart right_leg_bend;
 	private float alpha = 1.0F;
+	@Nullable private AfterimageArm leftAfterimageArm;
+	@Nullable private AfterimageArm rightAfterimageArm;
 	// Star Platinum hair bones present in this model (empty for other Stands)
 	private final List<ModelPart> swayingHair;
 	private static final ArmorPartVisibility[] SILVER_CHARIOT_ARMOR_PARTS = {
@@ -273,6 +276,27 @@ public class StandEntityModel<T extends StandEntity, S extends StandEntityRender
 
 	public void setAlpha(float alpha) {
 		this.alpha = Mth.clamp(alpha, 0.0F, 1.0F);
+	}
+
+	/** Null for a rig without that arm. A subclass may map its arms after this constructor, so it is built at first use. */
+	@Nullable
+	public AfterimageArm afterimageArm(HumanoidArm side) {
+		ModelPart arm = side == HumanoidArm.LEFT ? left_arm : right_arm;
+		if (arm == null) {
+			return null;
+		}
+		AfterimageArm built = side == HumanoidArm.LEFT ? leftAfterimageArm : rightAfterimageArm;
+		if (built == null || built.arm() != arm) {
+			built = AfterimageArm.of(((Model_1_21_2plus) this).jojo_ripples$root(), arm,
+					((ModelWithExtraFeatures) this).jojo_ripples$getInitiallyHidden());
+			if (side == HumanoidArm.LEFT) {
+				leftAfterimageArm = built;
+			}
+			else {
+				rightAfterimageArm = built;
+			}
+		}
+		return built;
 	}
 
 	

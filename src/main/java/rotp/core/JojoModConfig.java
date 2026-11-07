@@ -36,6 +36,10 @@ public class JojoModConfig {
 	// the values of R770 test builds; a file that still has them reads as the mode they meant
 	public static final String LEGACY_BODY_MODE_1_16 = "1.16";
 	public static final String LEGACY_BODY_MODE_MANGA = "manga";
+	// the owner, 2026-11-06: "都固定1.5秒，並且可以由玩家在設定裡更改，最短不能低於0.5秒"
+	public static final double TIME_STOP_CHARGE_SECONDS_DEFAULT = 1.5D;
+	public static final double TIME_STOP_CHARGE_SECONDS_MIN = 0.5D;
+	public static final double TIME_STOP_CHARGE_SECONDS_MAX = 5.0D;
 
 	static {
 		Pair<Common, ModConfigSpec> specPair = new ModConfigSpec.Builder().configure(Common::new);
@@ -46,6 +50,11 @@ public class JojoModConfig {
 
 	public static Common getCommonConfigInstance(boolean isClientSide) {
 		return isClientSide ? COMMON_SYNCED_TO_CLIENT : COMMON_FROM_FILE;
+	}
+
+	public static double timeStopChargeSecondsInRange(double seconds) {
+		return Double.isNaN(seconds) ? TIME_STOP_CHARGE_SECONDS_DEFAULT
+				: Mth.clamp(seconds, TIME_STOP_CHARGE_SECONDS_MIN, TIME_STOP_CHARGE_SECONDS_MAX);
 	}
 
 	public static float getResolveLevelMax(boolean isClientSide, int level) {
@@ -101,6 +110,7 @@ public class JojoModConfig {
 		public final ConfigValue<Double> standExpMultiplier;
 		public final ConfigValue<Integer> timeStopChunkRange;
 		public final ConfigValue<Double> timeStopDamageMultiplier;
+		public final ConfigValue<Double> timeStopChargeSeconds;
 		public final ConfigValue<Double> standDamageMultiplier;
 		public final ConfigValue<Double> standResistanceMultiplier;
 		public final ConfigValue<String> standBodyThroughWalls;
@@ -232,6 +242,14 @@ public class JojoModConfig {
 					builder.comment("Damage multiplier for entities frozen in time.")
 					.translation("jojo.config.timeStopDamageMultiplier")
 					.defineInRange("timeStopDamageMultiplier", 1.0D, 0.0D, 1.0D), 1.0D);
+			timeStopChargeSeconds = ConfigValue.fromSpec(
+					builder.comment("Seconds Star Platinum's and The World's Time Stop take to charge.",
+							"The World takes two thirds of this from Resolve level 4, never under the minimum here.",
+							"Letting go at half the charge or later stops time for that share; before half nothing happens.",
+							"Defaults to 1.5.")
+					.translation("jojo.config.timeStopChargeSeconds")
+					.defineInRange("timeStopChargeSeconds", TIME_STOP_CHARGE_SECONDS_DEFAULT,
+							TIME_STOP_CHARGE_SECONDS_MIN, TIME_STOP_CHARGE_SECONDS_MAX), TIME_STOP_CHARGE_SECONDS_DEFAULT);
 			builder.pop();
 
 			standDamageMultiplier = ConfigValue.fromSpec(
@@ -371,6 +389,7 @@ public class JojoModConfig {
 			standExpMultiplier = ConfigValue.synced(1.0D);
 			timeStopChunkRange = ConfigValue.synced(12);
 			timeStopDamageMultiplier = ConfigValue.synced(1.0D);
+			timeStopChargeSeconds = ConfigValue.synced(TIME_STOP_CHARGE_SECONDS_DEFAULT);
 			standDamageMultiplier = ConfigValue.synced(1.0D);
 			standResistanceMultiplier = ConfigValue.synced(1.0D);
 			standBodyThroughWalls = ConfigValue.synced(BODY_MODE_STANDARD);
@@ -415,6 +434,11 @@ public class JojoModConfig {
 			return BODY_MODE_PHASING.equals(mode) || LEGACY_BODY_MODE_MANGA.equals(mode);
 		}
 
+		/** A whole tick count, in range whatever a hand-edited file or a server's packet said. */
+		public int timeStopChargeTicks() {
+			return Math.round((float) (timeStopChargeSecondsInRange(timeStopChargeSeconds.get()) * 20.0D));
+		}
+
 		public boolean isStandBanned(@Nullable ResourceLocation standId) {
 			return standId != null && bannedStandIds().contains(standId.toString());
 		}
@@ -438,6 +462,7 @@ public class JojoModConfig {
 			skipStandProgression.set(values.skipStandProgression);
 			resolveLvlPoints.set(List.copyOf(values.resolveLvlPoints));
 			timeStopChunkRange.set(values.timeStopChunkRange);
+			timeStopChargeSeconds.set(values.timeStopChargeSeconds);
 			standDamageMultiplier.set(values.standDamageMultiplier);
 			standResistanceMultiplier.set(values.standResistanceMultiplier);
 			standBodyThroughWalls.set(values.standBodyThroughBlocks ? BODY_MODE_PHASING : BODY_MODE_STANDARD);
@@ -471,6 +496,7 @@ public class JojoModConfig {
 			resolveLvlPoints.clearCache();
 			timeStopChunkRange.clearCache();
 			timeStopDamageMultiplier.clearCache();
+			timeStopChargeSeconds.clearCache();
 			standDamageMultiplier.clearCache();
 			standResistanceMultiplier.clearCache();
 			standBodyThroughWalls.clearCache();
@@ -504,6 +530,7 @@ public class JojoModConfig {
 			private final boolean skipStandProgression;
 			private final List<Double> resolveLvlPoints;
 			private final int timeStopChunkRange;
+			private final double timeStopChargeSeconds;
 			private final double standDamageMultiplier;
 			private final double standResistanceMultiplier;
 			private final boolean standBodyThroughBlocks;
@@ -540,6 +567,7 @@ public class JojoModConfig {
 				this.skipStandProgression = config.skipStandProgression.get();
 				this.resolveLvlPoints = config.resolveLvlPoints.get().stream().map(Double::valueOf).toList();
 				this.timeStopChunkRange = config.timeStopChunkRange.get();
+				this.timeStopChargeSeconds = config.timeStopChargeSeconds.get();
 				this.standDamageMultiplier = config.standDamageMultiplier.get();
 				this.standResistanceMultiplier = config.standResistanceMultiplier.get();
 				this.standBodyThroughBlocks = config.manualStandPassesThroughBlocks();
@@ -596,6 +624,7 @@ public class JojoModConfig {
 				}
 				this.techniqueSkillRequirements = List.copyOf(requirements);
 				this.timeStopChunkRange = Math.max(0, buf.readVarInt());
+				this.timeStopChargeSeconds = timeStopChargeSecondsInRange(buf.readDouble());
 				int resolvePointsCount = NetworkPayloadValidation.requireCollectionSize(
 						buf.readVarInt(), MAX_SYNCED_DOUBLE_VALUES,
 						"resolve level point");
@@ -650,6 +679,7 @@ public class JojoModConfig {
 					buf.writeVarInt(value);
 				}
 				buf.writeVarInt(timeStopChunkRange);
+				buf.writeDouble(timeStopChargeSeconds);
 				NetworkPayloadValidation.requireOutboundCollectionSize(
 						resolveLvlPoints.size(), MAX_SYNCED_DOUBLE_VALUES,
 						"resolve level point");
