@@ -22,9 +22,12 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Pig;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BubbleColumnBlock;
 import net.minecraft.world.level.block.LadderBlock;
@@ -375,6 +378,58 @@ public final class MotionTimeRateGameTests {
 		catch (RuntimeException | Error error) {
 			fixture.close();
 			throw error;
+		}
+	}
+
+	@GameTest(template = "empty", batch = GameTestBatches.MOTION_TIME_RATES)
+	public static void sprintSwimmingTracksPitchAtItsMotionRate(GameTestHelper helper) {
+		register();
+		Fixture fixture = new Fixture(helper);
+		try {
+			for (int y = 3; y <= 6; y++) {
+				fixture.block(new BlockPos(1, y, 1), Blocks.WATER.defaultBlockState());
+			}
+			Vec3 start = helper.absoluteVec(new Vec3(1.5, 4.0, 1.5));
+			for (float pitch : new float[] { -30.0F, 30.0F }) {
+				for (float rate : new float[] { 1.0F, 1.0F / 3.0F }) {
+					Player swimmer = GameTestPlayers.makeServerMockPlayer(helper, GameType.SURVIVAL);
+					try {
+						swimmer.setPos(start.x, start.y, start.z);
+						swimmer.setXRot(pitch);
+						swimmer.setPose(Pose.SWIMMING);
+						swimmer.baseTick();
+						swimmer.setSprinting(true);
+						swimmer.setSwimming(true);
+						if (rate < 1.0F) {
+							swimmer.addTag(RATE_3);
+						}
+						helper.assertTrue(swimmer.isInWater() && swimmer.isSwimming() && swimmer.isSprinting()
+									&& swimmer.isControlledByLocalInstance() && !swimmer.isPassenger()
+									&& EntityTimeRates.rate(EntityTimeRates.Channel.MOTION, swimmer) == rate,
+								"Setup: expected a locally controlled sprint-swimmer in water at rate " + rate);
+						double lookY = swimmer.getLookAngle().y;
+						double initialY = Math.copySign(0.12, lookY) * rate;
+						double gain = pitch > 0.0F ? 0.085 : 0.06;
+						double expectedMove = initialY + (lookY * rate - initialY) * gain;
+						double expectedSpeed = expectedMove * 0.8F;
+						swimmer.setDeltaMovement(0.0, initialY, 0.0);
+						swimmer.travel(Vec3.ZERO);
+						double moved = swimmer.getY() - start.y;
+						double speed = swimmer.getDeltaMovement().y;
+						helper.assertTrue(Math.abs(moved - expectedMove) < 1.0E-6
+									&& Math.abs(speed - expectedSpeed) < 1.0E-6,
+								"Sprint-swim pitch " + pitch + " at rate " + rate + ": displacement " + moved
+										+ " and post-drag speed " + speed + ", expected " + expectedMove + " and " + expectedSpeed);
+					}
+					finally {
+						swimmer.discard();
+					}
+				}
+			}
+			helper.succeed();
+		}
+		finally {
+			fixture.close();
 		}
 	}
 

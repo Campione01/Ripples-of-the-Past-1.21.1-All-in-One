@@ -14,6 +14,7 @@
 	"motiontime.EntityBubbleColumnTimeMixin",
 	"motiontime.FireworkRocketBoostTimeMixin",
 	"motiontime.LivingEntityMotionTimeMixin",
+	"motiontime.PlayerSwimMotionTimeMixin",
 	"timerate.BlockEntityTickRateMixin",
 	"timerate.LevelTicksRateMixin",
 	"timerate.ServerLevelTickRateMixin",
