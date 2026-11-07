@@ -206,7 +206,7 @@ public final class TimeStopBlinkInputSmokeTest {
 		check(between(ability, "private float getHoldToFireTicks(LivingEntity user)", "protected boolean shortensChargeAtResolveFour(")
 						.contains("shortensChargeAtResolveFour(power)")
 				&& ability.contains("return power.getPowerType() == ModStands.THE_WORLD.get();"),
-				"the 20-tick Resolve 4 charge must be open to add-on TheWorldTimeStops");
+				"the shorter Resolve 4 charge must be open to add-on TheWorldTimeStops");
 	}
 
 	private static TimeStopAbility timeStop(ResourceLocation stand, String name) {

@@ -1839,6 +1839,8 @@
   "jojo.config.timeStopChunkRange.tooltip": "Rango de capacidad de parada de tiempo en chunks. Si se establece en 0, toda la dimensión se congela en el tiempo.",
   "jojo.config.timeStopDamageMultiplier": "Multiplicador de daño de parada de tiempo",
   "jojo.config.timeStopDamageMultiplier.tooltip": "Multiplicador de daño para entidades congeladas en el tiempo.",
+  "jojo.config.timeStopChargeSeconds": "Tiempo de carga de la parada de tiempo (segundos)",
+  "jojo.config.timeStopChargeSeconds.tooltip": "Cuánto tarda en cargarse la parada de tiempo de Star Platinum y The World, de 0,5 a 5 segundos. The World solo necesita dos tercios desde el nivel de Determinación 4.",
   "jojo.config.standPowerMultiplier": "Multiplicador de daño de Stand",
   "jojo.config.standPowerMultiplier.tooltip": "Multiplicador de daño aplicado a todos los Stands",
   "jojo.config.standExpMultiplier": "Multiplicador de Stand EXP",

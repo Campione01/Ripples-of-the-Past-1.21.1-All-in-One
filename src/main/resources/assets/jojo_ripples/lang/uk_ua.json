@@ -1830,6 +1830,8 @@
   "jojo.config.timeStopChunkRange.tooltip": "Дальність здібності Зупинки Часу в чанках. Якщо значення покладено на 0, то цілий вимір замирає в часі.",
   "jojo.config.timeStopDamageMultiplier": "Множник пошкодження для здатності Зупиняти Час",
   "jojo.config.timeStopDamageMultiplier.tooltip": "Множник пошкодження для усіх істот в замершому часі.",
+  "jojo.config.timeStopChargeSeconds": "Час заряду Зупинення Часу (сек.)",
+  "jojo.config.timeStopChargeSeconds.tooltip": "Скільки заряджається Зупинення Часу Star Platinum і The World: від 0,5 до 5 секунд. The World з 4 рівня рішучості потрібно дві третини цього часу.",
   "jojo.config.standPowerMultiplier": "Множник пошкодження Станду ",
   "jojo.config.standPowerMultiplier.tooltip": "Множник пошкодження приймається для усіх Стандів.",
   "jojo.config.standExpMultiplier": "Множник Stand EXP",

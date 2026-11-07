@@ -1822,6 +1822,8 @@
   "jojo.config.timeStopChunkRange.tooltip": "Range of Time Stop ability in chunks. If set to 0, the whole dimension is frozen in time.",
   "jojo.config.timeStopDamageMultiplier": "Time Stop damage multiplier",
   "jojo.config.timeStopDamageMultiplier.tooltip": "Damage multiplier for entities frozen in time.",
+  "jojo.config.timeStopChargeSeconds": "Time Stop charge time (seconds)",
+  "jojo.config.timeStopChargeSeconds.tooltip": "How long Star Platinum's and The World's Time Stop take to charge, from 0.5 to 5 seconds. The World takes two thirds of this from Resolve level 4.",
   "jojo.config.standPowerMultiplier": "Stand damage multiplier",
   "jojo.config.standPowerMultiplier.tooltip": "Damage multiplier applied to all Stands.",
   "jojo.config.standExpMultiplier": "Stand EXP multiplier",

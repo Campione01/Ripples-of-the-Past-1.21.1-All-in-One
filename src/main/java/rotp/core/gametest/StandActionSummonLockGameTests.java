@@ -63,8 +63,8 @@ public final class StandActionSummonLockGameTests {
 
 	private static final short TIME_STOP_KEY = 125;
 	private static final short PUNCH_KEY = 124;
-	// Star Platinum's time stop charge (1.16 holdToFire(40, false)), fired in the 40th tick from its press
-	private static final int CHARGE = 40;
+	// Star Platinum's time stop charge at the config's default (1.16 holdToFire(40, false)), fired in its last tick
+	private static final int CHARGE = 30;
 	// a summon lock longer than the charge, as only a Stand slower than speed 16 has one at all
 	private static final int LOCK = 45;
 	private static final int PUNCH_PRESS_TICK = CHARGE + 1;
@@ -73,9 +73,9 @@ public final class StandActionSummonLockGameTests {
 	/*
 	 * Star Platinum's time stop held with Star Platinum not out (the real auto-summon), with no summon lock and with its
 	 * lock made 45; pressed in the tick Star Platinum was summoned with the lock 45; and with the lock 45 and its user
-	 * stunned at once. Each starts the stop in tick 40, as 1.16's power performed it, the user's client's copy of it is
+	 * stunned at once. Each starts the stop in tick 30, as 1.16's power performed it, the user's client's copy of it is
 	 * not held back by the lock either, the lock counts down from 45 through the stun as the summon fade-in, and a punch
-	 * pressed after the stop, a Stand task, first ticks in tick 46, the tick after the lock ran out (with no lock: 42).
+	 * pressed after the stop, a Stand task, first ticks in tick 46, the tick after the lock ran out (with no lock: 32).
 	 */
 	@GameTest(template = "empty", timeoutTicks = 100, batch = GameTestBatches.TIME_STOP)
 	public static void aTimeStopTicksThroughItsStandsSummonLockAsIn116WhileTheStandsNextTaskWaitsForIt(GameTestHelper helper) {

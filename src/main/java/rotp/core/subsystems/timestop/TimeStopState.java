@@ -39,6 +39,7 @@ import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.init.power.ModStands;
+import rotp.core.mixin.timestop.ServerLevelBlockEventsInvoker;
 import rotp.core.modcompat.ModInteractionUtil;
 import rotp.core.network.s2c.TrDirectEntityDataPacket;
 import rotp.core.network.s2c.TrTimeStopInstancePacket;
@@ -58,6 +59,7 @@ import rotp.core.util.functions.MathUtil;
 import rotp.core.util.functions.UtilFunctions;
 import rotp.core.util.functions_network.NetworkUtil;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -73,6 +75,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.GameRules;
@@ -81,6 +86,7 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingKnockBackEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -109,9 +115,11 @@ public class TimeStopState {
     private final Map<Integer, List<Runnable>> onTimeResume = new HashMap<>();
     private final Set<UUID> playersVisionFrozen = new HashSet<>();
     private final Map<UUID, Map<Integer, Map<Integer, SynchedEntityData.DataValue<?>>>> delayedEntityData = new HashMap<>();
+    private final TimeStopRedstoneHold redstoneHold;
 
     public TimeStopState(ServerLevel level) {
         this.level = level;
+        this.redstoneHold = new TimeStopRedstoneHold(level);
     }
 
     public Collection<Instance> getInstances() {
@@ -424,10 +432,38 @@ public class TimeStopState {
         frozenEntities.put(entity.getId(), new FrozenEntityState(
                 entity.position(),
                 entity.fallDistance,
-                entity instanceof Mob mob ? mob.isNoAi() : null));
+                entity instanceof Mob mob ? keepOldNoAi(mob) : null));
         entity.fallDistance = 0;
         if (entity instanceof Mob mob) {
             mob.setNoAi(true);
+        }
+    }
+
+    // A mob back from disk in stopped time reads no AI from the stop before; what it was is on the mob, as 1.16 PrevNoAi.
+    private static boolean keepOldNoAi(Mob mob) {
+        var saved = ModDataAttachmentTypes.TIME_STOP_PREV_NO_AI.get();
+        if (mob.hasData(saved)) {
+            return mob.getData(saved);
+        }
+        boolean wasNoAi = mob.isNoAi();
+        mob.setData(saved, wasNoAi);
+        return wasNoAi;
+    }
+
+    /**
+     * A mob saved while frozen joins its level again, its chunk back or the server up after a crash: with no stop to hold
+     * it, it gets its old AI back here. A stop that still holds it freezes it again and restores it as it ends.
+     */
+    @ApiStatus.Internal
+    public static void restoreLoadedMobIfNoStopHoldsIt(Mob mob, ServerLevel level) {
+        var saved = ModDataAttachmentTypes.TIME_STOP_PREV_NO_AI.get();
+        if (!mob.hasData(saved)) {
+            return;
+        }
+        var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+        if (!level.hasData(attachmentType) || !level.getData(attachmentType).shouldFreeze(mob)) {
+            mob.setNoAi(mob.getData(saved));
+            mob.removeData(saved);
         }
     }
 
@@ -573,6 +609,7 @@ public class TimeStopState {
         entity.fallDistance = state.fallDistance();
         if (entity instanceof Mob mob && state.wasNoAi() != null) {
             mob.setNoAi(state.wasNoAi());
+            mob.removeData(ModDataAttachmentTypes.TIME_STOP_PREV_NO_AI.get());
         }
         runQueuedOnTimeResume(entity);
     }
@@ -1349,9 +1386,67 @@ public class TimeStopState {
             var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
             if (level.hasData(attachmentType)) {
                 TimeStopState state = level.getData(attachmentType);
+                state.tickOnLevelTick();
+            }
+        }
+    }
+
+    @ApiStatus.Internal
+    public void tickOnLevelTick() {
+        if (!instances.isEmpty()) {
+            tickLifecycle();
+        }
+        drainRedstoneIfTimeResumed();
+    }
+
+    // Every way a stop ends leaves the level here within a tick, ahead of that tick's block ticks and block events.
+    private void drainRedstoneIfTimeResumed() {
+        if (redstoneHold.hasWork() && !hasActiveStop()) {
+            redstoneHold.drain();
+        }
+    }
+
+    boolean hasActiveStop() {
+        return instances.values().stream().anyMatch(Instance::isActive);
+    }
+
+    /** Whether stopped time keeps this neighbour update from its block until it resumes. */
+    @ApiStatus.Internal
+    public static boolean holdNeighborUpdate(Level updatedLevel, BlockState receiver, BlockPos pos, Block source, BlockPos sourcePos,
+            boolean movedByPiston) {
+        if (!(updatedLevel instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+        var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+        if (!serverLevel.hasData(attachmentType)) {
+            return false;
+        }
+        TimeStopState state = serverLevel.getData(attachmentType);
+        return !state.instances.isEmpty() && state.isTimeStopped(new ChunkPos(pos))
+                && state.redstoneHold.hold(receiver, pos, source, sourcePos, movedByPiston);
+    }
+
+    /** The held neighbour updates' blocks, in the order they will run. */
+    @ApiStatus.Internal
+    public List<BlockPos> heldNeighborUpdates() {
+        return redstoneHold.heldPositions();
+    }
+
+    /**
+     * No tick follows, and a level's block events are not saved: stops end as when the last player leaves, then what
+     * waited for them runs now, so the save holds a world that was told.
+     */
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+        for (ServerLevel serverLevel : event.getServer().getAllLevels()) {
+            if (serverLevel.hasData(attachmentType)) {
+                TimeStopState state = serverLevel.getData(attachmentType);
                 if (!state.instances.isEmpty()) {
-                    state.tickLifecycle();
+                    state.reset();
                 }
+                state.drainRedstoneIfTimeResumed();
+                ((ServerLevelBlockEventsInvoker) serverLevel).jojo_ripples$runBlockEvents();
             }
         }
     }

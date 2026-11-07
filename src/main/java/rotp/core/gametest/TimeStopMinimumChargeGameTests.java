@@ -10,8 +10,10 @@ import javax.annotation.Nullable;
 
 import com.mojang.authlib.GameProfile;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 
+import rotp.core.JojoModConfig;
 import rotp.core.api.power.PowerSkillUnlocks;
 import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.api.timestop.TimeStopLifecycleEvent;
@@ -54,6 +56,7 @@ import net.minecraft.gametest.framework.GameTestListener;
 import net.minecraft.gametest.framework.GameTestRunner;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketSendListener;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.game.ClientboundBundlePacket;
@@ -72,6 +75,7 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
+import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.event.PlayLevelSoundEvent;
@@ -123,8 +127,8 @@ public final class TimeStopMinimumChargeGameTests {
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 80, batch = GameTestBatches.TIME_STOP)
-	public static void starPlatinumsTimeStopReleasesFromTwentyOfFortyTicks(GameTestHelper helper) {
-		aReleaseStartsItsShareFromHalfTheCharge(helper, "star_platinum", 4, 40, 20);
+	public static void starPlatinumsTimeStopReleasesFromFifteenOfThirtyTicks(GameTestHelper helper) {
+		aReleaseStartsItsShareFromHalfTheCharge(helper, "star_platinum", 4, 30, 15);
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 80, batch = GameTestBatches.TIME_STOP)
@@ -172,7 +176,7 @@ public final class TimeStopMinimumChargeGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 100, batch = GameTestBatches.TIME_STOP)
 	public static void aDoublePressOfStarPlatinumsTimeStopFiresWhatAReleaseAtOnceFired(GameTestHelper helper) {
-		aDoublePressFires(helper, "star_platinum", 4, 40, ModSoundEvents.STAR_PLATINUM_TIME_STOP_BLINK);
+		aDoublePressFires(helper, "star_platinum", 4, 30, ModSoundEvents.STAR_PLATINUM_TIME_STOP_BLINK);
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 100, batch = GameTestBatches.TIME_STOP)
@@ -348,15 +352,15 @@ public final class TimeStopMinimumChargeGameTests {
 			AbilityInput.keyRelease(first.keyId, zombie);
 			helper.assertTrue(state.getInstance(zombie.getId()).isEmpty()
 					&& LivingComponentAction.getCurEntityAction(zombie, PowerClass.STAND) == null,
-					"the zombie's release after 5 of 40 ticks started a stop or left its charge");
+					"the zombie's release after 5 of 30 ticks started a stop or left its charge");
 		});
 		helper.runAfterDelay(TimeStopAbility.DOUBLE_PRESS_WINDOW_TICKS + 3, () -> {
 			HeldInputEntry second = AbilityInput.keyPressMob(power.getAbility(TIME_STOP), zombie, null, InputMethod.HOLD);
 			helper.assertTrue(second != null && second.action instanceof TimeStopAbility.TimeStopAction
 					&& state.getInstance(zombie.getId()).isEmpty(), "the zombie's next press did not begin a charge: " + second);
-			helper.runAfterDelay(41, () -> {
+			helper.runAfterDelay(31, () -> {
 				helper.assertTrue(state.getInstance(zombie.getId()).isPresent(),
-						"the zombie's charge did not fire by itself at its full 40 ticks");
+						"the zombie's charge did not fire by itself at its full 30 ticks");
 				helper.succeed();
 			});
 		});
@@ -468,7 +472,7 @@ public final class TimeStopMinimumChargeGameTests {
 		}
 		try (VoiceScene s = new VoiceScene(helper, "AtMinimum", "star_platinum", TRAINED)) {
 			s.press();
-			s.tick(20);
+			s.tick(15);
 			s.release();
 			helper.assertTrue(s.stopTicks() == TRAINED / 2 && s.user.stopped.isEmpty() && s.heard.equals(List.of(lineId + "@voice",
 					stopSound.value().getLocation() + "@ambient")), "a release at the minimum keeps its line and, 40 ticks or"
@@ -476,14 +480,14 @@ public final class TimeStopMinimumChargeGameTests {
 		}
 		try (VoiceScene s = new VoiceScene(helper, "ShortAtMinimum", "star_platinum", 50)) {
 			s.press();
-			s.tick(20);
+			s.tick(15);
 			s.release();
 			helper.assertTrue(s.stopTicks() == 25 && s.heard.equals(List.of(lineId + "@voice")),
 					"a stop under 40 ticks plays no stop sound, as 1.16's: " + s.stopTicks() + ", " + s.heard);
 		}
 		try (VoiceScene s = new VoiceScene(helper, "FullCharge", "star_platinum", TRAINED)) {
 			s.press();
-			s.tick(40);
+			s.tick(30);
 			helper.assertTrue(s.stopTicks() == TRAINED && s.user.stopped.isEmpty() && s.heard.equals(List.of(lineId + "@voice",
 					stopSound.value().getLocation() + "@ambient")), "a full charge fires by itself with its line and stop sound: "
 							+ s.stopTicks() + ", " + s.user.stopped + ", " + s.heard);
@@ -525,6 +529,116 @@ public final class TimeStopMinimumChargeGameTests {
 							+ " ticks");
 		}
 		helper.succeed();
+	}
+
+	// the owner, 2026-11-06: "都固定1.5秒，並且可以由玩家在設定裡更改，最短不能低於0.5秒"
+	@GameTest(template = "empty", timeoutTicks = 20, batch = GameTestBatches.TIME_STOP)
+	public static void bothStandsChargeForTheConfigsOneAndAHalfSecondsByDefault(GameTestHelper helper) {
+		helper.assertTrue(chargeConfig().getDefault() == 1.5D && chargeConfig().get() == 1.5D,
+				"the config's charge is not 1.5 s: " + chargeConfig().getDefault() + ", " + chargeConfig().get());
+		float starPlatinum = chargeAt(helper, "DefaultSp", "star_platinum", 4, 1.5D);
+		float theWorld = chargeAt(helper, "DefaultTw", "the_world", 3, 1.5D);
+		helper.assertTrue(starPlatinum == 30.0F && theWorld == 30.0F, "the default charge is not 30 ticks for both: Star Platinum "
+				+ starPlatinum + ", The World " + theWorld);
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20, batch = GameTestBatches.TIME_STOP)
+	public static void theChargeConfigRefusesWhatIsOutsideItsRange(GameTestHelper helper) {
+		ModConfigSpec.DoubleValue value = chargeConfig();
+		helper.assertTrue(value.getSpec().test(0.5D) && !value.getSpec().test(0.49D), "the file's minimum is not 0.5 s");
+		helper.assertTrue(value.getSpec().test(5.0D) && !value.getSpec().test(5.01D), "the file's maximum is not 5 s");
+		helper.assertTrue(Double.valueOf(0.5D).equals(value.getSpec().correct(0.1D)), "a file's 0.1 s is not corrected to 0.5 s: "
+				+ value.getSpec().correct(0.1D));
+		JojoModConfig.Common client = JojoModConfig.getCommonConfigInstance(true);
+		JojoModConfig.Common server = JojoModConfig.getCommonConfigInstance(false);
+		double before = value.get();
+		RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), helper.getLevel().registryAccess());
+		try {
+			// a packet's number is not trusted either
+			client.timeStopChargeSeconds.set(0.1D);
+			helper.assertTrue(client.timeStopChargeTicks() == 10, "0.1 s from a server charges for " + client.timeStopChargeTicks()
+					+ " ticks, under the 10 of the minimum");
+			client.timeStopChargeSeconds.set(Double.NaN);
+			helper.assertTrue(client.timeStopChargeTicks() == 30, "NaN from a server charges for " + client.timeStopChargeTicks()
+					+ " ticks, not the default's 30");
+			// the server's value wins on the client, as the other synced time stop values do
+			value.set(0.75D);
+			new JojoModConfig.Common.SyncedValues(server).writeToBuf(buf);
+			JojoModConfig.applySyncedConfig(new JojoModConfig.Common.SyncedValues(buf));
+			helper.assertTrue(client.timeStopChargeSeconds.get() == 0.75D && client.timeStopChargeTicks() == 15,
+					"the server's 0.75 s did not reach the client: " + client.timeStopChargeSeconds.get());
+		}
+		finally {
+			value.set(before);
+			JojoModConfig.resetSyncedConfig();
+			buf.release();
+		}
+		helper.succeed();
+	}
+
+	/** The owner's rule moves with the charge: under half nothing, from half its share, full by itself, the line along. */
+	@GameTest(template = "empty", timeoutTicks = 20, batch = GameTestBatches.TIME_STOP)
+	public static void aReleaseKeepsItsShareOfAChangedCharge(GameTestHelper helper) {
+		String line = ModSoundEvents.JOTARO_STAR_PLATINUM_THE_WORLD.value().getLocation() + "@voice";
+		String stopSound = ModSoundEvents.STAR_PLATINUM_TIME_STOP.value().getLocation() + "@ambient";
+		for (int[] row : new int[][] { { 10, 5, TRAINED / 2 }, { 60, 30, TRAINED / 2 }, { 60, 45, 68 } }) {
+			double seconds = row[0] / 20.0D;
+			try (VoiceScene s = new VoiceScene(helper, "Share" + row[0] + "x" + row[1], "star_platinum", TRAINED)) {
+				s.pressAt(seconds);
+				s.tick(row[1] - (row[1] == 45 ? 0 : 1));
+				if (row[1] != 45) {
+					s.release();
+					helper.assertTrue(s.stopTicks() == 0, "a release a tick under half of " + row[0] + " ticks started a stop of "
+							+ s.stopTicks());
+					s.user.input().timeStopFirstPressTime = EntityActionInputState.NO_PRESS;
+					s.pressAt(seconds);
+					s.tick(row[1]);
+				}
+				s.release();
+				helper.assertTrue(s.stopTicks() == row[2], "a release after " + row[1] + " of " + row[0] + " ticks does not start "
+						+ row[2] + " ticks: " + s.stopTicks());
+			}
+		}
+		// the shortest charge the config allows: its line starts within the charge and is not cut by the stop it fires
+		try (VoiceScene s = new VoiceScene(helper, "ShortestFull", "star_platinum", TRAINED)) {
+			s.pressAt(0.5D);
+			s.tick(10);
+			helper.assertTrue(s.stopTicks() == TRAINED && s.user.stopped.isEmpty() && s.heard.equals(List.of(line, stopSound)),
+					"a full charge of 10 ticks did not fire with its line and stop sound: " + s.stopTicks() + ", " + s.user.stopped
+							+ ", " + s.heard);
+		}
+		helper.succeed();
+	}
+
+	/** "留下來": The World from Resolve 4 charges for two thirds, never under the minimum. Star Platinum has no such rule. */
+	@GameTest(template = "empty", timeoutTicks = 20, batch = GameTestBatches.TIME_STOP)
+	public static void theWorldsChargeIsTwoThirdsFromResolveFourAndStarPlatinumsIsNot(GameTestHelper helper) {
+		Object[][] rows = {
+				{ "the_world", 3, 1.5D, 30.0F }, { "the_world", 4, 1.5D, 20.0F }, { "the_world", 4, 3.0D, 40.0F },
+				{ "the_world", 3, 3.0D, 60.0F }, { "the_world", 4, 0.5D, 10.0F }, { "the_world", 4, 0.6D, 10.0F },
+				{ "the_world", 4, 1.2D, 16.0F }, { "star_platinum", 4, 1.5D, 30.0F }, { "star_platinum", 4, 3.0D, 60.0F },
+				{ "star_platinum", 4, 0.5D, 10.0F } };
+		int index = 0;
+		for (Object[] row : rows) {
+			float charge = chargeAt(helper, "Resolve" + index++, (String) row[0], (int) row[1], (double) row[2]);
+			helper.assertTrue(charge == (float) row[3], row[0] + " at Resolve " + row[1] + " and " + row[2] + " s charges for " + charge
+					+ " ticks, not " + row[3]);
+		}
+		helper.succeed();
+	}
+
+	private static float chargeAt(GameTestHelper helper, String name, String stand, int resolve, double seconds) {
+		try (VoiceScene s = new VoiceScene(helper, name, stand, TRAINED)) {
+			s.power.setResolveLevel(resolve);
+			EntityActionInstance held = s.pressAt(seconds);
+			helper.assertTrue(held != null, name + ": no charge began");
+			return held.getCurPhaseLength();
+		}
+	}
+
+	private static ModConfigSpec.DoubleValue chargeConfig() {
+		return JojoModConfig.COMMON_SPEC.getValues().get(List.of("Stand settings", "Time Stop", "timeStopChargeSeconds"));
 	}
 
 	private static boolean near(float actual, float expected) {
@@ -813,6 +927,20 @@ public final class TimeStopMinimumChargeGameTests {
 			HeldInputEntry held = AbilityInput.keyPress(KEY, container.ability, user, null, InputMethod.HOLD, 0,
 					BufferingState.clickCanBuffer(), base.getAbilityId());
 			return held != null && held.action instanceof EntityActionInstance action ? action : null;
+		}
+
+		// a press reads the config once: the value is back before anything else can read it
+		@Nullable
+		private EntityActionInstance pressAt(double seconds) {
+			ModConfigSpec.DoubleValue value = chargeConfig();
+			double before = value.get();
+			value.set(seconds);
+			try {
+				return press();
+			}
+			finally {
+				value.set(before);
+			}
 		}
 
 		private void release() {

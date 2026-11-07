@@ -68,9 +68,8 @@ import net.minecraft.world.level.Level;
 
 public class TimeStopAbility extends StandEntityAbility implements TrainableAbility {
 	private static final ActionAnimIdentifier TIME_STOP_ANIM = ActionAnimIdentifier.getOrCreate("time_stop", false);
-	private static final int STAR_PLATINUM_HOLD_TO_FIRE_TICKS = 40;
-	private static final int THE_WORLD_HOLD_TO_FIRE_TICKS = 30;
-	private static final int THE_WORLD_RESOLVE_HOLD_TO_FIRE_TICKS = 20;
+	// only says the ability has a charge at all; a press reads its length from the config
+	private static final int DEFAULT_CHARGE_PHASE_TICKS = 30;
 	private static final int TIME_STOP_SOUND_MIN_TICKS = 40;
 	/** A release before this share of the full charge starts nothing (the owner, 2026-11-05). */
 	private static final float MIN_RELEASE_CHARGE_SHARE = 0.5F;
@@ -87,7 +86,7 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 
 	public TimeStopAbility(AbilityType<?> abilityType, AbilityId abilityId) {
 		super(abilityType, abilityId, TimeStopAction::new);
-		setDefaultPhaseLength(ActionPhase.BUTTON_CHARGE, THE_WORLD_HOLD_TO_FIRE_TICKS);
+		setDefaultPhaseLength(ActionPhase.BUTTON_CHARGE, DEFAULT_CHARGE_PHASE_TICKS);
 		setDefaultPhaseLength(ActionPhase.PERFORM, 1);
 		setDefaultPhaseLength(ActionPhase.RECOVERY, 0);
 		partsRequired(StandPart.MAIN_BODY);
@@ -363,20 +362,24 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 		if (isCurrentlyInStoppedTime(user)) {
 			return 0;
 		}
+		int chargeTicks = JojoModConfig.getCommonConfigInstance(user.level().isClientSide()).timeStopChargeTicks();
 		StandPower power = PowerClass.STAND.get(user);
-		if (power != null && power.getPowerType() == ModStands.STAR_PLATINUM.get()) {
-			return STAR_PLATINUM_HOLD_TO_FIRE_TICKS;
+		if (power != null && power.getPowerType() != ModStands.STAR_PLATINUM.get()
+				&& shortensChargeAtResolveFour(power) && power.getResolveLevel() >= 4) {
+			return getResolveFourChargeTicks(chargeTicks);
 		}
-		if (power != null && shortensChargeAtResolveFour(power) && power.getResolveLevel() >= 4) {
-			return THE_WORLD_RESOLVE_HOLD_TO_FIRE_TICKS;
-		}
-		return THE_WORLD_HOLD_TO_FIRE_TICKS;
+		return chargeTicks;
+	}
+
+	/** Two thirds of the charge, 1.16's 20 of 30, never under the config's minimum. */
+	public static int getResolveFourChargeTicks(int chargeTicks) {
+		return Math.max(Math.round(chargeTicks * 2.0F / 3.0F),
+				Math.round((float) (JojoModConfig.TIME_STOP_CHARGE_SECONDS_MIN * 20.0D)));
 	}
 
 	/**
-	 * 1.16 TheWorldTimeStop#getHoldDurationToFire: from Resolve level 4 the charge takes
-	 * holdDurationToFireMaxLevel (20) ticks. Add-on time stops that 1.16 built as a
-	 * TheWorldTimeStop return true.
+	 * 1.16 TheWorldTimeStop#getHoldDurationToFire: from Resolve level 4 the charge is shorter, now two thirds of the
+	 * config's. Add-on time stops that 1.16 built as a TheWorldTimeStop return true.
 	 */
 	protected boolean shortensChargeAtResolveFour(StandPower power) {
 		return power.getPowerType() == ModStands.THE_WORLD.get();

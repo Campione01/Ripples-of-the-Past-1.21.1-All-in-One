@@ -1848,6 +1848,8 @@
   "jojo.config.timeStopChunkRange.tooltip": "時間停止的範圍如果為0，那麼整個維度的時間將為停止狀態.",
   "jojo.config.timeStopDamageMultiplier": "時間停止增加的傷害倍數",
   "jojo.config.timeStopDamageMultiplier.tooltip": "時間停止時生物的受傷的倍數.",
+  "jojo.config.timeStopChargeSeconds": "時間停止蓄力時間（秒）",
+  "jojo.config.timeStopChargeSeconds.tooltip": "『白金之星』和『世界』的時間停止蓄力所需的時間，可設為 0.5 到 5 秒。覺悟等級 4 起，『世界』只需其中的三分之二。",
   "jojo.config.standPowerMultiplier": "『替身』傷害倍數",
   "jojo.config.standPowerMultiplier.tooltip": "傷害倍數適用於所有『替身』.",
   "jojo.config.standExpMultiplier": "替身經驗倍率",
