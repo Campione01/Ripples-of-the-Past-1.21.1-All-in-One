@@ -23,6 +23,7 @@ import rotp.core.api.stand.StandManualMovementObservers.MovePath;
 import rotp.core.client.ClientGlobals;
 import rotp.core.client.ClientProxy;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
+import rotp.core.config.client.StandToggle;
 import rotp.core.core.JojoMod;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.entityattachment.PlayerOneTimeNotifications;
@@ -1170,7 +1171,12 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 
 	// owner 2026-10-30: a close-range Stand goes past its base reach by the remote control margin (StandMeleeReach)
 	public double getMaxRangeForMovement(LivingEntity user) {
-		return StandMeleeReach.isCloseRange(this) ? StandMeleeReach.maxReach(this, user, true) : getMaxRange();
+		boolean closeRange = StandMeleeReach.isCloseRange(this);
+		if (PlayerClientBroadcastedSettings.isStandToggleOn(StandToggle.BEYOND_EFFECTIVE_RANGE, user)) {
+			return closeRange ? StandMeleeReach.maxReach(this, user, true) : getMaxRange();
+		}
+		// where it stops weakening (updateStrengthMultipliers): a close-range Stand's effective range of 1 would pin it to its user
+		return closeRange ? StandMeleeReach.baseReach(this, user) : getEffectiveRange();
 	}
 
 	// 1.16 StandEntity.move: one-time warning when manual control goes past the server view distance
@@ -3197,7 +3203,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	
 	protected void pickUpItemEntities() {
 		Level level = this.level();
-		if (!level.isClientSide() && this.isManuallyControlled() && getCurStandAction() == null && this.getHealth() > 0) {
+		if (!level.isClientSide() && this.isManuallyControlled() && getCurStandAction() == null && this.getHealth() > 0
+				&& PlayerClientBroadcastedSettings.isStandToggleOn(StandToggle.PICK_UP_ITEMS, getUser())) {
 			AABB aabb;
 			if (this.isPassenger() && !this.getVehicle().isRemoved()) {
 				aabb = this.getBoundingBox().minmax(this.getVehicle().getBoundingBox()).inflate(1.0, 0.0, 1.0);

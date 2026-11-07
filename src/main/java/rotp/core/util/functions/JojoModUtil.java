@@ -13,6 +13,8 @@ import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import rotp.core.config.client.PlayerClientBroadcastedSettings;
+import rotp.core.config.client.StandToggle;
 import rotp.core.customobjects.explosion.CustomExplosion;
 import rotp.core.entityattachment.PlayerVoiceLineData;
 import rotp.core.impl.powers.vampirism.entity.HungryZombieEntity;
@@ -21,7 +23,11 @@ import rotp.core.init.ModGamerules;
 import rotp.core.network.s2c.BrokenBlocksParticlesAndSoundsPacket;
 import rotp.core.network.s2c.PlayVoiceLinePacket;
 import rotp.core.network.s2c.TrResetDeathTimePacket;
+import rotp.core.powersystem.PowerClass;
+import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityId;
+import rotp.core.powersystem.entityaction.EntityActionInstance;
+import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
@@ -73,7 +79,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 public class JojoModUtil {
 
 	public static boolean canEntityDestroy(ServerLevel level, BlockPos blockPos, BlockState blockState, LivingEntity entity) {
-		if (breakingBlocksEnabled(level)
+		if (breakingBlocksEnabled(level, entity)
 				&& blockState.canEntityDestroy(level, blockPos, entity)
 				&& EventHooks.onEntityDestroyBlock(entity, blockPos, blockState)) {
 			Player player = null;
@@ -91,8 +97,38 @@ public class JojoModUtil {
 		return false;
 	}
 
+	/**
+	 * The jojoAbilitiesBreakBlocks game rule; inside the tick of a Stand ability's action, its user's "breaks blocks"
+	 * toggle too, for an ability that names no breaker. With a breaker to name, use {@link #breakingBlocksEnabled(Level, LivingEntity)}.
+	 */
 	public static boolean breakingBlocksEnabled(Level level) {
-		return level.getGameRules().getBoolean(ModGamerules.BREAK_BLOCKS);
+		return level.getGameRules().getBoolean(ModGamerules.BREAK_BLOCKS) && !runningStandActionHasBreakingOff();
+	}
+
+	/** {@link #breakingBlocksEnabled(Level)}, and the toggle of the player whose Stand, or whose own hands as a Stand user, break the block. */
+	public static boolean breakingBlocksEnabled(Level level, @Nullable LivingEntity breaker) {
+		return breakingBlocksEnabled(level) && (breaker == null || !hasStandBreakingOff(breaker));
+	}
+
+	private static boolean runningStandActionHasBreakingOff() {
+		EntityActionInstance running = EntityActionInstance._runningOwnTick();
+		return running != null && running.ability instanceof Ability ability && ability.abilityId.powerClass() == PowerClass.STAND
+				&& !PlayerClientBroadcastedSettings.isStandToggleOn(StandToggle.BREAK_BLOCKS, running.getPowerUser());
+	}
+
+	private static boolean hasStandBreakingOff(LivingEntity breaker) {
+		LivingEntity user = StandUtil.getStandUser(breaker);
+		if (PlayerClientBroadcastedSettings.isStandToggleOn(StandToggle.BREAK_BLOCKS, user)) {
+			return false;
+		}
+		if (breaker != user) {
+			return true;
+		}
+		// a user's own break: the toggle is about the Stand, so it leaves a Hamon, vampire or Pillar Man move alone
+		EntityActionInstance own = LivingComponentAction.getCurEntityAction(user);
+		boolean ownPowerMove = own != null && !own.isOver() && own.ability instanceof Ability ability
+				&& ability.abilityId.powerClass() == PowerClass.PLAYER_POWER;
+		return StandUtil.isEntityStandUser(user) && !ownPowerMove;
 	}
 
 	public static void blockCatchFire(Level level, BlockPos blockPos, BlockState blockState, @Nullable Direction face, @Nullable LivingEntity igniter) {

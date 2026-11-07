@@ -204,6 +204,7 @@ public final class ModItems {
 	public static final DeferredHolder<CreativeModeTab, CreativeModeTab> MAIN_TAB = CREATIVE_MODE_TABS.register(JojoMod.MOD_ID + "_main", () -> CreativeModeTab.builder()
 			.title(Component.translatable("itemGroup." + JojoMod.MOD_ID + "_main"))
 			.icon(() -> DEBUG_ITEM.value().getDefaultInstance())
+			.withTabFactory(SectionedCreativeTab::new)
 			.displayItems((CreativeModeTab.ItemDisplayParameters parameters, CreativeModeTab.Output output) -> {
 				// most of the mod's items
 				output.accept(STAND_ARROW.get());

@@ -69,7 +69,7 @@ public class CrazyDAngeloRockPunchInput extends Ability {
 	// until the rock is formed), and the finisher has no follow-up yet (hasTaskWithNoModifiers)
 	private static boolean canFollowRunningFinisher(@Nullable StandPower standPower) {
 		LivingEntity user = standPower != null ? standPower.getUser() : null;
-		return user != null && JojoModUtil.breakingBlocksEnabled(user.level())
+		return user != null && JojoModUtil.breakingBlocksEnabled(user.level(), user)
 				&& standPower.userStandEffects.getEffectOfType(ModStandAbilities.EFFECT_CD_PUNCH_ANGELO_ROCK.get()).isEmpty()
 				&& CrazyDiamondHeavyPunchAbility.runningHeavyPunch(standPower, true) != null;
 	}

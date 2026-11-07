@@ -336,6 +336,19 @@ public class StandType extends PowerType {
 		}
 	}
 	
+	/**
+	 * The key a player binds for it, which never summons: an action still in its windup or charge ends with nothing done,
+	 * and a Stand with no action goes back as with the summon key. A press during the Stand's own unsummon ends that at
+	 * once ({@link rotp.core.powersystem.standpower.entity.EntityStandType}). An action already performing or recovering
+	 * goes on.
+	 */
+	public void onUserCancelCommand(LivingEntity user, StandPower standPower) {
+		if (!StandActionCancel.cancelWindup(LivingComponentAction.getExistingComponent(user, PowerClass.STAND), standPower)
+				&& standPower.isSummoned() && LivingComponentAction.getCurEntityAction(user, PowerClass.STAND) == null) {
+			unsummon(user, standPower);
+		}
+	}
+
 	public boolean summon(LivingEntity user, StandPower standPower) {
 		if (!standPower.isSummoned() && standPower.canUsePower()) {
 			SummonedStand summonedStand = makeSummonedStand();

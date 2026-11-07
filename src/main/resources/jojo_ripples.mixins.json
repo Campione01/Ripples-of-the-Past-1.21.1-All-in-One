@@ -204,6 +204,7 @@
 	"container.open_as_non_player.ClientContainerScreenFactoryMixin",
 	
 	"client.screen.ScreenMixin",
+	"client.screen.CreativeScreenScrollAccessor",
 	"client.screen.KeyMappingMixin",
 	"client.screen.MinecraftMixin",
     "client.standskin.SoundInstanceMixin",

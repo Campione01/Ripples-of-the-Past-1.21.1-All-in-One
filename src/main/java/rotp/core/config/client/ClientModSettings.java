@@ -173,6 +173,9 @@ public class ClientModSettings {
 		if (settings.has("broadcasted") && settings.get("broadcasted").isJsonObject()) {
 			normalizeBooleanField(settings.getAsJsonObject("broadcasted"), "standAttackTargetLock");
 			normalizeBooleanField(settings.getAsJsonObject("broadcasted"), "standAimAssist");
+			normalizeBooleanField(settings.getAsJsonObject("broadcasted"), "standBreaksBlocks");
+			normalizeBooleanField(settings.getAsJsonObject("broadcasted"), "standPicksUpItems");
+			normalizeBooleanField(settings.getAsJsonObject("broadcasted"), "standMovesBeyondEffectiveRange");
 		}
 		return settings;
 	}

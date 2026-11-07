@@ -155,7 +155,7 @@ public class KnockbackCollisionImpact implements TickingEntityData, INBTSerializ
 			return false;
 		}
 
-		boolean canBreakBlocks = JojoModUtil.breakingBlocksEnabled(level);
+		boolean canBreakBlocks = JojoModUtil.breakingBlocksEnabled(level, attacker);
 		boolean collidedWithBlocks = !movementVec.equals(collidedVec);
 		collideBoundingBox(entity, movementVec, collidedWithBlocks, canBreakBlocks);
 		return canBreakBlocks && collidedWithBlocks;

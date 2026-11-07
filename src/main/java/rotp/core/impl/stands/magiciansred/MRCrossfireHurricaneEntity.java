@@ -184,7 +184,7 @@ public class MRCrossfireHurricaneEntity extends ModdedProjectileEntity {
 
 	private void burnBlocksTick() {
 		Level level = level();
-		if (!(level instanceof ServerLevel world) || special || !JojoModUtil.breakingBlocksEnabled(level)) {
+		if (!(level instanceof ServerLevel world) || special || !JojoModUtil.breakingBlocksEnabled(level, getOwner())) {
 			return;
 		}
 		LivingEntity owner = getOwner();

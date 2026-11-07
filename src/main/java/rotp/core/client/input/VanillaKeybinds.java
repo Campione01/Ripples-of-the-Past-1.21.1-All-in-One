@@ -1,5 +1,6 @@
 package rotp.core.client.input;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -13,11 +14,13 @@ import org.lwjgl.glfw.GLFW;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.client.input.controlscheme.VariationKey;
 import rotp.core.client.input.controlscheme.VariationKeyName;
+import rotp.core.client.ui.hud_power.PowerHud;
 import rotp.core.client.ui.screen_jojomenu.IJojoMenuScreen;
 import rotp.core.client.ui.screen_jojomenu.JojoMenuTabs;
 import rotp.core.client.ui.screen_jojomenu.Tab;
 import rotp.core.config.SettingsField;
 import rotp.core.config.client.ClientModSettings;
+import rotp.core.config.client.StandToggle;
 import rotp.core.core.JojoMod;
 import rotp.core.init.power.ModPlayerPowers;
 import rotp.core.network.c2s.ClNoParamsPacket;
@@ -122,7 +125,11 @@ public class VanillaKeybinds {
 	public KeyMapping jojoStuffMenu;
 	public KeyMapping hamonMeditation;
 	public KeyMapping jojoLmbRmb;
-	
+	public KeyMapping standCancelAction;
+	public KeyMapping tossStandItem;
+	public KeyMapping swapStandItemHands;
+	public final Map<StandToggle, KeyMapping> standToggleKeys = new EnumMap<>(StandToggle.class);
+
 	public static VanillaKeybinds register(RegisterKeyMappingsEvent event) {
 		VanillaKeybinds binds = new VanillaKeybinds();
 		event.register(binds.summonStand = new Jokerge(
@@ -181,10 +188,23 @@ public class VanillaKeybinds {
 		event.register(binds.hamonMeditation = new Jokerge(
 				JojoMod.MOD_ID + ".key.meditation", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
+		// owner, R772.1: none of these has a default key, the player gives each one in the key binds screen
+		event.register(binds.standCancelAction = unboundKey(JojoMod.MOD_ID + ".key.stand_cancel_action"));
+		event.register(binds.tossStandItem = unboundKey(JojoMod.MOD_ID + ".key.stand_item_toss"));
+		event.register(binds.swapStandItemHands = unboundKey(JojoMod.MOD_ID + ".key.stand_item_swap_hands"));
+		binds.standToggleKeys.put(StandToggle.BREAK_BLOCKS, unboundKey(JojoMod.MOD_ID + ".key.stand_toggle_break_blocks"));
+		binds.standToggleKeys.put(StandToggle.PICK_UP_ITEMS, unboundKey(JojoMod.MOD_ID + ".key.stand_toggle_pick_up_items"));
+		binds.standToggleKeys.put(StandToggle.BEYOND_EFFECTIVE_RANGE, unboundKey(JojoMod.MOD_ID + ".key.stand_toggle_beyond_effective_range"));
+		binds.standToggleKeys.values().forEach(event::register);
 		event.register(binds.jojoLmbRmb = new LmbRmbKeyMapping(
 				JojoMod.MOD_ID + ".key.jojo_test", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, MAIN_CATEGORY)
 				.inInitOrder());
 		return binds;
+	}
+
+	private static KeyMapping unboundKey(String name) {
+		return new Jokerge(name, KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, MAIN_CATEGORY)
+				.inInitOrder().withDescTooltip();
 	}
 
 	public void handleTick() {
@@ -233,6 +253,19 @@ public class VanillaKeybinds {
 		
 		while (jojoLmbRmb.consumeClick()) {
 			inputHandler.doTheThing();
+		}
+
+		standToggleKeys.forEach((toggle, key) -> {
+			while (key.consumeClick()) {
+				PowerHud.abilityHUDInstance.standToggles.flipByKey(toggle);
+			}
+		});
+
+		while (standCancelAction.consumeClick()) {
+			StandPower standPower = ClientPowerCache.getPower(PowerClass.STAND);
+			if (standPower != null && standPower.hasPower()) {
+				PacketDistributor.sendToServer(ClNoParamsPacket.of(PacketType.STAND_CANCEL_ACTION));
+			}
 		}
 	}
 
