@@ -32,6 +32,9 @@ public final class ServerConfigClient {
 	public static long set(String key, JsonElement value) { return request(Operation.SET, key, value); }
 	public static long reset(String key) { return request(Operation.RESET, key, null); }
 	public static long resetGroup(String group) { return request(Operation.RESET_GROUP, group, null); }
+	public static long previewPreset(String id) { return request(Operation.PREVIEW_PRESET, id, null); }
+	public static long applyPreset(String id) { return request(Operation.APPLY_PRESET, id, null); }
+	public static long resetPreset(String id) { return request(Operation.RESET_PRESET, id, null); }
 
 	/** Returns the correlation ID, or zero when the server does not support the editor. */
 	public static long request(Operation operation, String key, @Nullable JsonElement value) {

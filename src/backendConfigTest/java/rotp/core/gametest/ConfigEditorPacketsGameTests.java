@@ -71,10 +71,13 @@ public final class ConfigEditorPacketsGameTests {
 					new JsonPrimitive(original == 7 ? 8 : 7)));
 			helper.assertTrue(set.result().status() == Status.FORBIDDEN && !set.canEdit(),
 					"unlisted LAN-cheats guest was allowed to write through the real config packet");
-			for (Request reset : List.of(new Request(3, Operation.RESET, RANGE, null),
-					new Request(4, Operation.RESET_GROUP, GROUP, null))) {
-				helper.assertTrue(exchange(helper, guest, reset).result().status() == Status.FORBIDDEN,
-						"unlisted LAN-cheats guest was allowed to reset through the real config packet");
+			for (Request request : List.of(new Request(3, Operation.RESET, RANGE, null),
+					new Request(4, Operation.RESET_GROUP, GROUP, null),
+					new Request(5, Operation.PREVIEW_PRESET, "pvp", null),
+					new Request(6, Operation.APPLY_PRESET, "pvp", null),
+					new Request(7, Operation.RESET_PRESET, "pvp", null))) {
+				helper.assertTrue(exchange(helper, guest, request).result().status() == Status.FORBIDDEN,
+						"unlisted LAN-cheats guest was allowed to use " + request.operation());
 			}
 			helper.assertTrue(range.get() == original && Arrays.equals(originalBytes, Files.readAllBytes(path)),
 					"denied config request changed gameplay state or TOML bytes");
@@ -133,6 +136,12 @@ public final class ConfigEditorPacketsGameTests {
 			Reply resetGroup = exchange(helper, player, new Request(7, Operation.RESET_GROUP, GROUP, null));
 			helper.assertTrue(resetGroup.result().status() == Status.OK && damage.get().equals(damage.getDefault()),
 					"group reset did not reach the real server config");
+			byte[] beforePreview = Files.readAllBytes(path);
+			Reply preview = exchange(helper, player, new Request(8, Operation.PREVIEW_PRESET, "pvp", null));
+			helper.assertTrue(preview.result().status() == Status.OK && preview.result().changes().stream()
+							.anyMatch(change -> change.key().equals(RANGE) && change.after().getAsInt() == 4)
+							&& range.get().equals(range.getDefault()) && Arrays.equals(beforePreview, Files.readAllBytes(path)),
+					"operator preview must return the real diff without applying it");
 			helper.succeed();
 		}
 		finally {

@@ -49,7 +49,7 @@ public final class ConfigEditorPackets {
 		editor.playToClient(Reply.TYPE, Reply.CODEC, ConfigEditorPackets::handleReply);
 	}
 
-	public enum Operation { READ, SET, RESET, RESET_GROUP }
+	public enum Operation { READ, SET, RESET, RESET_GROUP, PREVIEW_PRESET, APPLY_PRESET, RESET_PRESET }
 
 	public record Request(long id, Operation operation, String key, @Nullable JsonElement value)
 			implements CustomPacketPayload {
@@ -179,13 +179,16 @@ public final class ConfigEditorPackets {
 			case SET -> CommonConfigEditor.set(request.key(), request.value());
 			case RESET -> CommonConfigEditor.reset(request.key());
 			case RESET_GROUP -> CommonConfigEditor.resetGroup(request.key());
+			case PREVIEW_PRESET -> CoreConfigPresets.preview(request.key());
+			case APPLY_PRESET -> CoreConfigPresets.apply(request.key());
+			case RESET_PRESET -> CoreConfigPresets.reset(request.key());
 			case READ -> throw new IllegalStateException("Read already handled");
 		};
 		if (result.status() != Status.OK) {
 			refuse(request, context, player, true, result.status());
 			return;
 		}
-		if (!result.changes().isEmpty()) {
+		if (request.operation() != Operation.PREVIEW_PRESET && !result.changes().isEmpty()) {
 			JojoMod.getLogger().info("Core config editor {} by {} changed {} setting(s)",
 					request.operation(), player.getUUID(), result.changes().size());
 		}
