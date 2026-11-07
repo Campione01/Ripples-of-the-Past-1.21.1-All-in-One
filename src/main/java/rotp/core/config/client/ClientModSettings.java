@@ -276,6 +276,29 @@ public class ClientModSettings {
 	}
 
 	public void save() {
+		save(settings);
+	}
+
+	/** Applies the same validated field assignments to the live settings only after saving succeeds. */
+	public boolean tryEditSettings(Consumer<Settings> assignValues) {
+		Settings candidate;
+		try {
+			candidate = gson.fromJson(gson.toJsonTree(settings), Settings.class);
+			assignValues.accept(candidate);
+		}
+		catch (RuntimeException exception) {
+			LOGGER.error("Failed to prepare mod client settings", exception);
+			return false;
+		}
+		if (!save(candidate)) {
+			return false;
+		}
+		assignValues.accept(settings);
+		settings.sanitize();
+		return true;
+	}
+
+	private boolean save(Settings settings) {
 		File tempFile = null;
 		try {
 			settings.sanitize();
@@ -289,9 +312,11 @@ public class ClientModSettings {
 			}
 			replaceSettingsFile(tempFile, optionsFile);
 			tempFile = null;
+			return true;
 		}
 		catch (Exception exception) {
 			LOGGER.error("Failed to save mod client settings", (Throwable) exception);
+			return false;
 		}
 		finally {
 			if (tempFile != null && tempFile.exists() && !tempFile.delete()) {
