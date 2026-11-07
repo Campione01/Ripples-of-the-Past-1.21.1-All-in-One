@@ -223,8 +223,10 @@ public class PreFrameEntityAnimCalc {
 			}
 
 			RotpAnimDefinition anim;
+			@Nullable float[] headLookLimit = null;
 			if (stand != null) {
 				StandSkin standSkin = StandSkinsLoader.getInstance().getSkin(stand);
+				headLookLimit = standSkin != null ? standSkin.getHeadLookLimit() : null;
 				ActionAnimIdentifier idleAnim = StandEntityRenderer.IDLE_ANIM;
 				idleAnim = selectStandIdleAnim(stand, idleAnim);
 				boolean grabHold = false;
@@ -318,6 +320,10 @@ public class PreFrameEntityAnimCalc {
 				float lookXRot = molangVariables.xRot;
 				pose = anim.calcAnimPose(molangVariables,
 						performPose == null && actionComponent != null ? actionComponent.clPrevPunchPose : null, timeSeconds, 1);
+				if (headLookLimit != null) {
+					anim.limitHeadLook(pose, molangVariables, headLookLimit,
+							performPose == null && actionComponent != null ? actionComponent.clPrevPunchPose : null, timeSeconds, 1);
+				}
 				if (rebuffTail != null) pose.blendWeight = rebuffTail.blendWeight(tailElapsed);
 				if (stand != null && animVariables.animId != null && animVariables.animId.isIdle()
 						&& StandIdleSway.CLIP_VALUE.equals(anim.instructionTimelines.getStringTimelineVal(StandIdleSway.CLIP_FIELD, timeSeconds))

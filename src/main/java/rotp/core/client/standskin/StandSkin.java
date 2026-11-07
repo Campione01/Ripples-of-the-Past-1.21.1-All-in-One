@@ -55,7 +55,8 @@ public class StandSkin {
 	protected AnimationSet standEntityAnims;
 	protected float[] renderScale;
 	private boolean surfaceTranslucency = true;
-	
+	@Nullable private float[] headLookLimit;
+
 	protected Map<ResourceLocation, WeighedSoundEvents> soundEvents = new HashMap<>();
 	protected Map<ResourceLocation, ResourceLocation> existingSounds = new HashMap<>();
 	protected Map<ResourceLocation, Sound> remappedSound = new HashMap<>();
@@ -119,7 +120,29 @@ public class StandSkin {
 	public static boolean surfaceTranslucencyFrom(com.google.gson.JsonObject skinInfo) {
 		return !skinInfo.has("surface_translucency") || skinInfo.get("surface_translucency").getAsBoolean();
 	}
-	
+
+	protected void withHeadLookLimit(@Nullable float[] limit) {
+		this.headLookLimit = limit;
+	}
+
+	/** Degrees the head may follow the look, { up and down, sideways }; null for no limit. A skin without its own takes the default skin's, as with the scale. */
+	@Nullable
+	public float[] getHeadLookLimit() {
+		if (headLookLimit != null) {
+			return headLookLimit;
+		}
+		return this != defaultSkin && defaultSkin != null ? defaultSkin.headLookLimit : null;
+	}
+
+	/** "head_look_limit": [27.5, 22.5] in skin.json, for a model whose head would go through its body. */
+	@Nullable
+	public static float[] headLookLimitFrom(com.google.gson.JsonObject skinInfo) {
+		if (skinInfo.get("head_look_limit") instanceof com.google.gson.JsonArray limit && limit.size() >= 2) {
+			return new float[] { Math.abs(limit.get(0).getAsFloat()), Math.abs(limit.get(1).getAsFloat()) };
+		}
+		return null;
+	}
+
 	protected void withSoundEvents(Map<ResourceLocation, WeighedSoundEvents> soundEvents) {
 		this.soundEvents = soundEvents;
 	}

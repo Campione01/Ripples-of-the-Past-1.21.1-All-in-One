@@ -129,7 +129,39 @@ public class RotpAnimDefinition {
 		}
 		return frame;
 	}
-	
+
+	/** What the head takes of one axis of the look; limit as StandSkin#getHeadLookLimit, axis 0 up and down, 1 sideways. */
+	public static float limitedLook(float degrees, @Nullable float[] limit, int axis) {
+		return limit != null ? Mth.clamp(degrees, -limit[axis], limit[axis]) : degrees;
+	}
+
+	/**
+	 * 1.16 TuskModel limited its head after the pose, and the arms and trunk went on reading the whole look: only the bones
+	 * that carry the look are posed again, with the limited look. Their numbers are the clip's, so the seams hold.
+	 */
+	public void limitHeadLook(AnimFramePose frame, AnimMolangVariables animVariables, float[] limit,
+			@Nullable AnimFramePose prevPunchPose, float seconds, float animSpeed) {
+		float xRot = animVariables.xRot;
+		float yRot = animVariables.yRot;
+		animVariables.xRot = limitedLook(xRot, limit, 0);
+		animVariables.yRot = limitedLook(yRot, limit, 1);
+		if (animVariables.xRot == xRot && animVariables.yRot == yRot) {
+			return;
+		}
+		calcAnimPose(animVariables, prevPunchPose, seconds, animSpeed, LIMITED_HEAD_POSE, LIMITED_HEAD_TARGET);
+		for (String bone : LOOK_BONES) {
+			ModelPartFrame limited = LIMITED_HEAD_POSE.getIfPresent(bone);
+			ModelPartFrame posed = frame.getIfPresent(bone);
+			if (limited != null && posed != null) {
+				posed.rotationOffset.set(limited.rotationOffset);
+			}
+		}
+		animVariables.xRot = xRot;
+		animVariables.yRot = yRot;
+		// the barrage's afterimages read this clip's keyframes later in the frame
+		evaluateQueries(animVariables, seconds);
+	}
+
 	public static void animate(Model model, AnimFramePose frame) {
 		HumanoidModel<?> humanoidModelCast = model instanceof HumanoidModel __ ? __ : null;
 		Model_1_21_2plus backportModelCast = (Model_1_21_2plus) model;
@@ -285,7 +317,10 @@ public class RotpAnimDefinition {
 	
 
 	protected static final Vector3f TARGET = new Vector3f();
-	
+	private static final String[] LOOK_BONES = { "head", "head_rot" };
+	private static final AnimFramePose LIMITED_HEAD_POSE = new AnimFramePose();
+	private static final Vector3f LIMITED_HEAD_TARGET = new Vector3f();
+
 	public static Vector3f calcVec(RotpAnimDefinition anim, IAnimationChannel tf, float seconds, float animSpeed) {
 		return calcVec(anim, tf, seconds, animSpeed, TARGET);
 	}

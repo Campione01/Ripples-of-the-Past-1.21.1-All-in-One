@@ -61,6 +61,7 @@ import rotp.core.api.client.animation.AddonPlayerAnimationsSmokeTest;
 import rotp.core.client.entityanim.AnimPoseThreadIsolationSmokeTest;
 import rotp.core.client.entityanim.ArmsOnlyTrunkSmokeTest;
 import rotp.core.client.entityanim.ChargeSectionSmokeTest;
+import rotp.core.client.entityanim.HeadLookLimitSmokeTest;
 import rotp.core.client.entityanim.HandedClipSmokeTest;
 import rotp.core.client.entityanim.MolangQueryThreadIsolationSmokeTest;
 import rotp.core.client.entityrender.parsemodel.generic.GenericModelFormatSmokeTest;
@@ -580,6 +581,7 @@ public final class RotpAddonApiSmokeTest {
 		StarFingerVisualOwnershipSmokeTest.run();
 		ArmsOnlyTrunkSmokeTest.run();
 		ChargeSectionSmokeTest.run();
+		HeadLookLimitSmokeTest.run();
 		HandedClipSmokeTest.run();
 		LivingHandUseBlockersSmokeTest.run();
 		StandActionModifiersSmokeTest.run();
