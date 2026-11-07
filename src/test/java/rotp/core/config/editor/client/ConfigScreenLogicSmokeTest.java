@@ -273,11 +273,12 @@ public final class ConfigScreenLogicSmokeTest {
 	}
 
 	private static void addonBlocksSortByNameAndKeepTheirGroupsInFileOrder() {
+		// the catalog's order and the ids' both put rotp_a first; only the names put it last
 		List<ConfigEntry> entries = List.of(
+				addon("rotp_a/only.one", Kind.BOOLEAN, new JsonPrimitive(true), null),
 				addon("rotp_z/b.one", Kind.BOOLEAN, new JsonPrimitive(true), null),
 				addon("rotp_z/a.two", Kind.BOOLEAN, new JsonPrimitive(true), null),
-				addon("rotp_z/top", Kind.BOOLEAN, new JsonPrimitive(true), null),
-				addon("rotp_a/only.one", Kind.BOOLEAN, new JsonPrimitive(true), null));
+				addon("rotp_z/top", Kind.BOOLEAN, new JsonPrimitive(true), null));
 		Map<String, String> names = Map.of("rotp_z", "Alpha", "rotp_a", "Zulu");
 		List<ConfigWidgetRules.Block> blocks = ConfigWidgetRules.blocks(entries, names::get);
 		check(blocks.size() == 2 && blocks.getFirst().modId().equals("rotp_z"), "blocks sort by the name shown, not the id");
