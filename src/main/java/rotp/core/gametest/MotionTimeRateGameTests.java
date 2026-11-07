@@ -22,11 +22,14 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BubbleColumnBlock;
@@ -431,6 +434,51 @@ public final class MotionTimeRateGameTests {
 		finally {
 			fixture.close();
 		}
+	}
+
+	@GameTest(template = "empty", batch = GameTestBatches.MOTION_TIME_RATES)
+	public static void elytraDragDecaysOnTheGlidersMotionClock(GameTestHelper helper) {
+		register();
+		Vec3 start = helper.absoluteVec(new Vec3(1.5, 8.0, 1.5));
+		for (float rate : new float[] { 1.0F, 1.0F / 3.0F }) {
+			Player glider = GameTestPlayers.makeServerMockPlayer(helper, GameType.SURVIVAL);
+			try {
+				glider.setPos(start.x, start.y, start.z);
+				glider.setYRot(-45.0F);
+				glider.setXRot(0.0F);
+				glider.setNoGravity(true);
+				glider.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));
+				glider.startFallFlying();
+				if (rate < 1.0F) {
+					glider.addTag(RATE_3);
+				}
+				helper.assertTrue(glider.isFallFlying() && glider.isControlledByLocalInstance()
+								&& !glider.onGround() && !glider.isInWater()
+								&& EntityTimeRates.rate(EntityTimeRates.Channel.MOTION, glider) == rate,
+						"Setup: expected a locally controlled elytra glider in air at rate " + rate);
+				// Positive Y avoids dive lift; matching yaw and level pitch avoid the other steering terms.
+				Vec3 look = glider.getLookAngle();
+				Vec3 initial = new Vec3(look.x * 0.18, 0.10, look.z * 0.18).scale(rate);
+				glider.setDeltaMovement(initial);
+				Vec3 expectedMove = Vec3.ZERO;
+				for (int step = 1; step <= 8; step++) {
+					glider.travel(Vec3.ZERO);
+					double elapsed = step * (double) rate;
+					double horizontal = Math.pow(0.99F, elapsed);
+					Vec3 expectedSpeed = initial.multiply(horizontal, Math.pow(0.98F, elapsed), horizontal);
+					expectedMove = expectedMove.add(expectedSpeed);
+					Vec3 speed = glider.getDeltaMovement();
+					Vec3 moved = glider.position().subtract(start);
+					helper.assertTrue(speed.distanceTo(expectedSpeed) < 1.0E-6 && moved.distanceTo(expectedMove) < 1.0E-6,
+							"Elytra drag at rate " + rate + " after " + step + " steps: motion " + speed + " and displacement "
+									+ moved + ", expected " + expectedSpeed + " and " + expectedMove);
+				}
+			}
+			finally {
+				glider.discard();
+			}
+		}
+		helper.succeed();
 	}
 
 	private static void register() {
