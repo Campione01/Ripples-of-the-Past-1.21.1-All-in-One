@@ -226,8 +226,15 @@ final class ConfigControls {
 				graphics.renderOutline(x - 1, y - 1, width + 2, height + 2, PaperUi.INK);
 			}
 			String text = text();
-			PaperUi.text(graphics, font, Component.literal(text), x + (width - font.width(text)) / 2, y + (height - 8) / 2,
-					live ? PaperUi.INK : PaperUi.INK_SOFT);
+			Component label = Component.literal(text);
+			int textX = x + (width - font.width(text)) / 2;
+			int textY = y + (height - 8) / 2;
+			// a paper rim keeps a digit or the decimal point readable where the handle crosses the value
+			PaperUi.text(graphics, font, label, textX - 1, textY, PaperUi.PAPER_LIGHT);
+			PaperUi.text(graphics, font, label, textX + 1, textY, PaperUi.PAPER_LIGHT);
+			PaperUi.text(graphics, font, label, textX, textY - 1, PaperUi.PAPER_LIGHT);
+			PaperUi.text(graphics, font, label, textX, textY + 1, PaperUi.PAPER_LIGHT);
+			PaperUi.text(graphics, font, label, textX, textY, live ? PaperUi.INK : PaperUi.INK_SOFT);
 		}
 	}
 
