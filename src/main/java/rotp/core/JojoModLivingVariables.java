@@ -45,6 +45,7 @@ public class JojoModLivingVariables implements INBTSerializable<CompoundTag>, Ti
 	
 	public boolean foundAnArrow;
 	public int findMoreArrowsTimer = -1;
+	public int arrowsInStreak;
 	public int knivesThrewTicks;
 	@Nullable private HamonSendoOverdriveEntity hurtFromSendoOverdrive;
 	private int sendoOverdriveWaveTicks;
@@ -188,6 +189,7 @@ public class JojoModLivingVariables implements INBTSerializable<CompoundTag>, Ti
 		nbt.putInt("DeadBodyDuration", dyingBodyDuration);
 		nbt.putBoolean("FoundArrow", foundAnArrow);
 		nbt.putInt("FindMoreArrowsTimer", findMoreArrowsTimer);
+		nbt.putInt("ArrowsInStreak", arrowsInStreak);
 		return nbt;
 	}
 
@@ -198,6 +200,7 @@ public class JojoModLivingVariables implements INBTSerializable<CompoundTag>, Ti
 		updateDyingBodyFlag();
 		foundAnArrow = nbt.getBoolean("FoundArrow");
 		findMoreArrowsTimer = nbt.getInt("FindMoreArrowsTimer");
+		arrowsInStreak = nbt.getInt("ArrowsInStreak");
 	}
 	
 	

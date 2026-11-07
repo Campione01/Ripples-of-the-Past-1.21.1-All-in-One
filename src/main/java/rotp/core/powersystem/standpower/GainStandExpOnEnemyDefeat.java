@@ -68,7 +68,7 @@ public class GainStandExpOnEnemyDefeat {
 						exp *= 10;
 					}
 					
-					standData.addExp(exp, user);
+					standData.gainExp(exp, user);
 				}
 			}
 		}

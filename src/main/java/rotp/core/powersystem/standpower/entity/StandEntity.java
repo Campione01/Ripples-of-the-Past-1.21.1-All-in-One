@@ -412,6 +412,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		if (level.isClientSide()) {
 			pushOutOfViewBlockingBlock(user);
 			++overlayTickCount;
+			if (user != null) {
+				hurtTime = hurtTimeWithUser(hurtTime, user.hurtTime);
+			}
 		}
 	}
 	
@@ -1674,9 +1677,24 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 			}
 		}
 		float summonAlpha = getSummonAlpha();
-		if (summonAlpha < 1) {
-			multiplyTranslucency(getSummonAlpha());
+		if (level().isClientSide()) {
+			summonAlpha = Math.min(summonAlpha, fadeInAlpha(tickCount, isArmsOnlyMode()));
 		}
+		if (summonAlpha < 1) {
+			multiplyTranslucency(summonAlpha);
+		}
+	}
+
+	// the summon lock's fade above is 1.16's, and a fast Stand has no lock to fade by: this look alone reaches every Stand
+	public static final int FADE_IN_TICKS = 6;
+
+	public static float fadeInAlpha(int tickCount, boolean armsOnly) {
+		return armsOnly ? 1F : Mth.clamp((float) tickCount / FADE_IN_TICKS, 0F, 1F);
+	}
+
+	/** A hit on its user turns the Stand red with him, for as long as he is. A Stand's own hit keeps its own count. */
+	public static int hurtTimeWithUser(int ownHurtTime, int userHurtTime) {
+		return Math.max(ownHurtTime, userHurtTime);
 	}
 
 	/**

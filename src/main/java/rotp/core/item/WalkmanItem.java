@@ -45,6 +45,7 @@ public class WalkmanItem extends Item {
 					data.cassette().getHoverName()).withStyle(ChatFormatting.GRAY));
 			tooltip.add(Component.empty());
 		});
+		tooltip.add(Component.translatable("item.jojo_ripples.walkman.hint").withStyle(ChatFormatting.GRAY));
 		tooltip.add(Component.translatable("item.jojo_ripples.walkman.reference_quote").withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
 	}
 

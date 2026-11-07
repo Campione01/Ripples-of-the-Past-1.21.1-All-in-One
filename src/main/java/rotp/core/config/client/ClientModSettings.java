@@ -38,6 +38,7 @@ public class ClientModSettings {
 		public boolean abilitySelectionScroll = true;
 		public boolean releaseToUseAbility = false;
 		public boolean compactStandHotbar = false;
+		public boolean standExpBar = false;
 
 		public boolean resolveShaders = true;
 		public boolean timeStopAnimation = true;

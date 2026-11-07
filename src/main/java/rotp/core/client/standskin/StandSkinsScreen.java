@@ -24,6 +24,7 @@ import rotp.core.client.ui.screen_jojomenu.Tab;
 import rotp.core.client.ui.screen_jojomenu.TabCategory;
 import rotp.core.client.ui.utils.BlitFloat;
 import rotp.core.client.ui.utils.GuiIcon;
+import rotp.core.client.ui.utils.tooltip.TooltipParams;
 import rotp.core.client.util.functions.ClientUtil;
 import rotp.core.core.JojoMod;
 import rotp.core.network.c2s.ClSetStandSkinPacket;
@@ -41,6 +42,7 @@ import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
@@ -181,7 +183,11 @@ public class StandSkinsScreen extends Screen implements IJojoMenuScreen {
 		
 		renderTabs(gui, this);
 		renderTabTooltip(gui, this, mouseX, mouseY);
-		
+		getSkinAt(mouseX, mouseY).flatMap(view -> view.skin.authorsLine()).ifPresent(line -> {
+			TooltipParams.set(TooltipParams.paperStyle(1));
+			setTooltipForNextRenderPass(List.of(line.copy().withStyle(ChatFormatting.BLACK).getVisualOrderText()));
+		});
+
 		for (Renderable renderable : renderables) {
 			renderable.render(gui, mouseX, mouseY, partialTick);
 		}
@@ -536,7 +542,10 @@ public class StandSkinsScreen extends Screen implements IJojoMenuScreen {
 			if (!drawn) {
 				renderSkinIcon(gui, skin, WINDOW_WIDTH / 2 - 15, 100, 64);
 			}
-			
+
+			skin.authorsLine().ifPresent(line -> gui.drawString(Minecraft.getInstance().font, line,
+					4, WINDOW_INSIDE_HEIGHT - 12, 0xFF404040, false));
+
 			if (screen.isSkinSelected(skin)) {
 				BlitFloat.blit(gui.pose(), Minecraft.getInstance(), TEXTURE_ELEMENTS, 
 						WINDOW_INSIDE_WIDTH - 20, 4,  16, 16, 0, 

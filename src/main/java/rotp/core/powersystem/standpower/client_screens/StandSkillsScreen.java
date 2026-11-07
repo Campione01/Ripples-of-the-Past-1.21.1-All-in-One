@@ -252,8 +252,8 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 				String expCostLine = expToUnlock > 0 ? String.valueOf(expToUnlock) : "-";
 				guiGraphics.drawString(font, expCostLine, spriteX + 18, spriteY + 4, expCostColor, false);
 			}
-			if (skill.implemented == DevStatus.NYI) {
-				guiGraphics.fill(spriteX - 1, spriteY - 1, spriteX + 37, spriteY + 17, 0x80FF0000);
+			if (skill.implemented.rowTint != 0) {
+				guiGraphics.fill(spriteX - 1, spriteY - 1, spriteX + 37, spriteY + 17, skill.implemented.rowTint);
 			}
 			spriteY += 20;
 		}

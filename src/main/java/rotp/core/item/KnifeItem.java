@@ -1,5 +1,7 @@
 package rotp.core.item;
 
+import java.util.List;
+
 import rotp.core.customobjects.entity_projectile.KnifeEntity;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.item.StoneMaskItem;
@@ -10,9 +12,11 @@ import rotp.core.subsystems.itemtracking.ItemTracker;
 import rotp.core.subsystems.itemtracking.ItemTracking;
 import rotp.core.subsystems.itemtracking.KnownItemState;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Position;
+import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -26,6 +30,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ProjectileItem;
 import net.minecraft.world.item.SwordItem;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.component.Tool;
 import net.minecraft.world.item.context.UseOnContext;
@@ -91,6 +96,11 @@ public class KnifeItem extends Item implements ProjectileItem {
 			}
 		}
 		return InteractionResultHolder.sidedSuccess(handStack, level.isClientSide());
+	}
+
+	@Override
+	public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
+		tooltip.add(Component.translatable("item.jojo_ripples.knife.hint", MAX_KNIVES_THROW).withStyle(ChatFormatting.GRAY));
 	}
 
 	@Override

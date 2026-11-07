@@ -108,9 +108,16 @@ public abstract class UnlockableSkill {
 	}
 	
 	public enum DevStatus {
-		IMPLEMENTED,
-		WIP,
-		NYI
+		IMPLEMENTED(0),
+		WIP(0x80FFFF00),
+		NYI(0x80FF0000);
+
+		/** What the skill screens lay over the row of a skill in this state; 0 lays nothing. */
+		public final int rowTint;
+
+		DevStatus(int rowTint) {
+			this.rowTint = rowTint;
+		}
 	}
 	
 }

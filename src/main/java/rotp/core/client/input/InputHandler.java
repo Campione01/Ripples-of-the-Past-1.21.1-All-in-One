@@ -82,6 +82,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.Input;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -140,8 +141,20 @@ public class InputHandler {
 	}
 	
 	public static boolean inputsDisabled;
-	
-	
+
+	/** An open screen leaves no ability active, except the selection wheel: which keys reach one there, {@link #keyReachesAbilities} says. */
+	public static boolean screenHoldsAbilities() {
+		Screen screen = Minecraft.getInstance().screen;
+		return screen != null && !(screen instanceof AbilitySelectionWheel);
+	}
+
+	private boolean keyReachesAbilities(ClientKey key, KeyModifier keyModifier) {
+		ClientInputBind wheelUseKey = mc.screen instanceof AbilitySelectionWheel wheel ? wheel.abilities.useAbilityKey : null;
+		return HotbarSelectionRules.keyReachesAbilities(mc.screen instanceof AbilitySelectionWheel,
+				wheelUseKey != null && wheelUseKey.keyMatches(key, keyModifier));
+	}
+
+
 	@SubscribeEvent
 	public void handleKeyBindingsPost(ClientTickEvent.Post event) {
 		AllControlSchemes.followVariationKey();
@@ -1038,7 +1051,8 @@ public class InputHandler {
 
 			if (!(heldBound.isEmpty() && clickBound.isEmpty())) {
 				input.bound = true;
-				Predicate<AbilityInputState> filter = inputState -> AbilityInputState.isInputActive(inputState, PowerHud.isInContainerScreen());
+				boolean reachesAbilities = keyReachesAbilities(key, keyModifier);
+				Predicate<AbilityInputState> filter = inputState -> reachesAbilities && AbilityInputState.isInputActive(inputState, PowerHud.isInContainerScreen());
 				ClientControlScheme.setPrioritizedAbility(input.heldAbility, heldBound, filter);
 				ClientControlScheme.setPrioritizedAbility(input.clickAbility, clickBound, filter);
 			}

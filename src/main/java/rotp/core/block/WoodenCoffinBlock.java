@@ -3,6 +3,7 @@ package rotp.core.block;
 import static net.minecraft.world.level.block.BedBlock.OCCUPIED;
 import static net.minecraft.world.level.block.BedBlock.PART;
 
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nullable;
@@ -20,9 +21,11 @@ import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
@@ -38,7 +41,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.Player.BedSleepingProblem;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.CollisionGetter;
@@ -105,6 +110,12 @@ public class WoodenCoffinBlock extends HorizontalDirectionalBlock {
 	@Override
 	protected MapCodec<? extends HorizontalDirectionalBlock> codec() {
 		return CODEC;
+	}
+
+	@Override
+	public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
+		tooltip.add(Component.translatable("block.jojo_ripples.wooden_coffin.hint").withStyle(ChatFormatting.GRAY));
+		tooltip.add(Component.translatable("block.jojo_ripples.wooden_coffin.hint2").withStyle(ChatFormatting.GRAY));
 	}
 
 	@Override
