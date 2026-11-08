@@ -153,6 +153,13 @@ public final class ClientSkyPresentationProvidersSmokeTest {
 				"the highest priority did not outrank every other");
 		check(ClientSkyPresentationProviders.HIGHEST_PRIORITY == Integer.MAX_VALUE,
 				"something can outrank the highest priority");
+		// As they register: The Sun's day at the default still loses to the erase's night, one under the highest.
+		ClientSkyPresentationProviders.resetForTests();
+		ClientSkyPresentationProviders.register(day, query -> presenting(0.0F));
+		ClientSkyPresentationProviders.register(night,
+				ClientSkyPresentationProviders.HIGHEST_PRIORITY - 1, query -> presenting(0.5F));
+		check(ClientSkyPresentationProviders.timeOfDay(null, 0.5F, 0.9F) == 0.5F,
+				"The Sun's daylight won over the erase's night");
 
 		ClientSkyPresentationProviders.resetForTests();
 		ClientSkyPresentationProviders.register(low, 1, query -> presenting(0.1F));

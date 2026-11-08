@@ -153,23 +153,35 @@ public final class ClientSkyRenderersSmokeTest {
 				"an inactive or failing leader did not hand over by priority");
 		check(belowWinner.get() == 0, "a provider below the winner was asked");
 
-		// The owner's rule, with the ids in play: the erase wins though the tie would not.
+		// The owner's rule, with the ids in play: the erase's background is the highest there is, but for
+		// Return to Zero's cosmos, which is the one exception. Whichever registers first.
 		ResourceLocation erase = ResourceLocation.fromNamespaceAndPath(
 				"rotp_kingcrimson", "time_erase_sky");
 		ResourceLocation cosmic = ResourceLocation.fromNamespaceAndPath(
 				"geraddon", "rtz_cosmic_sky");
 		ClientSkyRenderers.resetForTests();
-		ClientSkyRenderers.register(cosmic, query -> drawing(cosmic, drawn, false));
-		ClientSkyRenderers.register(erase, query -> drawing(erase, drawn, true));
-		expectWinner(context, drawn, cosmic, false,
-				"owner order of the two sky providers changed; the note on the tie is stale");
-		ClientSkyRenderers.resetForTests();
-		ClientSkyRenderers.register(erase, ClientSkyRenderers.HIGHEST_PRIORITY,
+		ClientSkyRenderers.register(cosmic, ClientSkyRenderers.HIGHEST_PRIORITY,
+				query -> drawing(cosmic, drawn, true));
+		ClientSkyRenderers.register(erase, ClientSkyRenderers.HIGHEST_PRIORITY - 1,
 				query -> drawing(erase, drawn, true));
-		ClientSkyRenderers.register(cosmic, Integer.MAX_VALUE - 1,
-				query -> drawing(cosmic, drawn, false));
+		expectWinner(context, drawn, cosmic, true,
+				"Return to Zero's cosmos did not win over the erase");
+		ClientSkyRenderers.resetForTests();
+		ClientSkyRenderers.register(erase, ClientSkyRenderers.HIGHEST_PRIORITY - 1,
+				query -> drawing(erase, drawn, true));
+		ClientSkyRenderers.register(cosmic, ClientSkyRenderers.HIGHEST_PRIORITY,
+				query -> drawing(cosmic, drawn, true));
+		expectWinner(context, drawn, cosmic, true,
+				"the order of registration decided between the erase and the cosmos");
+		ClientSkyRenderers.resetForTests();
+		ClientSkyRenderers.register(cosmic, ClientSkyRenderers.HIGHEST_PRIORITY,
+				query -> null);
+		ClientSkyRenderers.register(erase, ClientSkyRenderers.HIGHEST_PRIORITY - 1,
+				query -> drawing(erase, drawn, true));
+		ClientSkyRenderers.register(id("anything_else"), Integer.MAX_VALUE - 2,
+				query -> drawing(id("anything_else"), drawn, false));
 		expectWinner(context, drawn, erase, true,
-				"the highest priority did not outrank every other");
+				"with no cosmos the erase did not outrank every other sky");
 		check(ClientSkyRenderers.HIGHEST_PRIORITY == Integer.MAX_VALUE,
 				"something can outrank the highest priority");
 
