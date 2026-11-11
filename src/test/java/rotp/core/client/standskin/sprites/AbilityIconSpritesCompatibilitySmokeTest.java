@@ -46,6 +46,19 @@ public final class AbilityIconSpritesCompatibilitySmokeTest {
 		check(AbilityIconSprites.skinOfPower("player", standPower, "skin") == null,
 				"another power's move must not take its icon from the user's Stand skin");
 
+		// OQ-C21: a marker's plain icon name is looked for in the add-on Stand's namespace first, then the core's
+		Map<ResourceLocation, String> markerIcons = Map.of(
+				ResourceLocation.fromNamespaceAndPath("rotp_test", "trap"), "add-on trap",
+				ResourceLocation.fromNamespaceAndPath("jojo_ripples", "trap"), "core trap",
+				ResourceLocation.fromNamespaceAndPath("jojo_ripples", "barrier"), "core barrier");
+		ResourceLocation addonStand = ResourceLocation.fromNamespaceAndPath("rotp_test", "test_stand");
+		check("add-on trap".equals(AbilityIconSprites.resolveMarkerIcon("trap", addonStand,
+				id -> markerIcons.getOrDefault(id, "missing"), "missing")), "an add-on marker must find its own icon first");
+		check("core barrier".equals(AbilityIconSprites.resolveMarkerIcon("barrier", addonStand,
+				id -> markerIcons.getOrDefault(id, "missing"), "missing")), "an add-on marker must fall back on the core's icon");
+		check("core trap".equals(AbilityIconSprites.resolveMarkerIcon("trap", null,
+				id -> markerIcons.getOrDefault(id, "missing"), "missing")), "a marker with no Stand must take the core's icon");
+
 		AbilityType<StandEntityGrabReleaseAbility> releaseType = new AbilityType<>(
 				ResourceLocation.fromNamespaceAndPath("jojo_ripples", "stand_grab_release"),
 				StandEntityGrabReleaseAbility::new);

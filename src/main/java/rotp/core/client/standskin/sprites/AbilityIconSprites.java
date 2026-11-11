@@ -134,6 +134,26 @@ public class AbilityIconSprites implements AutoCloseable {
 	}
 
 	/**
+	 * A marker's icon by its plain name (MarkerRenderer): in the current Stand's own namespace first, where an add-on
+	 * keeps its icons, then the core's, as a skill's icon is looked up.
+	 */
+	public TextureAtlasSprite getMarkerIcon(String iconName, @Nullable StandSkin curStandSkin) {
+		return resolveMarkerIcon(iconName, curStandSkin != null ? curStandSkin.standTypeId : null,
+				spriteId -> getAbilityIcon(spriteId, curStandSkin), textureAtlas.missingSprite);
+	}
+
+	static <S> S resolveMarkerIcon(String iconName, @Nullable ResourceLocation standTypeId,
+			Function<ResourceLocation, S> icons, S missing) {
+		if (standTypeId != null && !JojoMod.MOD_ID.equals(standTypeId.getNamespace())) {
+			S icon = icons.apply(ResourceLocation.fromNamespaceAndPath(standTypeId.getNamespace(), iconName));
+			if (icon != missing) {
+				return icon;
+			}
+		}
+		return icons.apply(JojoMod.resLoc(iconName));
+	}
+
+	/**
 	 * A skill's icon on the skills screen: what the HUD shows for the ability of that name, else the skill's name in
 	 * its Stand's namespace, else what the HUD shows for the abilities it unlocks, else the core's icon of that name.
 	 */
