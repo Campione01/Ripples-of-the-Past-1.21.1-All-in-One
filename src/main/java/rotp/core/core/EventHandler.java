@@ -418,7 +418,7 @@ public class EventHandler {
 		TimeStopState state = serverLevel.getData(ModDataAttachmentTypes.TIME_STOP.get());
 		if (state.shouldFreeze(target)) {
 			float multiplier = JojoModConfig.getCommonConfigInstance(false).timeStopDamageMultiplier.get().floatValue();
-			if (multiplier < 1 && DefencePiercing.piercesDamageCaps(event.getSource())) {
+			if (multiplier < 1 && DefencePiercing.piercesMitigation(event.getSource())) {
 				return;
 			}
 			event.setNewDamage(event.getNewDamage() * multiplier);
@@ -478,7 +478,7 @@ public class EventHandler {
 		LivingEntity target = event.getEntity();
 		DamageSource dmgSource = event.getSource();
 		if (target.level().isClientSide() || dmgSource.getDirectEntity() == null
-				|| dmgSource.is(DamageTypeTags.BYPASSES_ARMOR) || DefencePiercing.piercesDamageCaps(dmgSource)) {
+				|| dmgSource.is(DamageTypeTags.BYPASSES_ARMOR) || DefencePiercing.piercesMitigation(dmgSource)) {
 			return;
 		}
 		Power<?> power = PowerClass.PLAYER_POWER.get(target);

@@ -2719,8 +2719,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 //				}
 			}
 			// 1.16: what the Stand resisted is what it passes on, whatever the user's armor or hurt cooldown
-			// piercing the caps leaves a hit the Stand does not block whole; a blocked one keeps the guard's cut
-			float finalDamage = blockedRatio <= 0 && DefencePiercing.piercesDamageCaps(dmgSource) ? dmgAmount
+			// true damage passes a Stand that does not block it whole; a blocked hit keeps the guard's cut
+			float finalDamage = blockedRatio <= 0 && DefencePiercing.piercesMitigation(dmgSource) ? dmgAmount
 					: dmgAmount * (1 - getPhysicalResistance(blockedRatio, dmgAmount));
 			if (wasDamageBlocked) {
 				blockDamage += finalDamage;
