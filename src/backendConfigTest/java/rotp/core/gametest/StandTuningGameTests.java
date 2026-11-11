@@ -53,6 +53,29 @@ public final class StandTuningGameTests {
 	private static final String NAMESPACE = CommonConfigEditorGameTests.NAMESPACE;
 	private static final List<ResourceLocation> CORE_AND_ADDON = List.of(StandConfigTestKit.SP, StandConfigTestKit.ADDON);
 
+	// the constant each special value took the place of, in its row's unit (ticks read as seconds: 100 ticks are 5 s)
+	private static final Map<String, Double> REPLACED_CONSTANTS = Map.ofEntries(
+			Map.entry("star_platinum timeStopSeconds", TimeStopLearning.HUMAN_MAX_TIME_STOP_TICKS / 20.0),
+			Map.entry("star_platinum timeStopSecondsEnhanced", TimeStopLearning.VAMPIRE_MAX_TIME_STOP_TICKS / 20.0),
+			Map.entry("star_platinum timeStopGrowth", (double) TimeStopLearning.STAR_PLATINUM_LEARNING_PER_TICK),
+			Map.entry("star_platinum timeStopCooldown", (double) TimeStopCooldowns.TIME_STOP_COOLDOWN_PER_TICK),
+			Map.entry("star_platinum inhaleReach", 12.0),
+			Map.entry("the_world timeStopSeconds", TimeStopLearning.HUMAN_MAX_TIME_STOP_TICKS / 20.0),
+			Map.entry("the_world timeStopSecondsEnhanced", TimeStopLearning.VAMPIRE_MAX_TIME_STOP_TICKS / 20.0),
+			Map.entry("the_world timeStopGrowth", (double) TimeStopLearning.THE_WORLD_LEARNING_PER_TICK),
+			Map.entry("the_world timeStopCooldown", (double) TimeStopCooldowns.TIME_STOP_COOLDOWN_PER_TICK),
+			Map.entry("the_world kickSweepShare", 0.5),
+			Map.entry("magicians_red burnSeconds", 10.0), Map.entry("magicians_red crossfireShots", 8.0),
+			Map.entry("magicians_red detectorRadius", 15.0), Map.entry("magicians_red detectorSeconds", 30.0),
+			Map.entry("hierophant_green splashSeconds", 1.5), Map.entry("hierophant_green stringCount", 7.0),
+			Map.entry("hierophant_green barriers", 15.0), Map.entry("hierophant_green barriersAtResolve4", 100.0),
+			Map.entry("silver_chariot rapierRicochets", 100.0), Map.entry("silver_chariot sweepShare", 0.5),
+			Map.entry("silver_chariot armorOffAfterimages", 10.0),
+			Map.entry("crazy_diamond restoreReach", 12.0), Map.entry("crazy_diamond healSpeed", 1.0),
+			Map.entry("crazy_diamond misshapenSeconds", 10.0),
+			Map.entry("gold_experience lifeshotSeconds", 5.0), Map.entry("gold_experience lifeshotReach", 8.0),
+			Map.entry("gold_experience healRegenSeconds", 300.0));
+
 	private StandTuningGameTests() {}
 
 	@GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 60, batch = "standcfg_damage")
@@ -297,8 +320,10 @@ public final class StandTuningGameTests {
 				for (Special special : StandSpecials.of(id)) {
 					compared++;
 					compare(differences, id + " " + special.key(), () -> Double.toString(special.get(type)));
-					if (special.get(type) != special.defaultValue()) {
-						differences.add(id + " " + special.key() + " is not its constant");
+					Double constant = REPLACED_CONSTANTS.get(id.getPath() + " " + special.key());
+					// float: the time stop constants are floats and their readers take the value as one
+					if (constant == null || (float) special.get(type) != constant.floatValue()) {
+						differences.add(id + " " + special.key() + " is " + special.get(type) + ", the constant it replaced " + constant);
 					}
 				}
 				StandEntity body = power.getSummonedStandEntity();
