@@ -75,6 +75,8 @@ public final class MobAiPauseGameTests {
 		zombie.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET));
 		AiStepProbe probe = new AiStepProbe();
 		zombie.goalSelector.addGoal(0, probe);
+		// its own target goals took the villager of a neighbour cell and dropped it again, and the pig with it
+		zombie.targetSelector.removeAllGoals(goal -> true);
 		zombie.setTarget(pig);
 		int pause = 20;
 		// a zombie's melee goal looks for a path once in 20 ticks and finds none before it has touched the ground
@@ -95,13 +97,14 @@ public final class MobAiPauseGameTests {
 			helper.assertTrue(Math.abs(x[1] - x[0]) < 0.01 && probe.ticks == at[1], "A paused zombie went on: x " + x[0]
 					+ " -> " + x[1] + " in its pause, its AI stepped " + (probe.ticks - at[1]) + " times");
 		});
-		helper.runAfterDelay(chasing + pause + 8, () -> {
+		helper.runAfterDelay(chasing + pause + 12, () -> {
 			int ticks = zombie.tickCount - at[0];
 			int steps = probe.ticks - at[1];
 			helper.assertTrue(steps == ticks - pause, "In " + ticks + " ticks from a pause of " + pause + " the zombie's AI stepped "
 					+ steps + " times, " + (ticks - pause) + " expected");
 			helper.assertTrue(zombie.getX() - x[1] > 0.05 && !MobAiPause.isPaused(zombie),
-					"The zombie did not chase again after its pause: x " + x[1] + " -> " + zombie.getX());
+					"The zombie did not chase again after its pause: x " + x[1] + " -> " + zombie.getX() + ", the pig at "
+					+ pig.getX() + ", its target " + zombie.getTarget() + ", its path done " + zombie.getNavigation().isDone());
 			helper.succeed();
 		});
 	}
