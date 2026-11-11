@@ -16,6 +16,7 @@ import javax.annotation.Nullable;
 
 import rotp.core.api.client.render.AbilitySelectionSurface;
 import rotp.core.api.client.render.AbilitySelectionVisualPolicies;
+import rotp.core.api.client.render.HeldItemButtonClaims;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.client.input.AbilityInputState;
 import rotp.core.client.input.HeldKeyTimer;
@@ -38,6 +39,7 @@ import rotp.core.client.ui.AbilitySelectionWheel;
 import rotp.core.client.ui.hud_power.PowerHud.AbilityHud;
 import rotp.core.client.ui.utils.BlitFloat;
 import rotp.core.client.ui.utils.GuiIcon;
+import rotp.core.client.ui.utils.GuiItemIcon;
 import rotp.core.client.ui.utils.TextUtil;
 import rotp.core.client.ui.utils.tooltip.TooltipParams;
 import rotp.core.client.util.functions.ClientUtil;
@@ -596,7 +598,16 @@ public class PowerHudControlsElement extends HudElement {
 					if (!heldReadyToFire) {
 						renderRunningWithStandRecalled(guiGraphics, x, y, ability, mc);
 					}
-					renderAbility(guiGraphics, x, y, ability, mc, partialTick, alpha);
+					ItemStack claimingItem = HeldItemButtonClaims.claimingItem(mc.player, claimedButton(ability.key));
+					if (!claimingItem.isEmpty()) {
+						// the held item takes this button's press: its slot shows the item, not the Stand move
+						GuiItemIcon.render(guiGraphics, null, claimingItem, x + 3, y + 3, alpha);
+						RenderSystem.enableBlend();
+						RenderSystem.defaultBlendFunc();
+					}
+					else {
+						renderAbility(guiGraphics, x, y, ability, mc, partialTick, alpha);
+					}
 
 					boolean isClicked = controlsEnabled && switch (ability.inputMethod) {
 						case CLICK -> {
@@ -754,6 +765,12 @@ public class PowerHudControlsElement extends HudElement {
 		RenderSystem.enableBlend();
 		RenderSystem.defaultBlendFunc();
 		return true;
+	}
+
+	@Nullable
+	static HeldItemButtonClaims.Button claimedButton(@Nullable ClientKey key) {
+		return InputHandler.LMB.equals(key) ? HeldItemButtonClaims.Button.LEFT
+				: InputHandler.RMB.equals(key) ? HeldItemButtonClaims.Button.RIGHT : null;
 	}
 
 	/*
