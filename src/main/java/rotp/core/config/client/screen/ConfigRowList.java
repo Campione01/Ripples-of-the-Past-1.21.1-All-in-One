@@ -34,6 +34,8 @@ import rotp.core.config.editor.client.ConfigWidgetRules;
 import rotp.core.config.editor.client.ConfigWidgetRules.Block;
 import rotp.core.config.editor.client.ConfigWidgetRules.Group;
 import rotp.core.config.editor.client.ConfigWidgetRules.Section;
+import rotp.core.config.editor.client.ConfigWidgetRules.StandBlock;
+import rotp.core.config.editor.StandConfigCatalog;
 
 /** The rows of one settings tab. Rows hold keys, not values: each frame they read what the store has accepted. */
 public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
@@ -68,7 +70,10 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 				section.entries().forEach(entry -> rows.add(new SettingRow(host, entry)));
 			}
 		}
-		List<Block> blocks = ConfigWidgetRules.blocks(store.entries(), PaperUi::blockName);
+		// an add-on that registered Stands has its settings in their blocks on the Stands page
+		Set<String> standMods = ConfigWidgetRules.standNamespaces(store.entries());
+		List<Block> blocks = ConfigWidgetRules.blocks(store.entries().stream()
+				.filter(entry -> !ConfigWidgetRules.isOnStandsPage(entry, standMods)).toList(), PaperUi::blockName);
 		if (!blocks.isEmpty()) {
 			rows.add(new DividerRow(host));
 		}
@@ -89,6 +94,53 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 					group.entries().forEach(entry -> rows.add(new SettingRow(host, entry)));
 				}
 			}
+		}
+		replaceEntries(rows);
+		setScrollAmount(scroll);
+	}
+
+	/**
+	 * The Stands page: one folded block per Stand the search and the part filter leave, by part and name, each with its own
+	 * groups and then its add-on's settings. The blocks keep the add-on blocks' fold, pinned header and reset.
+	 */
+	public void rebuildStands(Set<String> openBlocks, StandViews views, String search, @Nullable String partFilter) {
+		double scroll = getScrollAmount();
+		List<Row> rows = new ArrayList<>();
+		List<StandBlock> blocks = new ArrayList<>(ConfigWidgetRules.standBlocks(host.store().entries()));
+		blocks.sort(java.util.Comparator.comparing(block -> views.view(block.standId()), StandViews.ORDER));
+		for (StandBlock block : blocks) {
+			StandViews.View view = views.view(block.standId());
+			String addonName = block.addon() != null ? PaperUi.blockName(block.addon().modId()) : null;
+			if (!StandViews.inPart(view, partFilter)
+					|| !ConfigWidgetRules.matchesSearch(search, view.name().getString(), block.standId(), addonName)) {
+				continue;
+			}
+			String id = "STANDS/" + block.standId();
+			rows.add(new SectionRow(host, view.name(), block.keys(), () -> openBlocks.contains(id), () -> {
+				if (!openBlocks.remove(id)) {
+					openBlocks.add(id);
+				}
+			}, id).withStand(view));
+			if (!openBlocks.contains(id)) {
+				continue;
+			}
+			for (Group group : block.groups()) {
+				rows.add(new GroupRow(host, Component.translatable(StandConfigCatalog.TEXT + "group." + group.path()).getString()));
+				group.entries().forEach(entry -> rows.add(new SettingRow(host, entry)));
+			}
+			if (block.addon() != null) {
+				String heading = block.addonStands() > 1
+						? Component.translatable(StandConfigCatalog.TEXT + "group.addon_shared", addonName, block.addonStands()).getString()
+						: Component.translatable(StandConfigCatalog.TEXT + "group.addon", addonName).getString();
+				for (Group group : block.addon().groups()) {
+					rows.add(new GroupRow(host, group.path().isEmpty() ? heading
+							: heading + " / " + PaperUi.groupName(block.addon().modId(), group.path())));
+					group.entries().forEach(entry -> rows.add(new SettingRow(host, entry)));
+				}
+			}
+		}
+		if (rows.isEmpty() && !blocks.isEmpty()) {
+			rows.add(new MessageRow(host, Component.translatable(StandConfigCatalog.TEXT + "no_match")));
 		}
 		replaceEntries(rows);
 		setScrollAmount(scroll);
@@ -201,10 +253,11 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 			graphics.fill(left, top, right, bottom, PaperUi.HOVER);
 		}
 		PaperUi.glyph(graphics, Glyph.CHEVRON_DOWN, left + 3, top + 8, PaperUi.INK_SOFT);
-		String title = PaperUi.oneLine(font, pinned.header.getMessage().getString(), right - left - 40);
+		int textX = left + 15 + PaperUi.standIcon(graphics, pinned.stand, left + 14, top + 4);
+		String title = PaperUi.oneLine(font, pinned.header.getMessage().getString(), right - textX - 25);
 		Component shown = Component.literal(title).withStyle(net.minecraft.ChatFormatting.BOLD);
-		PaperUi.text(graphics, font, shown, left + 15, top + 9, PaperUi.INK);
-		int x = left + 15 + font.width(shown);
+		PaperUi.text(graphics, font, shown, textX, top + 9, PaperUi.INK);
+		int x = textX + font.width(shown);
 		if (pinnedGroup != null) {
 			String group = PaperUi.oneLine(font, "  ·  " + pinnedGroup, right - 18 - x);
 			PaperUi.text(graphics, font, Component.literal(group), x, top + 9, PaperUi.INK_SOFT);
@@ -410,6 +463,13 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 		private final HeaderButton header;
 		private final GlyphButton reset;
 		private final @Nullable String blockId;
+		// a Stand's block: its icon before the name, its part's icon at the end of the line
+		private @Nullable StandViews.View stand;
+
+		SectionRow withStand(StandViews.View view) {
+			this.stand = view;
+			return this;
+		}
 
 		SectionRow(ConfigScreenHost host, String id, List<String> keys, Set<String> collapsed) {
 			this(host, Component.translatableWithFallback(ConfigWidgetRules.SECTION_TEXT + id, ConfigWidgetRules.fallbackName(id)), keys,
@@ -501,16 +561,22 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 					graphics.renderOutline(getX(), y, width, height, PaperUi.INK);
 				}
 				PaperUi.glyph(graphics, open ? Glyph.CHEVRON_DOWN : Glyph.CHEVRON_RIGHT, getX() + 3, y + 8, PaperUi.INK_SOFT);
-				String title = PaperUi.oneLine(font, getMessage().getString(), width - 50);
+				int textX = getX() + 15 + PaperUi.standIcon(graphics, stand, getX() + 14, y + 4);
+				int lineEnd = getRight() - 18;
+				int tagWidth = PaperUi.partTag(graphics, font, stand, lineEnd, y + 9);
+				lineEnd -= tagWidth > 0 ? tagWidth + 4 : 0;
+				String title = PaperUi.oneLine(font, getMessage().getString(), stand == null ? width - 50 : lineEnd - textX - 12);
 				Component shown = Component.literal(title).withStyle(net.minecraft.ChatFormatting.BOLD);
-				PaperUi.text(graphics, font, shown, getX() + 15, y + 9, PaperUi.INK);
-				int lineX = getX() + 19 + font.width(shown);
+				PaperUi.text(graphics, font, shown, textX, y + 9, PaperUi.INK);
+				int lineX = textX + 4 + font.width(shown);
 				if (!open && modified > 0) {
 					String count = Integer.toString(modified);
 					PaperUi.text(graphics, font, Component.literal(count), lineX, y + 9, PaperUi.ACCENT);
 					lineX += font.width(count) + 4;
 				}
-				graphics.fill(lineX, y + 13, getRight() - 18, y + 14, PaperUi.LINE_SOFT);
+				if (lineX < lineEnd) {
+					graphics.fill(lineX, y + 13, lineEnd, y + 14, PaperUi.LINE_SOFT);
+				}
 			}
 
 			@Override
@@ -541,6 +607,40 @@ public final class ConfigRowList extends PaperList<ConfigRowList.Row> {
 			graphics.fill(lineLeft, lineY, textX - 6, lineY + 1, PaperUi.LINE);
 			graphics.fill(textX + font.width(text) + 6, lineY, lineRight, lineY + 1, PaperUi.LINE);
 			PaperUi.text(graphics, font, Component.literal(text), textX, top + 9, PaperUi.INK_SOFT);
+		}
+
+		@Override
+		@Nullable AbstractWidget focusedWidget() {
+			return null;
+		}
+
+		@Override
+		public List<? extends GuiEventListener> children() {
+			return List.of();
+		}
+
+		@Override
+		public List<? extends NarratableEntry> narratables() {
+			return List.of();
+		}
+	}
+
+	/** A quiet line where a search found nothing. */
+	static final class MessageRow extends Row {
+		private final ConfigScreenHost host;
+		private final Component message;
+
+		MessageRow(ConfigScreenHost host, Component message) {
+			this.host = host;
+			this.message = message;
+		}
+
+		@Override
+		public void render(GuiGraphics graphics, int index, int top, int left, int width, int height,
+				int mouseX, int mouseY, boolean hovering, float partialTick) {
+			Font font = host.font();
+			String shown = PaperUi.oneLine(font, message.getString(), width - 20);
+			PaperUi.text(graphics, font, Component.literal(shown), left + (width - 4 - font.width(shown)) / 2, top + 7, PaperUi.INK_SOFT);
 		}
 
 		@Override

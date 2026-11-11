@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
@@ -45,7 +46,8 @@ import rotp.core.config.editor.client.ConfigWidgetRules;
  * edit that can be lost is one still in hand, and closing sends that first.
  */
 public final class ModConfigScreen extends Screen implements IJojoMenuScreen, ConfigScreenHost {
-	public enum Page { CLIENT, GAMEPLAY }
+	/** The Stands page is the server's store too: the Gameplay page's rows without the Stands' and their add-ons'. */
+	public enum Page { CLIENT, GAMEPLAY, STANDS }
 
 	private static final String TEXT = "jojo_ripples.config.screen.";
 	private static final int MAX_WIDTH = 480;
@@ -60,6 +62,10 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 	private static final Set<String> COLLAPSED = new HashSet<>(Set.of("stand_aura"));
 	// an add-on's block is the other way round: hundreds of rows start folded, and what was opened stays open
 	private static final Set<String> OPEN_BLOCKS = new HashSet<>();
+	private static final int TOOLBAR = 22;
+	// the Stands page's search and part filter stay while the game runs, as the folds do
+	private static String standSearch = "";
+	private static @Nullable String standPart;
 
 	private final @Nullable Screen lastScreen;
 	private final Map<Page, Double> scrollByPage = new HashMap<>();
@@ -72,6 +78,9 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 	private PaperAction retry;
 	private int windowWidth = DEFAULT_WIDTH;
 	private int windowHeight = DEFAULT_HEIGHT;
+	private final StandViews standViews = new StandViews();
+	private @Nullable ConfigControls.PaperField searchBox;
+	private @Nullable PaperAction partButton;
 	private Access builtFor;
 	private int builtEntries;
 	private @Nullable Component statusText;
@@ -153,7 +162,21 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 
 	@Override
 	public Tab getTab() {
-		return page == Page.CLIENT ? JojoMenuTabs.SETTINGS_CLIENT : JojoMenuTabs.SETTINGS_GAMEPLAY;
+		return switch (page) {
+			case CLIENT -> JojoMenuTabs.SETTINGS_CLIENT;
+			case GAMEPLAY -> JojoMenuTabs.SETTINGS_GAMEPLAY;
+			case STANDS -> JojoMenuTabs.SETTINGS_STANDS;
+		};
+	}
+
+	/** The rows this page shows: the server's store holds the Gameplay and the Stands page alike. */
+	private Predicate<ConfigEntry> onPage() {
+		if (page == Page.CLIENT) {
+			return entry -> true;
+		}
+		Set<String> standMods = ConfigWidgetRules.standNamespaces(store().entries());
+		return page == Page.STANDS ? entry -> ConfigWidgetRules.isOnStandsPage(entry, standMods)
+				: entry -> !ConfigWidgetRules.isOnStandsPage(entry, standMods);
 	}
 
 	private int headerHeight() {
@@ -185,6 +208,12 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 		double scroll = list != null ? list.getScrollAmount() : scrollByPage.getOrDefault(page, 0D);
 
 		int listY = y + headerHeight() + bandHeight();
+		searchBox = null;
+		partButton = null;
+		if (page == Page.STANDS) {
+			addStandsToolbar(x, listY);
+			listY += TOOLBAR;
+		}
 		int listHeight = Math.max(PaperUi.ROW_HEIGHT, y + windowHeight - FOOTER - listY);
 		list = addRenderableWidget(new ConfigRowList(minecraft, this, x + 2, listY, windowWidth - 4, listHeight));
 
@@ -199,17 +228,100 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 		retry = addRenderableWidget(new PaperAction(x + 9, buttonY, Math.max(50, font.width(retryText) + 16), PaperUi.CONTROL_HEIGHT,
 				retryText, button -> serverStore().retry(Util.getMillis())));
 
-		list.rebuild(page == Page.CLIENT ? ConfigEntry.Side.CLIENT : ConfigEntry.Side.SERVER, COLLAPSED, OPEN_BLOCKS);
+		rebuildRows();
 		list.setScrollAmount(scroll);
 		builtFor = store().access();
 		builtEntries = store().entries().size();
 	}
 
+	private void rebuildRows() {
+		if (page == Page.STANDS) {
+			list.rebuildStands(OPEN_BLOCKS, standViews, standSearch, standPart);
+			if (partButton != null) {
+				partButton.setMessage(partName(standPart));
+			}
+		}
+		else {
+			list.rebuild(page == Page.CLIENT ? ConfigEntry.Side.CLIENT : ConfigEntry.Side.SERVER, COLLAPSED, OPEN_BLOCKS);
+		}
+	}
+
 	@Override
 	public void rowsChanged() {
 		if (list != null) {
-			list.rebuild(page == Page.CLIENT ? ConfigEntry.Side.CLIENT : ConfigEntry.Side.SERVER, COLLAPSED, OPEN_BLOCKS);
+			rebuildRows();
 		}
+	}
+
+	/** Above the Stands: a search by name and a filter by part, both kept while the game runs. */
+	private void addStandsToolbar(int x, int y) {
+		int filterWidth = Math.max(64, Math.min(120, windowWidth / 3));
+		int fieldX = x + 9;
+		int fieldWidth = windowWidth - 18 - filterWidth - 4;
+		ConfigControls.PaperField field = new ConfigControls.PaperField(font, Component.translatable(TEXT + "search"), ConfigEntry.Kind.STRING);
+		field.setHint(Component.translatable(TEXT + "search.hint"));
+		field.setValue(standSearch);
+		field.place(fieldX, y + 2, fieldWidth, PaperUi.CONTROL_HEIGHT);
+		field.setResponder(text -> {
+			if (!text.equals(standSearch)) {
+				standSearch = text;
+				if (list != null) {
+					list.setScrollAmount(0);
+					rebuildRows();
+				}
+			}
+		});
+		searchBox = addRenderableWidget(field);
+		partButton = addRenderableWidget(new PaperAction(x + windowWidth - 9 - filterWidth, y + 2, filterWidth, PaperUi.CONTROL_HEIGHT,
+				partName(standPart), button -> cyclePart(1)) {
+			@Override
+			protected boolean isValidClickButton(int button) {
+				return button == GLFW.GLFW_MOUSE_BUTTON_LEFT || button == GLFW.GLFW_MOUSE_BUTTON_RIGHT;
+			}
+
+			@Override
+			public boolean mouseClicked(double mouseX, double mouseY, int button) {
+				if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && isMouseOver(mouseX, mouseY) && active && visible) {
+					playDownSound(minecraft.getSoundManager());
+					cyclePart(-1);
+					return true;
+				}
+				return super.mouseClicked(mouseX, mouseY, button);
+			}
+
+			@Override
+			protected boolean showsChevron() {
+				return true;
+			}
+		});
+	}
+
+	// all parts, then each part the Stands are in, the Stands of no part last
+	private void cyclePart(int direction) {
+		List<String> options = new ArrayList<>();
+		options.add(null);
+		List<net.minecraft.resources.ResourceLocation> stands = ConfigWidgetRules.standBlocks(store().entries()).stream()
+				.map(ConfigWidgetRules.StandBlock::standId).toList();
+		standViews.parts(stands).keySet().forEach(part -> options.add(part != null ? part.toString() : ""));
+		int index = options.indexOf(standPart);
+		standPart = options.get(Math.floorMod((index < 0 ? 0 : index) + direction, options.size()));
+		if (list != null) {
+			list.setScrollAmount(0);
+			rebuildRows();
+		}
+	}
+
+	private Component partName(@Nullable String part) {
+		if (part == null) {
+			return Component.translatable(TEXT + "parts.all");
+		}
+		if (part.isEmpty()) {
+			return Component.translatable(TEXT + "parts.none");
+		}
+		List<net.minecraft.resources.ResourceLocation> stands = ConfigWidgetRules.standBlocks(store().entries()).stream()
+				.map(ConfigWidgetRules.StandBlock::standId).toList();
+		Component name = standViews.parts(stands).get(net.minecraft.resources.ResourceLocation.tryParse(part));
+		return name != null ? name : Component.literal(part);
 	}
 
 	private void showPage(Page next) {
@@ -311,11 +423,34 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 
 	private void confirmResetAll() {
 		ConfigStore target = store();
-		List<String> modified = target.entries().stream().filter(entry -> ConfigWidgetRules.isShown(entry) && ConfigWidgetRules.isModified(entry))
+		Predicate<ConfigEntry> onPage = onPage();
+		List<String> modified = target.entries().stream()
+				.filter(entry -> onPage.test(entry) && ConfigWidgetRules.isShown(entry) && ConfigWidgetRules.isModified(entry))
 				.map(ConfigEntry::key).toList();
+		List<ConfigDiffScreen.Row> rows = page == Page.STANDS ? toStandDefaults(target, modified) : toDefaults(target, modified, true);
 		minecraft.setScreen(ConfigDiffScreen.ofChanges(this, Component.translatable(TEXT + "reset_all_title", pageName(page)),
-				Component.translatable(TEXT + "confirm_reset"), toDefaults(target, modified, true),
-				done -> target.resetAll(done)));
+				Component.translatable(TEXT + "confirm_reset"), rows, done -> target.resetAll(onPage, done)));
+	}
+
+	/** Each Stand's rows, its add-on's after them, under the Stand's name: a row's own name says nothing of whose it is. */
+	private List<ConfigDiffScreen.Row> toStandDefaults(ConfigStore source, List<String> keys) {
+		Set<String> wanted = new HashSet<>(keys);
+		List<ConfigWidgetRules.StandBlock> blocks = new ArrayList<>(ConfigWidgetRules.standBlocks(source.entries()));
+		blocks.sort(java.util.Comparator.comparing(block -> standViews.view(block.standId()), StandViews.ORDER));
+		List<ConfigDiffScreen.Row> rows = new ArrayList<>();
+		Set<String> listed = new HashSet<>();
+		for (ConfigWidgetRules.StandBlock block : blocks) {
+			List<String> own = block.keys().stream().filter(key -> wanted.contains(key) && listed.add(key)).toList();
+			if (own.isEmpty()) {
+				continue;
+			}
+			rows.add(ConfigDiffScreen.Row.heading(standViews.view(block.standId()).name()));
+			for (String key : own) {
+				ConfigEntry entry = source.entry(key);
+				rows.add(ConfigDiffScreen.Row.of(entry, entry.value(), entry.defaultValue(), entry.restart()));
+			}
+		}
+		return rows;
 	}
 
 	@Override
@@ -364,7 +499,15 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 	}
 
 	private static Component pageName(Page page) {
-		return Component.translatable(TEXT + (page == Page.CLIENT ? "page.client" : "page.gameplay"));
+		return Component.translatable(TEXT + pageKey(page));
+	}
+
+	private static String pageKey(Page page) {
+		return switch (page) {
+			case CLIENT -> "page.client";
+			case GAMEPLAY -> "page.gameplay";
+			case STANDS -> "page.stands";
+		};
 	}
 
 	@Override
@@ -412,6 +555,10 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 				showPage(Page.GAMEPLAY);
 				return true;
 			}
+			if (tab == JojoMenuTabs.SETTINGS_STANDS) {
+				showPage(Page.STANDS);
+				return true;
+			}
 			if (tab == JojoMenuTabs.CATEGORY_SETTINGS) {
 				return true;
 			}
@@ -443,7 +590,9 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 		boolean noAnswer = store().access() == Access.NO_ANSWER;
 		retry.visible = noAnswer;
 		resetAll.visible = !noAnswer && !store().entries().isEmpty();
-		resetAll.active = editable() && store().entries().stream().anyMatch(entry -> ConfigWidgetRules.isShown(entry) && ConfigWidgetRules.isModified(entry));
+		Predicate<ConfigEntry> onPage = onPage();
+		resetAll.active = editable() && store().entries().stream()
+				.anyMatch(entry -> onPage.test(entry) && ConfigWidgetRules.isShown(entry) && ConfigWidgetRules.isModified(entry));
 		tooltipNow = null;
 		super.render(graphics, mouseX, mouseY, partialTick);
 		renderHeader(graphics);
@@ -461,7 +610,7 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 		Component name = pageName(page).copy().withStyle(net.minecraft.ChatFormatting.BOLD);
 		PaperUi.text(graphics, font, name, x + (windowWidth - font.width(name)) / 2, y + 7, PaperUi.INK);
 		if (windowHeight >= TALL_HEADER_FROM) {
-			String description = Component.translatable(TEXT + (page == Page.CLIENT ? "page.client.desc" : "page.gameplay.desc")).getString();
+			String description = Component.translatable(TEXT + pageKey(page) + ".desc").getString();
 			String shown = PaperUi.oneLine(font, description, windowWidth - 24);
 			PaperUi.text(graphics, font, Component.literal(shown), x + (windowWidth - font.width(shown)) / 2, y + 18, PaperUi.INK_SOFT);
 		}

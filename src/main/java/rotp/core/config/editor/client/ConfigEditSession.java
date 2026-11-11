@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
@@ -144,12 +145,12 @@ public final class ConfigEditSession implements ConfigStore {
 	}
 
 	@Override
-	public boolean resetAll(@Nullable Consumer<ConfigEditResult> done) {
+	public boolean resetAll(Predicate<ConfigEntry> onPage, @Nullable Consumer<ConfigEditResult> done) {
 		if (access != Access.EDITABLE) {
 			return false;
 		}
 		Set<String> groups = new LinkedHashSet<>();
-		entries.values().stream().filter(entry -> ConfigWidgetRules.isShown(entry) && ConfigWidgetRules.isModified(entry))
+		entries.values().stream().filter(entry -> onPage.test(entry) && ConfigWidgetRules.isShown(entry) && ConfigWidgetRules.isModified(entry))
 				.forEach(entry -> groups.add(entry.group()));
 		List<String> ordered = new ArrayList<>(groups);
 		for (int i = 0; i < ordered.size(); i++) {

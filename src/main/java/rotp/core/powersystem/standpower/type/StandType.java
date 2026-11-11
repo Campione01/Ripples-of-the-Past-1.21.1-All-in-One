@@ -30,6 +30,7 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandStats;
+import rotp.core.powersystem.standpower.StandTuning;
 import rotp.core.powersystem.standpower.StandUnlockableSkill;
 import rotp.core.powersystem.standpower.StandAwakening.AwakeningStage;
 import rotp.core.powersystem.standpower.datapack.DataDrivenStandsLoader;
@@ -69,6 +70,7 @@ public class StandType extends PowerType {
 
 	protected final ResourceLocation standTypeId;
 	protected StandStats stats;
+	private final StandTuning tuning = new StandTuning();
 	protected boolean isEnabled;
 	protected boolean playSummonSound = true;
 	protected boolean playUnsummonSound = true;
@@ -296,12 +298,14 @@ public class StandType extends PowerType {
 		super.applyConfig(json);
 		JsonObject config = json.getAsJsonObject();
 		Optional.ofNullable(config.get("stats")).ifPresent(stats::applyConfig);
+		Optional.ofNullable(config.get(StandTuning.MEMBER)).ifPresent(tuning::applyConfig);
 	}
 
 	@Override
 	public void restoreDefaults() {
 		super.restoreDefaults();
 		stats.restoreDefaults();
+		tuning.restoreDefaults();
 	}
 	
 	
@@ -317,6 +321,11 @@ public class StandType extends PowerType {
 	
 	public StandStats getStandStats() {
 		return stats;
+	}
+
+	/** The server's rules for this Stand beside its stats (the settings screen's Stands page). */
+	public StandTuning getTuning() {
+		return tuning;
 	}
 	
 	

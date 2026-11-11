@@ -65,7 +65,7 @@ public final class ConfigScreenGameTests {
 	}
 
 	private static List<ConfigEntry> coreOnly(List<ConfigEntry> entries) {
-		return entries.stream().filter(entry -> !ConfigWidgetRules.isAddon(entry)).toList();
+		return entries.stream().filter(ConfigWidgetRules::isCore).toList();
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 20)

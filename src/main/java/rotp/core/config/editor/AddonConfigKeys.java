@@ -23,7 +23,7 @@ public final class AddonConfigKeys {
 	}
 
 	public static boolean isAddonKey(@Nullable String key) {
-		return key != null && key.indexOf('/') > 0;
+		return key != null && key.indexOf('/') > 0 && !StandConfigKeys.isStandKey(key);
 	}
 
 	public static String modId(String key) {

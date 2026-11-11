@@ -25,6 +25,7 @@ import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.world.damagesource.DamageSource;
@@ -37,7 +38,6 @@ import net.minecraft.world.phys.Vec3;
 public class SilverChariotSweepingAttackAbility extends StandEntityAbility {
 
 	private static final int STAMINA_COST = 50;
-	private static final float SWEEP_HALF_DAMAGE_FACTOR = 0.5F;
 	private static final int PERFORM_TICKS = 3;
 
 	public SilverChariotSweepingAttackAbility(AbilityType<?> abilityType, AbilityId abilityId) {
@@ -216,7 +216,7 @@ public class SilverChariotSweepingAttackAbility extends StandEntityAbility {
 				if (cos <= -0.5) continue;
 				float dmgAmount = StandStatFormulas.getHeavyAttackDamage(stand.getAttackDamage());
 				if (cos < 0.5) {
-					dmgAmount *= SWEEP_HALF_DAMAGE_FACTOR;
+					dmgAmount *= (float) StandSpecials.SC_SWEEP_SHARE.getFor(stand);
 				}
 				DamageSource dmgSource = makePunchDamageSource();
 				((DamageSourceModified) dmgSource).jojo_ripples$modifyKnockback(1F, 1);

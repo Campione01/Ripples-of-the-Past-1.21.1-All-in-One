@@ -484,7 +484,7 @@ public class AbilityInput {
 					playerPowerInputBuffer, playerPowerBufferedBefore, playerPowerBufferedAfter));
 			if (cooldownAttempted && cooldownPower != null
 					&& cooldownAbility != null) {
-				rollbackStep(original, () -> cooldownPower.setAbilityCooldown(
+				rollbackStep(original, () -> cooldownPower.restoreAbilityCooldown(
 						cooldownAbility, cooldownBefore, cooldownTotalBefore));
 			}
 			rollbackStep(original, () ->

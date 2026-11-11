@@ -33,6 +33,8 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandTuning;
+import rotp.core.powersystem.standpower.StandTuning.MiningTier;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.entity.StandEntity;
@@ -624,7 +626,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 				return false;
 			}
 			return stand.replacesStandBreakStrengthRule(blockState, level, blockPos)
-					|| isBlockBreakableByStrength(stand.getAttackDamage(), blockState, level, blockPos);
+					|| isBlockBreakableByStrength(stand.getAttackDamage(), StandTuning.of(stand.getUserPower()), blockState, level, blockPos);
 		}
 
 		/**
@@ -632,14 +634,29 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		 * harvest level under (int) strength / 4.
 		 */
 		public static boolean isBlockBreakableByStrength(double strength, BlockState blockState, Level level, BlockPos blockPos) {
+			return isBlockBreakableByStrength(strength, null, blockState, level, blockPos);
+		}
+
+		/** The same in the Stand's block rules: a fixed highest tier, or none, and its share of the hardness (StandTuning). */
+		public static boolean isBlockBreakableByStrength(double strength, @Nullable StandTuning tuning, BlockState blockState,
+				Level level, BlockPos blockPos) {
 			float hardness = blockState.getDestroySpeed(level, blockPos);
 			if (!blockState.requiresCorrectToolForDrops()) {
 				hardness *= 0.6F;
 			}
-			if (hardness < 0 || !(hardness < Math.exp(strength / 4))) {
+			double hardnessLimit = Math.exp(strength / 4);
+			if (tuning != null) {
+				hardnessLimit = tuning.miningHardnessLimit(hardnessLimit);
+			}
+			if (hardness < 0 || !(hardness < hardnessLimit)) {
 				return false;
 			}
-			int harvestTier = Mth.clamp((int) strength / 4, 0, LEGACY_HARVEST_TIERS.length - 1);
+			MiningTier fixed = tuning != null ? tuning.miningTier() : MiningTier.BY_STRENGTH;
+			if (fixed == MiningTier.NONE) {
+				return false;
+			}
+			int harvestTier = fixed == MiningTier.BY_STRENGTH ? Mth.clamp((int) strength / 4, 0, LEGACY_HARVEST_TIERS.length - 1)
+					: fixed.ordinal() - MiningTier.HAND.ordinal();
 			return LEGACY_HARVEST_TIERS[harvestTier].canMine(blockState);
 		}
 

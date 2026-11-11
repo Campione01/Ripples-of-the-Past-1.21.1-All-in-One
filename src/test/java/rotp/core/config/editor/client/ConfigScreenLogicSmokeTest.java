@@ -54,6 +54,10 @@ public final class ConfigScreenLogicSmokeTest {
 		addonBlocksSortByNameAndKeepTheirGroupsInFileOrder();
 		addonTitlesReadAsNames();
 		hiddenAddonValuesAreNotShownNorResetByResetAll();
+		aStandsRowsAndItsAddonsGoToTheStandsPageOnly();
+		aStandsBlockHasItsGroupsAndItsAddonsSettings();
+		aStandsShareSlidesInFivesWithItsSign();
+		resetAllResetsOnlyItsOwnPage();
 		System.out.println("Config screen logic smoke test passed");
 	}
 
@@ -310,6 +314,97 @@ public final class ConfigScreenLogicSmokeTest {
 		session.open(0);
 		server.answer(session, true, ConfigEditResult.ok(List.of()), List.of(dead));
 		check(!session.resetAll(null) && server.sent.size() == 1, "Reset All must not send a reset for what it never listed");
+	}
+
+	private static ConfigEntry stand(String stand, String field, Kind kind, JsonElement value, @Nullable Bounds bounds) {
+		return new ConfigEntry("@" + stand + "/" + field, "@" + stand, Side.SERVER, kind, null, value, value, bounds, null,
+				field.equals("miningTier") ? List.of("by_strength", "none") : List.of(), Restart.NONE, false,
+				"jojo_ripples.config.stand." + field);
+	}
+
+	private static List<ConfigEntry> standsAndAddons() {
+		List<ConfigEntry> entries = new ArrayList<>(catalog());
+		entries.add(stand("rotp_kc:king_crimson", "obtainable", Kind.BOOLEAN, new JsonPrimitive(true), null));
+		entries.add(stand("rotp_kc:king_crimson", "power", Kind.DECIMAL, new JsonPrimitive(16.0), new Bounds(0, 1000)));
+		entries.add(stand("rotp_kc:king_crimson", "cooldowns", Kind.INTEGER, new JsonPrimitive(100), new Bounds(0, 500)));
+		entries.add(stand("rotp_kc:king_crimson", "miningTier", Kind.STRING, new JsonPrimitive("by_strength"), null));
+		entries.add(stand("rotp_echoes:echoes_act1", "speed", Kind.DECIMAL, new JsonPrimitive(8.0), new Bounds(0, 1000)));
+		entries.add(stand("rotp_echoes:echoes_act2", "speed", Kind.DECIMAL, new JsonPrimitive(9.0), new Bounds(0, 1000)));
+		entries.add(stand("jojo_ripples:star_platinum", "special.timeStopSeconds", Kind.DECIMAL, new JsonPrimitive(5.0), new Bounds(0.25, 120)));
+		entries.add(addon("rotp_kc/King Crimson Time Erase Config.eraseTicks", Kind.INTEGER, new JsonPrimitive(100), new Bounds(0, 1000)));
+		entries.add(addon("rotp_echoes/actSwitchCooldown", Kind.INTEGER, new JsonPrimitive(20), new Bounds(0, 100)));
+		entries.add(addon("rotp_bb/bottleSize", Kind.INTEGER, new JsonPrimitive(3), new Bounds(0, 10)));
+		entries.add(new ConfigEntry("rotp_kc/client.voice", "rotp_kc/client", Side.CLIENT, Kind.BOOLEAN, null, new JsonPrimitive(true),
+				new JsonPrimitive(true), null, null, List.of(), Restart.NONE, false, null));
+		return entries;
+	}
+
+	private static void aStandsRowsAndItsAddonsGoToTheStandsPageOnly() {
+		List<ConfigEntry> entries = standsAndAddons();
+		java.util.Set<String> standMods = ConfigWidgetRules.standNamespaces(entries);
+		check(standMods.equals(java.util.Set.of("rotp_kc", "rotp_echoes", "jojo_ripples")), "the mods of the listed Stands: " + standMods);
+		List<Section> sections = ConfigWidgetRules.sections(Side.SERVER, entries);
+		check(sections.stream().flatMap(section -> section.entries().stream()).noneMatch(ConfigWidgetRules::isStand),
+				"a Stand's row is never in a core section or in Other");
+		List<ConfigEntry> gameplay = entries.stream().filter(entry -> !ConfigWidgetRules.isOnStandsPage(entry, standMods)).toList();
+		List<ConfigWidgetRules.Block> blocks = ConfigWidgetRules.blocks(gameplay, mod -> mod);
+		check(blocks.size() == 2 && blocks.stream().map(ConfigWidgetRules.Block::modId).toList().containsAll(List.of("rotp_bb", "rotp_kc")),
+				"an add-on without Stands stays on Gameplay; one with Stands leaves only its client values: " + blocks);
+		check(blocks.stream().filter(block -> block.modId().equals("rotp_kc")).allMatch(block -> block.keys().equals(List.of("rotp_kc/client.voice"))),
+				"an add-on's CLIENT value is not the server's to move");
+		check(!ConfigWidgetRules.isAddon(entries.stream().filter(ConfigWidgetRules::isStand).findFirst().orElseThrow()),
+				"a Stand's key is no add-on's");
+	}
+
+	private static void aStandsBlockHasItsGroupsAndItsAddonsSettings() {
+		List<ConfigWidgetRules.StandBlock> stands = ConfigWidgetRules.standBlocks(standsAndAddons());
+		ConfigWidgetRules.StandBlock kc = stands.stream().filter(block -> block.standId().toString().equals("rotp_kc:king_crimson")).findFirst().orElseThrow();
+		check(kc.groups().stream().map(ConfigWidgetRules.Group::path).toList().equals(List.of("obtaining", "stats", "shares", "blocks")),
+				"a Stand's rows in the page's groups and order: " + kc.groups());
+		check(kc.addon() != null && kc.addon().keys().equals(List.of("rotp_kc/King Crimson Time Erase Config.eraseTicks")) && kc.addonStands() == 1,
+				"its add-on's server settings join its block, its client one does not: " + kc.addon());
+		check(kc.keys().size() == 5, "the block's reset names its own rows and its add-on's: " + kc.keys());
+		List<ConfigWidgetRules.StandBlock> echoes = stands.stream().filter(block -> block.standId().getNamespace().equals("rotp_echoes")).toList();
+		check(echoes.size() == 2 && echoes.stream().allMatch(block -> block.addon() != null && block.addonStands() == 2),
+				"an add-on with two Stands shows its settings in both, saying it shares them");
+		ConfigWidgetRules.StandBlock sp = stands.stream().filter(block -> block.standId().getPath().equals("star_platinum")).findFirst().orElseThrow();
+		check(sp.groups().getFirst().path().equals("special") && sp.addon() == null, "a core Stand's own values; the core is no add-on");
+		check(ConfigWidgetRules.matchesSearch("crim", "King Crimson", kc.standId(), "King Crimson")
+				&& ConfigWidgetRules.matchesSearch("ROTP_KC", "Some name", kc.standId(), null)
+				&& ConfigWidgetRules.matchesSearch("spin", "Ball Breaker", kc.standId(), "Spin")
+				&& !ConfigWidgetRules.matchesSearch("platinum", "King Crimson", kc.standId(), null),
+				"a search finds a Stand by its name, its id or its add-on's name");
+	}
+
+	private static void aStandsShareSlidesInFivesWithItsSign() {
+		ConfigEntry share = stand("rotp_kc:king_crimson", "cooldowns", Kind.INTEGER, new JsonPrimitive(100), new Bounds(0, 500));
+		check(ConfigWidgetRules.widgetKind(share) == WidgetKind.SLIDER && ConfigWidgetRules.sliderStep(share).intValue() == 5,
+				"a share is a slider in fives");
+		check(ConfigWidgetRules.sliderValue(share, 0.303).getAsInt() == 150 && ConfigWidgetRules.sliderText(share, new JsonPrimitive(150)).equals("150%"),
+				"a share snaps to fives and reads with its sign: " + ConfigWidgetRules.sliderValue(share, 0.303));
+		ConfigEntry power = stand("rotp_kc:king_crimson", "power", Kind.DECIMAL, new JsonPrimitive(16.0), new Bounds(0, 1000));
+		check(ConfigWidgetRules.widgetKind(power) == WidgetKind.NUMBER && ConfigWidgetRules.valueNumber(power, new JsonPrimitive(16.0)).equals("16.0"),
+				"a stat is typed, with no sign");
+		check(ConfigWidgetRules.optionKey(stand("rotp_kc:king_crimson", "miningTier", Kind.STRING, new JsonPrimitive("none"), null), "none")
+				.equals("jojo_ripples.config.option.miningTier.none"), "a tier's choice has the core's text");
+	}
+
+	private static void resetAllResetsOnlyItsOwnPage() {
+		List<ConfigEntry> entries = new ArrayList<>(standsAndAddons());
+		entries.replaceAll(entry -> entry.key().endsWith("cooldowns") || entry.key().equals(RANGE)
+				? new ConfigEntry(entry.key(), entry.group(), entry.side(), entry.kind(), entry.elementKind(), entry.defaultValue(),
+						entry.kind() == Kind.INTEGER && entry.key().startsWith("@") ? new JsonPrimitive(50) : new JsonPrimitive(3),
+						entry.bounds(), entry.listSize(), entry.choices(), entry.restart(), entry.synced(), entry.translationKey())
+				: entry);
+		FakeServer server = new FakeServer();
+		ConfigEditSession session = new ConfigEditSession(server, List::of);
+		session.open(0);
+		server.answer(session, true, ConfigEditResult.ok(List.of()), entries);
+		java.util.Set<String> standMods = ConfigWidgetRules.standNamespaces(entries);
+		check(session.resetAll(entry -> ConfigWidgetRules.isOnStandsPage(entry, standMods), null), "the Stands page has a change to reset");
+		check(server.sent.size() == 2 && server.last().key().equals("@rotp_kc:king_crimson") && session.pending(RANGE) == null
+				&& session.pending("@rotp_kc:king_crimson/cooldowns") != null,
+				"Reset All on the Stands page resets the Stands' groups alone: " + server.sent);
 	}
 
 	private static ConfigEntry addon(String key, Kind kind, JsonElement value, @Nullable Bounds bounds) {

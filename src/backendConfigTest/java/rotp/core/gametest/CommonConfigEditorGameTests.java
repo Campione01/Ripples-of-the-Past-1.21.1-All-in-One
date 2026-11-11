@@ -21,6 +21,7 @@ import rotp.core.JojoModConfig;
 import rotp.core.config.editor.CommonConfigEditor;
 import rotp.core.config.editor.ConfigEditResult.Status;
 import rotp.core.config.editor.ConfigEntry;
+import rotp.core.config.editor.client.ConfigWidgetRules;
 import rotp.core.core.JojoMod;
 
 @GameTestHolder(CommonConfigEditorGameTests.NAMESPACE)
@@ -43,7 +44,8 @@ public final class CommonConfigEditorGameTests {
 			JojoModConfig.COMMON_SPEC.save();
 			Path path = configPath();
 			byte[] before = Files.readAllBytes(path);
-			var entries = CommonConfigEditor.entries();
+			// the core's own rows: the Stands page's are counted by StandConfigEditorGameTests
+			var entries = CommonConfigEditor.entries().stream().filter(ConfigWidgetRules::isCore).toList();
 			long expected = Arrays.stream(JojoModConfig.Common.class.getFields())
 					.filter(field -> field.getType() == JojoModConfig.ConfigValue.class).count();
 			helper.assertTrue(entries.size() == expected && entries.stream().map(ConfigEntry::key).distinct().count() == expected,

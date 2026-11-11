@@ -9,6 +9,7 @@ import rotp.core.init.ModSoundEvents;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -115,7 +116,8 @@ public class HierophantGreenEntity extends StandEntity {
 
 	// 1.16 HierophantGreenBarrier.getMaxBarriersPlaceable: the stored Resolve level
 	public static int getMaxBarriersPlaceable(StandPower power) {
-		return power != null && power.getResolveLevel() >= 4 ? 100 : 15;
+		return power != null && power.getResolveLevel() >= 4 ? StandSpecials.HG_BARRIERS_RESOLVE.getInt(power)
+				: StandSpecials.HG_BARRIERS.getInt(power);
 	}
 
 	public boolean hasBarrierAttached() {

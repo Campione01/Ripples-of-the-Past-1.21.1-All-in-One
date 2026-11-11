@@ -45,8 +45,8 @@ public final class ConfigEditorPackets {
 	private static final int NUMBER_CHARS = 64;
 	private static final int LIST_LIMIT = 1024;
 	private static final int SYNCED_LIST_LIMIT = 64;
-	// about 480 settings with today's add-ons, and a Reset All can change them all
-	private static final int ENTRY_LIMIT = 1024;
+	// about 480 settings with today's add-ons and 18 or more for each of the 76 Stands, and a Reset All can change them all
+	private static final int ENTRY_LIMIT = 4096;
 	private static final int CHOICE_LIMIT = 32;
 	private static final int REQUEST_BYTES = 272 * 1024;
 	private static final int REPLY_BYTES = 1024 * 1024;
@@ -57,8 +57,8 @@ public final class ConfigEditorPackets {
 	private ConfigEditorPackets() {}
 
 	public static void register(PayloadRegistrar registrar) {
-		// 2: a reply may carry more entries than a version 1 client accepts, so the two never pair
-		var editor = registrar.versioned("2").optional();
+		// 2: a reply may carry more entries than a version 1 client accepts, so the two never pair; 3: the same for 2
+		var editor = registrar.versioned("3").optional();
 		editor.playToServer(Request.TYPE, Request.CODEC, ConfigEditorPackets::handleRequest);
 		editor.playToClient(Reply.TYPE, Reply.CODEC, ConfigEditorPackets::handleReply);
 	}

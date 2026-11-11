@@ -18,9 +18,11 @@ import javax.annotation.Nullable;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
 
+import net.minecraft.resources.ResourceLocation;
 import rotp.core.JojoModConfig;
 import rotp.core.config.editor.AddonConfigKeys;
 import rotp.core.config.editor.ConfigEntry;
+import rotp.core.config.editor.StandConfigKeys;
 import rotp.core.config.editor.ConfigEntry.Bounds;
 import rotp.core.config.editor.ConfigEntry.Kind;
 import rotp.core.config.editor.ConfigEntry.Side;
@@ -43,6 +45,24 @@ public final class ConfigWidgetRules {
 
 	/** A group's dotted path inside its add-on; empty for the values at the top of the file. */
 	public record Group(String path, List<ConfigEntry> entries) {}
+
+	/**
+	 * One Stand on the Stands page: its own rows in their groups ({@link #STAND_GROUPS}), then the settings of the add-on
+	 * that registered it, and how many Stands that add-on registered (its settings show in the block of each).
+	 */
+	public record StandBlock(ResourceLocation standId, List<Group> groups, @Nullable Block addon, int addonStands) {
+		public List<String> keys() {
+			List<String> keys = new ArrayList<>();
+			groups.forEach(group -> group.entries().forEach(entry -> keys.add(entry.key())));
+			if (addon != null) {
+				keys.addAll(addon.keys());
+			}
+			return keys;
+		}
+	}
+
+	/** The groups of a Stand's own rows, in the order of the page. */
+	public static final List<String> STAND_GROUPS = List.of("obtaining", "stats", "shares", "blocks", "special");
 
 	private record SectionRule(String id, List<String> leaves, @Nullable String prefix) {}
 
@@ -134,11 +154,18 @@ public final class ConfigWidgetRules {
 			return false;
 		}
 		double range = bounds.maximum() - bounds.minimum();
+		if (isPercent(entry)) {
+			return true;
+		}
 		// the client's own wide sliders are percentages this file knows; an add-on's wide range is a rule like the server's
 		return entry.kind() == Kind.INTEGER ? range <= 200 : range <= 10 || entry.side() == Side.CLIENT && !isAddon(entry);
 	}
 
 	public static BigDecimal sliderStep(ConfigEntry entry) {
+		// a Stand's share reads in fives: 0 to 500 is a hundred steps under a hand
+		if (isPercent(entry)) {
+			return BigDecimal.valueOf(5);
+		}
 		if (entry.kind() == Kind.INTEGER) {
 			return BigDecimal.ONE;
 		}
@@ -167,10 +194,19 @@ public final class ConfigWidgetRules {
 
 	/** A slider's number: as fine as its steps, so a percentage reads 25 and not 25.0. */
 	public static String sliderText(ConfigEntry entry, JsonElement value) {
+		if (isPercent(entry)) {
+			return valueNumber(entry, value);
+		}
 		if (sliderStep(entry).compareTo(BigDecimal.ONE) >= 0) {
 			return new BigDecimal(value.getAsString()).setScale(0, RoundingMode.HALF_UP).toPlainString();
 		}
 		return formatNumber(entry.kind(), value);
+	}
+
+	/** A number as its row shows it, a Stand's share with its percent sign. */
+	public static String valueNumber(ConfigEntry entry, JsonElement value) {
+		String number = formatNumber(entry.kind(), value);
+		return isPercent(entry) ? number + "%" : number;
 	}
 
 	/**
@@ -235,7 +271,7 @@ public final class ConfigWidgetRules {
 	}
 
 	public static List<Section> sections(Side side, List<ConfigEntry> entries) {
-		List<ConfigEntry> shown = entries.stream().filter(entry -> isShown(entry) && !isAddon(entry)).toList();
+		List<ConfigEntry> shown = entries.stream().filter(entry -> isShown(entry) && isCore(entry)).toList();
 		Set<String> placed = new LinkedHashSet<>();
 		List<Section> sections = new ArrayList<>();
 		for (SectionRule rule : side == Side.CLIENT ? CLIENT_SECTIONS : SERVER_SECTIONS) {
@@ -305,6 +341,105 @@ public final class ConfigWidgetRules {
 
 	public static boolean isAddon(ConfigEntry entry) {
 		return AddonConfigKeys.isAddonKey(entry.key());
+	}
+
+	public static boolean isStand(ConfigEntry entry) {
+		return StandConfigKeys.isStandKey(entry.key());
+	}
+
+	/** A row of the core's own sections: neither an add-on's nor a Stand's. */
+	public static boolean isCore(ConfigEntry entry) {
+		return !isAddon(entry) && !isStand(entry);
+	}
+
+	/** The namespaces of the Stands the server listed: the mod ids whose settings join their Stands' blocks. */
+	public static Set<String> standNamespaces(List<ConfigEntry> entries) {
+		Set<String> namespaces = new LinkedHashSet<>();
+		for (ConfigEntry entry : entries) {
+			ResourceLocation id = isStand(entry) ? StandConfigKeys.standId(entry.key()) : null;
+			if (id != null) {
+				namespaces.add(id.getNamespace());
+			}
+		}
+		return namespaces;
+	}
+
+	/**
+	 * Whether the Stands page shows this server row: a Stand's own, or one of an add-on that registered Stands (COMMON and
+	 * SERVER values; an add-on's CLIENT values stay on the Client page, which has its own store). Every other row is the
+	 * Gameplay page's.
+	 */
+	public static boolean isOnStandsPage(ConfigEntry entry, Set<String> standNamespaces) {
+		return isStand(entry) || isAddon(entry) && entry.side() == Side.SERVER
+				&& standNamespaces.contains(AddonConfigKeys.modId(entry.key()));
+	}
+
+	/** The group of the Stands page a Stand's own row goes in. */
+	public static String standGroup(ConfigEntry entry) {
+		String field = StandConfigKeys.field(entry.key());
+		if (field.startsWith(StandConfigKeys.SPECIAL)) {
+			return "special";
+		}
+		return switch (field) {
+			case "obtainable", "randomWeight" -> "obtaining";
+			case "damageVsPlayers", "damageVsMobs", "cooldowns", "staminaCosts" -> "shares";
+			case "miningTier", "miningStrength" -> "blocks";
+			default -> "stats";
+		};
+	}
+
+	public static boolean isPercent(ConfigEntry entry) {
+		if (!isStand(entry)) {
+			return false;
+		}
+		return switch (StandConfigKeys.field(entry.key())) {
+			case "damageVsPlayers", "damageVsMobs", "cooldowns", "staminaCosts", "miningStrength" -> true;
+			default -> false;
+		};
+	}
+
+	/**
+	 * The Stands of these rows, each with its own rows in the page's groups and, when the add-on that registered it has
+	 * settings, those as one block of their own groups. The order is the server's (by id): the screen sorts by part and name.
+	 */
+	public static List<StandBlock> standBlocks(List<ConfigEntry> entries) {
+		Map<ResourceLocation, Map<String, List<ConfigEntry>>> byStand = new LinkedHashMap<>();
+		for (ConfigEntry entry : entries) {
+			ResourceLocation id = isStand(entry) && isShown(entry) ? StandConfigKeys.standId(entry.key()) : null;
+			if (id != null) {
+				Map<String, List<ConfigEntry>> groups = byStand.computeIfAbsent(id, stand -> new LinkedHashMap<>());
+				STAND_GROUPS.forEach(group -> groups.putIfAbsent(group, new ArrayList<>()));
+				groups.get(standGroup(entry)).add(entry);
+			}
+		}
+		Map<String, Long> standsPerMod = new LinkedHashMap<>();
+		byStand.keySet().forEach(id -> standsPerMod.merge(id.getNamespace(), 1L, Long::sum));
+		Map<String, Block> addonBlocks = new LinkedHashMap<>();
+		for (Block block : blocks(entries.stream().filter(entry -> entry.side() == Side.SERVER).toList(), mod -> mod)) {
+			addonBlocks.put(block.modId(), block);
+		}
+		List<StandBlock> stands = new ArrayList<>();
+		byStand.forEach((id, groups) -> {
+			List<Group> shown = new ArrayList<>();
+			groups.forEach((group, rows) -> {
+				if (!rows.isEmpty()) {
+					shown.add(new Group(group, List.copyOf(rows)));
+				}
+			});
+			stands.add(new StandBlock(id, List.copyOf(shown), addonBlocks.get(id.getNamespace()),
+					standsPerMod.get(id.getNamespace()).intValue()));
+		});
+		return List.copyOf(stands);
+	}
+
+	/** What a search finds in a Stand's block: its shown name, its id, the name of its add-on. */
+	public static boolean matchesSearch(String query, String standName, ResourceLocation standId, @Nullable String addonName) {
+		String wanted = query.trim().toLowerCase(Locale.ROOT);
+		if (wanted.isEmpty()) {
+			return true;
+		}
+		return standName.toLowerCase(Locale.ROOT).contains(wanted) || standId.toString().contains(wanted)
+				|| addonName != null && addonName.toLowerCase(Locale.ROOT).contains(wanted);
 	}
 
 	public static String leaf(String key) {

@@ -20,6 +20,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.util.functions.DamageUtil;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.impl.stands.crazydiamond.CrazyDRestoreTerrainAbility;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -45,8 +46,6 @@ import net.neoforged.neoforge.event.EventHooks;
 
 public class MRCrossfireHurricaneEntity extends ModdedProjectileEntity {
 
-	private static final int ORIGINAL_FIRE_SECONDS = 10;
-	private static final int ORIGINAL_FIRE_TICKS = ORIGINAL_FIRE_SECONDS * 20;
 
 	private boolean special;
 	private float scale = 1F;
@@ -322,7 +321,7 @@ public class MRCrossfireHurricaneEntity extends ModdedProjectileEntity {
 
 			LivingEntity magiciansRed = sourceProjectile != null ? sourceProjectile.getOwner() : null;
 			if (!entity.is(magiciansRed)) {
-				DamageUtil.setOnFire(entity, ORIGINAL_FIRE_TICKS, true);
+				DamageUtil.setOnFire(entity, StandSpecials.MR_BURN_SECONDS.ticksFor(magiciansRed), true);
 				if (!level.isClientSide() && sourceProjectile != null
 						&& ResolveCounter.attackingTargetGivesResolve(entity)) {
 					StandPower standPower = sourceProjectile.userStandPower.get();

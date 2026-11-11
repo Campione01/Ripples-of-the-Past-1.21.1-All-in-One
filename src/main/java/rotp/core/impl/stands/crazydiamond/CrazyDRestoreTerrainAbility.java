@@ -62,6 +62,7 @@ import rotp.core.impl.stands.crazydiamond.brokenblocks.EntityMadeFromBlock;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.EntityMadeFromBlock.EntityReference;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.PrevBlockInfo;
 import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.ints.IntSet;
@@ -134,9 +135,9 @@ public class CrazyDRestoreTerrainAbility extends NoPoseStandEntityAbility {
 			Vec3i eyePosI = eyePos(cameraEntity);
 			boolean hasResolveEffect = ResolveModeEffect.getResolveEffectLvl(user) >= 0;
 			boolean onlyAimedAt = StandManualInput.isShiftHeld(user);
-			if (getFixableBlocksInRange(level, user, eyePosI, restorationDistManhattan(hasResolveEffect), 
+			if (getFixableBlocksInRange(level, user, eyePosI, restorationDistManhattan(user, hasResolveEffect), 
 					block -> blockPosSelectedForRestoration(block, cameraEntity, cameraEntity.getLookAngle(), 
-							cameraEntity.getEyePosition(1.0F), eyePosI, restorationDistManhattan(hasResolveEffect), 
+							cameraEntity.getEyePosition(1.0F), eyePosI, restorationDistManhattan(user, hasResolveEffect), 
 							hasResolveEffect, onlyAimedAt)).isEmpty()) {
 				return ConditionCheck.NEGATIVE_CONTINUE_HOLD;
 			}
@@ -245,7 +246,7 @@ public class CrazyDRestoreTerrainAbility extends NoPoseStandEntityAbility {
 				boolean creative = playerUser != null ? playerUser.getAbilities().instabuild : false;
 				Entity cameraEntity = restorationCenterEntity(user, userPower);
 				boolean resolveEffect = ResolveModeEffect.getResolveEffectLvl(user) >= 0;
-				int manhattanRange = restorationDistManhattan(resolveEffect);
+				int manhattanRange = restorationDistManhattan(user, resolveEffect);
 				Vec3i eyePos = eyePos(cameraEntity);
 				Vec3 lookVec = cameraEntity.getLookAngle();
 				Vec3 eyePosD = cameraEntity.getEyePosition(1.0F);
@@ -828,8 +829,8 @@ public class CrazyDRestoreTerrainAbility extends NoPoseStandEntityAbility {
 		}
 	}
 
-	public static int restorationDistManhattan(boolean resolve) {
-		return 12;
+	public static int restorationDistManhattan(@Nullable LivingEntity user, boolean resolve) {
+		return StandSpecials.CD_RESTORE_REACH.getInt(user != null ? StandPower.get(user) : null);
 	}
 
 

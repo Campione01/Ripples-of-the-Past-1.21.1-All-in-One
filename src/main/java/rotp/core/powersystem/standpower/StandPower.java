@@ -672,10 +672,12 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		return consumeStamina(amount, false);
 	}
 	
+	/** Every stamina cost of the Stand, the core's and an add-on's, comes through here, in the Stand's stamina share (StandTuning). */
 	public boolean consumeStamina(float amount, boolean ticking) {
 		if (isStaminaInfinite()) {
 			return true;
 		}
+		amount = getStaminaCostShare(amount);
 		float curAmount = getStamina();
 		if (curAmount >= amount) {
 			if (ticking) {
@@ -690,6 +692,12 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 			setStamina(0);
 			return ResolveModeEffect.getResolveEffectLvl(getUser()) >= 0;
 		}
+	}
+
+	/** What {@link #consumeStamina} takes for a cost of this amount, for code that weighs the cost against the bar first. */
+	public float getStaminaCostShare(float amount) {
+		StandTuning tuning = StandTuning.of(this);
+		return tuning != null ? tuning.staminaCost(amount) : amount;
 	}
 
 	public boolean isStaminaInfinite() {
@@ -858,7 +866,22 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		setAbilityCooldown(abilityName, cooldown, cooldown);
 	}
 
+	/**
+	 * A cooldown the ability's own code sets, in the Stand's cooldown share (StandTuning): every setter of a Stand cooldown
+	 * comes through here, the core's and an add-on's. A cooldown put back as it was uses {@link #restoreAbilityCooldown}.
+	 */
 	public void setAbilityCooldown(String abilityName, int cooldown, int totalCooldown) {
+		StandTuning tuning = StandTuning.of(this);
+		if (tuning != null) {
+			cooldown = tuning.cooldown(cooldown);
+			totalCooldown = tuning.cooldown(totalCooldown);
+		}
+		restoreAbilityCooldown(abilityName, cooldown, totalCooldown);
+	}
+
+	/** A cooldown as it already was (the server's word on a client, a rollback), not taken in the share again. */
+	@ApiStatus.Internal
+	public void restoreAbilityCooldown(String abilityName, int cooldown, int totalCooldown) {
 		if (abilityName == null || abilityName.isEmpty()) {
 			return;
 		}

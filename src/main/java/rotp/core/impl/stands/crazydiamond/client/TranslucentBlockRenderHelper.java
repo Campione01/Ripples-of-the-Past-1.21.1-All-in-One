@@ -109,8 +109,8 @@ public class TranslucentBlockRenderHelper {
 				Vec3 lookVec = entity.getLookAngle();
 				Vec3 eyePosD = entity.getEyePosition(1.0F);
 				boolean resolveEffect = ResolveModeEffect.getResolveEffectLvl(mc.player) >= 0;
-				int manhattanRange = CrazyDRestoreTerrainAbility.restorationDistManhattan(resolveEffect);
-				Collection<BlockToFix<PrevBlockInfo>> allFixableBlocks = ability.getBrokenBlocksInRange(mc.level, mc.player, pos, 32, 
+				int manhattanRange = CrazyDRestoreTerrainAbility.restorationDistManhattan(mc.player, resolveEffect);
+				Collection<BlockToFix<PrevBlockInfo>> allFixableBlocks = ability.getBrokenBlocksInRange(mc.level, mc.player, pos, Math.max(32, manhattanRange), 
 						(BlockPos targetPos, PrevBlockInfo block) -> CrazyDRestoreTerrainAbility.blockCanBePlaced(mc.level, targetPos, block.state));
 				Predicate<BlockPos> inAbilityRange = blockPos -> CrazyDRestoreTerrainAbility.blockPosSelectedForRestoration(blockPos, entity, 
 						lookVec, eyePosD, pos, manhattanRange, 

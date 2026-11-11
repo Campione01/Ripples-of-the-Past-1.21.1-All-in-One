@@ -57,6 +57,10 @@ final class ConfigTooltips {
 		if (entry.kind() == ConfigEntry.Kind.LIST || entry.bounds() == null) {
 			return null;
 		}
+		if (ConfigWidgetRules.isPercent(entry)) {
+			return Component.translatable(TEXT + "range", number(entry.kind(), entry.bounds().minimum()) + "%",
+					number(entry.kind(), entry.bounds().maximum()) + "%");
+		}
 		return rangeLineOf(entry.kind(), entry.bounds());
 	}
 
