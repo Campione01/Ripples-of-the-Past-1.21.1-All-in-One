@@ -333,9 +333,25 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		builder.define(MANUAL_MOVEMENT_LOCK, (byte) 0);
 	}
 	
+	// it joined its level once: a Stand not in it now (hidden in a section nothing loads) is still in its storage
+	private boolean joinedLevel;
+
+	/*
+	 * NeoForge marks an entity out of its level when its section is hidden (ServerLevel's onTrackingEnd calls
+	 * onRemovedFromLevel) and never back when the section is shown again (onTrackingStart does not call
+	 * onAddedToLevel). A Stand that ticks again in its level is in it: its held sounds and summon checks ask.
+	 */
+	private void markInLevelAgain() {
+		if (joinedLevel && !isAddedToLevel() && !isRemoved() && level() instanceof ServerLevel serverLevel
+				&& serverLevel.isPositionEntityTicking(blockPosition())) {
+			onAddedToLevel();
+		}
+	}
+
 	@Override
 	public void onAddedToLevel() {
 		super.onAddedToLevel();
+		joinedLevel = true;
 		if (standHasNoGravity) {
 			setNoGravity(true);
 		}
@@ -361,6 +377,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 				this.remove(user != null ? user.getRemovalReason() : RemovalReason.DISCARDED);
 				return;
 			}
+			markInLevelAgain();
 			if (user != null && entityData.get(USER_ID) != user.getId()) {
 				// PlayerList.respawn changes the new player's id after the clone event.
 				entityData.set(USER_ID, user.getId());
@@ -2033,18 +2050,22 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 
 	/**
 	 * Brings this Stand to its user when he was moved where its place no longer ticks while his does (a long teleport
-	 * in the same level: a command, an ender pearl, a portal, another mod's teleport). Left there it would stay his
-	 * summoned Stand and never act on what it is handed. A Stand meant to be away from him (manually controlled, not
-	 * following him, or moved by its action on its own) stays where it is while it is within the range its movement is
-	 * held to (getMaxRangeForMovement); past it, it is brought to that range on the line to him, as its own move would,
-	 * or to him when that place does not tick either. Any other Stand is placed beside him as a summon places it. A
-	 * change of level still recalls the Stand (StandPower). Called by the user's power each tick and by a Stand key's
+	 * in the same level: a command, an ender pearl, a portal, another mod's teleport), or when it was set into a chunk
+	 * nothing loads. Left there it would stay his summoned Stand and never act on what it is handed. Its place may be
+	 * loaded and not ticking, or hidden: its section is not accessible (its chunk dropped out of the loaded ones or was
+	 * never loaded), so the level took it out (onRemovedFromLevel) and keeps it in its entity storage, as it keeps an
+	 * entity that is not saved with its chunk. Moving it into its user's section adds it to the level again. A Stand
+	 * meant to be away from him (manually controlled, not following him, or moved by its action on its own) stays where
+	 * it is while it is in a loaded chunk within the range its movement is held to (getMaxRangeForMovement); past it, it
+	 * is brought to that range on the line to him, as its own move would, or to him when that place does not tick either;
+	 * a hidden one, which nothing could tick, comes to him. Any other Stand is placed beside him as a summon places it.
+	 * A change of level still recalls the Stand (StandPower). Called by the user's power each tick and by a Stand key's
 	 * press before the press is handed on.
 	 *
 	 * @return whether the Stand was moved
 	 */
 	public boolean bringAlongIfLeftBehind(@Nullable LivingEntity user) {
-		if (user == null || isRemoved() || !isAddedToLevel() || user.level() != level()
+		if (user == null || isRemoved() || !joinedLevel || user.level() != level()
 				|| !(level() instanceof ServerLevel serverLevel)
 				|| serverLevel.isPositionEntityTicking(blockPosition())
 				|| !serverLevel.isPositionEntityTicking(user.blockPosition())) {
@@ -2054,10 +2075,12 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		if (keptAway) {
 			double distance = distanceTo(user);
 			double range = getMaxRangeForMovement(user);
-			if (distance <= range) {
+			boolean hidden = !isAddedToLevel();
+			if (distance <= range && !hidden) {
 				return false;
 			}
-			Vec3 place = position().add(user.position().subtract(position()).scale(1 - range / distance));
+			Vec3 place = distance <= range ? user.position()
+					: position().add(user.position().subtract(position()).scale(1 - range / distance));
 			if (!serverLevel.isPositionEntityTicking(BlockPos.containing(place))) {
 				place = user.position();
 			}
@@ -2069,6 +2092,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		}
 		setDeltaMovement(Vec3.ZERO);
 		setOldPosAndRot();
+		markInLevelAgain();
 		return true;
 	}
 

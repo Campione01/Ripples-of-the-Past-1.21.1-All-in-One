@@ -81,7 +81,9 @@ public final class GameTestBatchSourcePinGameTests {
 			Map.entry("TimeStopWorldGameTests.buildingInStoppedTimeShowsAndOnlyRedstoneWaits", GameTestBatches.WORLD_BUILDING),
 			Map.entry("TimeStopWorldGameTests.everyEndOfAStopDrainsWhatItHeld", GameTestBatches.WORLD_ENDS),
 			Map.entry("TimeStopWorldGameTests.theHeldQueueKeepsOrderDropsDuplicatesAndFlushesWhenFull",
-					GameTestBatches.WORLD_QUEUE));
+					GameTestBatches.WORLD_QUEUE),
+			Map.entry("GameTestTimeStopsGameTests.aStopHeldWithNoUserLastsUntilReleased",
+					GameTestBatches.HELD_TIME_STOP_NO_USER));
 	// An ISOLATED test removes its held stop when it fails or times out too: a GameTestListener on its test info.
 	private static final String CLEANS_UP_ON_FAILURE = "testInfo.addListener(";
 	// Detector self-check for the held stops: one that is held in place, one that is moved far away.

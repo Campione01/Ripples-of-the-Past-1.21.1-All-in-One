@@ -106,6 +106,8 @@ public class TimeStopState {
 
     private final ServerLevel level;
     private final Map<Integer, TimeStopState.Instance> instances = new HashMap<>();
+    // Server-only: stops a game test holds with no user (rotp.core.gametest.GameTestTimeStops); empty outside tests.
+    private final IntOpenHashSet heldWithoutUser = new IntOpenHashSet();
     // Server-only: the ability that started each instance, like 1.16 TimeStopInstance.action.
     private final Map<Integer, AbilityId> timeStopStarters = new HashMap<>();
     // Server-only: the stamina each instance's start actually took, and the part of it no early end gives back.
@@ -167,6 +169,24 @@ public class TimeStopState {
         TimeStopLifecycleEvent.PreStart event =
                 ModEventHooks.onTimeStopPreStart(level, instance);
         return commitPreStart(event);
+    }
+
+    /**
+     * For game tests (rotp.core.gametest.GameTestTimeStops): puts a stop with no user (a negative user id) that the
+     * lifecycle keeps until its time runs out or it is removed, where a stop without a living user of a time stop
+     * ability is ended at its next lifecycle tick.
+     */
+    @ApiStatus.Internal
+    public boolean tryPutInstanceHeldWithoutUser(Instance instance) {
+        if (instance.userId() >= 0) {
+            throw new IllegalArgumentException("A stop held without a user has no user id: " + instance.userId());
+        }
+        heldWithoutUser.add(instance.id());
+        if (!tryPutInstance(instance)) {
+            heldWithoutUser.remove(instance.id());
+            return false;
+        }
+        return true;
     }
 
     @ApiStatus.Internal
@@ -691,6 +711,7 @@ public class TimeStopState {
     public void removeInstance(int id, RemovalReason reason) {
         Objects.requireNonNull(reason);
         Instance removed = instances.remove(id);
+        heldWithoutUser.remove(id);
         if (removed != null) {
             applyTimeStopCooldown(removed);
             removeTimeStopEffectIfNoActiveInstance(removed);
@@ -715,6 +736,7 @@ public class TimeStopState {
     public void reset() {
         List<Instance> removedInstances = new ArrayList<>(instances.values());
         instances.clear();
+        heldWithoutUser.clear();
         for (Instance removed : removedInstances) {
             LivingEntity user = getLivingEntityById(removed.userId());
             StandPower power = user != null ? PowerClass.STAND.get(user) : null;
@@ -798,6 +820,7 @@ public class TimeStopState {
                 }
                 Instance expired = instance;
                 iter.remove();
+                heldWithoutUser.remove(expired.id());
                 RemovalReason reason = shouldEnd
                         ? RemovalReason.INTERRUPTED
                         : expired.ticksManuallySet()
@@ -1252,6 +1275,9 @@ public class TimeStopState {
     }
 
     private boolean shouldEndTimeStop(Instance instance) {
+        if (instance.userId() < 0 && !heldWithoutUser.isEmpty() && heldWithoutUser.contains(instance.id())) {
+            return false;
+        }
         LivingEntity user = getLivingEntityById(instance.userId());
         if (user == null || !user.isAlive()) {
             return true;
