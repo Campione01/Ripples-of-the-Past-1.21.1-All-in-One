@@ -366,6 +366,8 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 				indicator.maxValue = curAction.getAnimPhaseLength();
 				if (indicator.maxValue > 0) {
 					indicator.value = curAction.getAnimPhaseTick(partialTick);
+					// the release's minimum (onButtonStopHold) marked on the fill
+					indicator.minValue = getMinReleaseChargeTicks(indicator.maxValue);
 				}
 			}
 			else {
