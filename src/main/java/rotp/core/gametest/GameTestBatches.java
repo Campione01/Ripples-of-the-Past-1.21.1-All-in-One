@@ -46,6 +46,9 @@ final class GameTestBatches {
 	static final String WORLD_ENDS = "jojo_ripples_time_stop_world_ends";
 	static final String WORLD_QUEUE = "jojo_ripples_time_stop_world_queue";
 
+	/** The stop GameTestTimeStops holds with no user stays over its cells for several ticks. */
+	static final String HELD_TIME_STOP_NO_USER = "jojo_ripples_held_time_stop_no_user";
+
 	/** A level's tick rates act on the whole level, so the test that sets them runs alone. */
 	static final String LEVEL_TICK_RATES = "jojo_ripples_level_tick_rates";
 
