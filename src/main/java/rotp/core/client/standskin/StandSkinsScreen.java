@@ -1,5 +1,6 @@
 package rotp.core.client.standskin;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -50,6 +51,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -183,9 +185,13 @@ public class StandSkinsScreen extends Screen implements IJojoMenuScreen {
 		
 		renderTabs(gui, this);
 		renderTabTooltip(gui, this, mouseX, mouseY);
-		getSkinAt(mouseX, mouseY).flatMap(view -> view.skin.authorsLine()).ifPresent(line -> {
+		// the skin's name, then who made it
+		getSkinAt(mouseX, mouseY).ifPresent(view -> {
+			List<FormattedCharSequence> lines = new ArrayList<>();
+			lines.add(view.skin.displayName().copy().withStyle(ChatFormatting.BLACK).getVisualOrderText());
+			view.skin.authorsLine().ifPresent(line -> lines.add(line.copy().withStyle(ChatFormatting.DARK_GRAY).getVisualOrderText()));
 			TooltipParams.set(TooltipParams.paperStyle(1));
-			setTooltipForNextRenderPass(List.of(line.copy().withStyle(ChatFormatting.BLACK).getVisualOrderText()));
+			setTooltipForNextRenderPass(lines);
 		});
 
 		for (Renderable renderable : renderables) {
