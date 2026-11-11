@@ -49,7 +49,7 @@ public final class SkillTextRulesGameTests {
 
 	/*
 	 * OQ-C10: Hierophant Green's barrier description says how the net comes down (the variation press), and in each language
-	 * the whole line is in that language; ten of them had kept the English first sentence.
+	 * the whole line is in that language; nine of them had kept the English first sentence.
 	 */
 	@GameTest(template = "empty", timeoutTicks = 20)
 	public static void theBarrierTellsHowTheNetComesDownInEachLanguage(GameTestHelper helper) {

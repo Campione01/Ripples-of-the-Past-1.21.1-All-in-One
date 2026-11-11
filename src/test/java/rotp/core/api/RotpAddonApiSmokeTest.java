@@ -60,6 +60,7 @@ import rotp.core.api.client.render.ScopedPlayerModelPoseSmokeTest;
 import rotp.core.api.client.animation.AddonPlayerAnimationsSmokeTest;
 import rotp.core.client.entityanim.AnimPoseThreadIsolationSmokeTest;
 import rotp.core.client.entityrender.stand.HeldBlockViewClearanceSmokeTest;
+import rotp.core.client.ui.utils.TextBoxFitSmokeTest;
 import rotp.core.client.entityanim.ArmsOnlyTrunkSmokeTest;
 import rotp.core.client.entityanim.ChargeSectionSmokeTest;
 import rotp.core.client.entityanim.HeadLookLimitSmokeTest;
@@ -598,6 +599,7 @@ public final class RotpAddonApiSmokeTest {
 		PlayerActionGateSmokeTest.run();
 		ActionStandOffsetHookSmokeTest.run();
 		HeldBlockViewClearanceSmokeTest.run();
+		TextBoxFitSmokeTest.run();
 	}
 
 	private static ResourceLocation id(String namespace, String path) {
