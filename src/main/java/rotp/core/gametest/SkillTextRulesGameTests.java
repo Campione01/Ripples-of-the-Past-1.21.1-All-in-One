@@ -27,6 +27,27 @@ public final class SkillTextRulesGameTests {
 	private SkillTextRulesGameTests() {}
 
 	/*
+	 * OQ-C09: Use Item's description named Shift as keeping the button for other moves and the own hand; in play the grab and
+	 * charged heavy key keeps them and the HUD-controls key gives the own hand. Both keys are rebindable: the text takes their
+	 * names as arguments 2 and 3 and writes no key of its own.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void useItemTellsTheKeysThatKeepTheGrabAndTheOwnHand(GameTestHelper helper) {
+		for (String language : LANGUAGES) {
+			String desc = value(helper, language, "jojo_ripples.skill.item_use.desc");
+			helper.assertTrue(count(desc, "%2$s") == 1 && count(desc, "%3$s") == 1 && !desc.contains("Shift"),
+					language + "'s Use Item description does not name the grab key (%2$s) and the own-hand key (%3$s) once"
+							+ " each, or writes a key of its own: " + desc);
+		}
+		String text = compact(source("client/ui/text/StandSkillText.java"));
+		helper.assertTrue(text.contains("if(StandItemUse.SKILL.equals(skill.skillName)){")
+				&& text.contains("\".desc\",VariationKeyName.get(),grabChargedHeavyKeyName(),ownHandKeyName());")
+				&& text.contains("inputHandler.vanillaKeybinds.disableHUDControls"),
+				"StandSkillText no longer gives Use Item's description the grab key and the HUD-controls key");
+		helper.succeed();
+	}
+
+	/*
 	 * OQ-C10: Hierophant Green's barrier description says how the net comes down (the variation press), and in each language
 	 * the whole line is in that language; ten of them had kept the English first sentence.
 	 */
