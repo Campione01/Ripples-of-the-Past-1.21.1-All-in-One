@@ -280,7 +280,7 @@ public final class SPStarFingerImpactGameTests {
             connection = new RecordingConnection(user);
             user.connection = connection;
             premise(level.addFreshEntity(user), "user added");
-            connection.chunkSender.dropChunk(user, user.chunkPosition());
+            GameTestChunkSending.markSentAround(user);
             power = PowerClass.STAND.attachGet(user);
             type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
             premise(type != null && StandPowerTransitions.insert(power, new StandInstance(type)).status()

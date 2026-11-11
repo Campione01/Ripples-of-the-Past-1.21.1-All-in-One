@@ -68,7 +68,8 @@ public final class AddonConfigEditorGameTests {
 
 		Fixture(String modId, ModConfig.Type type, ModConfigSpec spec) throws IOException {
 			this.type = type;
-			folder = Files.createTempDirectory("rotp-addon-config-");
+			// under the run directory in build, as no temp file may go to drive C:
+			folder = Files.createTempDirectory(Files.createDirectories(Path.of("tmp").toAbsolutePath()), "rotp-addon-config-");
 			var container = ModList.get().getModContainerById(JojoMod.MOD_ID).orElseThrow();
 			config = tracker.registerConfig(type, spec, container, modId + "-" + type.extension() + ".toml");
 			tracker.loadConfigs(type, folder);

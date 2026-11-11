@@ -2498,7 +2498,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 					user.isInvulnerableTo(/*level, */damageSource)
 					|| user instanceof Player player && player.getAbilities().invulnerable && !damageSource.is(DamageTypeTags.BYPASSES_INVULNERABILITY))
 				|| canOnlyHurtFromStands && !damageSource.is(DamageTypes.ON_FIRE)
-						&& !DamageUtil.canHurtStands(damageSource) && !DefencePiercing.piercesInvulnerability(damageSource)
+						// only a Stand touches a Stand: its own damage types may carry the tag, no attacker rule is asked
+						&& !DamageUtil.canHurtStands(damageSource) && !damageSource.is(DefencePiercing.INVULNERABILITY)
 				// 1.16: whoever the user, no fire damage to a Stand while the fireDamage gamerule is off
 				|| damageSource.is(DamageTypeTags.IS_FIRE) && !level().getGameRules().getBoolean(GameRules.RULE_FIRE_DAMAGE)
 				|| super.isInvulnerableTo(/*level, */damageSource);

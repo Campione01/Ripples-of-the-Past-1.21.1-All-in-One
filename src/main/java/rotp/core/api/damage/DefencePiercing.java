@@ -18,23 +18,28 @@ import net.minecraft.world.entity.LivingEntity;
  * 無敵幀以及無敵機制和限傷等"). A hit pierces a {@link Defence} when its damage type is in that defence's tag, or when a
  * registered {@link AttackerRule} says its attacker's hit does (the holder's own melee is a vanilla player attack, whose
  * type cannot carry the tags). Vanilla's part is vanilla's tags (minecraft:bypasses_shield, bypasses_resistance...),
- * which an add-on puts on its own damage types as well. The tags are empty by default and no rule is registered, so
- * nothing changes for a hit until an add-on asks.
+ * which an add-on puts on its own damage types as well; a core reader asks a vanilla tag only in that tag's own sense
+ * (bypasses_armor for an armour-like cut, bypasses_resistance for Resistance), never for one of these.
+ * The tags hold no type of an add-on by default and no rule is registered, so nothing changes for a hit until an add-on
+ * asks.
  * <ul>
  * <li>{@link Defence#GUARD} {@code jojo_ripples:pierces_guard}: a Stand's guard (held or automatic) and the half block of
  * a busy Stand; a guarding Stand's cut of the hits on its user, explosions included; a barrage parry; the counters and
  * dodges that cancel a hit: Vampirism's Freeze, the Pillar Man's Blade Dash, Blade Barrage and evasions, Hamon's Sendo
- * Wave Kick, Rebuff Overdrive and Snake Muffler.</li>
+ * Wave Kick, Rebuff Overdrive and Snake Muffler; Hamon's Protection (a Hamon Master's whole hit, a player's paid cut)
+ * and the cut Rebuff Overdrive's charge gives.</li>
  * <li>{@link Defence#INVULNERABILITY} {@code jojo_ripples:pierces_invulnerability}: the hurt cooldown (invulnerability
- * frames, as minecraft:bypasses_cooldown); a Stand body hurt only by Stands; the window after a Stand's hit in which
- * another Stand hit deals only its excess; a sleeper in a closed coffin.</li>
+ * frames, as minecraft:bypasses_cooldown); the window after a Stand's hit in which another Stand hit deals only its
+ * excess; a sleeper in a closed coffin. A Stand body hurt only by Stands asks this tag on the hit's damage type, never an
+ * attacker rule: only a Stand touches a Stand.</li>
  * <li>{@link Defence#DAMAGE_CAPS} {@code jojo_ripples:pierces_damage_caps}: limits on a hit: a Stand user's Resistance on
  * the hits his Stand takes. The core has no per-hit or per-second limit and no "cannot go below 1 health" rule of its
  * own; any it gets answers this one.</li>
  * <li>{@link Defence#MITIGATION} {@code jojo_ripples:pierces_mitigation}: what lessens a hit as armour does, which only
  * true damage passes: a Stand's resistance from its durability and power and the standResistanceMultiplier setting, on
  * a hit it does not block; a Stand user's Resolve; the timeStopDamageMultiplier setting below 1 on a target held in
- * stopped time; Hamon's Protection and Rebuff Overdrive's cut.</li>
+ * stopped time. The tag the core ships holds vanilla's void and /kill (minecraft:out_of_world, generic_kill), which 1.16
+ * let through Resolve.</li>
  * </ul>
  */
 public final class DefencePiercing {

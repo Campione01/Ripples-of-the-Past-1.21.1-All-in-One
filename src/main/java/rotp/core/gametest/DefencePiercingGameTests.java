@@ -11,7 +11,9 @@ import rotp.core.api.damage.DefencePiercing;
 import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
+import rotp.core.impl.powers.hamon.entity.HamonMasterEntity;
 import rotp.core.init.ModDamageTypes;
+import rotp.core.init.ModEntityTypes;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.entityaction.ActionPhase;
@@ -34,6 +36,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
@@ -219,7 +222,94 @@ public final class DefencePiercingGameTests {
 		helper.succeed();
 	}
 
+	@GameTest(template = "empty", timeoutTicks = 80)
+	public static void resolveCutsATypeInVanillasBypassesInvulnerabilityAndNotTheVoid(GameTestHelper helper) {
+		Fixture f = new Fixture(helper);
+		try {
+			DamageSource zombieHit = helper.getLevel().damageSources().mobAttack(f.zombieAt(0, -3));
+			float amount = f.scaled(zombieHit, 4);
+			float vanillaTagged = f.tagged(() -> {
+				f.power.resolveCounter.setResolveValue(f.power, Float.MAX_VALUE);
+				return f.hitUser(zombieHit, 4);
+			}, DamageTypes.MOB_ATTACK, DamageTypeTags.BYPASSES_INVULNERABILITY);
+			f.power.resolveCounter.setResolveValue(f.power, Float.MAX_VALUE);
+			float voidHit = f.hitUser(helper.getLevel().damageSources().fellOutOfWorld(), 4);
+			helper.assertTrue(vanillaTagged < amount - 1 && close(voidHit, 4), "With full Resolve its user took " + vanillaTagged
+					+ " of a zombie's " + amount + " in minecraft:bypasses_invulnerability (cut expected) and " + voidHit
+					+ " of the void's 4 (whole expected)");
+		}
+		finally {
+			f.close();
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 80)
+	public static void aHamonMastersProtectionIsAGuard(GameTestHelper helper) {
+		HamonMasterEntity master = ModEntityTypes.HAMON_MASTER.get().create(helper.getLevel());
+		helper.assertTrue(master != null, "Could not create a Hamon Master");
+		Fixture f = new Fixture(helper);
+		try {
+			Vec3 at = f.pos.add(2, 0, 0);
+			master.moveTo(at.x, at.y, at.z, 0, 0);
+			master.setNoGravity(true);
+			helper.assertTrue(helper.getLevel().addFreshEntity(master), "Could not add the Hamon Master");
+			master.addMasterHamon();
+			DamageSource zombieHit = helper.getLevel().damageSources().mobAttack(f.zombieAt(2, 3));
+			float plain = hitMaster(master, () -> master.hurt(zombieHit, 4));
+			float mitigationTagged = f.tagged(() -> hitMaster(master, () -> master.hurt(zombieHit, 4)),
+					DamageTypes.MOB_ATTACK, DefencePiercing.MITIGATION);
+			float guardTagged = f.tagged(() -> hitMaster(master, () -> master.hurt(zombieHit, 4)),
+					DamageTypes.MOB_ATTACK, DefencePiercing.GUARD);
+			helper.assertTrue(plain == 0 && mitigationTagged == 0 && close(guardTagged, 4), "A Hamon Master took " + plain
+					+ " of a zombie's 4 untagged, " + mitigationTagged + " piercing the mitigation (0 expected) and "
+					+ guardTagged + " piercing the guard (4 expected)");
+		}
+		finally {
+			master.discard();
+			f.close();
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 80)
+	public static void anAttackerRuleNeverLetsAFistHurtAStandsBody(GameTestHelper helper) {
+		registerAttackerRule();
+		Fixture f = new Fixture(helper);
+		try {
+			Zombie holder = f.zombieAt(0, 3);
+			holder.addTag(PIERCING_EVERYTHING);
+			DamageSource fist = helper.getLevel().damageSources().mobAttack(holder);
+			boolean shielded = f.stand.isInvulnerableTo(fist);
+			float onBody = f.hitStand(fist, 6);
+			float durability = (float) f.stand.getDurability();
+			float raw = durability / 2 + 3;
+			float unguarded = f.hitUser(fist, raw);
+			f.resetUser();
+			f.holdGuard();
+			float throughGuard = f.hitUser(fist, raw);
+			helper.assertTrue(shielded && onBody == 0 && close(throughGuard, unguarded) && unguarded > 1,
+					"Under a rule that pierces everything a fist found the Stand's body " + (shielded ? "" : "not ")
+							+ "invulnerable and passed " + onBody + " through it (0 expected); through the raised guard it took "
+							+ throughGuard + " (" + unguarded + ", the unguarded hit, expected)");
+		}
+		finally {
+			f.close();
+		}
+		helper.succeed();
+	}
+
+	private static float hitMaster(HamonMasterEntity master, Runnable hit) {
+		master.setHealth(master.getMaxHealth());
+		master.invulnerableTime = 0;
+		master.lastHurt = 0;
+		float before = master.getHealth();
+		hit.run();
+		return before - master.getHealth();
+	}
+
 	private static final String PIERCING_ATTACKER = "jojo_ripples.gametest.piercing_attacker";
+	private static final String PIERCING_EVERYTHING = "jojo_ripples.gametest.piercing_everything";
 	private static final AtomicBoolean RULE_REGISTERED = new AtomicBoolean();
 
 	// pierces the guard and invulnerability for a tagged attacker only, so it changes nothing for the other tests
@@ -228,6 +318,8 @@ public final class DefencePiercingGameTests {
 			DefencePiercing.registerAttackerRule(JojoMod.resLoc("gametest_piercing_attacker"),
 					(attacker, source, defence) -> attacker.getTags().contains(PIERCING_ATTACKER)
 							&& (defence == DefencePiercing.Defence.GUARD || defence == DefencePiercing.Defence.INVULNERABILITY));
+			DefencePiercing.registerAttackerRule(JojoMod.resLoc("gametest_piercing_everything"),
+					(attacker, source, defence) -> attacker.getTags().contains(PIERCING_EVERYTHING));
 		}
 	}
 

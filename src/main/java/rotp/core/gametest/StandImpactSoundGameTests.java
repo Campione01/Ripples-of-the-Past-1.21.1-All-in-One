@@ -31,7 +31,6 @@ import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.network.protocol.game.ClientboundBundlePacket;
-import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
@@ -41,7 +40,6 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.vehicle.Boat;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.neoforge.common.NeoForge;
@@ -172,14 +170,8 @@ public final class StandImpactSoundGameTests {
 			helper.assertTrue(level.addFreshEntity(user), "Could not add the Stand user");
 			entities.add(user);
 			if (connection != null) {
-				// the chunks around the owner count as sent, so it tracks the Stand once it is added: the Stand is added
-				// beside its user, in the next chunk when the user stands within a block of a chunk border
-				ChunkPos home = user.chunkPosition();
-				for (int dx = -1; dx <= 1; dx++) {
-					for (int dz = -1; dz <= 1; dz++) {
-						connection.chunkSender.dropChunk(user, new ChunkPos(home.x + dx, home.z + dz));
-					}
-				}
+				// the chunks around the owner count as sent, so it tracks the Stand once it is added beside it
+				GameTestChunkSending.markSentAround(user);
 			}
 			power = PowerClass.STAND.attachGet(user);
 			type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
@@ -189,10 +181,7 @@ public final class StandImpactSoundGameTests {
 			stand = power.getSummonedStandEntity();
 			helper.assertTrue(stand != null && stand.getUser() == user, "Missing Star Platinum entity");
 			if (connection != null) {
-				ChunkMap.TrackedEntity tracked = level.getChunkSource().chunkMap.entityMap.get(stand.getId());
-				helper.assertTrue(tracked != null && tracked.seenBy.contains(user.connection),
-						"Fixture: the user does not track its Stand (Stand at " + stand.position() + ", user at " + user.position()
-								+ "), so no barrage packet can reach the recording connection");
+				GameTestChunkSending.assertTracks(helper, user, stand, "its Stand");
 			}
 			stand.summonLockTicks = 0;
 			stand.setNoGravity(true);
@@ -284,7 +273,7 @@ public final class StandImpactSoundGameTests {
 					if (hitSound.hit()) counts[1]++;
 				}
 			}
-			helper.assertTrue(counts[0] > 0, "Fixture: no barrage hit tick on " + target + " reached the recording connection");
+			GameTestChunkSending.assertCounted(helper, counts[0], "barrage hit tick on " + target);
 			return counts;
 		}
 
