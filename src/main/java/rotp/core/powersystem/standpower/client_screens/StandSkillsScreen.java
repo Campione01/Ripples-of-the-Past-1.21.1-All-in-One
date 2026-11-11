@@ -24,6 +24,7 @@ import rotp.core.client.ui.utils.BlitFloat;
 import rotp.core.client.ui.utils.GuiIcon;
 import rotp.core.client.ui.utils.Scrolling;
 import rotp.core.client.ui.utils.ScrollingText;
+import rotp.core.client.ui.utils.SkillListLayout;
 import rotp.core.client.ui.utils.TextBoxFit;
 import rotp.core.client.ui.utils.tooltip.MutableTooltipWrapper;
 import rotp.core.client.ui.utils.tooltip.TooltipParams;
@@ -55,6 +56,7 @@ import net.minecraft.locale.Language;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -73,6 +75,9 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 	protected StandSkin standSkin;
 	protected Iterable<StandUnlockableSkill> skills;
 	@Nullable protected StandUnlockableSkill selectedSkill;
+	protected List<Ability> passives = List.of();
+	@Nullable protected Ability selectedPassive;
+	@Nullable private String passiveStateShown;
 	
 	protected Scrolling skillListScrolling;
 	protected ScrollingText skillDescription;
@@ -122,7 +127,8 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 		skills = standPower.getPowerType().getUnlockableSkills().values().stream()
 				.filter(skill -> !skill.hidden)
 				.toList();
-		skillListScrolling = new Scrolling(162, Iterables.size(skills) * 20 + 2);
+		passives = passivesOf(standPower);
+		skillListScrolling = new Scrolling(162, SkillListLayout.height(Iterables.size(skills), passives.size()));
 		standSkin = StandSkinsLoader.getInstance().getSkin(standPower);
 
 		learnSkillButton = this.addRenderableWidget(new PaperButton(x + 144, y + 201, 80, 20, 
@@ -182,7 +188,12 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 		
 		skillDescription = new ScrollingText(x + 86, y + 87, 124, 105);
 		skillControls = new ScrollingText(x + 100, y + 49, 117, 31);
+		Ability keptPassive = selectedPassive;
 		setSelectedSkill(this.selectedSkill);
+		if (keptPassive != null) {
+			String name = keptPassive.name();
+			setSelectedPassive(passives.stream().filter(passive -> passive.name().equals(name)).findFirst().orElse(null));
+		}
 		
 		deselectSkillButton = addRenderableWidget(new ImageButton2(x + 68, y + 23, 8, 8, 
 				CROSS, CROSS, CROSS_HIGHLIGHTED, CROSS_HIGHLIGHTED, 
@@ -201,7 +212,7 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 	@Nullable private Component cutTitle;
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float p_283123_) {
-		deselectSkillButton.visible = selectedSkill != null;
+		deselectSkillButton.visible = selectedSkill != null || selectedPassive != null;
 		StandExpSummary expSummary = levelingData.expSummary(standPower);
 		
 		this.renderBackground(guiGraphics, mouseX, mouseY, p_283123_);
@@ -218,8 +229,8 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 		trainSkillButton.visible = selectedSkillUnlocked && selectedTrainable != null && canDirectTrain;
 		trainSkillButton.active = trainSkillButton.visible && !isTrainingComplete(selectedTrainable);
 		
-		resetSkillsButton.visible = selectedSkill == null && minecraft.player.isCreative();
-		learnAllSkillsButton.visible = selectedSkill == null && minecraft.player.isCreative();
+		resetSkillsButton.visible = selectedSkill == null && selectedPassive == null && minecraft.player.isCreative();
+		learnAllSkillsButton.visible = selectedSkill == null && selectedPassive == null && minecraft.player.isCreative();
 		
 		int x = getWindowX(this);
 		int y = getWindowY(this);
@@ -266,6 +277,8 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 			}
 			spriteY += 20;
 		}
+		Ability hoveredPassive = getHoveredPassive(mouseX, mouseY);
+		float passivesLabelScale = renderPassives(guiGraphics, skillListX, skillListY, abilityIconSprites, p_283123_);
 
 		skillListScrolling.pop(guiGraphics);
 		skillListScrolling.renderScrollBar(skillListX - 8, skillListY + 1, 0, 4, guiGraphics, SCROLL_BAR, 1);
@@ -278,6 +291,19 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 			guiGraphics.drawString(font, title, titleRight - font.width(title), y + 24, textColor, false);
 			cutTitle = font.width(name) > titleRight - (x + TITLE_LEFT) ? name : null;
 			
+			skillDescription.draw(4, 3, guiGraphics, this.minecraft.font, textColor, false);
+			skillDescription.drawSmallScrollBar(guiGraphics);
+			skillControls.draw(4, 3, guiGraphics, this.minecraft.font, textColor, false);
+			skillControls.drawSmallScrollBar(guiGraphics);
+		}
+		else if (selectedPassive != null) {
+			updatePassiveState(p_283123_);
+			Component name = selectedPassive.getName(standPower);
+			int titleRight = x + getWindowWidth() - TITLE_RIGHT_MARGIN;
+			FormattedCharSequence title = fitTitle(name, titleRight - (x + TITLE_LEFT));
+			guiGraphics.drawString(font, title, titleRight - font.width(title), y + 24, textColor, false);
+			cutTitle = font.width(name) > titleRight - (x + TITLE_LEFT) ? name : null;
+
 			skillDescription.draw(4, 3, guiGraphics, this.minecraft.font, textColor, false);
 			skillDescription.drawSmallScrollBar(guiGraphics);
 			skillControls.draw(4, 3, guiGraphics, this.minecraft.font, textColor, false);
@@ -316,7 +342,17 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 			}
 			setTooltipForNextRenderPass(skillNameTooltip);
 		}
-		else if (selectedSkill != null && cutTitle != null && mouseX - x >= TITLE_LEFT
+		else if (hoveredPassive != null && hoveredPassive != selectedPassive) {
+			TooltipParams.set(TooltipParams.paperStyle(1));
+			setTooltipForNextRenderPass(List.of(hoveredPassive.getName(standPower).copy().withStyle(ChatFormatting.BLACK)
+					.getVisualOrderText()));
+		}
+		else if (passivesLabelScale > 0 && isOverPassivesLabel(mouseX, mouseY)) {
+			TooltipParams.set(TooltipParams.paperStyle(1));
+			setTooltipForNextRenderPass(List.of(Component.translatable(PASSIVES_KEY).withStyle(ChatFormatting.BLACK)
+					.getVisualOrderText()));
+		}
+		else if ((selectedSkill != null || selectedPassive != null) && cutTitle != null && mouseX - x >= TITLE_LEFT
 				&& mouseX - x <= getWindowWidth() - TITLE_RIGHT_MARGIN && mouseY - y >= 20 && mouseY - y <= 34) {
 			TooltipParams.set(TooltipParams.paperStyle(1));
 			setTooltipForNextRenderPass(List.of(cutTitle.copy().withStyle(ChatFormatting.BLACK).getVisualOrderText()));
@@ -350,6 +386,139 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 	}
 	
 	public static final int STAND_EXP_NUMBER_COLOR = 0x00A000;
+	public static final String PASSIVES_KEY = "jojo_ripples.stand_skills.passives";
+	private static final int PASSIVE_LINE_COLOR = 0x60000000;
+	private static final int PASSIVE_LABEL_COLOR = 0xFF404040;
+	private static final int PASSIVE_COOLDOWN_COLOR = 0xFF505050;
+	private static final int LOCKED_COLOR = 0xB0B0B0;
+	// the action HUD's cooldown fill over an icon
+	private static final int COOLDOWN_OVERLAY_COLOR = 0x7FFFFFFF;
+
+	// the abilities of the Stand's moveset marked passive, in the moveset's order
+	public static List<Ability> passivesOf(@Nullable StandPower standPower) {
+		if (standPower == null || !standPower.hasPower() || standPower.getMoveset() == null) {
+			return List.of();
+		}
+		return standPower.getMoveset().abilities.values().stream().filter(Ability::isPassive).toList();
+	}
+
+	/*
+	 * Under the skills: a line, the label and a row per passive skill, its icon (grey while it is locked, filled from the
+	 * top for its cooldown as on the action HUD) and a check mark when it is ready, the seconds of its cooldown, or a dash
+	 * while it is locked. Returns the label's scale when the label is cut by the list's edge even at the smallest size,
+	 * so that hovering it shows it whole; else 0.
+	 */
+	private float renderPassives(GuiGraphics guiGraphics, int skillListX, int skillListY, AbilityIconSprites icons,
+			float partialTick) {
+		if (passives.isEmpty()) {
+			return 0;
+		}
+		int skillCount = Iterables.size(skills);
+		int headerY = skillListY + SkillListLayout.passiveHeaderTop(skillCount);
+		guiGraphics.fill(skillListX + 2, headerY + 2, skillListX + 2 + SkillListLayout.LABEL_ROOM, headerY + 3, PASSIVE_LINE_COLOR);
+		Component label = Component.translatable(PASSIVES_KEY);
+		int labelWidth = font.width(label);
+		float scale = TextBoxFit.labelScale(labelWidth, SkillListLayout.LABEL_ROOM);
+		guiGraphics.pose().pushPose();
+		guiGraphics.pose().translate(skillListX + 2, headerY + 5, 0);
+		guiGraphics.pose().scale(scale, scale, 1);
+		guiGraphics.drawString(font, label, 0, 0, PASSIVE_LABEL_COLOR, false);
+		guiGraphics.pose().popPose();
+
+		for (int i = 0; i < passives.size(); i++) {
+			Ability passive = passives.get(i);
+			int spriteX = skillListX + 2;
+			int spriteY = skillListY + SkillListLayout.passiveRowTop(skillCount, i) + SkillListLayout.ROW_GAP;
+			boolean unlocked = passive.isAbilityUnlocked(standPower);
+			TextureAtlasSprite icon = icons.getAbilityIcon(passive, standPower, standSkin);
+			RenderSystem.enableBlend();
+			RenderSystem.defaultBlendFunc();
+			BlitFloat.blit(guiGraphics.pose(), minecraft, icon, spriteX, spriteY, 16, 16, 0,
+					unlocked ? BlitFloat.NO_TINT : 0x40404040);
+			float ratio = standPower.getAbilityCooldownRatio(passive.name(), partialTick);
+			if (ratio > 0) {
+				int fillTop = spriteY + Math.round(16 * (1 - ratio));
+				guiGraphics.fill(spriteX, fillTop, spriteX + 16, spriteY + 16, COOLDOWN_OVERLAY_COLOR);
+				RenderSystem.enableBlend();
+				RenderSystem.defaultBlendFunc();
+			}
+			int cooldown = standPower.getAbilityCooldown(passive.name());
+			if (!unlocked) {
+				guiGraphics.drawString(font, "-", spriteX + 18, spriteY + 4, LOCKED_COLOR, false);
+			}
+			else if (cooldown > 0) {
+				guiGraphics.drawString(font, Component.translatable("jojo_ripples.stand_skills.passive.seconds",
+						SkillListLayout.secondsShown(cooldown)), spriteX + 18, spriteY + 4, PASSIVE_COOLDOWN_COLOR, false);
+			}
+			else {
+				guiGraphics.drawString(font, String.valueOf(IconSymbols.CHECKMARK), spriteX + 18, spriteY + 4, 0xFFFFFFFF);
+			}
+		}
+		return labelWidth * scale > SkillListLayout.LABEL_ROOM ? scale : 0;
+	}
+
+	private boolean isOverPassivesLabel(double mouseX, double mouseY) {
+		int x = getWindowX(this) + SKILL_LIST_X;
+		int y = getWindowY(this) + SKILL_LIST_Y;
+		if (passives.isEmpty() || mouseX < x || mouseX > x + 2 + SkillListLayout.LABEL_ROOM) {
+			return false;
+		}
+		int pos = skillListScrolling.getYHovered(y, (int) mouseY);
+		int top = SkillListLayout.passiveHeaderTop(Iterables.size(skills));
+		return pos >= top && pos < top + SkillListLayout.PASSIVE_HEADER;
+	}
+
+	// the controls box of a passive skill: that it takes no key, then whether it is locked, cooling down or ready
+	private void updatePassiveState(float partialTick) {
+		if (selectedPassive == null) {
+			return;
+		}
+		MutableComponent state = Component.translatable("jojo_ripples.stand_skills.passive").append("\n");
+		ConditionCheck unlock = selectedPassive.getUnlockConditionCheck(standPower);
+		int cooldown = standPower.getAbilityCooldown(selectedPassive.name());
+		if (!unlock.isPositive()) {
+			Component warning = unlock.getWarning();
+			state.append(warning != null ? warning : Component.translatable("jojo.message.action_condition.not_unlocked"));
+		}
+		else if (cooldown > 0) {
+			state.append(Component.translatable("jojo_ripples.stand_skills.passive.cooldown",
+					String.format(java.util.Locale.ROOT, "%.1f", cooldown / 20.0F)));
+		}
+		else {
+			state.append(Component.translatable("jojo_ripples.stand_skills.passive.ready"));
+		}
+		String shown = state.getString();
+		if (!shown.equals(passiveStateShown)) {
+			passiveStateShown = shown;
+			setFittedText(skillControls, state, CONTROLS_TEXT_WIDTH);
+		}
+	}
+
+	@Nullable
+	protected Ability getHoveredPassive(double mouseX, double mouseY) {
+		int x = getWindowX(this) + SKILL_LIST_X;
+		int y = getWindowY(this) + SKILL_LIST_Y;
+		if (mouseX >= x && mouseX <= x + 48) {
+			int index = SkillListLayout.passiveAt(skillListScrolling.getYHovered(y, (int) mouseY), Iterables.size(skills),
+					passives.size());
+			if (index >= 0) {
+				return passives.get(index);
+			}
+		}
+		return null;
+	}
+
+	public void setSelectedPassive(@Nullable Ability passive) {
+		if (passive == null) {
+			setSelectedSkill(null);
+			return;
+		}
+		setSelectedSkill(null);
+		selectedPassive = passive;
+		passiveStateShown = null;
+		setFittedText(skillDescription, StandSkillText.passiveDesc(standPower, standSkin, passive), DESC_TEXT_WIDTH);
+		updatePassiveState(0);
+	}
 	protected Component skinSkillName(UnlockableSkill skill) {
 		return StandSkillText.name(standPower, standSkin, skill);
 	}
@@ -445,13 +614,9 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 		int x = getWindowX(this) + SKILL_LIST_X;
 		int y = getWindowY(this) + SKILL_LIST_Y;
 		if (mouseX >= x && mouseX <= x + 48) {
-			int pos = skillListScrolling.getYHovered(y, (int) mouseY);
-			if (pos >= 0) {
-				int index = pos / 20;
-				int pixel = pos % 20;
-				if (pixel > 3 && index < Iterables.size(skills)) {
-					return Iterables.get(skills, index);
-				}
+			int index = SkillListLayout.skillAt(skillListScrolling.getYHovered(y, (int) mouseY), Iterables.size(skills));
+			if (index >= 0) {
+				return Iterables.get(skills, index);
 			}
 		}
 		return null;
@@ -465,15 +630,22 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 			setSelectedSkill(skill);
 			return true;
 		}
+		Ability passive = getHoveredPassive(mouseX, mouseY);
+		if (passive != null) {
+			setSelectedPassive(passive);
+			return true;
+		}
 		return super.mouseClicked(mouseX, mouseY, button);
 	}
 	
 	public void setSelectedSkill(StandUnlockableSkill skill) {
-		if (this.selectedSkill != skill) {
+		if (this.selectedSkill != skill || selectedPassive != null) {
 			skillDescription.scrolling.setScrollOffset(0);
 			skillControls.scrolling.setScrollOffset(0);
 		}
 		this.selectedSkill = skill;
+		selectedPassive = null;
+		passiveStateShown = null;
 		if (skill != null) {
 			updateSelectedSkillText(getSelectedTrainableAbility());
 			setFittedText(skillControls, skinSkillControls(selectedSkill), CONTROLS_TEXT_WIDTH);
