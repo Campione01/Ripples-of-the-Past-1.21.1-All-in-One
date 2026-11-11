@@ -245,6 +245,40 @@ public final class GoldExperienceLifeformRosterGameTests {
 	}
 
 	@GameTest(template = "empty", batch = BATCH)
+	public static void goldExperienceLifeformSentIntoAnUnloadedChunkOfAnotherDimensionShowsWhereItWent(GameTestHelper helper) {
+		Scene scene = new Scene(helper);
+		ServerLevel nether = helper.getLevel().getServer().getLevel(Level.NETHER);
+		ChunkPos unloaded = new ChunkPos(-211, 173);
+		Vec3 there = new Vec3(unloaded.getMiddleBlockX() + 0.5D, 200.0D, unloaded.getMiddleBlockZ() + 0.5D);
+		Entity arrived = null;
+		try {
+			helper.assertTrue(nether != null && !nether.hasChunk(unloaded.x, unloaded.z),
+					"GE-LIFE premise: the Nether chunk must not be loaded");
+			scene.open(true);
+			Pig pig = scene.pig(0.0D, 4.0D);
+			GECreatedLifeformEffect effect = scene.lifeform(pig);
+			scene.tick();
+			arrived = pig.changeDimension(new DimensionTransition(nether, there, Vec3.ZERO, 0.0F, 0.0F,
+					DimensionTransition.DO_NOTHING));
+			helper.assertTrue(arrived != null && pig.isRemoved(), "GE-LIFE premise: the pig did not go to the Nether");
+			for (int tick = 0; tick <= 20; tick++) {
+				scene.tick();
+			}
+			Row row = scene.row(pig.getUUID());
+			helper.assertTrue(!effect.isStopped() && row.place() == Place.UNLOADED
+					&& Level.NETHER.location().equals(row.dimension()) && row.pos() != null && row.pos().distanceTo(there) < 0.01D,
+					"GE-LIFE: a lifeform sent into an unloaded Nether chunk must show grey where it went, got " + row);
+		}
+		finally {
+			if (arrived != null) {
+				arrived.discard();
+			}
+			scene.close();
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", batch = BATCH)
 	public static void goldExperienceMenuRevertsOnlyTheAskersOwnLifeformAndOnlyOnce(GameTestHelper helper) {
 		Scene scene = new Scene(helper);
 		Scene other = new Scene(helper);

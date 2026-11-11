@@ -2,7 +2,10 @@ package rotp.core.impl.stands.goldexperience;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
@@ -47,6 +50,8 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
     public static final int COUNTED_TICKS = 7 * 60 * 20;
     static final String BORN_TAG = "jojo_ripples:ge_lifeform_born";
     private static final int RELOCATE_INTERVAL = 20;
+    private static final Map<UUID, GECreatedLifeformEffect> BY_CREATURE = new ConcurrentHashMap<>();
+    @Nullable private UUID indexedId;
     private ItemStack sourceItem = ItemStack.EMPTY;
     private ItemStack sourceEntityItemView = ItemStack.EMPTY;
     @Nullable private CompoundTag sourceEntityNbt;
@@ -162,9 +167,12 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
 
     @Override
     protected void start() {
-        if (level != null && !level.isClientSide() && createdGameTime < 0) {
-            createdGameTime = level.getGameTime() - tickCount;
-            createdTimeGuessed = tickCount > 0;
+        if (level != null && !level.isClientSide()) {
+            if (createdGameTime < 0) {
+                createdGameTime = level.getGameTime() - tickCount;
+                createdTimeGuessed = tickCount > 0;
+            }
+            index();
         }
     }
 
@@ -214,6 +222,7 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
             Entity target = getTarget();
             applyLifeformSpawnEffects(target);
             remember(target);
+            index();
         }
     }
 
@@ -262,6 +271,48 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
         else if (createdGameTime >= 0) {
             data.putLong(BORN_TAG, createdGameTime);
         }
+    }
+
+    // the server's records by their creature, for an arrival to find its record without a look at every entity's data
+    private void index() {
+        UUID id = getTargetUUID();
+        if (!Objects.equals(id, indexedId)) {
+            if (indexedId != null) {
+                BY_CREATURE.remove(indexedId, this);
+            }
+            if (id != null) {
+                BY_CREATURE.put(id, this);
+            }
+            indexedId = id;
+        }
+    }
+
+    private void unindex() {
+        if (indexedId != null) {
+            BY_CREATURE.remove(indexedId, this);
+            indexedId = null;
+        }
+    }
+
+    /**
+     * A creature came into a level of the server, as its chunk loaded or it arrived from another dimension, maybe where
+     * nobody has the chunk loaded: if it is a lifeform, its record learns where it is before it can be reached.
+     */
+    static void noteArrival(Entity creature) {
+        GECreatedLifeformEffect effect = BY_CREATURE.get(creature.getUUID());
+        if (effect == null || effect.isStopped()) {
+            return;
+        }
+        Entity target = effect.getTarget();
+        // through a portal the record still holds the creature that left until its next tick
+        if (target == null || target.isRemoved()) {
+            effect.lastDimension = creature.level().dimension();
+            effect.lastPos = creature.position();
+        }
+    }
+
+    static void forgetServerRecords() {
+        BY_CREATURE.clear();
     }
 
     @Override
@@ -389,6 +440,7 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
     @Override
     protected void stop() {
         if (!level.isClientSide()) {
+            unindex();
             Entity target = getTarget();
             if (target != null) {
                 GETransformationEntity.restoreEntitySource(target, getStandUser(), sourceItem, sourceBlock,
