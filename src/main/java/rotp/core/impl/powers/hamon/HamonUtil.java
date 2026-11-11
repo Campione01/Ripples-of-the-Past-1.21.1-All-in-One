@@ -7,6 +7,7 @@ import java.util.Set;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.simulation.EntitySimulations;
 import rotp.core.init.ModCriteriaTriggers;
 import rotp.core.init.ModDamageTypes;
 import rotp.core.init.ModEntityTypes;
@@ -260,7 +261,7 @@ public final class HamonUtil {
 	}
 
 	public static void tryChargeChickenFromChargedEgg(Chicken chicken) {
-		if (!(chicken.level() instanceof ServerLevel serverLevel)) {
+		if (!(chicken.level() instanceof ServerLevel serverLevel) || EntitySimulations.isSimulated(chicken)) {
 			return;
 		}
 		serverLevel.getData(ModDataAttachmentTypes.CHARGED_HAMON_EGGS.get()).eggChargingChicken(chicken)

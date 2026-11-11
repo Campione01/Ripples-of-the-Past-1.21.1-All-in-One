@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import rotp.core.api.simulation.EntitySimulations;
 import rotp.core.core.JojoMod;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.BlockBreaking;
@@ -44,7 +45,10 @@ public class ServerBlockDestroyTracker {
 		BlockBreakResult res = BlockBreakResult.instance;
 		res.progressNew = 0;
 		res.progressAdded = 0;
-		
+		if (EntitySimulations.isSimulated(entity)) {
+			return res;
+		}
+
 		float hardness = blockState.getDestroySpeed(level, blockPos);
 		if (hardness < 0) { // unbreakable blocks like bedrock
 			return res;
