@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -46,6 +47,7 @@ import rotp.core.core.JojoMod;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
+import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.ability.condition.AvailableAbilities.AbilityConditionCheck;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.ability.controls.InputMethod;
@@ -215,6 +217,7 @@ public class PowerHudControlsElement extends HudElement {
 	private static final int COOLDOWN_OVERLAY_COLOR = 0x7FFFFFFF;
 	/** 1.16 ActionsOverlayGui.renderActionIcon: fillSingleRect(0, 255, 0, 127) behind a held-ready icon. */
 	public static final int HELD_READY_TO_FIRE_FILL = 0x7F00FF00;
+	public static final int RUNNING_WITH_STAND_RECALLED_FILL = 0x7FFFC000;
 	/** 1.16 HotbarRenderer.renderSlotSelection with greenSelection: the frame tinted (0, 1, 0, hotbar alpha). */
 	public static final int GREEN_SELECTION = 0xFF00FF00;
 	
@@ -590,6 +593,9 @@ public class PowerHudControlsElement extends HudElement {
 				for (Map.Entry<InputMethod, AbilityBindUI> abilitySprite : bind.abilities.entrySet()) {
 					AbilityBindUI ability = abilitySprite.getValue();
 					boolean heldReadyToFire = renderHeldReadyToFire(guiGraphics, x, y, ability, mc);
+					if (!heldReadyToFire) {
+						renderRunningWithStandRecalled(guiGraphics, x, y, ability, mc);
+					}
 					renderAbility(guiGraphics, x, y, ability, mc, partialTick, alpha);
 
 					boolean isClicked = controlsEnabled && switch (ability.inputMethod) {
@@ -656,6 +662,9 @@ public class PowerHudControlsElement extends HudElement {
 				for (HotbarSlotUI slot : hotbar.slots) {
 					boolean heldReadyToFire = slot.sprite != null
 							&& renderHeldReadyToFire(guiGraphics, x, y, slot.sprite, mc);
+					if (slot.sprite != null && !heldReadyToFire) {
+						renderRunningWithStandRecalled(guiGraphics, x, y, slot.sprite, mc);
+					}
 					if (slot.sprite != null) {
 						renderAbility(guiGraphics, x, y, slot.sprite, mc, partialTick, alpha);
 					}
@@ -745,6 +754,26 @@ public class PowerHudControlsElement extends HudElement {
 		RenderSystem.enableBlend();
 		RenderSystem.defaultBlendFunc();
 		return true;
+	}
+
+	/*
+	 * The owner's 收回仍持續: a skill that goes on with its Stand recalled (Ability#cl_runsWithStandRecalled) has its slot
+	 * lit while the Stand is away, behind the icon as the held-ready fill, in gold.
+	 */
+	private static void renderRunningWithStandRecalled(GuiGraphics guiGraphics, int x, int y, AbilityBindUI abilityUi, Minecraft mc) {
+		Ability ability = abilityUi.ability.ability;
+		if (mc.player == null || !showsRunningWithStandRecalled(StandUtil.getSummonedStand(mc.player) != null,
+				ability.abilityId.powerClass() == PowerClass.STAND, () -> ability.cl_runsWithStandRecalled(mc.player))) {
+			return;
+		}
+		guiGraphics.fill(x + 1, y + 1, x + 21, y + 21, RUNNING_WITH_STAND_RECALLED_FILL);
+		RenderSystem.enableBlend();
+		RenderSystem.defaultBlendFunc();
+	}
+
+	// only a Stand-power ability, only with no Stand out: with the Stand out its own slot drawing tells the state
+	static boolean showsRunningWithStandRecalled(boolean standOut, boolean standPowerAbility, BooleanSupplier runs) {
+		return !standOut && standPowerAbility && runs.getAsBoolean();
 	}
 
 	public static void renderAbility(GuiGraphics guiGraphics, float x, float y, AbilityBindUI abilityUi, Minecraft mc, float partialTick, int alpha) {
