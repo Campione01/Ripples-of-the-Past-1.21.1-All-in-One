@@ -321,14 +321,16 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
             Entity target = getTarget();
             Entity lifeform = target instanceof GETransformationEntity transformation
                     && transformation.getTransformationTarget() != null ? transformation.getTransformationTarget() : target;
-            if (userPower != null
+            // 1.16 ties a lifeform to its creator while it still takes one of the 16 places: it costs him stamina every
+            // tick and turns back when he has none, or when he is too far in its own dimension. Past the 7 minutes it is
+            // free of him and goes on existing wherever he goes
+            boolean tied = countsTowardLimit(level.getGameTime());
+            if (tied && userPower != null
                     && !userPower.consumeStamina(GoldExperienceCreateLifeformAbility.getStaminaCostTicking(userPower, lifeform), true)) {
                 remove();
                 return;
             }
-            // 1.16's leash: a lifeform still taking one of the 16 places turns back when its user is too far in its own
-            // dimension; one past the 7 minutes goes on existing wherever he goes
-            if (target != null && countsTowardLimit(level.getGameTime()) && target.level() == getStandUser().level()
+            if (target != null && tied && target.level() == getStandUser().level()
                     && target.distanceToSqr(getStandUser()) > MAX_LIFEFORM_DISTANCE * MAX_LIFEFORM_DISTANCE) {
                 remove();
                 return;

@@ -162,6 +162,81 @@ public final class GoldExperienceLifeformRosterGameTests {
 		helper.succeed();
 	}
 
+	// the coordinator's last point of 2026-11-10: past 7 minutes a lifeform is free of its creator, his stamina included
+	@GameTest(template = "empty", batch = BATCH)
+	public static void goldExperienceLifeformPastSevenMinutesCostsItsCreatorNoStamina(GameTestHelper helper) {
+		Scene none = new Scene(helper);
+		Scene free = new Scene(helper);
+		Scene counting = new Scene(helper);
+		try {
+			none.open(false);
+			free.openAt(none.origin.add(6.0D, 0.0D, 0.0D), false);
+			counting.openAt(none.origin.add(12.0D, 0.0D, 0.0D), false);
+			Pig freePig = free.pig(0.0D, 4.0D);
+			Pig countingPig = counting.pig(0.0D, 4.0D);
+			GECreatedLifeformEffect freeRecord = free.lifeformCreatedAt(freePig,
+					free.level.getGameTime() - GECreatedLifeformEffect.COUNTED_TICKS - 1);
+			freeRecord.withTarget(freePig);
+			GECreatedLifeformEffect countingRecord = counting.lifeform(countingPig);
+			float start = none.power.getMaxStamina() / 2.0F;
+			for (Scene scene : List.of(none, free, counting)) {
+				scene.power.setStamina(start);
+			}
+			helper.assertTrue(none.power.usesStamina() && !none.power.isStaminaInfinite()
+					&& free.power.getStamina() == start && counting.power.getStamina() == start,
+					"GE-LIFE premise: the three users do not start with the same finite stamina");
+			// three users alike but for their lifeform: none, one past 7 minutes, one that counts. What a user's stamina
+			// is below the one without a lifeform is what his lifeform took; a tick's cost is paid on the next tick
+			for (int tick = 0; tick < 3; tick++) {
+				none.tick();
+				free.tick();
+				counting.tick();
+			}
+			float perTick = GoldExperienceCreateLifeformAbility.getStaminaCostTicking(counting.power, countingPig);
+			float tookCounting = none.power.getStamina() - counting.power.getStamina();
+			float tookFree = none.power.getStamina() - free.power.getStamina();
+			helper.assertTrue(!countingRecord.isStopped() && Math.abs(tookCounting - 2.0F * perTick) < perTick * 0.25F,
+					"GE-LIFE: a lifeform that still counts must cost its creator stamina every tick, as in 1.16 (took "
+							+ tookCounting + ", " + perTick + " a tick)");
+			helper.assertTrue(!freeRecord.isStopped() && Math.abs(tookFree) < perTick * 0.25F,
+					"GE-LIFE: a lifeform past 7 minutes still drains its creator's stamina (took " + tookFree + ")");
+		}
+		finally {
+			counting.close();
+			free.close();
+			none.close();
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", batch = BATCH)
+	public static void goldExperienceLifeformPastSevenMinutesOutlastsItsCreatorsStamina(GameTestHelper helper) {
+		Scene scene = new Scene(helper);
+		try {
+			scene.open(false);
+			Pig countingPig = scene.pig(0.0D, 4.0D);
+			Pig freePig = scene.pig(2.0D, 4.0D);
+			GECreatedLifeformEffect countingRecord = scene.lifeform(countingPig);
+			GECreatedLifeformEffect freeRecord = scene.lifeformCreatedAt(freePig,
+					scene.level.getGameTime() - GECreatedLifeformEffect.COUNTED_TICKS - 1);
+			freeRecord.withTarget(freePig);
+			scene.tick();
+			helper.assertTrue(!countingRecord.isStopped() && !freeRecord.isStopped(),
+					"GE-LIFE premise: the two lifeforms did not last a tick with stamina to spare");
+			// his stamina runs out: only the lifeforms' own ticks, so no regeneration comes between
+			scene.power.setStamina(0.0F);
+			scene.power.userStandEffects.tick();
+			helper.assertTrue(countingRecord.isStopped(),
+					"GE-LIFE: a lifeform that still counts must turn back when its creator's stamina runs out, as in 1.16");
+			helper.assertTrue(!freeRecord.isStopped() && freePig.isAlive(),
+					"GE-LIFE: a lifeform past 7 minutes turned back when its creator's stamina ran out; it must go on existing");
+		}
+		finally {
+			scene.close();
+		}
+		helper.succeed();
+	}
+
 	@GameTest(template = "empty", batch = BATCH)
 	public static void goldExperienceLifeformRecordFollowsItsCreatureThroughAnUnload(GameTestHelper helper) {
 		Scene scene = new Scene(helper);
