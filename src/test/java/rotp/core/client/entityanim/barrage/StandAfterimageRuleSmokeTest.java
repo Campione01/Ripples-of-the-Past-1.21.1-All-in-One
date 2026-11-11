@@ -71,6 +71,7 @@ public final class StandAfterimageRuleSmokeTest {
 			row("rotp-gold-experience-requiem", "geraddon:ger_stand", "geraddon:ger_stand", "TWO_HANDED"),
 			row("rotp-grateful-dead", "rotp_nextalbum:the_grateful_dead", "rotp_nextalbum:the_grateful_dead", "GRATEFUL_DEAD_RIGHT_HAND"),
 			row("rotp-green-day", "rotp_zgd:green_day", "rotp_zgd:green_day", "TWO_HANDED"),
+			row("rotp-guanggun", "guanggun:guanggun", "guanggun:guanggun", "TWO_HANDED"),
 			row("rotp-heavens-door", "rotp_hd:heavens_door", "rotp_hd:heavens_door", "TWO_HANDED"),
 			row("rotp-highway-star", "highwaystar:highway_star", "highwaystar:highway_star", "TWO_HANDED"),
 			row("rotp-jumping-jack-flash", "jumping_jack_flash:jumping_jack_flash", "jumping_jack_flash:jumping_jack_flash", "TWO_HANDED"),
@@ -97,10 +98,8 @@ public final class StandAfterimageRuleSmokeTest {
 			row("rotp-weather-report", "rotp_wr:weather_report", "rotp_wr:weather_report", "TWO_HANDED"),
 			row("rotp-whitesnake", "rotp_whitesnake:whitesnake", "rotp_whitesnake:whitesnake", "TWO_HANDED"),
 	};
-	private static final int SKIN_COUNT = 43;
+	private static final int SKIN_COUNT = 44;
 	private static final int LARGE_RIG = 80;
-	// no clip of its own moves its arms and none names a swing: the rule's shared swing, posed by stand_default
-	private static final Row GUANGGUN = row("rotp-guanggun", "guanggun:guanggun", "guanggun:guanggun", null);
 
 	private static final Set<String> SWINGS = Set.of("TWO_HANDED", "ONE_HANDED_MAIN", "GRAB_RIGHT", "GRATEFUL_DEAD_RIGHT_HAND");
 
@@ -359,12 +358,6 @@ public final class StandAfterimageRuleSmokeTest {
 			}
 			checkAcceptedTiming(row, found.clip());
 			checked++;
-		}
-		if (tree) {
-			RigAndClip guanggun = load(GUANGGUN, addons, generic);
-			check(guanggun.swing() == null, "guanggun: its clip now names " + guanggun.swing() + ": take it out of the rule's case");
-			check(!guanggun.clip().strokesArms(), "guanggun: its clip now moves its arms");
-			check(armOf(guanggun.root(), HumanoidArm.RIGHT) != null && armOf(guanggun.root(), HumanoidArm.LEFT) != null, "guanggun: arms lost");
 		}
 		check(!tree || checked == SKIN_COUNT, "checked " + checked + " of " + SKIN_COUNT);
 		System.out.println("Skins with their own arms checked: " + checked + " of " + SKIN_COUNT + (tree ? "" : " (no add-on tree)"));
