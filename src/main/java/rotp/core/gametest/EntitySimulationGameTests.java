@@ -27,6 +27,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Cow;
+import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
@@ -167,6 +168,34 @@ public final class EntitySimulationGameTests {
 			EntitySimulations.unregister(OWNER);
 			real.discard();
 		}
+		helper.succeed();
+	}
+
+	// a copy never joins and is not ticked by its level: the add-on runs the core's join and tick work for it
+	@GameTest(template = "empty")
+	public static void theCoresJoinAndTickWorkRunForACopyOutsideTheWorld(GameTestHelper helper) {
+		IronGolem golem = EntityType.IRON_GOLEM.create(helper.getLevel());
+		Zombie zombie = EntityType.ZOMBIE.create(helper.getLevel());
+		helper.assertTrue(golem != null && zombie != null, "Setup: could not create the copies");
+		Vec3 at = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(2, 1, 2)));
+		golem.moveTo(at.x, at.y, at.z, 0, 0);
+		zombie.moveTo(at.x, at.y, at.z, 0, 0);
+		int goals = golem.targetSelector.getAvailableGoals().size();
+		EntitySimulations.runJoinWork(golem, false);
+		helper.assertTrue(golem.targetSelector.getAvailableGoals().size() == goals + 1,
+				"The core's join work did not give an iron golem copy its target goal against vampires: " + goals + " -> "
+						+ golem.targetSelector.getAvailableGoals().size());
+
+		StandType type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
+		StandPower power = PowerClass.STAND.attachGet(zombie);
+		helper.assertTrue(type != null && StandPowerTransitions.insert(power, new StandInstance(type)).status()
+				== StandPowerTransitions.Status.APPLIED, "Setup: could not give the copy Star Platinum");
+		power.setStamina(power.getMaxStamina() / 2);
+		float stamina = power.getStamina();
+		EntitySimulations.runTickStartWork(zombie);
+		EntitySimulations.runTickEndWork(zombie);
+		helper.assertTrue(power.getStamina() > stamina, "The core's tick work did not tick the copy's Stand power: stamina "
+				+ stamina + " -> " + power.getStamina());
 		helper.succeed();
 	}
 

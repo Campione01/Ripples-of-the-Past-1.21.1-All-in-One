@@ -86,7 +86,10 @@ public final class NoKnockbackOnBlocking {
 	// 1.16 removed it on the entity's next LivingUpdateEvent, on either side
 	@SubscribeEvent
 	public static void onEntityTick(EntityTickEvent.Pre event) {
-		Entity entity = event.getEntity();
+		onTickStarting(event.getEntity());
+	}
+
+	public static void onTickStarting(Entity entity) {
 		Set<LivingEntity> pending = entity.level().isClientSide() ? PENDING_CLIENT : PENDING;
 		if (pending.isEmpty() || !(entity instanceof LivingEntity living) || !pending.remove(living)) {
 			return;
