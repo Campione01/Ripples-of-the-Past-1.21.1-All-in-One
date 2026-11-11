@@ -266,7 +266,8 @@ public final class JojoConfigCommand {
 				false);
 	}
 
-	private static Path ensurePackBase(MinecraftServer server)
+	/** The world's jojoconfig pack with its pack.mcmeta: what the settings screen's Stands page writes into too. */
+	public static Path ensurePackBase(MinecraftServer server)
 			throws IOException {
 		Path packRoot = packRoot(server);
 		Files.createDirectories(packRoot);
@@ -276,7 +277,7 @@ public final class JojoConfigCommand {
 		return packRoot;
 	}
 
-	static Path packRoot(MinecraftServer server) {
+	public static Path packRoot(MinecraftServer server) {
 		return server.getWorldPath(LevelResource.DATAPACK_DIR)
 				.resolve(PACK_NAME).toAbsolutePath().normalize();
 	}
@@ -296,6 +297,11 @@ public final class JojoConfigCommand {
 	}
 
 	static Path standStatsPath(Path packRoot, ResourceLocation standId) {
+		return standFilePath(packRoot, standId, STATS_FILE);
+	}
+
+	/** A file of the Stand's own folder, which DataDrivenStandsLoader stitches into its config under the file's name. */
+	public static Path standFilePath(Path packRoot, ResourceLocation standId, String fileName) {
 		Path normalizedRoot = packRoot.toAbsolutePath().normalize();
 		Path statsRoot = normalizedRoot.resolve("data")
 				.resolve(standId.getNamespace())
@@ -306,7 +312,7 @@ public final class JojoConfigCommand {
 			throw new IllegalArgumentException(
 					"Stand ID escapes generated data root: " + standId);
 		}
-		return standRoot.resolve(STATS_FILE);
+		return standRoot.resolve(fileName);
 	}
 
 	static WriteResult writeStandStats(
@@ -323,7 +329,7 @@ public final class JojoConfigCommand {
 
 	static record WriteResult(Path path, boolean written) {}
 
-	static void writeJsonFile(Path path, JsonElement json) throws IOException {
+	public static void writeJsonFile(Path path, JsonElement json) throws IOException {
 		Files.createDirectories(path.getParent());
 		Files.writeString(path, GSON.toJson(json), StandardCharsets.UTF_8,
 				StandardOpenOption.CREATE,

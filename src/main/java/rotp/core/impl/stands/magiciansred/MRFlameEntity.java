@@ -12,6 +12,7 @@ import rotp.core.subsystems.target.ActionTarget.TargetType;
 import rotp.core.util.functions.DamageUtil;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.impl.stands.crazydiamond.CrazyDRestoreTerrainAbility;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -32,8 +33,6 @@ import net.neoforged.neoforge.event.EventHooks;
 
 public class MRFlameEntity extends ModdedProjectileEntity {
 
-	private static final int ORIGINAL_FIRE_SECONDS = 10;
-	private static final int ORIGINAL_FIRE_TICKS = ORIGINAL_FIRE_SECONDS * 20;
 
 	private Vec3 startingPos;
 
@@ -103,7 +102,7 @@ public class MRFlameEntity extends ModdedProjectileEntity {
 	@Override
 	protected boolean hurtTarget(Entity target, @Nullable LivingEntity owner) {
 		return DamageUtil.dealDamageAndSetOnFire(target,
-				entity -> super.hurtTarget(entity, owner), ORIGINAL_FIRE_TICKS, true);
+				entity -> super.hurtTarget(entity, owner), StandSpecials.MR_BURN_SECONDS.ticksFor(owner), true);
 	}
 
 	@Override

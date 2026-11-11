@@ -34,6 +34,17 @@ abstract class PaperDialog extends Screen {
 		parent.resize(minecraft, width, height);
 	}
 
+	// a card rebuilt for its next state (waiting, asking to discard) keeps the place in its list, as the screen does
+	@Override
+	protected void setInitialFocus() {
+		if (!focusedOnce) {
+			focusedOnce = true;
+			super.setInitialFocus();
+		}
+	}
+
+	private boolean focusedOnce;
+
 	// a button that rebuilds the card from its own press is gone when the click hands it the focus: Enter must not press it again
 	@Override
 	public void setFocused(@Nullable GuiEventListener listener) {

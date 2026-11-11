@@ -8,6 +8,7 @@ import rotp.core.customobjects.entity_projectile.ModdedProjectileEntity;
 import rotp.core.init.ModBlocks;
 import rotp.core.init.ModEntityTypes;
 import rotp.core.util.functions.DamageUtil;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -25,8 +26,6 @@ public class MRFireballEntity extends ModdedProjectileEntity implements ItemSupp
 	private static final ResourceLocation MR_FIREBALL_ITEM_MODEL = JojoMod.resLoc("item_icon_mr_fireball");
 	private static ItemStack mrFireballSpriteItem = ItemStack.EMPTY;
 
-	private static final int ORIGINAL_FIRE_SECONDS = 10;
-	private static final int ORIGINAL_FIRE_TICKS = ORIGINAL_FIRE_SECONDS * 20;
 
 	public MRFireballEntity(LivingEntity shooter, Level level) {
 		super(ModEntityTypes.MR_FIREBALL.get(), shooter, level);
@@ -77,7 +76,7 @@ public class MRFireballEntity extends ModdedProjectileEntity implements ItemSupp
 	@Override
 	protected boolean hurtTarget(Entity target, @Nullable LivingEntity owner) {
 		return DamageUtil.dealDamageAndSetOnFire(target,
-				entity -> super.hurtTarget(entity, owner), ORIGINAL_FIRE_TICKS, true);
+				entity -> super.hurtTarget(entity, owner), StandSpecials.MR_BURN_SECONDS.ticksFor(owner), true);
 	}
 
 	@Override

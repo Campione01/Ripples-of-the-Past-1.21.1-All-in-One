@@ -11,6 +11,7 @@ import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.core.Holder;
 import net.minecraft.sounds.SoundEvent;
@@ -24,7 +25,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public class TheWorldKickAbility extends StandEntityHeavyPunchAbility {
-	private static final float KICK_SWEEP_DAMAGE_FACTOR = 0.5F;
 
 	public TheWorldKickAbility(AbilityType<?> abilityType, AbilityId abilityId) {
 		super(abilityType, abilityId);
@@ -68,7 +68,7 @@ public class TheWorldKickAbility extends StandEntityHeavyPunchAbility {
 			}
 			super.hitEntity(target, level, stand, dmgSource, dmgAmount, explRadius);
 			// 1.16 StandEntityPunch.doHit sweeps after every primary attempt, including a refused hurt.
-			sweepTargetsAroundKick(targetEntity, level, stand, dmgAmount * KICK_SWEEP_DAMAGE_FACTOR);
+			sweepTargetsAroundKick(targetEntity, level, stand, dmgAmount * (float) StandSpecials.TW_KICK_SWEEP_SHARE.getFor(stand));
 		}
 
 		@Override

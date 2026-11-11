@@ -25,6 +25,7 @@ import rotp.core.subsystems.target.HitResultUtil;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
@@ -43,7 +44,6 @@ public class MagiciansRedCrossfireHurricaneAbility extends StandEntityAbility im
 	private static final int STAMINA_COST = 500;
 	private static final float NORMAL_SHOT_VELOCITY = 1.25F;
 	private static final float SPECIAL_SHOT_VELOCITY = 2.0F;
-	private static final int SPECIAL_SHOT_COUNT = 8;
 	private static final float SPECIAL_SPREAD_DEGREES = 1.5F;
 	private static final double SPECIAL_AIM_RANGE = 64.0D;
 
@@ -168,7 +168,7 @@ public class MagiciansRedCrossfireHurricaneAbility extends StandEntityAbility im
 				return;
 			}
 			boolean special = SPECIAL_ABILITY.equals(ability.getAbilityId().nameInMoveset());
-			int shots = special ? SPECIAL_SHOT_COUNT : 1;
+			int shots = special ? StandSpecials.MR_CROSSFIRE_SHOTS.getInt(StandPower.get(user)) : 1;
 			Vec3 targetPos = special ? getAimTarget(level, stand, user) : null;
 			for (int i = 0; i < shots; i++) {
 				MRCrossfireHurricaneEntity cross = new MRCrossfireHurricaneEntity(special, performer, level);
@@ -178,8 +178,8 @@ public class MagiciansRedCrossfireHurricaneAbility extends StandEntityAbility im
 					cross.setSpecial(targetPos);
 				}
 				cross.shootFromRotation(performer,
-						performer.getXRot() + specialXRotOffset(special, i),
-						performer.getYRot() + specialYRotOffset(special, i),
+						performer.getXRot() + specialXRotOffset(special, i, shots),
+						performer.getYRot() + specialYRotOffset(special, i, shots),
 						0,
 						special ? SPECIAL_SHOT_VELOCITY : NORMAL_SHOT_VELOCITY,
 						0);
@@ -247,19 +247,19 @@ public class MagiciansRedCrossfireHurricaneAbility extends StandEntityAbility im
 					aiming, standPrecision, ClipContext.Block.OUTLINE);
 		}
 
-		private static float specialXRotOffset(boolean special, int shotIndex) {
+		private static float specialXRotOffset(boolean special, int shotIndex, int shots) {
 			if (!special || shotIndex == 0) {
 				return 0;
 			}
-			double angle = ((double) shotIndex / (double) SPECIAL_SHOT_COUNT + 0.5D) * Math.PI;
+			double angle = ((double) shotIndex / (double) shots + 0.5D) * Math.PI;
 			return (float) Math.sin(angle) * SPECIAL_SPREAD_DEGREES;
 		}
 
-		private static float specialYRotOffset(boolean special, int shotIndex) {
+		private static float specialYRotOffset(boolean special, int shotIndex, int shots) {
 			if (!special || shotIndex == 0) {
 				return 0;
 			}
-			double angle = ((double) shotIndex / (double) SPECIAL_SHOT_COUNT + 0.5D) * Math.PI;
+			double angle = ((double) shotIndex / (double) shots + 0.5D) * Math.PI;
 			return (float) Math.cos(angle) * SPECIAL_SPREAD_DEGREES;
 		}
 	}

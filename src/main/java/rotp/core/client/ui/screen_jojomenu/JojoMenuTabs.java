@@ -448,4 +448,9 @@ public class JojoMenuTabs {
 			.withScreen(tab -> new ModConfigScreen(null, ModConfigScreen.Page.GAMEPLAY))
 			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/settings/gameplay.png"), 16, 16));
 
+	public static final Tab SETTINGS_STANDS = new Tab(CATEGORY_SETTINGS)
+			.withName(Component.translatable("jojo_ripples.config.screen.page.stands"))
+			.withScreen(tab -> new ModConfigScreen(null, ModConfigScreen.Page.STANDS))
+			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/settings/stands.png"), 16, 16));
+
 }

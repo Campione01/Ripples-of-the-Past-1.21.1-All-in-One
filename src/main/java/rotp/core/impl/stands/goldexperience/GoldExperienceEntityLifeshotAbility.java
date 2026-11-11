@@ -22,6 +22,7 @@ import rotp.core.subsystems.target.ActionTargetRange;
 import rotp.core.util.reflection.CommonReflection;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands.goldexperience.GoldExperienceHeavyPunchAbility.ToothKnockingHeavyPunch;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.tags.EntityTypeTags;
@@ -40,7 +41,6 @@ public class GoldExperienceEntityLifeshotAbility extends NoPoseStandEntityAbilit
     public static final int REDUCTION_SHORT_DELAY = 40;
     public static final int REDUCTION_LONG_DELAY = 20;
     public static final int STAMINA_COST = 50;
-    private static final double REACH = 8.0D;
 
     public GoldExperienceEntityLifeshotAbility(AbilityType<?> abilityType, AbilityId abilityId) {
         super(abilityType, abilityId, LifeshotAction::new);
@@ -188,7 +188,7 @@ public class GoldExperienceEntityLifeshotAbility extends NoPoseStandEntityAbilit
     // 1.16 Action.checkRangeAndTarget: from the Stand while it is out, less without a line of sight
     private static boolean isWithinLifeShotRange(ActionTarget target, LivingEntity user, Level level) {
         return ActionTargetRange.isTargetWithinRange(ActionTargetRange.standPerformer(user), target, level,
-                REACH * REACH, REACH * REACH);
+                reach(user) * reach(user), reach(user) * reach(user));
     }
 
     private static boolean isSyncedLifeShotTargetTooFar(LivingEntity user, Level level) {
@@ -203,7 +203,7 @@ public class GoldExperienceEntityLifeshotAbility extends NoPoseStandEntityAbilit
             return false;
         }
         if (!target.getType().is(EntityTypeTags.UNDEAD) && !target.hasEffect(ModStatusEffects.SENSORY_OVERLOAD)) {
-            giveEffectWithResist(target);
+            giveEffectWithResist(target, user);
             return true;
         }
         if (target instanceof ZombieVillager zombieVillager) {
@@ -213,8 +213,17 @@ public class GoldExperienceEntityLifeshotAbility extends NoPoseStandEntityAbilit
         return false;
     }
 
+    private static double reach(LivingEntity user) {
+        return StandSpecials.GE_LIFESHOT_REACH.getFor(user);
+    }
+
     public static void giveEffectWithResist(LivingEntity target) {
-        int duration = GELifeshotState.get(target).onLifeShot(MAX_DURATION);
+        giveEffectWithResist(target, null);
+    }
+
+    /** A Life Shot as long as the user's Gold Experience gives (MAX_DURATION unless the server changed it; without a user too). */
+    public static void giveEffectWithResist(LivingEntity target, LivingEntity user) {
+        int duration = GELifeshotState.get(target).onLifeShot(StandSpecials.GE_LIFESHOT_SECONDS.ticksFor(user));
         if (duration > 0) {
             target.addEffect(new MobEffectInstance(ModStatusEffects.SENSORY_OVERLOAD, duration, 0, false, false, false));
         }

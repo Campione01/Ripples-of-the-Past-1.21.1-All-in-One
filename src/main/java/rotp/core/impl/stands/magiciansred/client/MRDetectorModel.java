@@ -1,6 +1,5 @@
 package rotp.core.impl.stands.magiciansred.client;
 
-import static rotp.core.impl.stands.magiciansred.MRDetectorEntity.DETECTION_RADIUS;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -73,7 +72,8 @@ public class MRDetectorModel extends EntityModel<MRDetectorEntity> {
 				};
 				if (direction.getAxisDirection() == Direction.AxisDirection.POSITIVE && distance >= -1.0F
 						|| direction.getAxisDirection() == Direction.AxisDirection.NEGATIVE && distance <= 1.0F) {
-					entry.setValue(((float) DETECTION_RADIUS - Math.abs(distance)) / (float) DETECTION_RADIUS);
+					float radius = (float) entity.getDetectionRadius();
+					entry.setValue((radius - Math.abs(distance)) / radius);
 				}
 				else {
 					entry.setValue(-1.0F);

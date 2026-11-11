@@ -45,9 +45,11 @@ public final class ConfigEditorPackets {
 	private static final int NUMBER_CHARS = 64;
 	private static final int LIST_LIMIT = 1024;
 	private static final int SYNCED_LIST_LIMIT = 64;
-	// about 480 settings with today's add-ons, and a Reset All can change them all
-	private static final int ENTRY_LIMIT = 1024;
+	// about 480 settings with today's add-ons and 18 or more for each of the 76 Stands, and a Reset All can change them all
+	private static final int ENTRY_LIMIT = 4096;
 	private static final int CHOICE_LIMIT = 32;
+	// a list's offered items (ConfigChoices) may be as many as the list may hold: the reply's byte guard still stands
+	private static final int OFFERED_LIMIT = ConfigChoices.LIMIT;
 	private static final int REQUEST_BYTES = 272 * 1024;
 	private static final int REPLY_BYTES = 1024 * 1024;
 	private static final long GAP_WITHOUT_EDIT_MILLIS = 250L;
@@ -57,8 +59,8 @@ public final class ConfigEditorPackets {
 	private ConfigEditorPackets() {}
 
 	public static void register(PayloadRegistrar registrar) {
-		// 2: a reply may carry more entries than a version 1 client accepts, so the two never pair
-		var editor = registrar.versioned("2").optional();
+		// 2: a reply may carry more entries than a version 1 client accepts, so the two never pair; 3: the same for 2
+		var editor = registrar.versioned("3").optional();
 		editor.playToServer(Request.TYPE, Request.CODEC, ConfigEditorPackets::handleRequest);
 		editor.playToClient(Reply.TYPE, Reply.CODEC, ConfigEditorPackets::handleReply);
 	}
@@ -284,7 +286,10 @@ public final class ConfigEditorPackets {
 	private static boolean fitsEntry(ConfigEntry entry) {
 		return fitsValue(entry.defaultValue()) && fitsValue(entry.value())
 				&& fitsName(entry.key()) && fitsName(entry.group()) && (entry.translationKey() == null || fitsName(entry.translationKey()))
-				&& entry.choices().size() <= CHOICE_LIMIT && entry.choices().stream().allMatch(ConfigEditorPackets::fitsName);
+				&& entry.choices().size() <= CHOICE_LIMIT && entry.choices().stream().allMatch(ConfigEditorPackets::fitsName)
+				&& (entry.listChoices() == null || entry.listChoices().size() <= OFFERED_LIMIT
+						&& entry.listChoices().stream().allMatch(choice -> fitsName(choice.id()) && fitsName(choice.name())
+								&& (choice.translationKey() == null || fitsName(choice.translationKey()))));
 	}
 
 	private static boolean fitsName(String name) {
@@ -314,6 +319,15 @@ public final class ConfigEditorPackets {
 		buf.writeEnum(entry.restart());
 		buf.writeBoolean(entry.synced());
 		writeOptionalText(buf, entry.translationKey());
+		buf.writeBoolean(entry.listChoices() != null);
+		if (entry.listChoices() != null) {
+			writeCount(buf, entry.listChoices().size(), OFFERED_LIMIT);
+			for (ConfigChoices.Choice choice : entry.listChoices()) {
+				buf.writeUtf(choice.id(), KEY_LIMIT);
+				buf.writeUtf(choice.name(), KEY_LIMIT);
+				writeOptionalText(buf, choice.translationKey());
+			}
+		}
 	}
 
 	private static ConfigEntry readEntry(RegistryFriendlyByteBuf buf) {
@@ -324,8 +338,19 @@ public final class ConfigEditorPackets {
 		int count = readCount(buf, CHOICE_LIMIT);
 		var choices = new ArrayList<String>(count);
 		for (int i = 0; i < count; i++) choices.add(buf.readUtf(KEY_LIMIT));
+		Restart restart = buf.readEnum(Restart.class);
+		boolean synced = buf.readBoolean();
+		String translationKey = readOptionalText(buf);
+		List<ConfigChoices.Choice> offered = null;
+		if (buf.readBoolean()) {
+			int offeredCount = readCount(buf, OFFERED_LIMIT);
+			offered = new ArrayList<>(offeredCount);
+			for (int i = 0; i < offeredCount; i++) {
+				offered.add(new ConfigChoices.Choice(buf.readUtf(KEY_LIMIT), buf.readUtf(KEY_LIMIT), readOptionalText(buf)));
+			}
+		}
 		return new ConfigEntry(key, group, Side.SERVER, kind, element, defaultValue, value, bounds, listSize, choices,
-				buf.readEnum(Restart.class), buf.readBoolean(), readOptionalText(buf));
+				restart, synced, translationKey, offered);
 	}
 
 	private static void writeBounds(RegistryFriendlyByteBuf buf, @Nullable Bounds bounds) {

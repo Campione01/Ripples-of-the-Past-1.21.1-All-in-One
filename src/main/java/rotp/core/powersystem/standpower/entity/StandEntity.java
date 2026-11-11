@@ -2680,7 +2680,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 					float staminaCost = StandStatFormulas.getGuardStaminaCost(dmgAmount);
 					float stamina = userPower.getStamina();
 					if (!userPower.consumeStamina(staminaCost)) {
-						blockedRatio = staminaCost > 0 ? Mth.clamp(stamina / staminaCost, 0, 1) : 1F;
+						float asked = userPower.getStaminaCostShare(staminaCost);
+						blockedRatio = asked > 0 ? Mth.clamp(stamina / asked, 0, 1) : 1F;
 						standCrash();
 					}
 				}

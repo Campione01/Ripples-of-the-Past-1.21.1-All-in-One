@@ -35,7 +35,7 @@ public class MRDetectorSound extends AbstractTickableSoundInstance {
 			this.y = detector.getY();
 			this.z = detector.getZ();
 			float distance = Mth.sqrt((float) detector.getDetectedDirection().lengthSqr());
-			this.volume = 1.0F - distance / (float) MRDetectorEntity.DETECTION_RADIUS * 0.5F;
+			this.volume = 1.0F - distance / (float) detector.getDetectionRadius() * 0.5F;
 		}
 		else {
 			stop();

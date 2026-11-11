@@ -8,6 +8,7 @@ import rotp.core.impl.stands.theworld.TimeStopBlinkAbility;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.world.entity.LivingEntity;
 
@@ -90,7 +91,7 @@ public final class TimeStopCooldowns {
 				TimeStopBehaviorPolicies.progression(power);
 		float cooldownPerTick = policy != null
 				? policy.cooldownPerTick()
-				: TIME_STOP_COOLDOWN_PER_TICK;
+				: StandSpecials.timeStopFloat(power, StandSpecials.TIME_STOP_COOLDOWN, TIME_STOP_COOLDOWN_PER_TICK);
 		float cooldown = cooldownPerTick * Math.max(ticks, 0);
 		LivingEntity user = power.getUser();
 		if (user != null && user.hasEffect(ModStatusEffects.RESOLVE)) {

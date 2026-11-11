@@ -102,6 +102,14 @@ The complete MIT text is in `licenses/MIT-THREEJS.txt`.
 For this combined work the GPL version 3 option is used; its text is in
 `LICENSE`.
 
+## Design reference: Roundabout
+
+- Project: Roundabout by Hydraheads, read at `2d413436`
+- Source: <https://github.com/Hydraheads/RoundaboutMod>
+- Local use: the idea of which values of each Stand a server can tune (its damage, cooldowns, stamina costs, block
+  breaking and its own special values) informed the settings screen's Stands page (2026-11-10). Design only: no
+  Roundabout code, text or asset is used; the names, code and text are this project's own.
+
 ## Independently rewritten prior-art path
 
 The Crazy Diamond translucent block-preview renderer was rewritten on

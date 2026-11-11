@@ -66,6 +66,11 @@ public class StandStats implements JsonConfigurable {
 		return getField(field).value;
 	}
 
+	/** The Stand's own value, before any data pack. */
+	public double getDefaultValue(StatWithValue field) {
+		return getField(field).defaultValue;
+	}
+
 	protected DefaultedValue.Double getField(StatWithValue field) {
 		return switch (field) {
 			case POWER -> powerBase;
@@ -210,6 +215,10 @@ public class StandStats implements JsonConfigurable {
 		
 		private StatWithValue(String nameInJson) {
 			this.nameInJson = nameInJson;
+		}
+
+		public String nameInJson() {
+			return nameInJson;
 		}
 	}
 	

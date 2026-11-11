@@ -9,6 +9,7 @@ import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.effect.StandEffectInstance;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility.StandEntityHeavyPunch;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -17,7 +18,6 @@ import net.minecraft.world.entity.LivingEntity;
 
 public class CrazyDMisshapingPunchEffect extends StandEffectInstance {
 	private static final int EFFECT_DURATION = 60;
-	private static final int MISSHAPEN_DURATION = 200;
 
 	public CrazyDMisshapingPunchEffect(EntityCustomEffectType<?> effectType) {
 		super(effectType);
@@ -57,19 +57,20 @@ public class CrazyDMisshapingPunchEffect extends StandEffectInstance {
 	protected void stop() {}
 
 	private void applyMisshaping(LivingEntity target, CrazyDTargetHitPart hitPart) {
+		int misshapen = StandSpecials.CD_MISSHAPEN_SECONDS.ticks(userPower);
 		switch (hitPart) {
 		case HEAD -> {
 			target.addEffect(new MobEffectInstance(MobEffects.CONFUSION, EFFECT_DURATION, 0, false, false, true));
-			target.addEffect(new MobEffectInstance(ModStatusEffects.MISSHAPEN_FACE, MISSHAPEN_DURATION, 0, false, false, true));
+			target.addEffect(new MobEffectInstance(ModStatusEffects.MISSHAPEN_FACE, misshapen, 0, false, false, true));
 		}
 		case TORSO_ARMS -> {
 			target.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, EFFECT_DURATION, 0, false, false, true));
 			target.addEffect(new MobEffectInstance(MobEffects.DIG_SLOWDOWN, EFFECT_DURATION, 1, false, false, true));
-			target.addEffect(new MobEffectInstance(ModStatusEffects.MISSHAPEN_ARMS, MISSHAPEN_DURATION, 0, false, false, true));
+			target.addEffect(new MobEffectInstance(ModStatusEffects.MISSHAPEN_ARMS, misshapen, 0, false, false, true));
 		}
 		case LEGS -> {
 			target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, EFFECT_DURATION, 1, false, false, true));
-			target.addEffect(new MobEffectInstance(ModStatusEffects.MISSHAPEN_LEGS, MISSHAPEN_DURATION, 0, false, false, true));
+			target.addEffect(new MobEffectInstance(ModStatusEffects.MISSHAPEN_LEGS, misshapen, 0, false, false, true));
 		}
 		}
 	}

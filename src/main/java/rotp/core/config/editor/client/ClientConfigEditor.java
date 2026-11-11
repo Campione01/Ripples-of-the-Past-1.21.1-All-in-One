@@ -173,8 +173,6 @@ public final class ClientConfigEditor {
 				bool("abilitySelectionScroll", CONTROLS, CLIENT_LABEL + "abilitySelectionScroll", s -> s.abilitySelectionScroll, (s, v) -> s.abilitySelectionScroll = v),
 				bool("releaseToUseAbility", CONTROLS, CLIENT_LABEL + "releaseToUseAbility", s -> s.releaseToUseAbility, (s, v) -> s.releaseToUseAbility = v),
 				bool("poseOnLmbRmb", CONTROLS, null, s -> s.poseOnLmbRmb, (s, v) -> s.poseOnLmbRmb = v),
-				bool("toggleLmbHotbar", CONTROLS, null, s -> s.toggleLmbHotbar, (s, v) -> s.toggleLmbHotbar = v),
-				bool("toggleRmbHotbar", CONTROLS, null, s -> s.toggleRmbHotbar, (s, v) -> s.toggleRmbHotbar = v),
 				bool("toggleDisableHotbars", CONTROLS, null, s -> s.toggleDisableHotbars, (s, v) -> s.toggleDisableHotbars = v),
 
 				bool("standMotionTilt", DISPLAY, CLIENT_LABEL + "standMotionTilt", s -> s.standMotionTilt, (s, v) -> s.standMotionTilt = v),

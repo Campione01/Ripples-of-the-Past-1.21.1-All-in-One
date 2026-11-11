@@ -35,7 +35,7 @@ final class ConfigTooltips {
 		if (range != null) {
 			lines.add(range);
 		}
-		if (entry.kind() != ConfigEntry.Kind.LIST) {
+		if (entry.kind() != ConfigEntry.Kind.LIST || ConfigWidgetRules.isChecklist(entry)) {
 			lines.add(Component.translatable(TEXT + "default", PaperUi.valueText(entry, entry.defaultValue())));
 		}
 		if (entry.synced()) {
@@ -54,8 +54,13 @@ final class ConfigTooltips {
 	}
 
 	private static Component rangeLine(ConfigEntry entry) {
-		if (entry.kind() == ConfigEntry.Kind.LIST || entry.bounds() == null) {
+		// a colour's range is every colour: its default line says which one it starts as
+		if (entry.kind() == ConfigEntry.Kind.LIST || entry.bounds() == null || ConfigWidgetRules.isColor(entry)) {
 			return null;
+		}
+		if (ConfigWidgetRules.isPercent(entry)) {
+			return Component.translatable(TEXT + "range", number(entry.kind(), entry.bounds().minimum()) + "%",
+					number(entry.kind(), entry.bounds().maximum()) + "%");
 		}
 		return rangeLineOf(entry.kind(), entry.bounds());
 	}

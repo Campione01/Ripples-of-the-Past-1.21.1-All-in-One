@@ -2,6 +2,7 @@ package rotp.core.config.editor.client;
 
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
@@ -38,7 +39,12 @@ public interface ConfigStore {
 	/** Resets the settings named, one request each, then calls {@code done} with the last result. */
 	boolean resetKeys(List<String> keys, @Nullable Consumer<ConfigEditResult> done);
 
-	boolean resetAll(@Nullable Consumer<ConfigEditResult> done);
+	default boolean resetAll(@Nullable Consumer<ConfigEditResult> done) {
+		return resetAll(entry -> true, done);
+	}
+
+	/** Resets what a page of the store shows: one store holds both the Gameplay and the Stands page. */
+	boolean resetAll(Predicate<ConfigEntry> onPage, @Nullable Consumer<ConfigEditResult> done);
 
 	void tick(long nowMillis);
 

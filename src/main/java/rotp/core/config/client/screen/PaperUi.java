@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.gson.JsonElement;
 import com.mojang.blaze3d.systems.RenderSystem;
 
@@ -17,6 +19,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FastColor;
 import net.minecraft.util.FormattedCharSequence;
 import net.neoforged.fml.ModList;
+import rotp.core.client.ui.utils.BlitFloat;
 import rotp.core.config.editor.ConfigEntry;
 import rotp.core.config.editor.client.ConfigWidgetRules;
 import rotp.core.core.JojoMod;
@@ -98,6 +101,28 @@ final class PaperUi {
 		return font.plainSubstrByWidth(text, Math.max(8, width - font.width("..."))).stripTrailing() + "...";
 	}
 
+	/** A Stand block's icon at 14 pixels; the room it takes before the name, 0 for a block that is not a Stand's. */
+	static int standIcon(GuiGraphics graphics, @Nullable StandViews.View stand, int x, int y) {
+		if (stand == null) {
+			return 0;
+		}
+		if (stand.icon() != null) {
+			RenderSystem.enableBlend();
+			stand.icon().render(graphics.pose(), x, y, 14, 14, BlitFloat.NO_TINT);
+		}
+		return 17;
+	}
+
+	/** A Stand block's part, as the part's icon ending at {@code right}; the width it took. */
+	static int partTag(GuiGraphics graphics, Font font, @Nullable StandViews.View stand, int right, int y) {
+		if (stand == null || stand.partIcon() == null) {
+			return 0;
+		}
+		int width = font.width(stand.partIcon());
+		graphics.drawString(font, stand.partIcon(), right - width, y - 1, 0xFFFFFFFF, false);
+		return width;
+	}
+
 	static Component label(ConfigEntry entry) {
 		String key = ConfigWidgetRules.labelKey(entry);
 		Language language = Language.getInstance();
@@ -136,7 +161,7 @@ final class PaperUi {
 	static Component valueText(ConfigEntry entry, JsonElement value) {
 		return switch (entry.kind()) {
 			case BOOLEAN -> Component.translatable(value.getAsBoolean() ? "options.on" : "options.off");
-			case INTEGER, DECIMAL -> Component.literal(ConfigWidgetRules.formatNumber(entry.kind(), value));
+			case INTEGER, DECIMAL -> Component.literal(ConfigWidgetRules.valueNumber(entry, value));
 			case ENUM -> optionText(entry, ConfigWidgetRules.shownChoice(entry, value));
 			case STRING -> entry.choices().isEmpty() ? Component.literal(value.getAsString())
 					: optionText(entry, ConfigWidgetRules.shownChoice(entry, value));
@@ -149,6 +174,16 @@ final class PaperUi {
 			return "";
 		}
 		List<String> items = new ArrayList<>();
+		if (entry.listChoices() != null) {
+			// a checklist's items by the names its card shows; one the server no longer offers by its id
+			for (JsonElement item : value.getAsJsonArray()) {
+				String id = item.getAsString();
+				items.add(entry.listChoices().stream().filter(choice -> choice.id().equals(id)).findFirst()
+						.map(choice -> ConfigChecklistScreen.shownName(choice.translationKey(), choice.name()))
+						.orElse(id));
+			}
+			return String.join(", ", items);
+		}
 		for (JsonElement item : value.getAsJsonArray()) {
 			boolean number = entry.elementKind() == ConfigEntry.Kind.INTEGER || entry.elementKind() == ConfigEntry.Kind.DECIMAL;
 			items.add(number ? ConfigWidgetRules.formatNumber(entry.elementKind(), item) : item.getAsString());

@@ -11,6 +11,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTarget.TargetType;
 import rotp.core.subsystems.target.HitResultUtil;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -31,7 +32,6 @@ import net.minecraft.world.phys.Vec3;
 
 public class SCRapierEntity extends ModdedProjectileEntity {
 
-	private static final int MAX_RICOCHETS = 100;
 	private static final double RICOCHET_TRACE_RANGE = 16.0D;
 	private static final double RICOCHET_TRACE_INFLATE = 1.0D;
 
@@ -117,7 +117,7 @@ public class SCRapierEntity extends ModdedProjectileEntity {
 	@Override
 	protected void onHitBlock(BlockHitResult blockHit) {
 		boolean ricochet = false;
-		if (ricochetCount < MAX_RICOCHETS) {
+		if (ricochetCount < StandSpecials.SC_RAPIER_RICOCHETS.getFor(getOwner())) {
 			BlockPos blockPos = blockHit.getBlockPos();
 			BlockState blockState = level().getBlockState(blockPos);
 			SoundType soundType = blockState.getSoundType(level(), blockPos, this);
