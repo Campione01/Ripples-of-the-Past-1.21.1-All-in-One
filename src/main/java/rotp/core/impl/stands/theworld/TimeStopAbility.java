@@ -32,6 +32,7 @@ import rotp.core.powersystem.ability.EntityActionAbility;
 import rotp.core.powersystem.ability.TrainableAbility;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.ability.controls.InputMethod;
+import rotp.core.powersystem.ability.input.AbilityInput;
 import rotp.core.powersystem.ability.input.ActionInputBuffer.BufferingState;
 import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
 import rotp.core.powersystem.entityaction.ActionPhase;
@@ -201,6 +202,13 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 		}
 		StandPower power = !level.isClientSide() ? PowerClass.STAND.get(user) : null;
 		boolean standAlreadySummoned = power != null && power.getSummonedStandEntity() != null;
+		boolean freshPress = !bufferingState.isBuffered();
+		if (power != null && freshPress && !isCurrentlyInStoppedTime(user) && isHeldPressHeldBack(user)) {
+			EntityActionInstance held = AbilityInput.getHeldAction(user, PowerClass.STAND);
+			if (held != null && !(held instanceof TimeStopAction) && isSecondPressBehindHold(user)) {
+				endHeldActionForEmergencyStop(user, power, held);
+			}
+		}
 		// a press held back while the Stand power holds an action leaves that hold to setOrBufferAction's buffer
 		if (power != null && !isCurrentlyInStoppedTime(user) && !isHeldPressHeldBack(user)) {
 			clearCurrentStandAction(power);
@@ -216,7 +224,7 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 			// 1.16 TimeStop#getShout: no line inside stopped time, where the charge is 0 and no press is a double press
 			if (bufferingState.isActionSuccess && power != null && !isCurrentlyInStoppedTime(user)) {
 				timeStopAction.voiceDue = true;
-				if (timeStopAction.phasesLength.getFloat(ActionPhase.BUTTON_CHARGE) > 0 && isSecondPress(user)) {
+				if (timeStopAction.phasesLength.getFloat(ActionPhase.BUTTON_CHARGE) > 0 && isSecondPress(user, freshPress)) {
 					timeStopAction.fireDoublePress(this);
 					return null;
 				}
@@ -227,15 +235,49 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 
 	/**
 	 * The press that began a charge is a double press's first; another within {@link #DOUBLE_PRESS_WINDOW_TICKS} is its
-	 * second. A press that close to a resume is neither, so mashing the key to resume a stop starts no new one.
+	 * second. A press that close to a resume is neither, so mashing the key to resume a stop starts no new one. A press a
+	 * held action kept in the buffer is a first press for the key's next press, never for its own replay.
 	 */
-	private static boolean isSecondPress(LivingEntity user) {
+	private static boolean isSecondPress(LivingEntity user, boolean freshPress) {
+		EntityActionInputState input = user.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get());
+		long now = user.level().getGameTime();
+		long first = freshPress
+				? Math.max(input.timeStopFirstPressTime, input.timeStopHeldBackPressTime)
+				: input.timeStopFirstPressTime;
+		boolean afterResume = now - input.timeStopResumePressTime <= DOUBLE_PRESS_WINDOW_TICKS;
+		boolean second = !afterResume && now - first <= DOUBLE_PRESS_WINDOW_TICKS;
+		input.timeStopFirstPressTime = second || afterResume ? EntityActionInputState.NO_PRESS : now;
+		input.timeStopHeldBackPressTime = EntityActionInputState.NO_PRESS;
+		return second;
+	}
+
+	// a press the held action keeps back is noted; the key's next press within the window is a double press
+	private static boolean isSecondPressBehindHold(LivingEntity user) {
 		EntityActionInputState input = user.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get());
 		long now = user.level().getGameTime();
 		boolean afterResume = now - input.timeStopResumePressTime <= DOUBLE_PRESS_WINDOW_TICKS;
-		boolean second = !afterResume && now - input.timeStopFirstPressTime <= DOUBLE_PRESS_WINDOW_TICKS;
-		input.timeStopFirstPressTime = second || afterResume ? EntityActionInputState.NO_PRESS : now;
+		long first = Math.max(input.timeStopFirstPressTime, input.timeStopHeldBackPressTime);
+		boolean second = !afterResume && now - first <= DOUBLE_PRESS_WINDOW_TICKS;
+		if (!second) {
+			input.timeStopHeldBackPressTime = afterResume ? EntityActionInputState.NO_PRESS : now;
+		}
 		return second;
+	}
+
+	/*
+	 * The owner's emergency stop (M0110): a double press does not wait behind a held guard or barrage. Its key lets go and
+	 * the action ends at once, its recovery too (a barrage let go would otherwise refuse the stop for its recovery).
+	 */
+	private static void endHeldActionForEmergencyStop(LivingEntity user, StandPower power, EntityActionInstance held) {
+		AbilityInput.interruptHeldInputs(user, PowerClass.STAND);
+		StandEntity standEntity = power.getSummonedStandEntity();
+		for (LivingComponentAction slot : new LivingComponentAction[] {
+				standEntity != null ? LivingComponentAction.getExistingComponent(standEntity) : null,
+				LivingComponentAction.getExistingComponent(user, PowerClass.STAND) }) {
+			if (slot != null && slot.getAction() == held) {
+				slot.setAction(null, SyncType.TRACKING_AND_SELF);
+			}
+		}
 	}
 
 	static void noteResumePress(LivingEntity user) {
@@ -325,6 +367,8 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 				indicator.maxValue = curAction.getAnimPhaseLength();
 				if (indicator.maxValue > 0) {
 					indicator.value = curAction.getAnimPhaseTick(partialTick);
+					// the release's minimum (onButtonStopHold) marked on the fill
+					indicator.minValue = getMinReleaseChargeTicks(indicator.maxValue);
 				}
 			}
 			else {

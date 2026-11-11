@@ -62,6 +62,9 @@ public class EntityActionInputState implements TickingEntityData {
 	/** Game time of the press that began a time stop's charge and may become a double press's first (TimeStopAbility). */
 	@ApiStatus.Internal
 	public long timeStopFirstPressTime = NO_PRESS;
+	/** Game time of the last time stop press the Stand power's held action kept in the input buffer (TimeStopAbility). */
+	@ApiStatus.Internal
+	public long timeStopHeldBackPressTime = NO_PRESS;
 	/** Game time of the press that last resumed the user's own time stop. */
 	@ApiStatus.Internal
 	public long timeStopResumePressTime = NO_PRESS;

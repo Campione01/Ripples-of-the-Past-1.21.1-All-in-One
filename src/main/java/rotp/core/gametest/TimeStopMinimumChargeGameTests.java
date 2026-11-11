@@ -306,6 +306,57 @@ public final class TimeStopMinimumChargeGameTests {
 	}
 
 	/*
+	 * The owner's emergency stop (M0110) also from a held guard or barrage: a single press still waits behind the hold in
+	 * the input buffer (N2), but a second press within the window ends the hold, with its key, and fires the double press.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 60, batch = GameTestBatches.TIME_STOP)
+	public static void aDoublePressBreaksOutOfStarPlatinumsHeldGuard(GameTestHelper helper) {
+		aDoublePressBreaksOutOfAHold(helper, "star_platinum", 4, "guard");
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 60, batch = GameTestBatches.TIME_STOP)
+	public static void aDoublePressBreaksOutOfTheWorldsHeldBarrage(GameTestHelper helper) {
+		aDoublePressBreaksOutOfAHold(helper, "the_world", 3, "barrage");
+	}
+
+	private static void aDoublePressBreaksOutOfAHold(GameTestHelper helper, String stand, int resolve, String holdName) {
+		short holdKey = KEY + 1;
+		Scene s = new Scene(helper, stand, resolve);
+		EntityActionInstance[] hold = new EntityActionInstance[1];
+		s.guarded(() -> helper.assertTrue(s.power.getPowerType().summon(s.user, s.power),
+				"setup: could not summon " + stand));
+		helper.runAfterDelay(15, () -> s.guarded(() -> {
+			StandEntity standEntity = s.power.getSummonedStandEntity();
+			Ability base = s.power.getAbility(holdName);
+			AbilityConditionCheck container = resolve(s.power, base);
+			helper.assertTrue(standEntity != null && container != null
+					&& AbilityInput.withConditionCheck(container, s.user, InputMethod.HOLD), "setup: " + holdName + " refused");
+			AbilityInput.keyPress(holdKey, container.ability, s.user, null, InputMethod.HOLD, 0,
+					BufferingState.clickCanBuffer(), base.getAbilityId());
+			hold[0] = LivingComponentAction.getComponent(standEntity).getAction();
+			helper.assertTrue(hold[0] != null && hold[0].ability == container.ability
+					&& AbilityInput.getHeldAction(s.user, PowerClass.STAND) == hold[0], "setup: " + holdName + " is not held: "
+							+ hold[0]);
+			BufferingState first = BufferingState.clickCanBuffer();
+			s.press(first);
+			helper.assertTrue(first.shouldBuffer && !first.isActionSuccess && s.instance() == null && !hold[0].isOver(),
+					"a single press waits behind the held " + holdName + ": buffered " + first.shouldBuffer + ", "
+							+ s.instance());
+		}));
+		helper.runAfterDelay(17, () -> s.guarded(s::release));
+		helper.runAfterDelay(20, () -> s.guarded(() -> {
+			HeldInputEntry held = s.press(BufferingState.clickCanBuffer());
+			helper.assertTrue(s.instance() != null && held == null, "a second press 5 ticks after the first stops time at"
+					+ " once: " + s.instance() + ", " + held);
+			helper.assertTrue(hold[0].isOver() && !s.input().heldKeys.containsKey(holdKey)
+					&& AbilityInput.getHeldAction(s.user, PowerClass.STAND) == null,
+					"and ends the held " + holdName + " with its key: over " + hold[0].isOver() + ", key held "
+							+ s.input().heldKeys.containsKey(holdKey));
+			helper.succeed();
+		}));
+	}
+
+	/*
 	 * A press in the user's own stop resumes it (its stop here has at most 11 ticks left, so at once) and a press that close
 	 * to the resume is no first press: mashing the key to resume a stop starts no new one, however fast it goes on.
 	 */

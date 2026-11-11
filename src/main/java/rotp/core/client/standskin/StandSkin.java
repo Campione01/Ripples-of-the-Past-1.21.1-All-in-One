@@ -26,6 +26,7 @@ import rotp.core.core.JojoRegistries;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.StoryPart;
 
+import net.minecraft.Util;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.client.Minecraft;
@@ -166,6 +167,13 @@ public class StandSkin {
 			}
 		}
 		return List.copyOf(authors);
+	}
+
+	/** The skin's name for the skins tab (StandSkinNames). */
+	public Component displayName() {
+		String standNameKey = Util.makeDescriptionId("stand", standTypeId);
+		return StandSkinNames.displayName(getOwnTranslation(standNameKey), skinId, isDefault,
+				() -> Component.translatable(standNameKey));
 	}
 
 	/** The line that credits the skin's authors, or empty for a skin with none. */

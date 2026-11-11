@@ -59,6 +59,12 @@ import rotp.core.api.client.render.ScopedPlayerModelVisibilitySmokeTest;
 import rotp.core.api.client.render.ScopedPlayerModelPoseSmokeTest;
 import rotp.core.api.client.animation.AddonPlayerAnimationsSmokeTest;
 import rotp.core.client.entityanim.AnimPoseThreadIsolationSmokeTest;
+import rotp.core.client.entityrender.stand.HeldBlockViewClearanceSmokeTest;
+import rotp.core.api.client.render.HeldItemButtonClaimsSmokeTest;
+import rotp.core.client.standskin.StandSkinNamesSmokeTest;
+import rotp.core.client.ui.hud_power.RecalledSkillSignSmokeTest;
+import rotp.core.client.ui.hud_power.WindupMinimumMarkSmokeTest;
+import rotp.core.client.ui.utils.TextBoxFitSmokeTest;
 import rotp.core.client.entityanim.ArmsOnlyTrunkSmokeTest;
 import rotp.core.client.entityanim.ChargeSectionSmokeTest;
 import rotp.core.client.entityanim.HeadLookLimitSmokeTest;
@@ -596,6 +602,12 @@ public final class RotpAddonApiSmokeTest {
 		StandActionPortSlotSmokeTest.run();
 		PlayerActionGateSmokeTest.run();
 		ActionStandOffsetHookSmokeTest.run();
+		HeldBlockViewClearanceSmokeTest.run();
+		TextBoxFitSmokeTest.run();
+		WindupMinimumMarkSmokeTest.run();
+		StandSkinNamesSmokeTest.run();
+		RecalledSkillSignSmokeTest.run();
+		HeldItemButtonClaimsSmokeTest.run();
 	}
 
 	private static ResourceLocation id(String namespace, String path) {

@@ -76,6 +76,8 @@ public final class GameTestBatchSourcePinGameTests {
 			Map.entry("TimeStopWorldGameTests.blockEventsWaitForResumeAndAMovingPistonSurvivesTheStop",
 					GameTestBatches.WORLD_PISTONS),
 			Map.entry("TimeStopWorldGameTests.aLeverInStoppedTimeChangesNothingUntilTimeResumes", GameTestBatches.WORLD_LEVER),
+			Map.entry("TimeStopWorldGameTests.aButtonPressedInStoppedTimeStaysPressedItsFullTimeAfterIt",
+					GameTestBatches.WORLD_BUTTON),
 			Map.entry("TimeStopWorldGameTests.buildingInStoppedTimeShowsAndOnlyRedstoneWaits", GameTestBatches.WORLD_BUILDING),
 			Map.entry("TimeStopWorldGameTests.everyEndOfAStopDrainsWhatItHeld", GameTestBatches.WORLD_ENDS),
 			Map.entry("TimeStopWorldGameTests.theHeldQueueKeepsOrderDropsDuplicatesAndFlushesWhenFull",

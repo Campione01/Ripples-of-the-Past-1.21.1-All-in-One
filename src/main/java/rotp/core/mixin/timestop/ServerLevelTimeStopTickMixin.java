@@ -31,6 +31,7 @@ public abstract class ServerLevelTimeStopTickMixin {
         TimeStopState state = jojo_ripples$getTimeStopState();
         if (state != null && state.isTimeStopped(new ChunkPos(pos))) {
             ServerLevel level = (ServerLevel) (Object) this;
+            state.noteFrozenTickDue(pos, fluid, true);
             ((LevelAccessor) level).scheduleTick(pos, fluid, fluid.getTickDelay(level));
             ci.cancel();
         }
@@ -41,6 +42,7 @@ public abstract class ServerLevelTimeStopTickMixin {
         TimeStopState state = jojo_ripples$getTimeStopState();
         if (state != null && state.isTimeStopped(new ChunkPos(pos)) && !(block instanceof CommandBlock)) {
             ServerLevel level = (ServerLevel) (Object) this;
+            state.noteFrozenTickDue(pos, block, false);
             ((LevelAccessor) level).scheduleTick(pos, block, 1);
             ci.cancel();
         }

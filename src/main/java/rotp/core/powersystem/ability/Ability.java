@@ -703,6 +703,15 @@ public class Ability {
 	}
 
 	/**
+	 * Whether what this ability started still runs now with its Stand recalled (the owner's 收回仍持續: a disguise, an aura,
+	 * a link), read on the client from the user's own state. The HUD lights the ability's slots while the Stand is away, where
+	 * the recalled Stand's bar is otherwise drawn dark. Asked only while the user has no Stand out. False by default.
+	 */
+	public boolean cl_runsWithStandRecalled(LivingEntity user) {
+		return false;
+	}
+
+	/**
 	 * 1.16 ActionsOverlayGui.renderActionIcon heldReadyToFire: whether this ability's action, still held, has been held
 	 * for its hold-to-fire length (1.16 getHoldDurationToFire above 0), so that letting go of its key fires it. The HUD
 	 * then fills the slots showing the ability green behind its icon and draws the slot frame of a selected slot (the

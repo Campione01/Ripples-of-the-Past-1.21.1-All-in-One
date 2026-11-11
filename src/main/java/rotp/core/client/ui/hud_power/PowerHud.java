@@ -362,6 +362,7 @@ public class PowerHud {
 			if (action == null || !(action.ability instanceof Ability ability)) {
 				return false;
 			}
+			activeActionWindup.minValue = -1;
 			WindupIndicator windup = ability.cl_windupIndicator(player, activeActionWindup, partialTick);
 			if (windup == null || windup.maxValue <= 0 || windup.value <= 0) {
 				return false;

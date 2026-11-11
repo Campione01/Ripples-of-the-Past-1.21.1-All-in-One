@@ -2001,6 +2001,26 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		}
 	}
 
+	/*
+	 * A Stand about to be added stands at its place beside its user already, its last position too: its spawn packet, its
+	 * first drawn frame and its first tick's glide all start there, not inside its user (seen in first person as a body
+	 * over the view for a frame).
+	 */
+	private static final int SUMMON_PLACE_CHUNK_MARGIN = 4;
+
+	void placeBesideUserForSummon(LivingEntity user) {
+		// its place's collision check must not load chunks: around an unloaded user its first tick places it as before
+		BlockPos at = user != null ? user.blockPosition() : null;
+		if (at == null || !isFollowingUser() || !level().hasChunksAt(at.offset(-SUMMON_PLACE_CHUNK_MARGIN, -2, -SUMMON_PLACE_CHUNK_MARGIN),
+				at.offset(SUMMON_PLACE_CHUNK_MARGIN, 2, SUMMON_PLACE_CHUNK_MARGIN))) {
+			return;
+		}
+		// from its user's place, as the summon copies it: the collision sweep then stays beside the user
+		setPos(user.getX(), user.getY(), user.getZ());
+		updatePosition(user);
+		setOldPosAndRot();
+	}
+
 	void prepareFreshSummonState(LivingEntity user) {
 		// in its summon pose a Stand's body takes its yaw (1.16 StandEntity.tickHeadTurn), from its spawn on
 		yBodyRot = getYRot();

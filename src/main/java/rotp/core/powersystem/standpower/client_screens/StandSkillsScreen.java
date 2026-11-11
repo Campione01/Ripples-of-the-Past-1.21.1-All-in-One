@@ -24,7 +24,7 @@ import rotp.core.client.ui.utils.BlitFloat;
 import rotp.core.client.ui.utils.GuiIcon;
 import rotp.core.client.ui.utils.Scrolling;
 import rotp.core.client.ui.utils.ScrollingText;
-import rotp.core.client.ui.utils.TextUtil;
+import rotp.core.client.ui.utils.TextBoxFit;
 import rotp.core.client.ui.utils.tooltip.MutableTooltipWrapper;
 import rotp.core.client.ui.utils.tooltip.TooltipParams;
 import rotp.core.core.JojoMod;
@@ -51,7 +51,10 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.sounds.SoundManager;
+import net.minecraft.locale.Language;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -190,6 +193,12 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 
 	protected static final int SKILL_LIST_X = 22;
 	protected static final int SKILL_LIST_Y = 57;
+	// the header's title room: right of the deselect cross, left of the window's right margin
+	private static final int TITLE_LEFT = 79;
+	private static final int TITLE_RIGHT_MARGIN = 10;
+	private static final int DESC_TEXT_WIDTH = 111;
+	private static final int CONTROLS_TEXT_WIDTH = 101;
+	@Nullable private Component cutTitle;
 	@Override
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float p_283123_) {
 		deselectSkillButton.visible = selectedSkill != null;
@@ -263,8 +272,11 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 
 		if (selectedSkill != null) {
 			updateSelectedSkillText(selectedTrainable);
-			TextUtil.drawRightAlignedString(guiGraphics, font, skinSkillName(selectedSkill), 
-					x + getWindowWidth() - 10, y + 24, textColor, false);
+			Component name = skinSkillName(selectedSkill);
+			int titleRight = x + getWindowWidth() - TITLE_RIGHT_MARGIN;
+			FormattedCharSequence title = fitTitle(name, titleRight - (x + TITLE_LEFT));
+			guiGraphics.drawString(font, title, titleRight - font.width(title), y + 24, textColor, false);
+			cutTitle = font.width(name) > titleRight - (x + TITLE_LEFT) ? name : null;
 			
 			skillDescription.draw(4, 3, guiGraphics, this.minecraft.font, textColor, false);
 			skillDescription.drawSmallScrollBar(guiGraphics);
@@ -303,6 +315,11 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 				default -> {}
 			}
 			setTooltipForNextRenderPass(skillNameTooltip);
+		}
+		else if (selectedSkill != null && cutTitle != null && mouseX - x >= TITLE_LEFT
+				&& mouseX - x <= getWindowWidth() - TITLE_RIGHT_MARGIN && mouseY - y >= 20 && mouseY - y <= 34) {
+			TooltipParams.set(TooltipParams.paperStyle(1));
+			setTooltipForNextRenderPass(List.of(cutTitle.copy().withStyle(ChatFormatting.BLACK).getVisualOrderText()));
 		}
 		else if (mouseX - x >= 22 && mouseX - x <= 59 && mouseY - y >= 30 && mouseY - y <= 43) {
 			TooltipParams.set(TooltipParams.paperStyle(1));
@@ -386,7 +403,23 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 		if (trainable != null && levelingData.isSkillUnlocked(selectedSkill.skillName)) {
 			desc = desc.copy().append("\n\n").append(trainingProgressText(trainable));
 		}
-		skillDescription.setText(font.split(desc, 111));
+		setFittedText(skillDescription, desc, DESC_TEXT_WIDTH);
+	}
+
+	// a text with more lines than its box holds whole is drawn smaller rather than cut at the box's bottom
+	private void setFittedText(ScrollingText box, Component text, int textWidth) {
+		float scale = TextBoxFit.scaleToFit(splitWidth -> font.split(text, splitWidth).size(),
+				textWidth, box.height, box.lineHeight, box.yOffset);
+		box.setText(font.split(text, TextBoxFit.splitWidth(textWidth, scale)), scale);
+	}
+
+	// a long name is cut with an ellipsis before the header's cross and Stand EXP box; hovering it shows it whole
+	private FormattedCharSequence fitTitle(Component name, int maxWidth) {
+		if (font.width(name) <= maxWidth) {
+			return name.getVisualOrderText();
+		}
+		FormattedText cut = font.substrByWidth(name, maxWidth - font.width(CommonComponents.ELLIPSIS));
+		return Language.getInstance().getVisualOrder(FormattedText.composite(cut, CommonComponents.ELLIPSIS));
 	}
 
 	protected Component trainingProgressText(TrainableAbility trainable) {
@@ -443,7 +476,7 @@ public class StandSkillsScreen extends Screen implements IJojoMenuScreen {
 		this.selectedSkill = skill;
 		if (skill != null) {
 			updateSelectedSkillText(getSelectedTrainableAbility());
-			skillControls.setText(font.split(skinSkillControls(selectedSkill), 101));
+			setFittedText(skillControls, skinSkillControls(selectedSkill), CONTROLS_TEXT_WIDTH);
 		}
 		else {
 			skillDescription.setText(null);
