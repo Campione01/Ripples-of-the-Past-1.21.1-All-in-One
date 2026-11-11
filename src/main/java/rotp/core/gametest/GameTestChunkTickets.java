@@ -51,7 +51,12 @@ final class GameTestChunkTickets implements GameTestListener {
 	private final Set<ChunkPos> held = new LinkedHashSet<>();
 
 	GameTestChunkTickets(GameTestHelper helper) {
-		level = helper.getLevel();
+		this(helper, helper.getLevel());
+	}
+
+	/** Chunks of another dimension than the test's, for a scene that sends an entity there. */
+	GameTestChunkTickets(GameTestHelper helper, ServerLevel level) {
+		this.level = level;
 		helper.testInfo.addListener(this);
 	}
 
