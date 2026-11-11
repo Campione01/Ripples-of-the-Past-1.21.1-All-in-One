@@ -9,6 +9,7 @@ import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
+import rotp.core.config.editor.ConfigEntry;
 
 /** The settings screen's paper for the JoJo menu's other pages: its colours, window, glyphs, list and button. */
 public final class PaperKit {
@@ -70,6 +71,13 @@ public final class PaperKit {
 	public static class Action extends ConfigControls.PaperAction {
 		public Action(int x, int y, int width, int height, Component message, Runnable press) {
 			super(x, y, width, height, message, button -> press.run());
+		}
+	}
+
+	/** The settings screen's text box for words; {@link #place} sets the box it is drawn in. */
+	public static class Field extends ConfigControls.PaperField {
+		public Field(Font font, Component name) {
+			super(font, name, ConfigEntry.Kind.STRING);
 		}
 	}
 }

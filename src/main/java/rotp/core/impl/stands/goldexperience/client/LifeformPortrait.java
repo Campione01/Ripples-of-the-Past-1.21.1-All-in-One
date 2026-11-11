@@ -26,8 +26,11 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SpawnEggItem;
 
-/** A lifeform's portrait in the menu: the creature itself drawn small, as an inventory draws its player. */
-final class LifeformPortrait {
+/**
+ * A lifeform's portrait in the lifeform menu and in Choose Lifeform: the creature itself drawn small, as an inventory
+ * draws its player.
+ */
+public final class LifeformPortrait {
     // the owner: a lifeform that cannot be reverted from where the user is shows grey
     private static final int GREY_WASH = 0xB88A8F99;
     private static final float FACING = 205.0F;
@@ -59,6 +62,20 @@ final class LifeformPortrait {
             graphics.pose().translate(0, 0, 300);
             graphics.fill(x, y, x + size, y + size, GREY_WASH);
             graphics.pose().popPose();
+        }
+    }
+
+    /** A lifeform to choose: a creature of its kind and variant, standing still. */
+    public static void render(GuiGraphics graphics, EntitySubtype<?> subtype, int x, int y, int size) {
+        Minecraft mc = Minecraft.getInstance();
+        ResourceLocation typeId = BuiltInRegistries.ENTITY_TYPE.getKey(subtype.vanillaType);
+        Entity entity = mc.level != null && !UNDRAWABLE.contains(typeId)
+                ? EntityTypeToInstance.getEntityInstance(subtype, mc.level) : null;
+        graphics.enableScissor(x, y, x + size, y + size);
+        boolean drawn = entity != null && draw(graphics, entity, x, y, size, 1.0F);
+        graphics.disableScissor();
+        if (!drawn) {
+            drawEgg(graphics, subtype.vanillaType, x, y, size);
         }
     }
 

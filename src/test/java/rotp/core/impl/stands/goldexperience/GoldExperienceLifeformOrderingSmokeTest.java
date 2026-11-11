@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.stream.IntStream;
 
-import rotp.core.client.ui.screen_jojomenu.GoldExperienceLifeformLayout;
+import rotp.core.client.ui.screen_jojomenu.GoldExperienceChooseLifeformLayout;
 import rotp.core.impl.stands.goldexperience.client.GELifeformModelParts;
 import rotp.core.impl.stands.goldexperience.client.GoldExperienceLifeformText;
 
@@ -111,43 +111,40 @@ public final class GoldExperienceLifeformOrderingSmokeTest {
                 "squid icon must follow the 1.21.1 squid texture path");
     }
 
+    // Choose Lifeform's paper window: every part inside the window and the screen and none over another, at any size
     private static void verifyPickerLayout() {
-        for (int width : new int[] {320, 427, 640, 960}) {
-            for (int height : new int[] {240, 270, 300, 360, 480}) {
-                for (boolean grid : new boolean[] {false, true}) {
-                    GoldExperienceLifeformLayout layout = GoldExperienceLifeformLayout.forScreen(width, height, grid);
-                    check(layout.titleY() >= 0, "picker title outside screen");
-                    check(layout.searchY() + 40 <= layout.choiceTopY(), "filters overlap choices");
-                    check(layout.doneY() + 20 <= height - 6, "picker buttons outside screen");
-                    check(layout.selectedY() + 9 < layout.toolsY(), "selection label overlaps controls");
-                    check(layout.toolsY() + 20 < layout.doneY(), "footer rows overlap");
-                    check(layout.headerLeft() >= 8, "header outside left edge");
-                    check(layout.headerLeft() + 3 * (layout.filterWidth() + 4) + 62 <= width - 8,
-                            "view button outside right edge");
-                    check(layout.headerLeft() + 286 <= width - 8, "creative search controls outside screen");
-                    for (int slot = 0; slot < layout.pageSize(); slot++) {
-                        check(layout.choiceY(slot) >= layout.choiceTopY(), "choice above list");
-                        check(layout.choiceY(slot) + 20 < layout.selectedY(), "choice overlaps footer");
-                    }
-                    List<Integer> visited = new ArrayList<>();
-                    for (int page = 0; page * layout.pageSize() < 101; page++) {
-                        for (int slot = 0; slot < layout.pageSize(); slot++) {
-                            int index = page * layout.pageSize() + slot;
-                            if (index < 101) visited.add(index);
-                        }
-                    }
-                    check(visited.equals(IntStream.range(0, 101).boxed().toList()), "responsive pagination lost choices");
-                }
+        int control = GoldExperienceChooseLifeformLayout.CONTROL;
+        int gap = GoldExperienceChooseLifeformLayout.GAP;
+        for (int width : new int[] {200, 320, 427, 640, 960}) {
+            for (int height : new int[] {180, 240, 270, 360, 480}) {
+                GoldExperienceChooseLifeformLayout layout = GoldExperienceChooseLifeformLayout.forScreen(width, height);
+                String size = " at " + width + "x" + height;
+                check(layout.x() >= 4 && layout.x() + layout.width() <= width - 4 && layout.y() >= 4
+                        && layout.y() + layout.height() <= height - 4, "picker window outside the screen" + size);
+                check(layout.width() >= GoldExperienceChooseLifeformLayout.MIN_WIDTH
+                        && layout.width() <= GoldExperienceChooseLifeformLayout.MAX_WIDTH, "picker window width" + size);
+                int titleBottom = (layout.summaryLine() ? layout.summaryY() : layout.titleY()) + 9;
+                check(titleBottom <= layout.searchY(), "picker title overlaps the search" + size);
+                check(layout.searchY() + control + gap <= layout.filterY(), "search overlaps the filters" + size);
+                check(layout.filterY() + control < layout.listTop(), "filters overlap the choices" + size);
+                check(layout.listBottom() - layout.listTop() >= 2 * GoldExperienceChooseLifeformLayout.LIST_ROW,
+                        "fewer than two rows of choices" + size);
+                check(layout.listBottom() < layout.footerTop() && layout.footerTop() < layout.buttonsY(),
+                        "choices overlap the footer" + size);
+                check(layout.lastButtonsY() + control <= layout.y() + layout.height() - 4, "footer buttons outside the window" + size);
+                check(layout.twoFooterRows() == layout.width() < GoldExperienceChooseLifeformLayout.ONE_FOOTER_ROW_FROM,
+                        "footer rows" + size);
+                check(!layout.twoFooterRows() || layout.buttonsY() + control + gap <= layout.lastButtonsY(),
+                        "footer rows overlap" + size);
+                check(GoldExperienceChooseLifeformLayout.columns(layout.width() - 16) >= 3, "grid narrower than three tiles" + size);
             }
         }
-        GoldExperienceLifeformLayout large = GoldExperienceLifeformLayout.forScreen(640, 360, false);
-        check(large.titleY() == 84 && large.searchY() == 104 && large.choiceTopY() == 158
-                && large.selectedY() == 270 && large.toolsY() == 286 && large.doneY() == 310
-                && large.rowsPerColumn() == 5, "normal-size list layout changed");
-        check(GoldExperienceLifeformLayout.forScreen(427, 240, false).pageSize() == 8,
-                "small list should paginate four rows per column");
-        check(GoldExperienceLifeformLayout.forScreen(427, 240, true).pageSize() == 16,
-                "small grid should retain four rows");
+        GoldExperienceChooseLifeformLayout normal = GoldExperienceChooseLifeformLayout.forScreen(640, 360);
+        check(normal.width() == 340 && normal.height() == 300 && normal.summaryLine() && !normal.twoFooterRows()
+                && GoldExperienceChooseLifeformLayout.columns(normal.width() - 16) == 6, "normal-size picker layout changed");
+        GoldExperienceChooseLifeformLayout narrow = GoldExperienceChooseLifeformLayout.forScreen(200, 180);
+        check(narrow.width() == 184 && narrow.twoFooterRows() && !narrow.summaryLine(),
+                "a narrow, short picker must say the choice beside its title and give its footer two rows");
     }
 
     private static void verifyPriorityAndTieBreaker() {
