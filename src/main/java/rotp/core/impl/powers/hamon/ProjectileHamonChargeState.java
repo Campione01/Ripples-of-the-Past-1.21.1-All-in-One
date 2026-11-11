@@ -1,5 +1,6 @@
 package rotp.core.impl.powers.hamon;
 
+import rotp.core.api.simulation.EntitySimulations;
 import rotp.core.client.particle.CustomParticlesHelper;
 import rotp.core.client.sound.HamonSparksLoopSound;
 import rotp.core.customobjects.DamageSourceModified;
@@ -168,7 +169,7 @@ public class ProjectileHamonChargeState implements TickingEntityData, Synchroniz
 			dealHamonDamageToTarget(entityTarget.getEntity(), getHamonDamage());
 		}
 
-		if (projectile instanceof ThrownEgg egg && level instanceof ServerLevel serverLevel) {
+		if (projectile instanceof ThrownEgg egg && level instanceof ServerLevel serverLevel && !EntitySimulations.isSimulated(egg)) {
 			serverLevel.getData(ModDataAttachmentTypes.CHARGED_HAMON_EGGS.get()).addChargedEggEntity(egg);
 		}
 		else if (projectile instanceof MolotovEntity molotov) {

@@ -4,6 +4,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import rotp.core.api.simulation.EntitySimulations;
 import rotp.core.core.JojoMod;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.subsystems.timestop.TimeStopState;
@@ -34,7 +35,7 @@ public class GEGrowthSparkles {
 	}
 
 	public static void start(Animal animal) {
-		if (animal.level() instanceof ServerLevel level) {
+		if (animal.level() instanceof ServerLevel level && !EntitySimulations.isSimulated(animal)) {
 			level.getData(ModDataAttachmentTypes.GE_GROWTH_SPARKLES.get()).timers.putIfAbsent(animal, SPARKLE_TICKS);
 		}
 	}

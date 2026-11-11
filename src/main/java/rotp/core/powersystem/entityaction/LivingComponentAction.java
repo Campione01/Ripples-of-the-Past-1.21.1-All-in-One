@@ -1,5 +1,6 @@
 package rotp.core.powersystem.entityaction;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
@@ -16,6 +17,7 @@ import rotp.core.client.entityanim.pose.AnimatedEntity;
 import rotp.core.customobjects.LivingReactToNewAction;
 import rotp.core.entityattachment.SynchronizablePlayerData;
 import rotp.core.entityattachment.TickingEntityData;
+import rotp.core.entityattachment.syncheddata.SynchedDataExtended;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.impl.powers.hamon.abilities.HamonRebuffOverdriveAbility.HamonRebuffOverdrive;
@@ -31,8 +33,11 @@ import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTargetAim;
 import rotp.core.subsystems.time.RateStepper;
 
+import io.netty.buffer.Unpooled;
 import net.minecraft.core.HolderLookup.Provider;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -147,6 +152,78 @@ public class LivingComponentAction implements SynchronizablePlayerData, TickingE
 	@ApiStatus.Internal
 	public long actionGeneration() {
 		return actionGeneration;
+	}
+
+	/**
+	 * This slot's action as it stands, for {@link #applyReplayState} on another performer: a copy of the performer kept
+	 * outside the world taking over an action in progress, or the real performer taking over what its copy did (King
+	 * Crimson's Epitaph). Server side; {@link ActionReplayState#NONE} for no action or one that is over.
+	 */
+	public ActionReplayState captureReplayState() {
+		if (entity.level().isClientSide() || action == null || action.isOver()) {
+			return ActionReplayState.NONE;
+		}
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+		try {
+			EntityActionInstance.encode(buffer, action);
+			byte[] encoded = new byte[buffer.readableBytes()];
+			buffer.readBytes(encoded);
+			SynchedDataExtended synched = action.synchedData.getDataSyncher();
+			List<SynchedEntityData.DataValue<?>> values = synched != null ? synched.getNonDefaultValues() : null;
+			return new ActionReplayState(encoded, values != null ? values : List.of());
+		}
+		finally {
+			buffer.release();
+		}
+	}
+
+	/**
+	 * Puts a captured action on this slot for the power user as the core puts a server's action on a client: decoded from
+	 * its network form and set with its start callbacks (the slot performer's reaction to a new action, the action's
+	 * onActionSet and onSetPhase, as every client copy runs them; the ability's press is not run again, so nothing is
+	 * paid and no cooldown is set), it keeps the phase, phase tick and targets it had, takes its synched values (synced
+	 * on the slot's next tick) and gets a fresh generation, sent as the sync type says. No action in the state clears the
+	 * slot. Not carried: what the instance keeps only in its own fields, its modifiers and the key that held it. Server
+	 * side.
+	 * @return the action now in the slot, or null when there is none or the performer refused it
+	 */
+	@Nullable
+	public EntityActionInstance applyReplayState(ActionReplayState state, LivingEntity powerUser, SyncType sync) {
+		if (entity.level().isClientSide()) {
+			throw new IllegalStateException("An action replay state may only be applied on the server");
+		}
+		if (!state.hasAction()) {
+			setAction(null, sync);
+			return null;
+		}
+		FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.wrappedBuffer(state.action()));
+		EntityActionInstance replayed;
+		try {
+			replayed = EntityActionInstance.decode(entity.level(), buffer);
+		}
+		finally {
+			buffer.release();
+		}
+		if (replayed == null) {
+			return null;
+		}
+		ActionPhase phase = replayed.phase;
+		int phaseTick = replayed.curPhaseTick;
+		setAction(replayed, powerUser, sync);
+		if (action != replayed) {
+			return null;
+		}
+		if (phase != null && (replayed.phase != phase || replayed.curPhaseTick != phaseTick)) {
+			replayed.setPhase(phase, phaseTick);
+			if (sync != SyncType.NO_SYNC) {
+				replayed.syncPhaseChanges();
+			}
+		}
+		SynchedDataExtended synched = replayed.synchedData.getDataSyncher();
+		if (synched != null && !state.synchedValues().isEmpty()) {
+			synched.setValues(state.synchedValues());
+		}
+		return replayed;
 	}
 
 	@ApiStatus.Internal

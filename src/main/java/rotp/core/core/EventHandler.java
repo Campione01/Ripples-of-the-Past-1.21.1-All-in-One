@@ -830,32 +830,37 @@ public class EventHandler {
 
 	@SubscribeEvent
 	public static void onEntityCreated(EntityJoinLevelEvent event) {
+		onEntityJoined(event.getEntity(), event.getLevel(), event.loadedFromDisk());
+	}
+
+	/** What the core does as an entity joins a level; also run for a copy kept outside the world (EntitySimulations). */
+	public static void onEntityJoined(Entity entity, Level level, boolean loadedFromDisk) {
 		/* 
 		 * Attach the power data to the player.
 		 * The capabilities system is now strictly per-EntityType, can't have an instanceof check anymore 
 		 * for smth like a "Mobs with Stands"-type of addon, so we're not using it this time.
 		 */ 
-		if (event.getEntity() instanceof Player user) {
+		if (entity instanceof Player user) {
 			for (PowerClass<?> powerClass : PowerClass.values()) {
 				powerClass.attachPower(user);
 			}
 		}
-		else if (!event.getLevel().isClientSide() && event.getLevel() instanceof ServerLevel level) {
-			if (event.getEntity() instanceof Mob mob) {
+		else if (!level.isClientSide() && level instanceof ServerLevel serverLevel) {
+			if (entity instanceof Mob mob) {
 				VampirismUtil.editMobAiGoals(mob);
-				TimeStopState.restoreLoadedMobIfNoStopHoldsIt(mob, level);
+				TimeStopState.restoreLoadedMobIfNoStopHoldsIt(mob, serverLevel);
 			}
-			if (!event.loadedFromDisk() && event.getEntity() instanceof Projectile projectile) {
+			if (!loadedFromDisk && entity instanceof Projectile projectile) {
 				HamonUtil.tryChargeProjectile(projectile);
 			}
-			if (event.getEntity() instanceof Chicken chicken) {
+			if (entity instanceof Chicken chicken) {
 				HamonUtil.tryChargeChickenFromChargedEgg(chicken);
 			}
 			var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
-			if (level.hasData(attachmentType)) {
-				TimeStopState state = level.getData(attachmentType);
-				if (state.isTimeStopped(event.getEntity())) {
-					onEntityEnteredTimeStop(event.getEntity(), state);
+			if (serverLevel.hasData(attachmentType)) {
+				TimeStopState state = serverLevel.getData(attachmentType);
+				if (state.isTimeStopped(entity)) {
+					onEntityEnteredTimeStop(entity, state);
 				}
 			}
 		}
@@ -906,7 +911,11 @@ public class EventHandler {
 
 	@SubscribeEvent
 	public static void onEntityTick(EntityTickEvent.Post event) {
-		Entity entity = event.getEntity();
+		onEntityTicked(event.getEntity());
+	}
+
+	/** What the core does after an entity's tick; also run for a copy kept outside the world (EntitySimulations). */
+	public static void onEntityTicked(Entity entity) {
 		DataEventListeners data = entityEventListeners(entity);
 		if (data != null) {
 			data.onTick();

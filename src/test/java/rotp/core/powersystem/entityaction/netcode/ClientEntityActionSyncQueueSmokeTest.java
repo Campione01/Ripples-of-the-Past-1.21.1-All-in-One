@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.client.ClientActionPerformers;
 import rotp.core.api.network.AbilityNetworkDiagnostics.Stage;
 import rotp.core.compat.v1_21_4.missingmethods._Vec3;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
@@ -42,6 +43,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.extensions.ICommonPacketListener;
 import net.neoforged.neoforge.network.connection.ConnectionType;
@@ -75,6 +77,35 @@ public final class ClientEntityActionSyncQueueSmokeTest {
 		testTargetSyncForAnotherActionChangesNothing();
 		testTargetSyncQueuedBeforeItsAction();
 		testBothSlotsOfOneEntityKeepTheirOwnLedgersAndDependents();
+		testAnAddonsPerformerResolverIsAskedBeforeTheLevel();
+	}
+
+	// ClientActionPerformers: an add-on's performers kept apart from the client level (King Crimson's Epitaph phantoms)
+	// are looked up by the packet's id and UUID before the level is, for packets and for the ledger sweep alike
+	private static void testAnAddonsPerformerResolverIsAskedBeforeTheLevel() {
+		ResourceLocation owner = ResourceLocation.fromNamespaceAndPath("rotp_test", "performer_resolver_probe");
+		UUID uuid = new UUID(0L, 6100L);
+		List<String> asked = new ArrayList<>();
+		ClientActionPerformers.register(owner, (entityId, performerUuid) -> {
+			asked.add(entityId + "/" + performerUuid);
+			return null;
+		});
+		try {
+			check(ClientEntityActionSyncQueue.findLiving(new EntityIdentity(61, uuid, 0), null) == null
+					&& asked.equals(List.of("61/" + uuid)),
+					"a performer lookup must ask the add-ons' resolvers by id and UUID first: asked " + asked);
+		}
+		finally {
+			ClientActionPerformers.unregister(owner);
+		}
+		asked.clear();
+		check(ClientEntityActionSyncQueue.findLiving(new EntityIdentity(61, uuid, 0), null) == null && asked.isEmpty(),
+				"an unregistered resolver must not be asked");
+		String queue = read(
+				"src/main/java/rotp/core/powersystem/entityaction/netcode/ClientEntityActionSyncQueue.java")
+				.replaceAll("\\s+", "");
+		check(queue.contains("GENERATIONS.sweep(identity->findLiving(identity,mc.level)!=null,"),
+				"the ledger sweep must keep a performer an add-on resolves live");
 	}
 
 	// a user's own slot and its Stand-power slot (LivingComponentAction#slotId) keep separate generation ledgers, a

@@ -21,6 +21,7 @@ import org.jetbrains.annotations.ApiStatus;
 
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import rotp.core.JojoModConfig;
+import rotp.core.api.simulation.EntitySimulations;
 import rotp.core.api.timestop.TimeStopAudioContext;
 import rotp.core.api.timestop.TimeStopAudioCue;
 import rotp.core.api.timestop.TimeStopAudioDecision;
@@ -416,6 +417,9 @@ public class TimeStopState {
     }
 
     public boolean interruptTickEarly(Entity entity) {
+        if (EntitySimulations.isSimulated(entity)) {
+            return false;
+        }
         if (!shouldInterruptEarly(entity)) {
             return false;
         }
@@ -426,7 +430,7 @@ public class TimeStopState {
     }
 
     public void freezeEntity(Entity entity) {
-        if (!isFreezable(entity) || frozenEntities.containsKey(entity.getId())) {
+        if (!isFreezable(entity) || frozenEntities.containsKey(entity.getId()) || EntitySimulations.isSimulated(entity)) {
             return;
         }
         // The motion stays on the entity, as in 1.16 (a stopped entity just did not tick): knockback and pushes
@@ -471,7 +475,7 @@ public class TimeStopState {
 
     @ApiStatus.Internal
     public void updateGrabbedEntityPosition(LivingEntity entity) {
-        if (entity.level() != level || !shouldFreeze(entity)) {
+        if (entity.level() != level || !shouldFreeze(entity) || EntitySimulations.isSimulated(entity)) {
             return;
         }
         freezeEntity(entity);
@@ -493,7 +497,7 @@ public class TimeStopState {
      * @return whether the entity stays frozen
      */
     public boolean repinOrRelease(Entity entity) {
-        if (entity.level() != level) {
+        if (entity.level() != level || EntitySimulations.isSimulated(entity)) {
             return false;
         }
         if (!shouldFreeze(entity)) {
@@ -604,6 +608,9 @@ public class TimeStopState {
     }
 
     public void unfreezeEntity(Entity entity) {
+        if (EntitySimulations.isSimulated(entity)) {
+            return;
+        }
         FrozenEntityState state = frozenEntities.remove(entity.getId());
         if (state == null) {
             return;
@@ -617,7 +624,7 @@ public class TimeStopState {
     }
 
     public void queueOnTimeResume(Entity entity, Runnable action) {
-        if (entity == null || action == null) {
+        if (entity == null || action == null || EntitySimulations.isSimulated(entity)) {
             return;
         }
         if (!shouldFreeze(entity)) {
@@ -637,6 +644,9 @@ public class TimeStopState {
     }
 
     public void reconcileFrozenEntity(Entity entity) {
+        if (EntitySimulations.isSimulated(entity)) {
+            return;
+        }
         if (entity.level() == level && entity.getEntityData().isDirty() && !playersVisionFrozen.isEmpty()) {
             dirtyEntityData.add(entity.getId());
         }
@@ -658,7 +668,7 @@ public class TimeStopState {
     }
 
     public void refreshTimeStopEffectState(LivingEntity entity) {
-        if (entity.level() != level) {
+        if (entity.level() != level || EntitySimulations.isSimulated(entity)) {
             return;
         }
         reconcileFrozenEntity(entity);
@@ -927,7 +937,8 @@ public class TimeStopState {
 
     @ApiStatus.Internal
     public static void onEntityDataDirty(Entity entity) {
-        if (entity.level() instanceof ServerLevel level && level.getServer().isSameThread()) {
+        if (entity.level() instanceof ServerLevel level && level.getServer().isSameThread()
+                && !EntitySimulations.isSimulated(entity)) {
             var key = ModDataAttachmentTypes.TIME_STOP.get();
             if (level.hasData(key)) {
                 TimeStopState state = level.getData(key);

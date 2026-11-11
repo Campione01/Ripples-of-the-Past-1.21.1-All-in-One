@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 
+import rotp.core.api.client.ClientActionPerformers;
 import rotp.core.api.network.ClientAbilityNetworkDiagnostics;
 import rotp.core.api.network.AbilityNetworkDiagnostics.Stage;
 import rotp.core.core.JojoMod;
@@ -34,6 +35,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.common.extensions.ICommonPacketListener;
 
 public final class ClientEntityActionSyncQueue {
@@ -883,11 +885,20 @@ public final class ClientEntityActionSyncQueue {
 
 	@Nullable
 	private static LivingEntity findLiving(EntityIdentity identity) {
-		Minecraft mc = Minecraft.getInstance();
-		if (mc.level == null) {
+		return findLiving(identity, Minecraft.getInstance().level);
+	}
+
+	// an add-on's performer kept apart from the client level first (ClientActionPerformers), then the level's
+	@Nullable
+	static LivingEntity findLiving(EntityIdentity identity, @Nullable Level level) {
+		LivingEntity kept = ClientActionPerformers.resolve(identity.entityId(), identity.performerUuid());
+		if (kept != null) {
+			return kept;
+		}
+		if (level == null) {
 			return null;
 		}
-		Entity entity = mc.level.getEntity(identity.entityId());
+		Entity entity = level.getEntity(identity.entityId());
 		return entity instanceof LivingEntity living
 				&& identity.performerUuid().equals(living.getUUID())
 						? living : null;
@@ -1070,14 +1081,7 @@ public final class ClientEntityActionSyncQueue {
 
 	private static CapacityResult pruneGenerationLedgers(Minecraft mc) {
 		return GENERATIONS.sweep(
-				identity -> {
-					if (mc.level == null) {
-						return false;
-					}
-					Entity entity = mc.level.getEntity(identity.entityId());
-					return entity instanceof LivingEntity living
-							&& identity.performerUuid().equals(living.getUUID());
-				},
+				identity -> findLiving(identity, mc.level) != null,
 				ClientEntityActionSyncQueue::hasPending).result();
 	}
 

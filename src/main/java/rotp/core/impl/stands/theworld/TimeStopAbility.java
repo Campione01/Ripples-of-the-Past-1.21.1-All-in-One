@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.simulation.EntitySimulations;
 import rotp.core.api.timestop.TimeStopAudioContext;
 import rotp.core.api.timestop.TimeStopAudioCue;
 import rotp.core.api.timestop.TimeStopAudioDecision;
@@ -511,7 +512,7 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 	private boolean startTimeStopAfterHold(LivingEntity user, boolean standAlreadySummoned, int requestedTimeStopTicks,
 			float chargeLength, boolean doublePress) {
 		Level level = user.level();
-		if (level.isClientSide() || !(level instanceof ServerLevel serverLevel)) {
+		if (level.isClientSide() || !(level instanceof ServerLevel serverLevel) || EntitySimulations.isSimulated(user)) {
 			return false;
 		}
 		StandPower power = PowerClass.STAND.get(user);

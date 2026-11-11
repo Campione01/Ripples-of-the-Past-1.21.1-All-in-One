@@ -167,6 +167,25 @@ public class DamageSourceMixin implements DamageSourceModified {
 		return jojo_ripples$counteredTargetId != -1 && target.getId() == jojo_ripples$counteredTargetId;
 	}
 
+	@Override
+	public void jojo_ripples$copyModificationsFrom(DamageSource from) {
+		DamageSourceMixin source = (DamageSourceMixin) (Object) from;
+		this.jojo_ripples$addKnockback = source.jojo_ripples$addKnockback;
+		this.jojo_ripples$knockbackMultiplier = source.jojo_ripples$knockbackMultiplier;
+		this.jojo_ripples$verticalKnockbackStrength = source.jojo_ripples$verticalKnockbackStrength;
+		this.jojo_ripples$verticalKnockbackAngleRatio = source.jojo_ripples$verticalKnockbackAngleRatio;
+		this.jojo_ripples$knockbackXRotDeg = source.jojo_ripples$knockbackXRotDeg;
+		this.jojo_ripples$knockbackYRotDeg = source.jojo_ripples$knockbackYRotDeg;
+		this.jojo_ripples$knockbackXRotAppliedStrength = source.jojo_ripples$knockbackXRotAppliedStrength;
+		this.jojo_ripples$standInvulTicks = source.jojo_ripples$standInvulTicks;
+		this.jojo_ripples$barrageHits = source.jojo_ripples$barrageHits;
+		this.jojo_ripples$standPower = source.jojo_ripples$standPower;
+		this.jojo_ripples$nonLethal = source.jojo_ripples$nonLethal;
+		this.jojo_ripples$breakStandGuard = source.jojo_ripples$breakStandGuard;
+		this.jojo_ripples$fixedDamage = source.jojo_ripples$fixedDamage;
+		this.jojo_ripples$counteredTargetId = source.jojo_ripples$counteredTargetId;
+	}
+
 	// 1.16 StandEntityDamageSource.scalesWithDifficulty: a hit whose direct attacker is a non-player mob (the Stand)
 	// scales with difficulty when the Stand's user is a non-player mob too; Stand projectiles never did.
 	@Inject(method = "scalesWithDifficulty", at = @At("HEAD"), cancellable = true)

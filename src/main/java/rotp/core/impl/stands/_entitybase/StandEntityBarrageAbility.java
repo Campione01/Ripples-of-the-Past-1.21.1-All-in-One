@@ -866,8 +866,12 @@ public class StandEntityBarrageAbility extends StandEntityAbility {
 		// 1.16 LivingUtilCap.tickNoGravityModifier, server side, on the target's own tick
 		@SubscribeEvent
 		public static void onEntityTick(EntityTickEvent.Pre event) {
-			if (event.getEntity().level().isClientSide() || RESOLVE_NO_GRAVITY.isEmpty()
-					|| !(event.getEntity() instanceof LivingEntity living)) {
+			onTickStarting(event.getEntity());
+		}
+
+		public static void onTickStarting(Entity entity) {
+			if (entity.level().isClientSide() || RESOLVE_NO_GRAVITY.isEmpty()
+					|| !(entity instanceof LivingEntity living)) {
 				return;
 			}
 			Integer ticks = RESOLVE_NO_GRAVITY.get(living);
