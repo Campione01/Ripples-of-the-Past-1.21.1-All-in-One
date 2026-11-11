@@ -978,7 +978,6 @@
   "jojo_ripples.lifeforms.answer.reverted": "已還原：%s",
   "jojo_ripples.lifeforms.answer.gone": "這個生命體已經不在了",
   "jojo_ripples.lifeforms.answer.not_here": "它目前不在你身邊，無法從這裡還原",
-  "jojo_ripples.lifeforms.answer.too_far": "距離太遠，無法還原",
   "jojo_ripples.lifeforms.answer.refused": "目前無法使用還原",
   "jojo_ripples.lifeform.animal": "動物",
   "jojo_ripples.lifeform.plant": "Plants",

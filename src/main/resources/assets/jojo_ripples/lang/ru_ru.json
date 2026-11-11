@@ -1010,7 +1010,6 @@
   "jojo_ripples.lifeforms.answer.reverted": "Обращено: %s",
   "jojo_ripples.lifeforms.answer.gone": "Этой формы жизни больше нет",
   "jojo_ripples.lifeforms.answer.not_here": "Она не загружена рядом с вами",
-  "jojo_ripples.lifeforms.answer.too_far": "Слишком далеко, чтобы обратить",
   "jojo_ripples.lifeforms.answer.refused": "Сейчас обратить нельзя",
   "jojo_ripples.lifeform.animal": "Животные",
   "jojo_ripples.lifeform.plant": "Plants",

@@ -50,7 +50,6 @@ public final class GoldExperienceLifeformRoster {
         GONE,
         /** Not loaded where he is. */
         NOT_HERE,
-        TOO_FAR,
         /** His Revert cannot be used right now. */
         REFUSED
     }
@@ -117,12 +116,9 @@ public final class GoldExperienceLifeformRoster {
             return Answer.REFUSED;
         }
         Entity target = effect.getTarget();
+        // any distance: one still counting turns back by itself past 128 blocks, and one past 7 minutes is his anywhere
         if (target == null || !target.isAlive() || target.level() != user.level()) {
             return Answer.NOT_HERE;
-        }
-        double range = GoldExperienceRevertLifeformAbility.MAX_LIFEFORM_DISTANCE;
-        if (!GoldExperienceRevertLifeformAbility.isWithinReach(target, user, range * range)) {
-            return Answer.TOO_FAR;
         }
         GoldExperienceRevertLifeformAbility.revertLifeform(standPower, effect);
         return Answer.REVERTED;

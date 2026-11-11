@@ -978,7 +978,6 @@
   "jojo_ripples.lifeforms.answer.reverted": "元に戻しました：%s",
   "jojo_ripples.lifeforms.answer.gone": "その生命体はもう存在しません",
   "jojo_ripples.lifeforms.answer.not_here": "今いる場所では読み込まれていません",
-  "jojo_ripples.lifeforms.answer.too_far": "遠すぎて元に戻せません",
   "jojo_ripples.lifeforms.answer.refused": "今は元に戻せません",
   "jojo_ripples.lifeform.animal": "Animals",
   "jojo_ripples.lifeform.plant": "Plants",

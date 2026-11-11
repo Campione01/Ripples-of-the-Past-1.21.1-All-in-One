@@ -978,7 +978,6 @@
   "jojo_ripples.lifeforms.answer.reverted": "Revertida: %s",
   "jojo_ripples.lifeforms.answer.gone": "Essa forma de vida não existe mais",
   "jojo_ripples.lifeforms.answer.not_here": "Ela não está carregada onde você está",
-  "jojo_ripples.lifeforms.answer.too_far": "Está longe demais para reverter",
   "jojo_ripples.lifeforms.answer.refused": "Você não pode usar Reverter agora",
   "jojo_ripples.lifeform.animal": "Animals",
   "jojo_ripples.lifeform.plant": "Plants",

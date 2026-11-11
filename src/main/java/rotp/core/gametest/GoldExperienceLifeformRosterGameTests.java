@@ -67,7 +67,8 @@ import net.neoforged.neoforge.network.connection.ConnectionType;
 /*
  * The owner's items of 2026-11-08 for Gold Experience's lifeforms: one that has lived 7 minutes no longer takes one of
  * the 16 places; the server keeps a record of each that follows the creature and ends when it no longer exists; the
- * menu Revert opens reverts, on the server's word, only the asker's own lifeform that is loaded near him, once.
+ * menu Revert opens reverts, on the server's word, only the asker's own lifeform that is loaded in his dimension, once.
+ * The coordinator's follow-up of 2026-11-10: 1.16's 128-block leash holds only while a lifeform still counts.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -110,6 +111,47 @@ public final class GoldExperienceLifeformRosterGameTests {
 					"GE-LIFE: the creation time does not survive a save and a reload");
 		}
 		finally {
+			scene.close();
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", batch = BATCH)
+	public static void goldExperienceLifeformPastSevenMinutesIsFreeOfTheDistanceLeash(GameTestHelper helper) {
+		Scene scene = new Scene(helper);
+		ServerLevel level = helper.getLevel();
+		ChunkPos far = null;
+		try {
+			scene.open(true);
+			double away = GoldExperienceRevertLifeformAbility.MAX_LIFEFORM_DISTANCE + 72.0D;
+			far = new ChunkPos(BlockPos.containing(scene.origin.add(0.0D, 0.0D, away)));
+			level.setChunkForced(far.x, far.z, true);
+			level.getChunk(far.x, far.z);
+			Pig counted = scene.pig(0.0D, away);
+			Pig free = scene.pig(2.0D, away);
+			GECreatedLifeformEffect countedRecord = scene.lifeform(counted);
+			GECreatedLifeformEffect freeRecord = scene.lifeformCreatedAt(free, level.getGameTime() - GECreatedLifeformEffect.COUNTED_TICKS - 1);
+			for (int tick = 0; tick < 5; tick++) {
+				scene.tick();
+			}
+			helper.assertTrue(countedRecord.isStopped(),
+					"GE-LIFE: a lifeform that still counts must turn back more than 128 blocks from its user, as in 1.16");
+			helper.assertTrue(!freeRecord.isStopped() && free.isAlive(),
+					"GE-LIFE: a lifeform past 7 minutes turned back by distance; it must go on existing wherever its user goes");
+			Row row = scene.row(free.getUUID());
+			helper.assertTrue(row.place() == Place.HERE && !row.counts() && row.entityId() == free.getId(),
+					"GE-LIFE: a far lifeform past 7 minutes must be in the menu, revertible and not counted, got " + row);
+			helper.assertTrue(GoldExperienceLifeformRoster.revert(scene.user, free.getUUID()) == Answer.REVERTED && freeRecord.isStopped(),
+					"GE-LIFE: the menu must still revert a lifeform past 7 minutes, however far it is in its user's dimension");
+		}
+		finally {
+			if (far != null) {
+				// what the pigs turned back into lies out there
+				Vec3 there = scene.origin.add(0.0D, 0.0D, GoldExperienceRevertLifeformAbility.MAX_LIFEFORM_DISTANCE + 72.0D);
+				level.getEntitiesOfClass(Entity.class, new AABB(there, there).inflate(8.0D), entity -> !(entity instanceof FakePlayer))
+						.forEach(Entity::discard);
+				level.setChunkForced(far.x, far.z, false);
+			}
 			scene.close();
 		}
 		helper.succeed();

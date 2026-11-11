@@ -217,7 +217,6 @@ public class GoldExperienceLifeformsScreen extends Screen implements IJojoMenuSc
             case REVERTED -> Component.translatable(TEXT + "answer.reverted", name);
             case GONE -> Component.translatable(TEXT + "answer.gone");
             case NOT_HERE -> Component.translatable(TEXT + "answer.not_here");
-            case TOO_FAR -> Component.translatable(TEXT + "answer.too_far");
             case REFUSED -> Component.translatable(TEXT + "answer.refused");
             case NONE -> null;
         };

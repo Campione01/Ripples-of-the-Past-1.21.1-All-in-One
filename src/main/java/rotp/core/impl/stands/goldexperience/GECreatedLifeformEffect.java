@@ -326,8 +326,9 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
                 remove();
                 return;
             }
-            // only a lifeform in its user's own dimension can be out of his reach by distance
-            if (target != null && target.level() == getStandUser().level()
+            // 1.16's leash: a lifeform still taking one of the 16 places turns back when its user is too far in its own
+            // dimension; one past the 7 minutes goes on existing wherever he goes
+            if (target != null && countsTowardLimit(level.getGameTime()) && target.level() == getStandUser().level()
                     && target.distanceToSqr(getStandUser()) > MAX_LIFEFORM_DISTANCE * MAX_LIFEFORM_DISTANCE) {
                 remove();
                 return;

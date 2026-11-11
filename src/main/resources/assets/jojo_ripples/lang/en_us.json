@@ -991,7 +991,6 @@
   "jojo_ripples.lifeforms.answer.reverted": "Reverted: %s",
   "jojo_ripples.lifeforms.answer.gone": "That lifeform is no longer there",
   "jojo_ripples.lifeforms.answer.not_here": "It is not loaded where you are",
-  "jojo_ripples.lifeforms.answer.too_far": "It is too far away to revert",
   "jojo_ripples.lifeforms.answer.refused": "Revert cannot be used right now",
   "jojo_ripples.lifeform.animal": "Animals",
   "jojo_ripples.lifeform.plant": "Plants",
