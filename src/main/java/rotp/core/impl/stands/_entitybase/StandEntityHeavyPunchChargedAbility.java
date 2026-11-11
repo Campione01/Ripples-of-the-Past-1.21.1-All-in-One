@@ -204,7 +204,8 @@ public class StandEntityHeavyPunchChargedAbility extends StandEntityAbility {
 					// judged before the hit and played after it, as the heavy punch does (1.16 StandEntity.attackTarget)
 					Vec3 impactSoundPos = StandEntityPunchAbility.playHitSound(target, level) ? target.getCenterPos() : null;
 					DamageSource dmgSource = makePunchDamageSource();
-					float dmgAmount = StandStatFormulas.getChargedHeavyAttackDamage(stand.getAttackDamage());
+					float dmgAmount = StandStatFormulas.getChargedHeavyAttackDamage(
+							stand.getAttackDamage(), stand.getAttackSpeed(), stand.getPrecision());
 					float explRadius = Math.min((float) stand.getAttackDamage() * 0.25F, 10);
 
 					entityHitLanded = false;
