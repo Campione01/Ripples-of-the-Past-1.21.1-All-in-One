@@ -158,6 +158,9 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 			if (standEntity != null && standEntity.level() != user.level()) {
 				standType.forceUnsummon(user, this);
 			}
+			else if (standEntity != null) {
+				standEntity.bringAlongIfLeftBehind(user);
+			}
 		}
 	}
 

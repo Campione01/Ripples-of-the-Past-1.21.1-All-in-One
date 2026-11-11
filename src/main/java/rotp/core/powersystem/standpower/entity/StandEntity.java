@@ -2031,6 +2031,47 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		placeBesideUserForSummon(user);
 	}
 
+	/**
+	 * Brings this Stand to its user when he was moved where its place no longer ticks while his does (a long teleport
+	 * in the same level: a command, an ender pearl, a portal, another mod's teleport). Left there it would stay his
+	 * summoned Stand and never act on what it is handed. A Stand meant to be away from him (manually controlled, not
+	 * following him, or moved by its action on its own) stays where it is while it is within the range its movement is
+	 * held to (getMaxRangeForMovement); past it, it is brought to that range on the line to him, as its own move would,
+	 * or to him when that place does not tick either. Any other Stand is placed beside him as a summon places it. A
+	 * change of level still recalls the Stand (StandPower). Called by the user's power each tick and by a Stand key's
+	 * press before the press is handed on.
+	 *
+	 * @return whether the Stand was moved
+	 */
+	public boolean bringAlongIfLeftBehind(@Nullable LivingEntity user) {
+		if (user == null || isRemoved() || !isAddedToLevel() || user.level() != level()
+				|| !(level() instanceof ServerLevel serverLevel)
+				|| serverLevel.isPositionEntityTicking(blockPosition())
+				|| !serverLevel.isPositionEntityTicking(user.blockPosition())) {
+			return false;
+		}
+		boolean keptAway = isManuallyControlled() || !followingUserIsEnabled() || curActionDisablesUserOffset();
+		if (keptAway) {
+			double distance = distanceTo(user);
+			double range = getMaxRangeForMovement(user);
+			if (distance <= range) {
+				return false;
+			}
+			Vec3 place = position().add(user.position().subtract(position()).scale(1 - range / distance));
+			if (!serverLevel.isPositionEntityTicking(BlockPos.containing(place))) {
+				place = user.position();
+			}
+			setPos(place.x, place.y, place.z);
+		}
+		else {
+			setPos(user.getX(), user.getY(), user.getZ());
+			placeBesideUserForSummon(user);
+		}
+		setDeltaMovement(Vec3.ZERO);
+		setOldPosAndRot();
+		return true;
+	}
+
 	void placeBesideUserForSummon(LivingEntity user) {
 		// its place's collision check must not load chunks: around an unloaded user its first tick places it as before
 		BlockPos at = user != null ? user.blockPosition() : null;
