@@ -107,9 +107,25 @@ public class StandStatFormulas {
 	}
 
 
+	/** The punch's own part of the charged heavy: power x 1.5, at least 1.5. */
 	public static float getChargedHeavyAttackDamage(double strength) {
 		float damage = Math.max((float) strength, 1F) * 1.5f;
 		return damage;
+	}
+
+	public static final float CHARGED_HEAVY_OVER_BARRAGE = 1.1F;
+
+	/**
+	 * A fully charged heavy punch (owner, 2026-11): the larger of power x 1.5 and 1.1 x the barrage damage a second of
+	 * the same stats, so it hits harder than a second of barrage at every Resolve level.
+	 */
+	public static float getChargedHeavyAttackDamage(double strength, double speed, double precision) {
+		return Math.max(getChargedHeavyAttackDamage(strength),
+				getBarrageDamagePerSecond(strength, speed, precision) * CHARGED_HEAVY_OVER_BARRAGE);
+	}
+
+	public static float getBarrageDamagePerSecond(double strength, double speed, double precision) {
+		return getBarrageHitDamage(strength, precision) * getBarrageHitsPerSecond(speed);
 	}
 
 	public static float getChargedHeavyButtonWindup(double speed, float finisherMeter) {
