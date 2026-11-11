@@ -170,7 +170,7 @@ public class StandEntityHeavyPunchAbility extends StandEntityAbility {
 	}
 
 	public static float calcExplosionRadius(StandEntity stand) {
-		return Math.min((float) stand.getAttackDamage() * 0.175f, 10);
+		return StandStatFormulas.getHeavyPunchBlastRadius(stand.getAttackDamage());
 	}
 
 	public static float calcExplosionDamage(StandEntity stand) {
@@ -913,7 +913,7 @@ public class StandEntityHeavyPunchAbility extends StandEntityAbility {
 				Map<BlockPos, BlockShardEntity[]> blockShardEntities = new HashMap<>();
 				if (createBlockShards) {
 					RandomSource random = attacker.getRandom();
-					float shardsVelocity = 0.5f + (float) strength * 0.05f;
+					float shardsVelocity = StandStatFormulas.getBlockShardVelocity(strength);
 					double shardsInaccuracy = Math.max(100 - precision * 4.5, 0);
 
 					shardsInaccuracy = Math.min(shardsInaccuracy * 0.0075, 1);

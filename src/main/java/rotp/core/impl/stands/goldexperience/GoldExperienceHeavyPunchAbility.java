@@ -11,6 +11,7 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
@@ -251,7 +252,7 @@ public class GoldExperienceHeavyPunchAbility extends StandEntityHeavyPunchAbilit
             float xRot = -37.5F - 15.0F * stand.getRandom().nextFloat();
             float yRot = 90.0F + 30.0F * stand.getRandom().nextFloat();
             Vec3 toothVec = Vec3.directionFromRotation(target.getXRot() + xRot, target.getYRot() + yRot);
-            tooth.setDeltaMovement(toothVec.scale(Math.max(stand.getAttackDamage(), 2.0D) * 0.05D));
+            tooth.setDeltaMovement(toothVec.scale(StandStatFormulas.getKnockedOutToothSpeed(stand.getAttackDamage())));
             level.addFreshEntity(tooth);
             return tooth;
         }

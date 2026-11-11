@@ -16,13 +16,36 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public class StandStatFormulas {
 
+	/** The top of the ordinary power scale: above it only damage follows a Stand's power, so every other use reads this cap. */
+	public static final double ORDINARY_POWER_CAP = 20;
+
+	public static double ordinaryPower(double strength) {
+		return Math.min(strength, ORDINARY_POWER_CAP);
+	}
+
 	public static float getHeavyAttackDamage(double strength) {
 		float damage = Math.max((float) strength, 1F);
 		return damage;
 	}
 
 	public static float getHeavyAttackKnockback(double strength, float finisherMeter) {
-		return 0.5F + (float) strength / (8 - finisherMeter * 4);
+		return 0.5F + (float) ordinaryPower(strength) / (8 - finisherMeter * 4);
+	}
+
+	public static float getUppercutKnockback(double strength, float finisherMeter) {
+		return 0.5F + (float) ordinaryPower(strength) / 16 * finisherMeter;
+	}
+
+	public static float getHeavyPunchBlastRadius(double strength) {
+		return Math.min((float) ordinaryPower(strength) * 0.175f, 10);
+	}
+
+	public static float getChargedHeavyBlastRadius(double strength) {
+		return Math.min((float) ordinaryPower(strength) * 0.25F, 10);
+	}
+
+	public static float getBlockShardVelocity(double strength) {
+		return 0.5f + (float) ordinaryPower(strength) * 0.05f;
 	}
 	
 	public static int getHeavyAttackWindup(double speed, float finisherMeter) {
@@ -94,6 +117,16 @@ public class StandStatFormulas {
 		return getBarrageHitDamage(strength, 0);
 	}
 
+	/** The lowest pitch of a barrage swing; each swing adds up to 0.2. */
+	public static float getBarrageSwingPitch(double strength) {
+		return 1.8F - (float) ordinaryPower(strength) * 0.05F;
+	}
+
+	/** The share of the normal knockback a barrage hit gives. */
+	public static float getBarrageKnockbackFactor(double strength) {
+		return Mth.clamp((float) ordinaryPower(strength) * 0.0075F, 0, 1);
+	}
+
 	public static int getBarrageHitsPerSecond(double speed) {
 		return Math.max((int) (speed * 8.0 - 20.0), 0);
 	}
@@ -138,7 +171,7 @@ public class StandStatFormulas {
 
 
 	public static float getPhysicalResistance(double durability, double strength, float blocked, float damageDealt) {
-		double x = (durability * 2 + strength * 1) / 3;
+		double x = (durability * 2 + ordinaryPower(strength) * 1) / 3;
 		double resistance = x / (x + 4); // simplified `1 - 1 / (x / 4 + 1)`
 		double dmgCoeff = 1;
 
@@ -187,7 +220,7 @@ public class StandStatFormulas {
 	
 
 	public static float getLeapStrength(double strength) {
-		return (float) Math.min(strength, 40) / 5F;
+		return (float) ordinaryPower(strength) / 5F;
 	}
 
 	public static float getLeapChargeTime(double speed) {
@@ -241,8 +274,13 @@ public class StandStatFormulas {
 		return (float) (1 - 0.75 * past);
 	}
 	
+	public static double getKnockedOutToothSpeed(double strength) {
+		return Math.max(ordinaryPower(strength), 2.0D) * 0.05D;
+	}
+
 	// * 8.5618
 	public static float projectileVelocityScaling(double strength, float velocity) {
+		strength = ordinaryPower(strength);
 		if (strength > 8) {
 			float multiplier = ((float) strength - 8) / 12f + 1;
 			velocity *= multiplier;
@@ -296,7 +334,7 @@ public class StandStatFormulas {
 		 * 17 - netherite
 		 * 20 - netherite+
 		 */
-		int tier = (int) (strength - 2) / 3;
+		int tier = (int) (ordinaryPower(strength) - 2) / 3;
 		return miningTiers[Mth.clamp(tier, 0, miningTiers.length - 1)];
 	}
 	
@@ -353,16 +391,26 @@ public class StandStatFormulas {
 	}
 	
 	public static float getBlockMiningEfficiency(double strength) {
+		strength = ordinaryPower(strength);
 		return strength > 17 ? (float) (strength - 16.5) * 2 : 1;
 	}
 	
+	public static double maxBreakableHardness(double strength) {
+		return Math.exp(ordinaryPower(strength) / 4);
+	}
+
+	/** The index of the legacy (1.16) harvest tier a punch of this power reaches, before the clamp to the tier list. */
+	public static int getLegacyHarvestTier(double strength) {
+		return (int) ordinaryPower(strength) / 4;
+	}
+
 	public static boolean isBlockBreakable(double strength, BlockState blockState, Level level, BlockPos blockPos) {
 		float hardness = blockState.getDestroySpeed(level, blockPos);
 		if (hardness < 0) {
 			return false;
 		}
 		BlockMiningTier harvestTier = getStandHarvestLevel(strength);
-		return harvestTier.canMine(blockState) && hardness < Math.exp(strength / 4);
+		return harvestTier.canMine(blockState) && hardness < maxBreakableHardness(strength);
 	}
 
 	public static boolean canGrabBlock(double strength, BlockState blockState, Level level, BlockPos blockPos) {
