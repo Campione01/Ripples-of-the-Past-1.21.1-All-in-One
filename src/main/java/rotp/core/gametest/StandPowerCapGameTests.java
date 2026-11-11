@@ -54,7 +54,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class StandPowerCapGameTests {
-	private static final float TOP = (float) StandStatFormulas.ORDINARY_POWER_CAP;
+	// pinned here, not read from StandStatFormulas.ORDINARY_POWER_CAP: a change of the cap must move this test
+	private static final float TOP = 20F;
 	private static final float EPSILON = 1.0E-5F;
 	private static final float[] FINISHER_METERS = { 0F, 0.5F, 1F };
 	private static final float[] BLOCKED_RATIOS = { 0F, 0.5F };
