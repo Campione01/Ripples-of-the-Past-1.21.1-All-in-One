@@ -231,7 +231,8 @@ public final class ClientConfigEditorGameTests {
 				"Fixture requires a dedicated GameTest process without an initialized client store");
 		Field singleton = ClientModSettings.class.getDeclaredField("instance");
 		singleton.setAccessible(true);
-		Path directory = Files.createTempDirectory("rotp-client-config-editor-");
+		// under the run directory in build, as no temp file may go to drive C:
+		Path directory = Files.createTempDirectory(Files.createDirectories(Path.of("tmp").toAbsolutePath()), "rotp-client-config-editor-");
 		Path file = directory.resolve("client_settings.json");
 		try {
 			Files.writeString(file, json);
