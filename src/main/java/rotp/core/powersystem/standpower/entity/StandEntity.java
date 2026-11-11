@@ -2008,6 +2008,29 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	 */
 	private static final int SUMMON_PLACE_CHUNK_MARGIN = 4;
 
+	/*
+	 * The summon places a fresh Stand before its caller's set-up runs, so a place that set-up gives it (Echoes' new form
+	 * where the old one stood) wins; a summon that adds the Stand later (an action's auto-summon, whose action may move
+	 * it) places it again then, unless something moved it in between.
+	 */
+	@Nullable
+	private Vec3 summonPlace;
+
+	void placeForFreshSummon(LivingEntity user) {
+		placeBesideUserForSummon(user);
+		summonPlace = position();
+	}
+
+	void placeForSummonUnlessPositioned(LivingEntity user) {
+		Vec3 given = summonPlace;
+		summonPlace = null;
+		if (given != null && !given.equals(position())) {
+			setOldPosAndRot();
+			return;
+		}
+		placeBesideUserForSummon(user);
+	}
+
 	void placeBesideUserForSummon(LivingEntity user) {
 		// its place's collision check must not load chunks: around an unloaded user its first tick places it as before
 		BlockPos at = user != null ? user.blockPosition() : null;
