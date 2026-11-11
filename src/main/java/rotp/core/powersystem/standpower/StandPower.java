@@ -656,6 +656,10 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		return stamina == maxStamina ? 1 : maxStamina > 0 ? stamina / maxStamina : 0;
 	}
 	
+	/**
+	 * Sets the stamina to exactly this amount: never scaled by the Stand's stamina share of the Stands page, so it is the
+	 * call that puts the stamina back as it was (a refund, a rollback). A cost goes through {@link #consumeStamina}.
+	 */
 	public void setStamina(float stamina) {
 		boolean clientSide = user.level().isClientSide();
 		if (!clientSide) {
@@ -885,10 +889,17 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		restoreAbilityCooldown(abilityName, cooldown, totalCooldown);
 	}
 
+	/** {@link #restoreAbilityCooldown(String, int, int)} with the cooldown as its own total. */
+	public void restoreAbilityCooldown(String abilityName, int cooldown) {
+		restoreAbilityCooldown(abilityName, cooldown, cooldown);
+	}
+
 	/**
-	 * A cooldown already in the Stand's cooldown share, not taken in it again: one put back as it was (the server's word
-	 * on a client, a rollback), one worked out from a cooldown read back ({@link #getAbilityCooldown} is in the share), or
-	 * a lock of a fixed length that is no cooldown of the Stand's own (a timer an ability or another Stand sets).
+	 * Puts a cooldown back as it was, exactly these ticks, not scaled by the Stand's cooldown share of the Stands page
+	 * ({@link #setAbilityCooldown} takes a cooldown in that share). For add-ons and the core alike: a cooldown restored
+	 * as it was (a rollback, a refund, the server's word on a client), one worked out from a cooldown read back
+	 * ({@link #getAbilityCooldown} is already in the share; add a fresh one with {@link #getAbilityCooldownShare}), or a
+	 * lock of fixed length that is no cooldown of the Stand's own (a timer an ability or another Stand sets).
 	 */
 	public void restoreAbilityCooldown(String abilityName, int cooldown, int totalCooldown) {
 		if (abilityName == null || abilityName.isEmpty()) {

@@ -73,7 +73,11 @@ public final class StandDamageContext {
 	/** The Stand power of an ability's power class on its user's server side, or null for another power or a client. */
 	@Nullable
 	public static StandPower of(@Nullable PowerClass<?> powerClass, @Nullable LivingEntity user) {
-		return powerClass == PowerClass.STAND && user != null && !user.level().isClientSide() ? StandPower.get(user) : null;
+		// the class of the power is read last: a null power class must not load PowerClass (and the registries) for nothing
+		if (powerClass == null || user == null || user.level().isClientSide()) {
+			return null;
+		}
+		return powerClass == PowerClass.STAND ? StandPower.get(user) : null;
 	}
 
 	/** The Stand power an action is the ability of, on its performer's server side, or null. */

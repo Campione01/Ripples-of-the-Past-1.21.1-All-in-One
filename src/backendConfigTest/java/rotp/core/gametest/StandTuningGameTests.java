@@ -155,7 +155,7 @@ public final class StandTuningGameTests {
 				helper.assertTrue(power.getAbilityCooldown("barrage") == 30, stand + ": one put back as it was is not halved again");
 				// an add-on that stacks a fresh cooldown on one it read back (RHCP's electric dash) adds the fresh one's share
 				int stacked = power.getAbilityCooldown("barrage") + power.getAbilityCooldownShare(40);
-				power.restoreAbilityCooldown("barrage", stacked, stacked);
+				power.restoreAbilityCooldown("barrage", stacked);
 				helper.assertTrue(power.getAbilityCooldownShare(40) == 20 && power.getAbilityCooldown("barrage") == 50,
 						stand + ": a stacked cooldown takes the share once: " + power.getAbilityCooldown("barrage"));
 				power.resetAbilityCooldowns();
