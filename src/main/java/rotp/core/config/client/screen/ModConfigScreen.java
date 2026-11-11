@@ -400,7 +400,8 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 
 	@Override
 	public void openList(ConfigEntry entry) {
-		minecraft.setScreen(new ConfigListEditScreen(this, store(), entry));
+		minecraft.setScreen(ConfigWidgetRules.isChecklist(entry) ? new ConfigChecklistScreen(this, store(), entry)
+				: new ConfigListEditScreen(this, store(), entry));
 	}
 
 	@Override

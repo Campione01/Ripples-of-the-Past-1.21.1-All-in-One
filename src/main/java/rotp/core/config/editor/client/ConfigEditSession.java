@@ -322,6 +322,6 @@ public final class ConfigEditSession implements ConfigStore {
 	private static ConfigEntry withValue(ConfigEntry entry, JsonElement value) {
 		return new ConfigEntry(entry.key(), entry.group(), entry.side(), entry.kind(), entry.elementKind(),
 				entry.defaultValue(), value, entry.bounds(), entry.listSize(), entry.choices(), entry.restart(),
-				entry.synced(), entry.translationKey());
+				entry.synced(), entry.translationKey(), entry.listChoices());
 	}
 }

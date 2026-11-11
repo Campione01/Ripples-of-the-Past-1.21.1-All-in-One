@@ -23,6 +23,7 @@ import rotp.core.client.ui.screen_jojomenu.PaperButton;
 import rotp.core.config.client.screen.PaperUi.Glyph;
 import rotp.core.config.editor.ConfigEntry;
 import rotp.core.config.editor.ConfigEntry.Kind;
+import rotp.core.config.editor.client.ConfigChecklist;
 import rotp.core.config.editor.client.ConfigStore;
 import rotp.core.config.editor.client.ConfigWidgetRules;
 
@@ -64,7 +65,7 @@ final class ConfigControls {
 			case SLIDER -> new SliderControl(entry, store, font);
 			case NUMBER, TEXT -> new FieldControl(entry, store, font, typedWrong);
 			case CYCLE -> new CycleControl(entry.key(), store);
-			case LIST -> new ListControl(openList);
+			case LIST, CHECKLIST -> new ListControl(openList);
 		};
 	}
 
@@ -469,6 +470,11 @@ final class ConfigControls {
 		public void sync(ConfigEntry entry, @Nullable JsonElement pending, boolean editable) {
 			int size = entry.value().isJsonArray() ? entry.value().getAsJsonArray().size() : 0;
 			active = pending == null;
+			if (ConfigWidgetRules.isChecklist(entry)) {
+				setMessage(Component.translatable("jojo_ripples.config.screen.checklist.summary",
+						ConfigChecklist.tickedCount(entry), ConfigChecklist.offeredCount(entry)));
+				return;
+			}
 			setMessage(size == 0 ? Component.translatable("jojo_ripples.config.screen.list.empty")
 					: Component.translatable("jojo_ripples.config.screen.list.values", size));
 		}

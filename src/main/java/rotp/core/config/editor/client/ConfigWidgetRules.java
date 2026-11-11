@@ -32,7 +32,7 @@ import rotp.core.config.editor.ConfigEntry.Side;
  * so a key added to either store gets a working row without code here; the lists below only give known keys a place.
  */
 public final class ConfigWidgetRules {
-	public enum WidgetKind { TOGGLE, SLIDER, NUMBER, CYCLE, TEXT, LIST }
+	public enum WidgetKind { TOGGLE, SLIDER, NUMBER, CYCLE, TEXT, LIST, CHECKLIST }
 
 	public record Section(String id, List<ConfigEntry> entries) {}
 
@@ -141,7 +141,7 @@ public final class ConfigWidgetRules {
 		return switch (entry.kind()) {
 			case BOOLEAN -> WidgetKind.TOGGLE;
 			case ENUM -> WidgetKind.CYCLE;
-			case LIST -> WidgetKind.LIST;
+			case LIST -> isChecklist(entry) ? WidgetKind.CHECKLIST : WidgetKind.LIST;
 			case STRING -> entry.choices().isEmpty() ? WidgetKind.TEXT : WidgetKind.CYCLE;
 			case INTEGER, DECIMAL -> sliderFits(entry) ? WidgetKind.SLIDER : WidgetKind.NUMBER;
 		};
@@ -341,6 +341,11 @@ public final class ConfigWidgetRules {
 
 	public static boolean isAddon(ConfigEntry entry) {
 		return AddonConfigKeys.isAddonKey(entry.key());
+	}
+
+	/** A list whose items the server offers: one tick box per item. A list without a source stays the plain list editor. */
+	public static boolean isChecklist(ConfigEntry entry) {
+		return entry.kind() == Kind.LIST && entry.listChoices() != null;
 	}
 
 	public static boolean isStand(ConfigEntry entry) {

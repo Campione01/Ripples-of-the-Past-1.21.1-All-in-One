@@ -35,7 +35,7 @@ final class ConfigTooltips {
 		if (range != null) {
 			lines.add(range);
 		}
-		if (entry.kind() != ConfigEntry.Kind.LIST) {
+		if (entry.kind() != ConfigEntry.Kind.LIST || ConfigWidgetRules.isChecklist(entry)) {
 			lines.add(Component.translatable(TEXT + "default", PaperUi.valueText(entry, entry.defaultValue())));
 		}
 		if (entry.synced()) {

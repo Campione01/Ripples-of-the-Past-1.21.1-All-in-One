@@ -174,6 +174,16 @@ final class PaperUi {
 			return "";
 		}
 		List<String> items = new ArrayList<>();
+		if (entry.listChoices() != null) {
+			// a checklist's items by the names its card shows; one the server no longer offers by its id
+			for (JsonElement item : value.getAsJsonArray()) {
+				String id = item.getAsString();
+				items.add(entry.listChoices().stream().filter(choice -> choice.id().equals(id)).findFirst()
+						.map(choice -> ConfigChecklistScreen.shownName(choice.translationKey(), choice.name()))
+						.orElse(id));
+			}
+			return String.join(", ", items);
+		}
 		for (JsonElement item : value.getAsJsonArray()) {
 			boolean number = entry.elementKind() == ConfigEntry.Kind.INTEGER || entry.elementKind() == ConfigEntry.Kind.DECIMAL;
 			items.add(number ? ConfigWidgetRules.formatNumber(entry.elementKind(), item) : item.getAsString());

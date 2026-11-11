@@ -272,10 +272,14 @@ public final class StandConfigEditorGameTests {
 		var ops = player.server.getPlayerList().getOps();
 		String key = StandConfigTestKit.key(StandConfigTestKit.SP, "damageVsMobs");
 		try {
+			// what an earlier run left in the test world stays as it is: only this edit's mark is looked for
+			JsonObject before = kit.read(StandConfigTestKit.SP, StandTuning.MEMBER);
 			var refused = new StandConfigTestKit.Exchange(player);
 			ConfigEditorPackets.handleRequest(new Request(1, Operation.SET, key, new JsonPrimitive(150)), refused.context);
+			JsonObject after = kit.read(StandConfigTestKit.SP, StandTuning.MEMBER);
 			helper.assertTrue(refused.replies.size() == 1 && refused.replies.getFirst().result().status() == Status.FORBIDDEN
-					&& !Files.exists(kit.file(StandConfigTestKit.SP, StandTuning.MEMBER)), "one who may not edit writes nothing");
+					&& java.util.Objects.equals(before, after) && (after == null || !after.has("damageVsMobs")),
+					"one who may not edit writes nothing: " + after);
 			ops.add(new ServerOpListEntry(player.getGameProfile(), 2, false));
 			ConfigEditorPackets.onPlayerLoggedOut(new net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent(player));
 			var taken = new StandConfigTestKit.Exchange(player);

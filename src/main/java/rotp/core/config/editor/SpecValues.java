@@ -38,8 +38,10 @@ public final class SpecValues {
 		Bounds range = kind == Kind.LIST ? itemBounds.apply(element) : bounds(spec.getRange());
 		List<String> choices = defaultValue instanceof Enum<?> choice
 				? java.util.Arrays.stream(choice.getDeclaringClass().getEnumConstants()).map(Enum::name).toList() : ownChoices;
+		// the items a server value's source offers travel with it; a client value is the client's own, offered by nobody
+		List<ConfigChoices.Choice> offered = kind == Kind.LIST && side == Side.SERVER ? ConfigChoices.offered(value) : null;
 		return new ConfigEntry(key, AddonConfigKeys.group(key), side, kind, element, json(defaultValue),
-				json(loaded ? value.get() : defaultValue), range, size, choices, restart(value), synced, translationKey);
+				json(loaded ? value.getRaw() : defaultValue), range, size, choices, restart(value), synced, translationKey, offered);
 	}
 
 	/** Validates the whole batch before anything moves, and saves every spec it touched once. A failed save puts all of them back. */
@@ -58,7 +60,8 @@ public final class SpecValues {
 			catch (IllegalArgumentException | ArithmeticException invalid) {
 				return ConfigEditResult.error(Status.INVALID_VALUE, key);
 			}
-			Object previous = value.get();
+			// the stored value: a value read at a restart keeps its old one in get() until then (ModConfigSpec.ConfigValue.set)
+			Object previous = value.getRaw();
 			if (!parsed.equals(previous)) {
 				staged.add(new Edit(target, previous, parsed, new Change(key, json(previous), json(parsed), restart(value))));
 			}
@@ -125,6 +128,7 @@ public final class SpecValues {
 			var items = new ArrayList<>(array.size());
 			for (JsonElement item : array) items.add(parsePrimitive(item, element, null));
 			parsed = List.copyOf(items);
+			if (!ConfigChoices.allows(value, items)) throw new IllegalArgumentException("An item the server does not offer");
 		}
 		else {
 			parsed = parsePrimitive(input, kind, defaultValue);

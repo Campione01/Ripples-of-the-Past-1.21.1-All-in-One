@@ -58,7 +58,70 @@ public final class ConfigScreenLogicSmokeTest {
 		aStandsBlockHasItsGroupsAndItsAddonsSettings();
 		aStandsShareSlidesInFivesWithItsSign();
 		resetAllResetsOnlyItsOwnPage();
+		aListWithOfferedItemsIsAChecklistAndOneWithoutStaysAList();
+		aChecklistKeepsItsOrderAndFindsByNameOrId();
+		aChecklistWritesItsTicksInTheServersOrder();
 		System.out.println("Config screen logic smoke test passed");
+	}
+
+	private static ConfigEntry checklist(JsonElement value, JsonElement defaultValue) {
+		List<rotp.core.config.editor.ConfigChoices.Choice> offered = List.of(
+				rotp.core.config.editor.ConfigChoices.Choice.of("minecraft:overworld", "Overworld"),
+				rotp.core.config.editor.ConfigChoices.Choice.of("minecraft:the_nether", "The Nether"),
+				rotp.core.config.editor.ConfigChoices.Choice.of("minecraft:the_end", "The End"),
+				rotp.core.config.editor.ConfigChoices.Choice.of("twilightforest:twilight_forest", "Twilight Forest"));
+		return new ConfigEntry("rotp_d4c/D4C.parallelDimensions", "rotp_d4c/D4C", Side.SERVER, Kind.LIST, Kind.STRING, defaultValue,
+				value, null, null, List.of(), Restart.WORLD, false, null, offered);
+	}
+
+	private static JsonArray ids(String... ids) {
+		JsonArray array = new JsonArray();
+		for (String id : ids) {
+			array.add(id);
+		}
+		return array;
+	}
+
+	private static void aListWithOfferedItemsIsAChecklistAndOneWithoutStaysAList() {
+		ConfigEntry ticks = checklist(ids("minecraft:overworld"), ids("minecraft:overworld"));
+		ConfigEntry plain = new ConfigEntry("rotp_d4c/D4C.names", "rotp_d4c/D4C", Side.SERVER, Kind.LIST, Kind.STRING, ids("a"), ids("a"),
+				null, null, List.of(), Restart.NONE, false, null);
+		check(ConfigWidgetRules.widgetKind(ticks) == WidgetKind.CHECKLIST && ConfigWidgetRules.widgetKind(plain) == WidgetKind.LIST,
+				"a list the server offers items for is tick boxes; one without stays the plain list");
+		check(ConfigChecklist.tickedCount(ticks) == 1 && ConfigChecklist.offeredCount(ticks) == 4, "its row reads 1 of 4 ticked");
+	}
+
+	private static void aChecklistKeepsItsOrderAndFindsByNameOrId() {
+		// the End ticked, and a world of a mod no longer there
+		ConfigChecklist list = new ConfigChecklist(checklist(ids("minecraft:the_end", "gone:world"), ids("minecraft:overworld")));
+		List<String> order = list.items().stream().map(ConfigChecklist.Item::id).toList();
+		check(order.equals(List.of("gone:world", "minecraft:the_end", "minecraft:overworld", "minecraft:the_nether", "twilightforest:twilight_forest")),
+				"what the server no longer offers first, then the ticked, then the rest in the server's order: " + order);
+		check(!list.items().getFirst().offered() && list.items().get(1).offered(), "the gone item is marked so");
+		list.toggle("minecraft:overworld");
+		check(list.items().stream().map(ConfigChecklist.Item::id).toList().equals(order), "a tick moves no row");
+		check(list.shown("twil", ConfigChecklist.Item::name).size() == 1 && list.shown("THE_NETHER", ConfigChecklist.Item::name).size() == 1
+				&& list.shown("Nether", ConfigChecklist.Item::name).size() == 1 && list.shown("", ConfigChecklist.Item::name).size() == 5,
+				"the filter finds by shown name or by id, any case");
+		java.util.function.Function<ConfigChecklist.Item, String> german = item -> item.id().equals("minecraft:the_nether") ? "Unterwelt" : item.name();
+		check(list.shown("unterwelt", german).size() == 1 && list.shown("The Nether", german).isEmpty(),
+				"and by the name shown, not the server's");
+	}
+
+	private static void aChecklistWritesItsTicksInTheServersOrder() {
+		ConfigEntry entry = checklist(ids("minecraft:the_end", "gone:world"), ids("minecraft:overworld"));
+		ConfigChecklist list = new ConfigChecklist(entry);
+		check(list.sameAs(ids("gone:world", "minecraft:the_end")), "a stored list in another order is no change");
+		list.toggle("minecraft:overworld");
+		check(list.value().equals(ids("minecraft:overworld", "minecraft:the_end", "gone:world")) && !list.sameAs(entry.value()),
+				"ticked items go out in the server's order, a gone one after: " + list.value());
+		list.toggle("gone:world");
+		check(list.value().equals(ids("minecraft:overworld", "minecraft:the_end")) && list.tickedCount() == 2,
+				"the gone item can be unticked: " + list.value());
+		list.toggle("nobody:offers_this");
+		check(list.value().equals(ids("minecraft:overworld", "minecraft:the_end")), "an item not on the card cannot be ticked");
+		list.setTo(entry.defaultValue());
+		check(list.value().equals(ids("minecraft:overworld")), "Reset to default ticks the default alone: " + list.value());
 	}
 
 	private static void aPlayerWithoutTheRightSendsNothing() {
