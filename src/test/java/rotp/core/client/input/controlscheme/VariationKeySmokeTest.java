@@ -320,9 +320,9 @@ public final class VariationKeySmokeTest {
 		check(keybinds.contains(squash("VariationKey.mappingName(), KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, MAIN_CATEGORY")),
 				"the variation key is registered with Left Ctrl as its default");
 		check(keybinds.contains(squash("VariationKey.useMapping(binds.variationKey);")), "the rule must read the registered mapping");
-		check(keybinds.contains(squash("MovesetBuilder.GRAB_THROW_KEY_MAPPING_NAME, whileBound(() -> binds.grabThrow), InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_RIGHT")),
+		check(keybinds.contains(squash("MovesetBuilder.GRAB_THROW_KEY_MAPPING_NAME, standHudKey(whileBound(() -> binds.grabThrow)), InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_RIGHT")),
 				"throw defaults to RMB");
-		check(keybinds.contains(squash("MovesetBuilder.GRAB_RELEASE_KEY_MAPPING_NAME, whileBound(() -> binds.grabRelease), InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Q")),
+		check(keybinds.contains(squash("MovesetBuilder.GRAB_RELEASE_KEY_MAPPING_NAME, standHudKey(whileBound(() -> binds.grabRelease)), InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Q")),
 				"release defaults to Q");
 		check(keybinds.contains(squash("MovesetBuilder.SWAP_ITEMS_KEY_MAPPING_NAME, KeyConflictContext.IN_GAME, KeyModifier.CONTROL, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F")),
 				"item swap defaults to Ctrl+F");
