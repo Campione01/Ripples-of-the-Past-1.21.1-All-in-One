@@ -7,7 +7,6 @@ import com.google.gson.JsonPrimitive;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.narration.NarratedElementType;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.CommonComponents;
@@ -57,7 +56,8 @@ final class ConfigColorScreen extends PaperDialog {
 	@Override
 	protected void init() {
 		super.init();
-		placeCard(Math.max(220, Math.min(300, width - 40)), 196);
+		// heading, preview, two rows of dyes, the code box, a message line and the buttons
+		placeCard(Math.max(220, Math.min(300, width - 40)), 170);
 		previewY = cardY + 22;
 		int gridY = previewY + 30;
 		int gridWidth = PER_ROW * SWATCH + (PER_ROW - 1) * 4;
@@ -106,7 +106,7 @@ final class ConfigColorScreen extends PaperDialog {
 		}
 		int third = (cardWidth - 20 - gap * 2) / 3;
 		PaperAction reset = addRenderableWidget(new PaperAction(cardX + 10, footerY, third, PaperUi.CONTROL_HEIGHT,
-				Component.translatable(TEXT + "reset"), button -> pick(entry.defaultValue().getAsInt() & 0xFFFFFF)));
+				Component.translatable(TEXT + "card.reset"), button -> pick(entry.defaultValue().getAsInt() & 0xFFFFFF)));
 		reset.active = !waitingForReply;
 		PaperAction save = addRenderableWidget(new PaperAction(cardX + 10 + third + gap, footerY, third, PaperUi.CONTROL_HEIGHT,
 				CommonComponents.GUI_DONE, button -> save()));
@@ -206,7 +206,14 @@ final class ConfigColorScreen extends PaperDialog {
 		else if (waitingForReply) {
 			centered(graphics, Component.translatable(TEXT + "status.waiting").getString(), messageY, PaperUi.PENDING);
 		}
+		else if (pointed != null) {
+			// the dye under the pointer or the keyboard's focus, by its name, on the card itself
+			centered(graphics, pointed.getMessage().getString() + "  " + hexOf(pointed.dye.getTextColor()), messageY, PaperUi.INK_SOFT);
+		}
+		pointed = null;
 	}
+
+	private @Nullable Swatch pointed;
 
 	/** One dye colour: a click or Enter takes it. */
 	private final class Swatch extends AbstractButton {
@@ -215,7 +222,6 @@ final class ConfigColorScreen extends PaperDialog {
 		Swatch(int x, int y, DyeColor dye) {
 			super(x, y, SWATCH, SWATCH, Component.translatable("color.minecraft." + dye.getName()));
 			this.dye = dye;
-			setTooltip(Tooltip.create(Component.empty().append(getMessage()).append(" " + hexOf(dye.getTextColor()))));
 		}
 
 		@Override
@@ -227,6 +233,9 @@ final class ConfigColorScreen extends PaperDialog {
 		protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
 			active = canEdit() && !waitingForReply;
 			boolean chosen = (dye.getTextColor() & 0xFFFFFF) == draft;
+			if (isHovered() || isFocused()) {
+				pointed = this;
+			}
 			int edge = isFocused() || isHovered() && active || chosen ? PaperUi.INK : PaperUi.LINE;
 			graphics.fill(getX(), getY(), getRight(), getBottom(), edge);
 			graphics.fill(getX() + 1, getY() + 1, getRight() - 1, getBottom() - 1, PaperUi.PAPER_LIGHT);

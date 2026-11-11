@@ -590,6 +590,13 @@ final class ConfigControls {
 			return false;
 		}
 
+		// a text too long for the button scrolls inside it, and never under its chevron
+		private void renderText(GuiGraphics graphics, Font font, int color) {
+			int left = getX() + 2;
+			int right = getRight() - (showsChevron() ? 12 : 2);
+			PaperButton.renderScrollingString(graphics, font, getMessage(), (left + right) / 2, left, getY(), right, getBottom(), color, false);
+		}
+
 		@Override
 		public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
 			Font font = Minecraft.getInstance().font;
@@ -598,11 +605,11 @@ final class ConfigControls {
 				if (isHovered()) {
 					graphics.fill(getX() + 1, getY() + 1, getRight() - 1, getBottom() - 1, PaperUi.PANEL);
 				}
-				renderScrollingString(graphics, font, 2, PaperUi.INK);
+				renderText(graphics, font, PaperUi.INK);
 			}
 			else {
 				graphics.renderOutline(getX(), getY(), width, height, PaperUi.LINE_SOFT);
-				renderScrollingString(graphics, font, 2, PaperUi.INK_FAINT);
+				renderText(graphics, font, PaperUi.INK_FAINT);
 			}
 			if (showsChevron()) {
 				PaperUi.glyph(graphics, Glyph.CHEVRON_RIGHT, getRight() - 10, getY() + (height - 9) / 2, active ? PaperUi.INK_SOFT : PaperUi.INK_FAINT);

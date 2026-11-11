@@ -229,7 +229,7 @@ public final class ConfigChoicesGameTests {
 				"jojo_ripples.config.screen.checklist.gone", "jojo_ripples.config.screen.checklist.no_match",
 				"jojo_ripples.config.dimension.overworld", "jojo_ripples.config.dimension.the_nether", "jojo_ripples.config.dimension.the_end",
 				// and the colour card's two lines, the screen's other new text
-				"jojo_ripples.config.screen.color.hex", "jojo_ripples.config.screen.color.invalid");
+				"jojo_ripples.config.screen.color.hex", "jojo_ripples.config.screen.color.invalid", "jojo_ripples.config.screen.card.reset");
 		for (String locale : LOCALES) {
 			JsonObject own = lang(locale);
 			for (String key : keys) {

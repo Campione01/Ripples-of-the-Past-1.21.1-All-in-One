@@ -129,7 +129,7 @@ final class ConfigChecklistScreen extends PaperDialog {
 		}
 		int third = (cardWidth - 20 - gap * 2) / 3;
 		PaperAction reset = addRenderableWidget(new PaperAction(cardX + 10, footerY, third, PaperUi.CONTROL_HEIGHT,
-				Component.translatable(TEXT + "reset"), button -> {
+				Component.translatable(TEXT + "card.reset"), button -> {
 					checklist.setTo(entry.defaultValue());
 					failure = null;
 					refill(list != null ? list.getScrollAmount() : 0);

@@ -114,7 +114,7 @@ public final class StandConfigEditorGameTests {
 		texts.addAll(List.of(StandConfigCatalog.TEXT + "group.addon", StandConfigCatalog.TEXT + "group.addon_shared",
 				StandConfigCatalog.TEXT + "no_match", "jojo_ripples.config.screen.page.stands", "jojo_ripples.config.screen.page.stands.desc",
 				"jojo_ripples.config.screen.search", "jojo_ripples.config.screen.search.hint", "jojo_ripples.config.screen.parts.all",
-				"jojo_ripples.config.screen.parts.none"));
+				"jojo_ripples.config.screen.parts.none", "jojo_ripples.config.screen.parts.short"));
 		for (String locale : LOCALES) {
 			JsonObject own = lang(locale);
 			for (String text : texts) {

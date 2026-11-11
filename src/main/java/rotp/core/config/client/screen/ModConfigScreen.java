@@ -83,6 +83,7 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 	private @Nullable PaperAction partButton;
 	private Access builtFor;
 	private int builtEntries;
+	private boolean focusedOnce;
 	private @Nullable Component statusText;
 	private int statusColor;
 	private long statusUntil;
@@ -238,7 +239,7 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 		if (page == Page.STANDS) {
 			list.rebuildStands(OPEN_BLOCKS, standViews, standSearch, standPart);
 			if (partButton != null) {
-				partButton.setMessage(partName(standPart));
+				showPart();
 			}
 		}
 		else {
@@ -255,7 +256,8 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 
 	/** Above the Stands: a search by name and a filter by part, both kept while the game runs. */
 	private void addStandsToolbar(int x, int y) {
-		int filterWidth = Math.max(64, Math.min(120, windowWidth / 3));
+		// a part's name with its icon, "Stardust Crusaders" the longest, fits beside its chevron
+		int filterWidth = Math.max(64, Math.min(150, windowWidth * 2 / 5));
 		int fieldX = x + 9;
 		int fieldWidth = windowWidth - 18 - filterWidth - 4;
 		ConfigControls.PaperField field = new ConfigControls.PaperField(font, Component.translatable(TEXT + "search"), ConfigEntry.Kind.STRING);
@@ -293,8 +295,36 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 			protected boolean showsChevron() {
 				return true;
 			}
+
+			// a part shown by its number has its whole name in the page's own tooltip
+			@Override
+			public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+				super.renderWidget(graphics, mouseX, mouseY, partialTick);
+				if (isHovered() && partFullName != null) {
+					showTooltip(List.of(partFullName));
+				}
+			}
 		});
+		showPart();
 	}
+
+	// the part's whole name when it fits beside the chevron, else "Part 3" with the whole name in its tooltip
+	private void showPart() {
+		if (partButton == null) {
+			return;
+		}
+		Component full = partName(standPart);
+		Component shown = full;
+		net.minecraft.resources.ResourceLocation id = standPart == null || standPart.isEmpty() ? null
+				: net.minecraft.resources.ResourceLocation.tryParse(standPart);
+		if (id != null && font.width(full) > partButton.getWidth() - 14 && id.getPath().matches("p\\d+")) {
+			shown = Component.translatable(TEXT + "parts.short", id.getPath().substring(1));
+		}
+		partButton.setMessage(shown);
+		partFullName = shown == full ? null : full;
+	}
+
+	private @Nullable Component partFullName;
 
 	// all parts, then each part the Stands are in, the Stands of no part last
 	private void cyclePart(int direction) {
@@ -337,6 +367,16 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 		minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BOOK_PAGE_TURN, 1.0F));
 		JojoMenuTabs.onTabOpened(getTab());
 		rebuildWidgets();
+	}
+
+	// A rebuild (a dialog opened over this screen or closed, an answer that changed the rows) keeps the player's place: the
+	// base class would focus the first row for one who last used the keyboard, and that scrolls the list back to its top.
+	@Override
+	protected void setInitialFocus() {
+		if (!focusedOnce) {
+			focusedOnce = true;
+			super.setInitialFocus();
+		}
 	}
 
 	@Override
