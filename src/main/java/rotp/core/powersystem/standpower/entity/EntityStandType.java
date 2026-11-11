@@ -408,6 +408,7 @@ public class EntityStandType extends StandType {
 		Level level = user.level();
 		if (!level.isClientSide() && !standEntity.isAddedToLevel()) {
 			if (addToWorld) {
+				standEntity.placeBesideUserForSummon(user);
 				level.addFreshEntity(standEntity);
 				standEntity.playStandSummonSound();
 				// action sounds played before the auto-summoned Stand was added (1.16 phase standSound)
