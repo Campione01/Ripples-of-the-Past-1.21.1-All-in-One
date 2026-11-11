@@ -417,7 +417,10 @@ public class TimeStopState {
     }
 
     public boolean interruptTickEarly(Entity entity) {
-        if (!shouldInterruptEarly(entity) || EntitySimulations.isSimulated(entity)) {
+        if (EntitySimulations.isSimulated(entity)) {
+            return false;
+        }
+        if (!shouldInterruptEarly(entity)) {
             return false;
         }
         freezeEntity(entity);
