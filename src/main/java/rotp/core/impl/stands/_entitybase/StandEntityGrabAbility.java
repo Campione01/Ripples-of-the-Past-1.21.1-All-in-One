@@ -4,6 +4,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModItemDataComponents;
 import rotp.core.powersystem.Power;
@@ -41,7 +43,9 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -86,6 +90,9 @@ public class StandEntityGrabAbility extends StandEntityAbility {
 										LivingComponentGrab.getEntityGrabbedBy(living) != null
 										|| LivingComponentGrab.getEntityGrabbing(living) != null)),
 						0);
+				if (target.getType() != TargetType.ENTITY) {
+					target = blockInView(standEntity, user);
+				}
 				if (!level.isClientSide()) {
 					switch (target.getType()) {
 						case ENTITY -> {
@@ -120,6 +127,17 @@ public class StandEntityGrabAbility extends StandEntityAbility {
 							&& target.getMainEntity() instanceof LivingEntity ? -1 : standEntity.tickCount;
 				}
 			}
+		}
+
+		/*
+		 * The block the crosshair is on (the vanilla pick, from the eyes of whoever the view is from), within the Stand's
+		 * reach: the Stand's own eyes stand ahead of or beside its user and would take a neighbouring block.
+		 */
+		private static ActionTarget blockInView(StandEntity standEntity, @Nullable LivingEntity user) {
+			LivingEntity viewer = user != null && !standEntity.isManuallyControlled() ? user : standEntity;
+			return HitResultUtil.clip(viewer.getEyePosition(), viewer.getLookAngle(),
+					standEntity.getAttributeValue(Attributes.BLOCK_INTERACTION_RANGE), 0, standEntity.level(),
+					entity -> false, viewer, 0, ClipContext.Block.OUTLINE);
 		}
 
 		private void grabBlock(Level level, StandEntity standEntity, LivingEntity user, BlockPos blockPos) {

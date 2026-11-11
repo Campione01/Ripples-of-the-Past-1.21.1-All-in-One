@@ -86,6 +86,11 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -1571,6 +1576,40 @@ public final class StandAttackAimRulesGameTests {
 			return StandEntityPunchAbility.getFreshPunchTarget(stand, ActionTarget.EMPTY, false,
 					StandEntityPunchAbility.CrosshairRule.ENTITY);
 		}
+	}
+
+	// a block grab takes the block the user's crosshair is on (OQ-C06), not the one the Stand's own eyes, ahead of its user
+	// in the grab's pose, look at along the same direction
+	@GameTest(template = "empty", timeoutTicks = 80, batch = BATCH + "grab_block")
+	public static void blockGrabTakesTheBlockTheUsersCrosshairIsOn(GameTestHelper helper) {
+		Scene scene = new Scene(helper, true);
+		BlockPos aimed = scene.groundStrip().north();
+		scene.block(aimed, Blocks.SANDSTONE.defaultBlockState());
+		scene.user.setXRot(50);
+		scene.user.xRotO = 50;
+		BlockHitResult crosshair = helper.getLevel().clip(new ClipContext(scene.user.getEyePosition(),
+				scene.user.getEyePosition().add(scene.user.getLookAngle().scale(5)), ClipContext.Block.OUTLINE,
+				ClipContext.Fluid.NONE, scene.user));
+		helper.assertTrue(crosshair.getType() == HitResult.Type.BLOCK && crosshair.getBlockPos().equals(aimed),
+				"Fixture: the user's crosshair is not on the sandstone: " + crosshair.getBlockPos());
+		scene.run(tick -> {
+			if (tick == 3) {
+				scene.press("grab", InputMethod.CLICK);
+				return false;
+			}
+			if (tick < 3) {
+				return false;
+			}
+			ItemStack held = scene.stand.getOffhandItem();
+			if (held.isEmpty()) {
+				return false;
+			}
+			helper.assertTrue(held.is(Items.SANDSTONE) && helper.getLevel().getBlockState(aimed).isAir()
+					&& scene.isStone(aimed.south()) && scene.isStone(aimed.south(2)), "The grab took " + held
+							+ " instead of the sandstone under the user's crosshair");
+			return true;
+		}, 40, () -> "The grab took no block; the sandstone under the crosshair is "
+				+ helper.getLevel().getBlockState(aimed));
 	}
 
 	// the grab (a port move) takes only an entity the Stand can attack (StandEntityGrab picks with canStandHit); one that
