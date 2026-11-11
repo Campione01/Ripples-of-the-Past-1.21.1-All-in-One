@@ -189,8 +189,7 @@ public final class GoldExperienceLifeformRosterGameTests {
 		helper.succeed();
 	}
 
-	// the Nether chunk is generated and loaded while the test waits; the game test server may run ahead of real time
-	@GameTest(template = "empty", batch = BATCH, timeoutTicks = 12000)
+	@GameTest(template = "empty", batch = BATCH, timeoutTicks = 400)
 	public static void goldExperienceLifeformInAnotherDimensionShowsThereAndIsNotRevertedFromHere(GameTestHelper helper) {
 		Scene scene = new Scene(helper);
 		ServerLevel nether = helper.getLevel().getServer().getLevel(Level.NETHER);
@@ -202,6 +201,8 @@ public final class GoldExperienceLifeformRosterGameTests {
 				.thenExecute(() -> {
 					helper.assertTrue(nether != null, "GE-LIFE premise: the test server has no Nether");
 					nether.setChunkForced(far.x, far.z, true);
+					// made here and now: the game test server's ticks outrun a chunk generated in the background
+					nether.getChunk(far.x, far.z);
 					scene.open(true);
 					Pig pig = scene.pig(0.0D, 4.0D);
 					pig.setInvulnerable(true);
@@ -215,7 +216,13 @@ public final class GoldExperienceLifeformRosterGameTests {
 				.thenWaitUntil(() -> helper.assertTrue(nether.getEntity(moved.value.getUUID()) == moved.value,
 						"GE-LIFE premise: the pig's Nether chunk has not loaded"))
 				.thenExecute(() -> {
-					scene.tick();
+					// the server ticks the user's effects too: a record that lost the pig before its Nether chunk showed
+					// it looks again within a second
+					for (int tick = 0; tick <= 20; tick++) {
+						scene.tick();
+					}
+					helper.assertTrue(!effect.value.isStopped() && moved.value.isAlive(),
+							"GE-LIFE: a lifeform far away in another dimension must not turn back by distance");
 					Row row = scene.row(moved.value.getUUID());
 					helper.assertTrue(row.place() == Place.ELSEWHERE && Level.NETHER.location().equals(row.dimension())
 							&& row.pos() != null && row.pos().distanceTo(there) < 0.01D && row.entityId() == -1,
@@ -452,8 +459,10 @@ public final class GoldExperienceLifeformRosterGameTests {
 		}
 
 		private Row row(UUID id) {
-			return GoldExperienceLifeformRoster.rows(user).stream().filter(row -> row.id().equals(id)).findFirst()
-					.orElseThrow(() -> new AssertionError("GE-LIFE: no row for " + id));
+			Optional<Row> row = GoldExperienceLifeformRoster.rows(user).stream().filter(candidate -> candidate.id().equals(id))
+					.findFirst();
+			helper.assertTrue(row.isPresent(), "GE-LIFE: the menu has no row for " + id);
+			return row.get();
 		}
 
 		private void close() {
