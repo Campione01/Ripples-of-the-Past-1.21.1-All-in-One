@@ -478,7 +478,7 @@ public class EventHandler {
 		LivingEntity target = event.getEntity();
 		DamageSource dmgSource = event.getSource();
 		if (target.level().isClientSide() || dmgSource.getDirectEntity() == null
-				|| dmgSource.is(DamageTypeTags.BYPASSES_ARMOR) || DefencePiercing.piercesMitigation(dmgSource)) {
+				|| dmgSource.is(DamageTypeTags.BYPASSES_ARMOR) || piercesGuard) {
 			return;
 		}
 		Power<?> power = PowerClass.PLAYER_POWER.get(target);

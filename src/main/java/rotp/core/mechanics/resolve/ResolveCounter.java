@@ -825,7 +825,8 @@ public class ResolveCounter {
 
     @SubscribeEvent(priority = EventPriority.LOW)
     public static void reduceDamageFromResolve(LivingDamageEvent.Pre event) {
-        if (event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY) || DefencePiercing.piercesMitigation(event.getSource())) {
+        // only true damage passes Resolve; the void and /kill are in jojo_ripples:pierces_mitigation
+        if (DefencePiercing.piercesMitigation(event.getSource())) {
             return;
         }
         LivingEntity target = event.getEntity();
