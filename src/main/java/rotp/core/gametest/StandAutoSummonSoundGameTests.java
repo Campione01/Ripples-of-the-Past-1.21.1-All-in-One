@@ -30,6 +30,7 @@ import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -57,8 +58,12 @@ public final class StandAutoSummonSoundGameTests {
 			Vec3 position = Vec3.atCenterOf(helper.absolutePos(new BlockPos(2, 2, 2)));
 			user.moveTo(position.x, position.y, position.z);
 			helper.assertTrue(helper.getLevel().addFreshEntity(user), "Could not add auto-summon owner");
-			// the owner's own chunk counts as sent, so it tracks the Stand once it is added
-			connection.chunkSender.dropChunk(user, user.chunkPosition());
+			// the chunks around the owner count as sent, so it tracks the Stand, added at its place beside it
+			for (int dx = -1; dx <= 1; dx++) {
+				for (int dz = -1; dz <= 1; dz++) {
+					connection.chunkSender.dropChunk(user, new ChunkPos(user.chunkPosition().x + dx, user.chunkPosition().z + dz));
+				}
+			}
 			StandType type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
 			helper.assertTrue(type instanceof EntityStandType, "Missing registered Star Platinum");
 			standType = (EntityStandType) type;
