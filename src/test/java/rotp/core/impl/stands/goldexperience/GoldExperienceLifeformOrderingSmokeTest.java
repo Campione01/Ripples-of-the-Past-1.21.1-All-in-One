@@ -11,6 +11,7 @@ import java.util.stream.IntStream;
 
 import rotp.core.client.ui.screen_jojomenu.GoldExperienceLifeformLayout;
 import rotp.core.impl.stands.goldexperience.client.GELifeformModelParts;
+import rotp.core.impl.stands.goldexperience.client.GoldExperienceLifeformText;
 
 import net.minecraft.client.model.ChickenModel;
 import net.minecraft.client.model.CowModel;
@@ -32,6 +33,27 @@ public final class GoldExperienceLifeformOrderingSmokeTest {
         verifyPickerLayout();
         verifyEntityIconResources();
         verifyGrowthAnimationFindsVanillaModelParts();
+        verifyLifeformMenuText();
+    }
+
+    // the lifeform menu's numbers: an age in game ticks, and the arrow's turn from straight ahead (right is positive)
+    private static void verifyLifeformMenuText() {
+        check(GoldExperienceLifeformText.age(0).equals("0:00") && GoldExperienceLifeformText.age(20 * 65).equals("1:05")
+                && GoldExperienceLifeformText.age(GECreatedLifeformEffect.COUNTED_TICKS).equals("7:00")
+                && GoldExperienceLifeformText.age(20L * (3600 + 62)).equals("1:01:02"),
+                "lifeform menu age format changed: " + GoldExperienceLifeformText.age(20 * 65));
+        check(GECreatedLifeformEffect.COUNTED_TICKS == 7 * 60 * 20, "a lifeform must stop counting after 7 minutes");
+        // facing south (yaw 0): a lifeform to the south is ahead, one to the west is on the right, east on the left
+        check(Math.abs(GoldExperienceLifeformText.relativeYaw(0, 0, 0.0F, 0, 10)) < 0.01F,
+                "a lifeform straight ahead must not turn the arrow");
+        check(Math.abs(GoldExperienceLifeformText.relativeYaw(0, 0, 0.0F, -10, 0) - 90.0F) < 0.01F,
+                "a lifeform on the right must turn the arrow right");
+        check(Math.abs(GoldExperienceLifeformText.relativeYaw(0, 0, 0.0F, 10, 0) + 90.0F) < 0.01F,
+                "a lifeform on the left must turn the arrow left");
+        check(Math.abs(Math.abs(GoldExperienceLifeformText.relativeYaw(0, 0, 90.0F, 10, 0)) - 180.0F) < 0.01F,
+                "a lifeform behind must turn the arrow round");
+        check(GoldExperienceLifeformText.coordinates(new net.minecraft.world.phys.Vec3(-0.5, 64.9, 12.2)).equals("-1, 64, 12"),
+                "lifeform coordinates must be the block it stands in");
     }
 
     // The growth animation moves the parts of the grown lifeform's model. A vanilla 1.21.1 model has no root handle

@@ -83,6 +83,9 @@ public final class NetworkProtocolNegotiationSmokeTest {
 				"the OBB sync must carry its action's slot: a Stand-power action's OBB reached the client as slot 0");
 		check(Integer.parseInt(PacketsRegister.NETWORK_PROTOCOL_VERSION) >= 16,
 				"the action sync packets' action slot needs core protocol v16 or later");
+		// a v16 peer would read a Gold Experience lifeform's creation time as the next effect's bytes
+		check(Integer.parseInt(PacketsRegister.NETWORK_PROTOCOL_VERSION) >= 17,
+				"a Gold Experience lifeform's synced creation time needs core protocol v17 or later");
 
 		var matching = NetworkComponentNegotiator.validateComponent(
 				requiredComponent(PacketsRegister.NETWORK_PROTOCOL_VERSION),
@@ -90,6 +93,13 @@ public final class NetworkProtocolNegotiationSmokeTest {
 				"client");
 		check(matching.isEmpty(),
 				"matching current peers must negotiate the required play payload");
+
+		var noLifeformAge = NetworkComponentNegotiator.validateComponent(
+				requiredComponent(PacketsRegister.NETWORK_PROTOCOL_VERSION),
+				requiredComponent("16"),
+				"client");
+		check(noLifeformAge.isPresent() && !noLifeformAge.get().success(),
+				"a v16 peer must fail before it reads a lifeform's creation time");
 
 		var noActionSlot = NetworkComponentNegotiator.validateComponent(
 				requiredComponent(PacketsRegister.NETWORK_PROTOCOL_VERSION),
