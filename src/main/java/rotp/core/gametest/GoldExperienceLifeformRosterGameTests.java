@@ -288,15 +288,20 @@ public final class GoldExperienceLifeformRosterGameTests {
 			other.openAt(scene.origin.add(2.0D, 0.0D, 0.0D), true);
 			Pig pig = scene.pig(0.0D, 4.0D);
 			GECreatedLifeformEffect effect = scene.lifeform(pig);
+			// the other player has a lifeform of his own, so his Revert is usable and only ownership can refuse him
+			Pig othersPig = other.pig(0.0D, 4.0D);
+			GECreatedLifeformEffect othersEffect = other.lifeform(othersPig);
 			scene.tick();
+			other.tick();
 			AABB area = pig.getBoundingBox().inflate(3.0D);
 
 			helper.assertTrue(GoldExperienceLifeformRoster.revert(other.user, pig.getUUID()) == Answer.GONE
 					&& GoldExperienceLifeformRoster.revert(standless, pig.getUUID()) == Answer.REFUSED,
 					"GE-LIFE: another player's request for the lifeform must be refused");
-			helper.assertTrue(!effect.isStopped() && pig.isAlive(), "GE-LIFE: another player's request reverted the lifeform");
-			helper.assertTrue(GoldExperienceLifeformRoster.rows(other.user).isEmpty(),
-					"GE-LIFE: another player's menu lists the lifeform");
+			helper.assertTrue(!effect.isStopped() && pig.isAlive() && !othersEffect.isStopped() && othersPig.isAlive(),
+					"GE-LIFE: another player's request reverted a lifeform");
+			helper.assertTrue(GoldExperienceLifeformRoster.rows(other.user).stream().map(Row::id).toList()
+					.equals(List.of(othersPig.getUUID())), "GE-LIFE: another player's menu lists a lifeform that is not his");
 
 			helper.assertTrue(GoldExperienceLifeformRoster.revert(scene.user, pig.getUUID()) == Answer.REVERTED && effect.isStopped(),
 					"GE-LIFE: the owner's menu request did not revert his lifeform");
