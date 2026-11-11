@@ -142,13 +142,15 @@ public final class StandConfigEditorGameTests {
 			Player user = kit.user(StandConfigTestKit.SP, Vec3.atCenterOf(helper.absolutePos(net.minecraft.core.BlockPos.ZERO.above())));
 			StandType sp = StandConfigTestKit.type(StandConfigTestKit.SP);
 			double before = sp.getStandStats().getValue(StatWithValue.POWER);
-			ConfigEditResult result = kit.set(StandConfigTestKit.SP, "power", new JsonPrimitive(21.5));
-			helper.assertTrue(changed(result, StandConfigTestKit.key(StandConfigTestKit.SP, "power"), before, 21.5)
-					&& changed(result, StandConfigTestKit.key(StandConfigTestKit.SP, "powerMax"),
-							sp.getStandStats().getDefaultValue(StatWithValue.POWER_MAX), 21.5),
+			double top = sp.getStandStats().getValue(StatWithValue.POWER_MAX);
+			// above the Stand's own top, whatever its shipped numbers are: the answer must name the top the start lifts too
+			double wanted = Math.floor(top) + 1.5;
+			ConfigEditResult result = kit.set(StandConfigTestKit.SP, "power", new JsonPrimitive(wanted));
+			helper.assertTrue(changed(result, StandConfigTestKit.key(StandConfigTestKit.SP, "power"), before, wanted)
+					&& changed(result, StandConfigTestKit.key(StandConfigTestKit.SP, "powerMax"), top, wanted),
 					"the answer names the stat and the top its start lifted: " + result.changes());
 			JsonObject file = kit.read(StandConfigTestKit.SP, StandConfigCatalog.STATS_MEMBER);
-			helper.assertTrue(file != null && file.size() == 1 && file.get("power").getAsDouble() == 21.5,
+			helper.assertTrue(file != null && file.size() == 1 && file.get("power").getAsDouble() == wanted,
 					"the stat is in the command's own file, alone: " + file);
 			helper.assertTrue(Files.exists(kit.packRoot().resolve("pack.mcmeta")), "the pack is a data pack");
 			var server = kit.server();
@@ -156,7 +158,7 @@ public final class StandConfigEditorGameTests {
 					"jojoconfig stand_stats jojo_ripples:star_platinum");
 			JsonObject kept = kit.read(StandConfigTestKit.SP, StandConfigCatalog.STATS_MEMBER);
 			helper.assertTrue(kept.equals(file), "the command sees the file the page wrote as the admin's and keeps it: " + kept);
-			helper.assertTrue(sp.getStandStats().getValue(StatWithValue.POWER) == 21.5 && strength(user) == 21.5,
+			helper.assertTrue(sp.getStandStats().getValue(StatWithValue.POWER) == wanted && strength(user) == wanted,
 					"the Stand and its user take the stat at once: " + strength(user));
 
 			StandType addon = StandConfigTestKit.type(StandConfigTestKit.ADDON);
@@ -187,8 +189,12 @@ public final class StandConfigEditorGameTests {
 	public static void aReloadReadsWhatThePageWroteAndThePageReadsAReload(GameTestHelper helper) throws IOException {
 		var kit = new StandConfigTestKit(helper, StandConfigTestKit.SP);
 		StandType sp = StandConfigTestKit.type(StandConfigTestKit.SP);
+		// from the Stand's own top, never its shipped number: one value the page writes, another a hand edit writes
+		double speedTop = sp.getStandStats().getValue(StatWithValue.SPEED_MAX);
+		double written = speedTop + 4.5;
+		double handEdit = speedTop + 0.25;
 		kit.set(StandConfigTestKit.SP, "cooldowns", new JsonPrimitive(45));
-		kit.set(StandConfigTestKit.SP, "speedMax", new JsonPrimitive(23.5));
+		kit.set(StandConfigTestKit.SP, "speedMax", new JsonPrimitive(written));
 		kit.set(StandConfigTestKit.SP, StandConfigKeys.SPECIAL + "timeStopSeconds", new JsonPrimitive(7.5));
 		CompletableFuture<Void> first = reload(kit);
 		int[] stage = {0};
@@ -198,16 +204,16 @@ public final class StandConfigEditorGameTests {
 				if (stage[0] == 0 && first.isDone()) {
 					first.join();
 					helper.assertTrue(sp.getTuning().percent(StandTuning.Percent.COOLDOWNS) == 45
-							&& sp.getStandStats().getValue(StatWithValue.SPEED_MAX) == 23.5
+							&& sp.getStandStats().getValue(StatWithValue.SPEED_MAX) == written
 							&& StandSpecials.SP_TIME_STOP_SECONDS.get(sp) == 7.5, "a reload reads the page's files back as they were");
-					Files.writeString(kit.file(StandConfigTestKit.SP, "stats"), "{\n  \"speedMax\": 19.25\n}");
+					Files.writeString(kit.file(StandConfigTestKit.SP, "stats"), "{\n  \"speedMax\": " + handEdit + "\n}");
 					second[0] = reload(kit);
 					stage[0] = 1;
 				}
 				else if (stage[0] == 1 && second[0].isDone()) {
 					second[0].join();
 					ConfigEntry speedMax = StandConfigTestKit.entry(StandConfigTestKit.key(StandConfigTestKit.SP, "speedMax"));
-					helper.assertTrue(speedMax.value().getAsDouble() == 19.25 && sp.getStandStats().getValue(StatWithValue.SPEED_MAX) == 19.25,
+					helper.assertTrue(speedMax.value().getAsDouble() == handEdit && sp.getStandStats().getValue(StatWithValue.SPEED_MAX) == handEdit,
 							"a hand edit a reload took is the page's value: " + speedMax.value());
 					stage[0] = 2;
 					kit.close();

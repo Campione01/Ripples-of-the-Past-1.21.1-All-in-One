@@ -38,6 +38,7 @@ import rotp.core.powersystem.standpower.StandSpecials.Special;
 import rotp.core.powersystem.standpower.StandStats.StatWithValue;
 import rotp.core.powersystem.standpower.StandTuning;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.subsystems.timestop.TimeStopCooldowns;
 import rotp.core.subsystems.timestop.TimeStopLearning;
@@ -118,10 +119,10 @@ public final class StandTuningGameTests {
 				finger.setCooldownOnUse(power);
 				int base = power.getAbilityCooldown("star_finger");
 				power.restoreAbilityCooldown("star_finger", 0, 0);
-				helper.assertTrue(base == 80, stand + ": Star Finger's own cooldown " + base);
+				helper.assertTrue(base > 1, stand + ": Star Finger has a cooldown of its own: " + base);
 				kit.set(stand, "cooldowns", new JsonPrimitive(50));
 				finger.setCooldownOnUse(power);
-				helper.assertTrue(power.getAbilityCooldown("star_finger") == 40, stand + ": half of an ability's own cooldown: "
+				helper.assertTrue(power.getAbilityCooldown("star_finger") == Math.round(base * 0.5), stand + ": half of an ability's own cooldown: "
 						+ power.getAbilityCooldown("star_finger"));
 				power.setAbilityCooldown("barrage", 30);
 				helper.assertTrue(power.getAbilityCooldown("barrage") == 15 && power.getAbilityCooldownTotal("barrage") == 15,
@@ -183,8 +184,12 @@ public final class StandTuningGameTests {
 				kit.set(stand, StandTuning.MINING_TIER, new JsonPrimitive(StandTuning.MiningTier.WOOD.id()));
 				helper.assertTrue(breaksDirt.get() && !breaksObsidian.get(), stand + ": a wooden tier leaves obsidian");
 				kit.set(stand, StandTuning.MINING_TIER, new JsonPrimitive(StandTuning.MiningTier.BY_STRENGTH.id()));
-				kit.set(stand, "miningStrength", new JsonPrimitive(50));
-				helper.assertTrue(breaksDirt.get() && !breaksObsidian.get(), stand + ": half its strength's hardness leaves obsidian");
+				// from the Stand's own limit, never its shipped strength: the largest share that keeps the limit at obsidian's hardness
+				double limit = StandStatFormulas.maxBreakableHardness(body.getAttackDamage());
+				int share = (int) Math.floor(100 * obsidian.getDestroySpeed(helper.getLevel(), pos) / limit);
+				kit.set(stand, "miningStrength", new JsonPrimitive(share));
+				helper.assertTrue(breaksDirt.get() && !breaksObsidian.get(), stand + ": a share " + share
+						+ " that brings its limit " + limit + " to obsidian's hardness leaves obsidian");
 				kit.clean(stand);
 				helper.assertTrue(breaksObsidian.get(), stand + ": back as it was");
 			}
