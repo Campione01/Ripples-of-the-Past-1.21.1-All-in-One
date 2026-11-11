@@ -588,7 +588,11 @@ public class EventHandler {
 	// 1.16 GameplayEventHandler stun rules: no sprinting, no interaction, no item pickup.
 	@SubscribeEvent
 	public static void stopSprintingInStun(PlayerTickEvent.Pre event) {
-		Player player = event.getEntity();
+		stopSprintingInStun(event.getEntity());
+	}
+
+	/** What the core does as a player's tick starts (PlayerTickEvent.Pre); also run for a simulated copy (EntitySimulations). */
+	public static void stopSprintingInStun(Player player) {
 		if (player.isSprinting() && ModStatusEffects.isStunned(player)) {
 			player.setSprinting(false);
 		}

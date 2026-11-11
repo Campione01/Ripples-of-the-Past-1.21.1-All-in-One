@@ -61,7 +61,12 @@ public class PlayerMovementInputData {
 
 	@SubscribeEvent
 	public static void onPlayerTick(PlayerTickEvent.Post event) {
-		PlayerMovementInputData input = get(event.getEntity());
+		tickTimers(event.getEntity());
+	}
+
+	/** What the core does as a player's tick ends (PlayerTickEvent.Post); also run for a simulated copy (EntitySimulations). */
+	public static void tickTimers(Player player) {
+		PlayerMovementInputData input = get(player);
 		if (input != null) {
 			input.tickTimers();
 		}

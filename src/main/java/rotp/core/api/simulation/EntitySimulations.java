@@ -3,6 +3,7 @@ package rotp.core.api.simulation;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
@@ -12,9 +13,11 @@ import rotp.core.core.EventHandler;
 import rotp.core.core.JojoMod;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
 import rotp.core.powersystem.standpower.entity.NoKnockbackOnBlocking;
+import rotp.core.subsystems.movement_input_sync.PlayerMovementInputData;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 
 /**
  * Owner-keyed rules that an entity is a simulation: a copy an add-on keeps outside the world and ticks itself to see
@@ -33,12 +36,16 @@ import net.minecraft.world.entity.Entity;
  * static flag first). Server side.
  *
  * <p>A copy never joins a level and is ticked by its add-on, so no join or tick event is posted for it: the add-on runs
- * the core's own work for it with {@link #runJoinWork}, {@link #runTickStartWork} and {@link #runTickEndWork}.</p>
+ * the core's own work for it with {@link #runJoinWork}, {@link #runTickStartWork} and {@link #runTickEndWork}, and lets
+ * the add-ons that asked for it do theirs with {@link #runTickListeners}.</p>
  */
 public final class EntitySimulations {
 	private static final Map<ResourceLocation, Predicate<Entity>> RULES = new LinkedHashMap<>();
 	private static volatile ResourceLocation[] owners = new ResourceLocation[0];
 	private static volatile Predicate<?>[] rules = new Predicate<?>[0];
+	private static final Map<ResourceLocation, Consumer<Entity>> TICK_LISTENERS = new LinkedHashMap<>();
+	private static volatile ResourceLocation[] tickListenerOwners = new ResourceLocation[0];
+	private static volatile Consumer<?>[] tickListeners = new Consumer<?>[0];
 
 	private EntitySimulations() {}
 
@@ -102,20 +109,83 @@ public final class EntitySimulations {
 	/**
 	 * What the core does as an entity's tick starts (EntityTickEvent.Pre), but holding it in stopped time, which a
 	 * simulated copy is never held by: the end of a Resolve barrage's lift and of a guard's one-tick knockback
-	 * resistance, the direction of its gravity. Call it before the copy's tick.
+	 * resistance, the direction of its gravity; and for a player what it does as his tick starts (PlayerTickEvent.Pre):
+	 * no sprinting while stunned. Call it before the copy's tick.
 	 */
 	public static void runTickStartWork(Entity entity) {
 		StandEntityBarrageAbility.ResolveBarrageNoGravity.onTickStarting(entity);
 		NoKnockbackOnBlocking.onTickStarting(entity);
 		DirectionalGravityApi.reconcileEffectiveDirection(entity);
+		if (entity instanceof Player player) {
+			EventHandler.stopSprintingInStun(player);
+		}
 	}
 
 	/**
 	 * What the core does after an entity's tick (EntityTickEvent.Post): the tick of its data (powers and their stamina,
-	 * cooldowns, actions, effects), a vampire's sunburn, Magician's Red's fire under a player. Call it after the copy's
-	 * tick.
+	 * cooldowns, actions, effects), a vampire's sunburn, Magician's Red's fire under a player; and for a player what it
+	 * does as his tick ends (PlayerTickEvent.Post) on his copy: the timers of his movement keys. The AFK particles and
+	 * advancement and the temple map's message reach the world and are left out. Call it after the copy's tick.
 	 */
 	public static void runTickEndWork(Entity entity) {
 		EventHandler.onEntityTicked(entity);
+		if (entity instanceof Player player) {
+			PlayerMovementInputData.tickTimers(player);
+		}
+	}
+
+	/**
+	 * Subscribes an add-on's per-tick work for simulated copies, which get no tick event: a copy's room calls
+	 * {@link #runTickListeners} for each copy once a tick. The listener must touch the copy only (its own state, its
+	 * data, its powers), never the world, the real entity it stands for, or anything keyed by the copy's id. One
+	 * listener per owner. Server side.
+	 */
+	public static synchronized void subscribeTick(ResourceLocation owner, Consumer<Entity> listener) {
+		Objects.requireNonNull(owner, "owner");
+		Objects.requireNonNull(listener, "listener");
+		if (TICK_LISTENERS.putIfAbsent(owner, listener) != null) {
+			throw new IllegalStateException("Duplicate entity simulation tick listener: " + owner);
+		}
+		refreshTickListeners();
+	}
+
+	/** @return whether a tick listener was subscribed for the owner */
+	public static synchronized boolean unsubscribeTick(ResourceLocation owner) {
+		boolean removed = TICK_LISTENERS.remove(Objects.requireNonNull(owner, "owner")) != null;
+		if (removed) {
+			refreshTickListeners();
+		}
+		return removed;
+	}
+
+	private static void refreshTickListeners() {
+		tickListenerOwners = TICK_LISTENERS.keySet().toArray(new ResourceLocation[0]);
+		tickListeners = TICK_LISTENERS.values().toArray(new Consumer<?>[0]);
+	}
+
+	public static boolean hasTickListeners() {
+		return tickListeners.length > 0;
+	}
+
+	/**
+	 * For a copy's room, once a tick for each copy, after its tick and {@link #runTickEndWork}: runs the subscribed
+	 * listeners in their order of subscription. A listener that fails is logged and the next one runs. Nothing is done
+	 * and nothing allocated when nobody subscribed.
+	 */
+	@SuppressWarnings("unchecked")
+	public static void runTickListeners(Entity copy) {
+		Consumer<?>[] all = tickListeners;
+		if (all.length == 0 || copy == null) {
+			return;
+		}
+		ResourceLocation[] keys = tickListenerOwners;
+		for (int i = 0; i < all.length && i < keys.length; i++) {
+			try {
+				((Consumer<Entity>) all[i]).accept(copy);
+			}
+			catch (RuntimeException error) {
+				JojoMod.getLogger().error("Entity simulation tick listener {} failed.", keys[i], error);
+			}
+		}
 	}
 }
