@@ -208,6 +208,8 @@
   "jojo_ripples.config.screen.list.keep": "Продовжити",
   "jojo_ripples.config.screen.list.discard": "Скасувати",
   "jojo_ripples.config.screen.list.discard_question": "Скасувати зміни?",
+  "jojo_ripples.config.screen.color.hex": "Код кольору",
+  "jojo_ripples.config.screen.color.invalid": "Колір вводиться як #RRGGBB",
   "jojo_ripples.config.screen.checklist.summary": "Позначено: %s з %s",
   "jojo_ripples.config.screen.checklist.filter": "Фільтр за назвою або ID",
   "jojo_ripples.config.screen.checklist.gone": "Сервер більше цього не пропонує",

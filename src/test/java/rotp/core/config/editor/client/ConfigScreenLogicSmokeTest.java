@@ -61,7 +61,27 @@ public final class ConfigScreenLogicSmokeTest {
 		aListWithOfferedItemsIsAChecklistAndOneWithoutStaysAList();
 		aChecklistKeepsItsOrderAndFindsByNameOrId();
 		aChecklistWritesItsTicksInTheServersOrder();
+		aColorIsAnRgbNumberNamedSoAndReadsAsHex();
 		System.out.println("Config screen logic smoke test passed");
+	}
+
+	private static ConfigEntry integer(String key, int value, double min, double max) {
+		return new ConfigEntry(key, rotp.core.config.editor.AddonConfigKeys.group(key), Side.CLIENT, Kind.INTEGER, null,
+				new JsonPrimitive(value), new JsonPrimitive(value), new Bounds(min, max), null, List.of(), Restart.NONE, false, null);
+	}
+
+	private static void aColorIsAnRgbNumberNamedSoAndReadsAsHex() {
+		// Time Stop Countdown's own value, as the add-on defines it: no code of its own for the screen
+		ConfigEntry text = integer("rotp_time_stop_number/timestop_bar.textColor", 0xFFFFFF, 0, 0xFFFFFF);
+		check(ConfigWidgetRules.isColor(text) && ConfigWidgetRules.widgetKind(text) == WidgetKind.COLOR, "an RGB range named colour is a colour");
+		check(ConfigWidgetRules.isColor(integer("rotp_x/a.auraColour", 0, 0, 0xFFFFFF)), "the British spelling too");
+		check(!ConfigWidgetRules.isColor(integer("rotp_x/a.textColor", 7, 0, 255)) && !ConfigWidgetRules.isColor(integer("rotp_x/a.count", 7, 0, 0xFFFFFF)),
+				"a colour needs both the RGB range and the name");
+		check(ConfigWidgetRules.valueNumber(text, new JsonPrimitive(16777215)).equals("#FFFFFF")
+				&& ConfigWidgetRules.formatColor(new JsonPrimitive(255)).equals("#0000FF"), "a colour reads as #RRGGBB, never 16777215");
+		check(ConfigWidgetRules.parseColor("#ff8800").getAsInt() == 0xFF8800 && ConfigWidgetRules.parseColor(" FF8800 ").getAsInt() == 0xFF8800
+				&& ConfigWidgetRules.parseColor("#ff880") == null && ConfigWidgetRules.parseColor("#gg0000") == null
+				&& ConfigWidgetRules.parseColor("16777215") == null, "#RRGGBB or RRGGBB is taken, nothing else");
 	}
 
 	private static ConfigEntry checklist(JsonElement value, JsonElement defaultValue) {
@@ -293,7 +313,7 @@ public final class ConfigScreenLogicSmokeTest {
 	}
 
 	private static void deadSwitchesAreNotShown() {
-		ConfigEntry dead = new ConfigEntry("toggleLmbHotbar", "controls", Side.CLIENT, Kind.BOOLEAN, null, new JsonPrimitive(false),
+		ConfigEntry dead = new ConfigEntry("poseOnLmbRmb", "controls", Side.CLIENT, Kind.BOOLEAN, null, new JsonPrimitive(false),
 				new JsonPrimitive(false), null, null, List.of(), Restart.NONE, false, null);
 		ConfigEntry live = new ConfigEntry("standOutline", "standDisplay", Side.CLIENT, Kind.BOOLEAN, null, new JsonPrimitive(true),
 				new JsonPrimitive(true), null, null, List.of(), Restart.NONE, false, null);

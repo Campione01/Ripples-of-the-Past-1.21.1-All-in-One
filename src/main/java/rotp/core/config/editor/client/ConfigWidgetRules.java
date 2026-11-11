@@ -32,7 +32,7 @@ import rotp.core.config.editor.ConfigEntry.Side;
  * so a key added to either store gets a working row without code here; the lists below only give known keys a place.
  */
 public final class ConfigWidgetRules {
-	public enum WidgetKind { TOGGLE, SLIDER, NUMBER, CYCLE, TEXT, LIST, CHECKLIST }
+	public enum WidgetKind { TOGGLE, SLIDER, NUMBER, CYCLE, TEXT, LIST, CHECKLIST, COLOR }
 
 	public record Section(String id, List<ConfigEntry> entries) {}
 
@@ -71,10 +71,9 @@ public final class ConfigWidgetRules {
 	public static final String OPTION_TEXT = "jojo_ripples.config.option.";
 	public static final String CLIENT_TEXT = "jojo_ripples.config.client.";
 
-	// A switch that does nothing would lie to the player. Nothing reads the first two: the hotbar buttons that set them are
-	// commented out in GuiEventHandler. The third belongs to the unfinished test key: LmbRmbKeyMapping.setKey writes it
-	// from the key binds screen, and all it gates is a test sound (InputHandler.doTheThing).
-	private static final Set<String> HIDDEN = Set.of("toggleLmbHotbar", "toggleRmbHotbar", "poseOnLmbRmb");
+	// A switch that does nothing would lie to the player. This one belongs to the unfinished test key: LmbRmbKeyMapping.setKey
+	// writes it from the key binds screen, and all it gates is a test sound (InputHandler.doTheThing).
+	private static final Set<String> HIDDEN = Set.of("poseOnLmbRmb");
 
 	private static final List<SectionRule> CLIENT_SECTIONS = List.of(
 			section("effects", "characterVoiceLines", "menacingParticles", "ownAfkMenacingFirstPerson", "screenSplash",
@@ -143,7 +142,7 @@ public final class ConfigWidgetRules {
 			case ENUM -> WidgetKind.CYCLE;
 			case LIST -> isChecklist(entry) ? WidgetKind.CHECKLIST : WidgetKind.LIST;
 			case STRING -> entry.choices().isEmpty() ? WidgetKind.TEXT : WidgetKind.CYCLE;
-			case INTEGER, DECIMAL -> sliderFits(entry) ? WidgetKind.SLIDER : WidgetKind.NUMBER;
+			case INTEGER, DECIMAL -> isColor(entry) ? WidgetKind.COLOR : sliderFits(entry) ? WidgetKind.SLIDER : WidgetKind.NUMBER;
 		};
 	}
 
@@ -203,10 +202,41 @@ public final class ConfigWidgetRules {
 		return formatNumber(entry.kind(), value);
 	}
 
-	/** A number as its row shows it, a Stand's share with its percent sign. */
+	/** A number as its row shows it, a Stand's share with its percent sign, a colour as #RRGGBB. */
 	public static String valueNumber(ConfigEntry entry, JsonElement value) {
+		if (isColor(entry)) {
+			return formatColor(value);
+		}
 		String number = formatNumber(entry.kind(), value);
 		return isPercent(entry) ? number + "%" : number;
+	}
+
+	private static final double RGB_MAX = 0xFFFFFF;
+
+	/**
+	 * A colour, which an add-on marks with no code for the screen: a whole number from 0 to 16777215 (0xFFFFFF, the
+	 * range of an RGB colour) whose name says colour ("textColor", "auraColour").
+	 */
+	public static boolean isColor(ConfigEntry entry) {
+		Bounds bounds = entry.bounds();
+		if (entry.kind() != Kind.INTEGER || bounds == null || bounds.minimum() != 0 || bounds.maximum() != RGB_MAX) {
+			return false;
+		}
+		String name = leaf(entry.key()).toLowerCase(Locale.ROOT);
+		return name.contains("color") || name.contains("colour");
+	}
+
+	/** #RRGGBB, or RRGGBB, in either case; null for anything else. */
+	public static @Nullable JsonElement parseColor(String typed) {
+		String hex = typed.trim();
+		if (hex.startsWith("#")) {
+			hex = hex.substring(1);
+		}
+		return hex.matches("[0-9a-fA-F]{6}") ? new JsonPrimitive(Integer.parseInt(hex, 16)) : null;
+	}
+
+	public static String formatColor(JsonElement value) {
+		return String.format(Locale.ROOT, "#%06X", value.getAsInt() & 0xFFFFFF);
 	}
 
 	/**

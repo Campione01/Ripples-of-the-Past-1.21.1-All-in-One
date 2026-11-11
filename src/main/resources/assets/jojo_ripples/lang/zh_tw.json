@@ -217,6 +217,8 @@
   "jojo_ripples.config.screen.list.keep": "繼續編輯",
   "jojo_ripples.config.screen.list.discard": "放棄",
   "jojo_ripples.config.screen.list.discard_question": "放棄這些變更？",
+  "jojo_ripples.config.screen.color.hex": "色碼",
+  "jojo_ripples.config.screen.color.invalid": "顏色請以 #RRGGBB 輸入",
   "jojo_ripples.config.screen.checklist.summary": "已勾選 %s / %s",
   "jojo_ripples.config.screen.checklist.filter": "依名稱或 ID 篩選",
   "jojo_ripples.config.screen.checklist.gone": "伺服器已不再提供此項",

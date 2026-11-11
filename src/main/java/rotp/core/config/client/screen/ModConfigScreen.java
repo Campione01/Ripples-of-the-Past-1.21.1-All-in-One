@@ -400,12 +400,18 @@ public final class ModConfigScreen extends Screen implements IJojoMenuScreen, Co
 
 	@Override
 	public void openList(ConfigEntry entry) {
-		minecraft.setScreen(ConfigWidgetRules.isChecklist(entry) ? new ConfigChecklistScreen(this, store(), entry)
+		// the entry's own card: a colour's palette, a list's tick boxes, or the plain list editor
+		minecraft.setScreen(ConfigWidgetRules.isColor(entry) ? new ConfigColorScreen(this, store(), entry)
+				: ConfigWidgetRules.isChecklist(entry) ? new ConfigChecklistScreen(this, store(), entry)
 				: new ConfigListEditScreen(this, store(), entry));
 	}
 
 	@Override
 	public void typedValueRejected(ConfigEntry entry) {
+		if (ConfigWidgetRules.isColor(entry)) {
+			setStatus(Component.translatable(TEXT + "color.invalid"), true);
+			return;
+		}
 		setStatus(entry.bounds() != null ? ConfigTooltips.rangeOf(entry.kind(), entry.bounds())
 				: Component.translatable(TEXT + "status.invalid_value"), true);
 	}

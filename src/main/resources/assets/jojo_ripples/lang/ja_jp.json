@@ -215,6 +215,8 @@
   "jojo_ripples.config.screen.list.keep": "編集を続ける",
   "jojo_ripples.config.screen.list.discard": "破棄",
   "jojo_ripples.config.screen.list.discard_question": "変更を破棄しますか？",
+  "jojo_ripples.config.screen.color.hex": "カラーコード",
+  "jojo_ripples.config.screen.color.invalid": "色は #RRGGBB の形で入力します",
   "jojo_ripples.config.screen.checklist.summary": "%s / %s 件にチェック",
   "jojo_ripples.config.screen.checklist.filter": "名前または ID で絞り込み",
   "jojo_ripples.config.screen.checklist.gone": "サーバーにはもうありません",

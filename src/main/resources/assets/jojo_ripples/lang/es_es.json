@@ -215,6 +215,8 @@
   "jojo_ripples.config.screen.list.keep": "Seguir editando",
   "jojo_ripples.config.screen.list.discard": "Descartar",
   "jojo_ripples.config.screen.list.discard_question": "¿Descartar los cambios?",
+  "jojo_ripples.config.screen.color.hex": "Código de color",
+  "jojo_ripples.config.screen.color.invalid": "Un color se escribe como #RRGGBB",
   "jojo_ripples.config.screen.checklist.summary": "%s de %s marcados",
   "jojo_ripples.config.screen.checklist.filter": "Filtrar por nombre o ID",
   "jojo_ripples.config.screen.checklist.gone": "El servidor ya no lo ofrece",

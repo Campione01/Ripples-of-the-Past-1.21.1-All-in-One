@@ -54,7 +54,8 @@ final class ConfigTooltips {
 	}
 
 	private static Component rangeLine(ConfigEntry entry) {
-		if (entry.kind() == ConfigEntry.Kind.LIST || entry.bounds() == null) {
+		// a colour's range is every colour: its default line says which one it starts as
+		if (entry.kind() == ConfigEntry.Kind.LIST || entry.bounds() == null || ConfigWidgetRules.isColor(entry)) {
 			return null;
 		}
 		if (ConfigWidgetRules.isPercent(entry)) {

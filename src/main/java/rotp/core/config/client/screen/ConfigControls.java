@@ -64,6 +64,7 @@ final class ConfigControls {
 			case TOGGLE -> new ToggleControl(entry.key(), store, font);
 			case SLIDER -> new SliderControl(entry, store, font);
 			case NUMBER, TEXT -> new FieldControl(entry, store, font, typedWrong);
+			case COLOR -> new FieldControl(entry, store, font, typedWrong, openList);
 			case CYCLE -> new CycleControl(entry.key(), store);
 			case LIST, CHECKLIST -> new ListControl(openList);
 		};
@@ -320,12 +321,31 @@ final class ConfigControls {
 		private ConfigEntry entry;
 		private String syncedText = "";
 
+		// a colour's swatch before its #RRGGBB box: it shows the colour and opens the palette
+		private static final int SWATCH_ROOM = PaperUi.CONTROL_HEIGHT + 4;
+		private final @Nullable Runnable openPalette;
+		private int swatchX;
+		private int swatchY;
+
 		FieldControl(ConfigEntry entry, ConfigStore store, Font font, Consumer<ConfigEntry> typedWrong) {
+			this(entry, store, font, typedWrong, null);
+		}
+
+		FieldControl(ConfigEntry entry, ConfigStore store, Font font, Consumer<ConfigEntry> typedWrong, @Nullable Runnable openPalette) {
 			super(font, PaperUi.label(entry), entry.kind());
 			this.entry = entry;
 			this.store = store;
 			this.typedWrong = typedWrong;
+			this.openPalette = ConfigWidgetRules.isColor(entry) ? openPalette : null;
+			if (this.openPalette != null) {
+				setFilter(text -> text.matches("#?[0-9a-fA-F]{0,6}"));
+				setMaxLength(7);
+			}
 			setResponder(this::onTyped);
+		}
+
+		private boolean isColor() {
+			return openPalette != null;
 		}
 
 		private void onTyped(String typed) {
@@ -333,11 +353,66 @@ final class ConfigControls {
 		}
 
 		private @Nullable JsonElement parse(String typed) {
-			return ConfigWidgetRules.parseScalar(entry.kind(), entry.bounds(), typed);
+			return isColor() ? ConfigWidgetRules.parseColor(typed) : ConfigWidgetRules.parseScalar(entry.kind(), entry.bounds(), typed);
 		}
 
 		private String format(JsonElement value) {
+			if (isColor()) {
+				return ConfigWidgetRules.formatColor(value);
+			}
 			return entry.kind() == Kind.STRING ? value.getAsString() : ConfigWidgetRules.formatNumber(entry.kind(), value);
+		}
+
+		@Override
+		public void place(int x, int y, int width, int height) {
+			if (!isColor()) {
+				super.place(x, y, width, height);
+				return;
+			}
+			swatchX = x;
+			swatchY = y;
+			super.place(x + SWATCH_ROOM, y, Math.max(40, width - SWATCH_ROOM), height);
+		}
+
+		@Override
+		public int leftEdge() {
+			return isColor() ? swatchX : super.leftEdge();
+		}
+
+		private boolean overSwatch(double mouseX, double mouseY) {
+			return isColor() && mouseX >= swatchX && mouseX < swatchX + PaperUi.CONTROL_HEIGHT
+					&& mouseY >= swatchY && mouseY < swatchY + PaperUi.CONTROL_HEIGHT;
+		}
+
+		@Override
+		public boolean isMouseOver(double mouseX, double mouseY) {
+			return super.isMouseOver(mouseX, mouseY) || visible && overSwatch(mouseX, mouseY);
+		}
+
+		@Override
+		public boolean mouseClicked(double mouseX, double mouseY, int button) {
+			if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && visible && overSwatch(mouseX, mouseY)) {
+				if (active && !waiting) {
+					playDownSound(Minecraft.getInstance().getSoundManager());
+					openPalette.run();
+				}
+				return true;
+			}
+			return super.mouseClicked(mouseX, mouseY, button);
+		}
+
+		@Override
+		public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+			if (isColor()) {
+				JsonElement typed = parse(getValue());
+				int color = (typed != null ? typed : entry.value()).getAsInt() & 0xFFFFFF;
+				int size = PaperUi.CONTROL_HEIGHT;
+				boolean hover = overSwatch(mouseX, mouseY) && editable;
+				graphics.fill(swatchX, swatchY, swatchX + size, swatchY + size, hover ? PaperUi.INK : editable ? PaperUi.LINE : PaperUi.LINE_SOFT);
+				graphics.fill(swatchX + 1, swatchY + 1, swatchX + size - 1, swatchY + size - 1, PaperUi.PAPER_LIGHT);
+				graphics.fill(swatchX + 3, swatchY + 3, swatchX + size - 3, swatchY + size - 3, 0xFF000000 | color);
+			}
+			super.renderWidget(graphics, mouseX, mouseY, partialTick);
 		}
 
 		@Override
