@@ -1,16 +1,23 @@
 package rotp.core.client.entityrender.stand;
 
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
+
+import rotp.core.api.client.render.ClientRenderCompatibility;
 import rotp.core.client.rendertype.AlphaMultiBufferSource;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.compat.v1_21_4.renderstate.RenderStateCrutches;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemInHandRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
@@ -70,7 +77,26 @@ public class StandItemInHandLayer<
 		poseStack.mulPose(Axis.YP.rotationDegrees(180.0F));
 		boolean leftArm = arm == HumanoidArm.LEFT;
 		poseStack.translate((leftArm ? -1.0F : 1.0F) / 16.0F, 0.125F, -0.625F);
+		if (itemStack.getItem() instanceof BlockItem) {
+			keepOutOfUsersCrosshair(entity, poseStack);
+		}
 		itemInHandRenderer.renderItem(entity, itemStack, displayContext, leftArm, poseStack, buffer, packedLight);
 		poseStack.popPose();
+	}
+
+	// only in its user's own first-person view; the pose is camera-relative and unrotated, as the level gives entities
+	private static void keepOutOfUsersCrosshair(StandEntity entity, PoseStack poseStack) {
+		Minecraft minecraft = Minecraft.getInstance();
+		if (!minecraft.options.getCameraType().isFirstPerson() || minecraft.getCameraEntity() == null
+				|| minecraft.getCameraEntity() != entity.getUser() || ClientRenderCompatibility.isIrisShadowPass()) {
+			return;
+		}
+		Camera camera = minecraft.gameRenderer.getMainCamera();
+		Matrix4f pose = poseStack.last().pose();
+		Vector3f center = pose.transformPosition(new Vector3f());
+		float scale = pose.getScale(new Vector3f()).x();
+		Vector3f shift = HeldBlockViewClearance.shift(center, HeldBlockViewClearance.BLOCK_RADIUS * scale,
+				camera.getLookVector(), camera.getUpVector());
+		pose.translateLocal(shift);
 	}
 }
