@@ -21,6 +21,7 @@ import rotp.core.powersystem.entityaction.EntityActionInputState;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.HeldInput;
 import rotp.core.powersystem.entityaction.EntityActionInputState.HeldInputEntry;
+import rotp.core.powersystem.standpower.StandDamageContext;
 
 import io.netty.buffer.Unpooled;
 import javax.annotation.Nullable;
@@ -192,9 +193,12 @@ public class ActionInputBuffer {
 						NetworkPayloadValidation.MAX_ABILITY_EXTRA_BYTES,
 						"buffered ability replay input");
 			}
-			HeldInput newAction = ability.onKeyPress(
-					user.level(), user, replayInput,
-					replaying.inputMethod, 0, bufferingState);
+			HeldInput newAction;
+			try (var stand = StandDamageContext.enter(StandDamageContext.of(ability.abilityId.powerClass(), user))) {
+				newAction = ability.onKeyPress(
+						user.level(), user, replayInput,
+						replaying.inputMethod, 0, bufferingState);
+			}
 			if (bufferingState.isActionSuccess) {
 				Power<?> abilityPower = ability.abilityId.powerClass() != null
 						? ability.abilityId.powerClass().get(user) : null;

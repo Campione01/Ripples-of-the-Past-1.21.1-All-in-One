@@ -318,7 +318,8 @@ public final class StandConfigEditorGameTests {
 		String mod = "rotp_stand_wire_fixture";
 		var spec = builder.build();
 		var tracker = new net.neoforged.fml.config.ConfigTracker();
-		Path folder = Files.createTempDirectory("rotp-stand-wire-");
+		// under the test run's own folder, not the system temp folder on C:
+		Path folder = Files.createTempDirectory(Files.createDirectories(Path.of("tmp").toAbsolutePath()), "rotp-stand-wire-");
 		var container = net.neoforged.fml.ModList.get().getModContainerById(JojoMod.MOD_ID).orElseThrow();
 		tracker.registerConfig(ModConfig.Type.COMMON, spec, container, mod + "-common.toml");
 		tracker.loadConfigs(ModConfig.Type.COMMON, folder);

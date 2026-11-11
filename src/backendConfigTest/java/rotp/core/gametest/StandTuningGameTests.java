@@ -4,22 +4,39 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.gson.JsonPrimitive;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.Snowball;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import rotp.core.api.power.PowerSkillUnlocks;
+import rotp.core.api.timestop.TimeStopTicksModifiers;
 import rotp.core.config.editor.StandConfigCatalog;
 import rotp.core.config.editor.StandConfigKeys;
 import rotp.core.customobjects.DamageSourceModified;
@@ -28,16 +45,22 @@ import rotp.core.impl.stands._entitybase.StandEntityPunchAbility.StandEntityPunc
 import rotp.core.impl.stands.crazydiamond.CrazyDRestoreTerrainAbility;
 import rotp.core.impl.stands.goldexperience.GoldExperienceEntityLifeshotAbility;
 import rotp.core.impl.stands.hierophant.HierophantGreenEntity;
+import rotp.core.impl.stands.theworld.TimeStopBlinkAbility;
 import rotp.core.init.ModDamageTypes;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.core.JojoMod;
 import rotp.core.powersystem.ability.Ability;
+import rotp.core.powersystem.ability.controls.InputMethod;
+import rotp.core.powersystem.ability.input.AbilityInput;
+import rotp.core.powersystem.ability.input.ActionInputBuffer.BufferingState;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandSpecials;
 import rotp.core.powersystem.standpower.StandSpecials.Special;
 import rotp.core.powersystem.standpower.StandStats.StatWithValue;
 import rotp.core.powersystem.standpower.StandTuning;
+import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.entity.StandLinkDamageSource;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.subsystems.timestop.TimeStopCooldowns;
@@ -53,6 +76,7 @@ import rotp.core.util.functions.DamageUtil;
 public final class StandTuningGameTests {
 	private static final String NAMESPACE = CommonConfigEditorGameTests.NAMESPACE;
 	private static final List<ResourceLocation> CORE_AND_ADDON = List.of(StandConfigTestKit.SP, StandConfigTestKit.ADDON);
+	private static final PowerSkillUnlocks.Owner UNLOCKS = PowerSkillUnlocks.register(JojoMod.resLoc("standcfg_gametest"));
 
 	// the constant each special value took the place of, in its row's unit (ticks read as seconds: 100 ticks are 5 s)
 	private static final Map<String, Double> REPLACED_CONSTANTS = Map.ofEntries(
@@ -129,6 +153,11 @@ public final class StandTuningGameTests {
 						stand + ": half of one an add-on's code sets itself");
 				power.restoreAbilityCooldown("barrage", 30, 30);
 				helper.assertTrue(power.getAbilityCooldown("barrage") == 30, stand + ": one put back as it was is not halved again");
+				// an add-on that stacks a fresh cooldown on one it read back (RHCP's electric dash) adds the fresh one's share
+				int stacked = power.getAbilityCooldown("barrage") + power.getAbilityCooldownShare(40);
+				power.restoreAbilityCooldown("barrage", stacked);
+				helper.assertTrue(power.getAbilityCooldownShare(40) == 20 && power.getAbilityCooldown("barrage") == 50,
+						stand + ": a stacked cooldown takes the share once: " + power.getAbilityCooldown("barrage"));
 				power.resetAbilityCooldowns();
 			}
 		}
@@ -198,6 +227,260 @@ public final class StandTuningGameTests {
 			kit.close();
 		}
 		helper.succeed();
+	}
+
+	/** The blink weighs its reach in the stamina share consumeStamina charges, so what it promises is what it takes. */
+	@GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 60, batch = "standcfg_blink")
+	public static void aBlinkWeighsItsReachInTheShareItIsCharged(GameTestHelper helper) {
+		var kit = new StandConfigTestKit(helper, StandConfigTestKit.TW);
+		try {
+			Player user = kit.user(StandConfigTestKit.TW, at(helper, 1, 2, 1));
+			StandPower power = StandPower.get(user);
+			power.setResolveLevel(3);
+			UNLOCKS.forceUnlock(power, TimeStopLearning.TIME_STOP);
+			power.getCurTypeData().setAbilityLearningProgressPoints(TimeStopLearning.TIME_STOP, 95,
+					TimeStopLearning.getMaxTrainingPoints(power), power);
+			helper.assertTrue(power.getAbility("time_stop_blink") instanceof TimeStopBlinkAbility, "The World has its blink");
+			TimeStopBlinkAbility blink = (TimeStopBlinkAbility) power.getAbility("time_stop_blink");
+			int longest = TimeStopLearning.getTimeStopTicks(power, TimeStopLearning.TIME_STOP);
+			float start = blink.getBlinkStaminaCost(power);
+			float tick = blink.getBlinkStaminaCostTicking(power, TimeStopLearning.TIME_STOP);
+			helper.assertTrue(start > 0 && tick > 0 && longest > 20 && !StandUtil.standIgnoresStaminaDebuff(power),
+					"a trained blink that costs stamina: start " + start + ", tick " + tick + ", longest " + longest);
+			// a bar that pays the start and ten ticks at the full costs
+			float bar = start + 10 * tick;
+			power.setStamina(bar);
+			int asItIs = blink.getMaxImpliedTicks(power);
+			helper.assertTrue(asItIs == blinkReach(bar, start, tick, longest), "as it is the reach is the bar's: " + asItIs);
+
+			kit.set(StandConfigTestKit.TW, "staminaCosts", new JsonPrimitive(50));
+			float halfStart = power.getStaminaCostShare(start);
+			float halfTick = power.getStaminaCostShare(tick);
+			helper.assertTrue(halfStart == start * 50 / 100F && halfTick == tick * 50 / 100F, "the share is half: " + halfStart);
+			power.setStamina(bar);
+			int reach = blink.getMaxImpliedTicks(power);
+			helper.assertTrue(reach == blinkReach(bar, halfStart, halfTick, longest) && reach > asItIs,
+					"the reach is weighed in the costs it is charged: " + reach + ", at the full costs " + asItIs);
+			BufferingState state = BufferingState.clickOnly();
+			int age = user.tickCount;
+			blink.onKeyPress(helper.getLevel(), user, null, InputMethod.CLICK, 0, state);
+			int implied = user.tickCount - age;
+			float charged = bar - power.getStamina();
+			helper.assertTrue(state.isActionSuccess && implied > 0 && Math.abs(charged - (halfStart + implied * halfTick)) < 0.01F,
+					"the blink takes the half costs it weighed: " + implied + " ticks, " + charged + " taken");
+		}
+		finally {
+			kit.close();
+		}
+		helper.succeed();
+	}
+
+	private static int blinkReach(float bar, float start, float tick, int longest) {
+		return Mth.clamp(Mth.floor((bar - start) / tick), TimeStopLearning.MIN_TIME_STOP_TICKS, longest);
+	}
+
+	/** What a Stand's body and its projectiles hit with any damage type is its, and its body's link passes a hit on as it is. */
+	@GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 60, batch = "standcfg_attrib_body")
+	public static void aStandsBodyTakesItsShareWhateverItsDamageType(GameTestHelper helper) {
+		var kit = new StandConfigTestKit(helper, StandConfigTestKit.SP, StandConfigTestKit.ADDON);
+		try {
+			Player spUser = kit.user(StandConfigTestKit.SP, at(helper, 1, 2, 1));
+			Player addonUser = kit.user(StandConfigTestKit.ADDON, at(helper, 1, 2, 5));
+			StandEntity spBody = StandPower.get(spUser).getSummonedStandEntity();
+			StandEntity addonBody = StandPower.get(addonUser).getSummonedStandEntity();
+			helper.assertTrue(spBody != null && addonBody != null, "both Stands have their bodies out");
+			Cow cow = kit.cow(at(helper, 6, 2, 1), 100);
+			kit.set(StandConfigTestKit.ADDON, "damageVsPlayers", new JsonPrimitive(50));
+			for (StandEntity body : List.of(spBody, addonBody)) {
+				kit.set(body == spBody ? StandConfigTestKit.SP : StandConfigTestKit.ADDON, "damageVsMobs", new JsonPrimitive(200));
+				helper.assertTrue(lost(cow, body.damageSources().mobAttack(body), 4) == 8,
+						body + ": a hit of its body with a mob's attack type is the Stand's");
+				Snowball shot = new Snowball(helper.getLevel(), body);
+				helper.assertTrue(lost(cow, cow.damageSources().thrown(shot, body), 4) == 8, body + ": and so is what it throws");
+			}
+			float[] link = linkedHit(spBody, spUser, addonBody);
+			helper.assertTrue(link[0] > 0 && link[1] == link[0],
+					"the body's link passes on what the add-on's Stand dealt, not its share of it again: " + link[1] + " of " + link[0]);
+		}
+		finally {
+			kit.close();
+		}
+		helper.succeed();
+	}
+
+	/** The link hit a Stand user takes when his body takes a Stand hit of 4 from another Stand: as it came, and as handled. */
+	private static float[] linkedHit(StandEntity body, Player user, StandEntity attacker) {
+		float[] link = {-1, -1};
+		Consumer<LivingIncomingDamageEvent> first = event -> {
+			if (event.getEntity() == user && event.getSource() instanceof StandLinkDamageSource) link[0] = event.getAmount();
+		};
+		Consumer<LivingIncomingDamageEvent> last = event -> {
+			if (event.getEntity() == user && event.getSource() instanceof StandLinkDamageSource) link[1] = event.getAmount();
+		};
+		NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, false, LivingIncomingDamageEvent.class, first);
+		NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, false, LivingIncomingDamageEvent.class, last);
+		try {
+			body.invulnerableTime = 0;
+			user.invulnerableTime = 0;
+			DamageSource source = DamageUtil.make(attacker.level(), ModDamageTypes.STAND_ATTACK, attacker);
+			((DamageSourceModified) source).jojo_ripples$setStandPower(attacker.getUserPower());
+			body.hurt(source, 4);
+		}
+		finally {
+			NeoForge.EVENT_BUS.unregister(first);
+			NeoForge.EVENT_BUS.unregister(last);
+			user.setHealth(user.getMaxHealth());
+			body.setHealth(body.getMaxHealth());
+		}
+		return link;
+	}
+
+	private static final Map<UUID, Runnable> WHILE_BLINKING = new ConcurrentHashMap<>();
+
+	static {
+		// an add-on's code that runs while the Stand's ability runs (1.16 add-ons hooked the blink's reach)
+		TimeStopTicksModifiers.register(JojoMod.resLoc("standcfg_gametest"), (user, ticks) -> {
+			Runnable once = WHILE_BLINKING.remove(user.getUUID());
+			if (once != null) {
+				once.run();
+			}
+			return ticks;
+		});
+	}
+
+	/**
+	 * What a Stand's ability does with no other attacker than its user is the Stand's, and so is what the entities and
+	 * effects made while it runs do, the damage of a ticking entity with no attacker at all too; its own user is spared.
+	 */
+	@GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 200, batch = "standcfg_attrib_ability")
+	public static void whatAStandsAbilityMakesTakesItsShare(GameTestHelper helper) {
+		var kit = new StandConfigTestKit(helper, StandConfigTestKit.TW);
+		Player user = kit.user(StandConfigTestKit.TW, at(helper, 1, 2, 1));
+		StandPower power = StandPower.get(user);
+		power.setResolveLevel(3);
+		UNLOCKS.forceUnlock(power, TimeStopLearning.TIME_STOP);
+		power.getCurTypeData().setAbilityLearningProgressPoints(TimeStopLearning.TIME_STOP, 95,
+				TimeStopLearning.getMaxTrainingPoints(power), power);
+		helper.assertTrue(power.getAbility("time_stop_blink") instanceof TimeStopBlinkAbility, "The World has its blink");
+		TimeStopBlinkAbility blink = (TimeStopBlinkAbility) power.getAbility("time_stop_blink");
+		Cow hurtInIt = kit.cow(at(helper, 8, 2, 1), 100);
+		// the cows hurt as they tick stand in the chunk of the test's block, the one chunk the test loads, in its corners
+		Cow poisonedInIt = kit.cow(inOwnChunk(helper, 1, 1), 100);
+		Cow poisonedApart = kit.cow(inOwnChunk(helper, 1, 14), 100);
+		Cow struckInIt = kit.cow(inOwnChunk(helper, 14, 1), 100);
+		Cow struckApart = kit.cow(inOwnChunk(helper, 14, 14), 100);
+		Cow shotAt = kit.cow(at(helper, 8, 2, 25), 100);
+		List<net.minecraft.world.entity.Entity> made = new ArrayList<>();
+		Snowball[] shots = new Snowball[2];
+		float[] inIt = {-1, -1};
+		try {
+			kit.set(StandConfigTestKit.TW, "damageVsMobs", new JsonPrimitive(200));
+			kit.set(StandConfigTestKit.TW, "damageVsPlayers", new JsonPrimitive(50));
+			var selected = power.updateAvailableMoves().getContextVariationContainer(blink);
+			helper.assertTrue(selected != null && AbilityInput.withConditionCheck(selected, user, InputMethod.CLICK), "the blink may be used");
+			// only now: the check before the press reads the reach too, outside the ability
+			WHILE_BLINKING.put(user.getUUID(), () -> {
+				inIt[0] = lost(hurtInIt, hurtInIt.damageSources().magic(), 4);
+				inIt[1] = lost(user, user.damageSources().magic(), 2);
+				shots[0] = snowball(helper, user, at(helper, 4, 8, 4), made);
+				poisonedInIt.addEffect(new MobEffectInstance(MobEffects.POISON, 100, 4));
+				made.add(lightning(helper, struckInIt.position()));
+			});
+			BufferingState buffer = BufferingState.clickOnly();
+			AbilityInput.keyPress(BLINK_KEY, selected.ability, user, null, InputMethod.CLICK, 0, buffer, blink.getAbilityId());
+			AbilityInput.keyRelease(BLINK_KEY, user);
+			helper.assertTrue(!WHILE_BLINKING.containsKey(user.getUUID()) && buffer.isActionSuccess, "the add-on's code ran in the blink");
+			helper.assertTrue(inIt[0] == 8, "a hit with no attacker while the Stand's ability runs is the Stand's: " + inIt[0]);
+			helper.assertTrue(inIt[1] == 2, "the Stand's own user takes its hit as it is: " + inIt[1]);
+			shots[1] = snowball(helper, user, at(helper, 4, 8, 8), made);
+			helper.assertTrue(lost(shotAt, shotAt.damageSources().thrown(shots[0], user), 4) == 8,
+					"what an entity made while the ability ran hits is the Stand's");
+			helper.assertTrue(lost(shotAt, shotAt.damageSources().thrown(shots[1], user), 4) == 4
+					&& lost(shotAt, shotAt.damageSources().magic(), 4) == 4, "what is made or hurt apart from it is not");
+			poisonedApart.addEffect(new MobEffectInstance(MobEffects.POISON, 100, 4));
+			made.add(lightning(helper, struckApart.position()));
+		}
+		catch (RuntimeException failure) {
+			made.forEach(net.minecraft.world.entity.Entity::discard);
+			kit.close();
+			throw failure;
+		}
+		// the first hit each cow takes, as the core's handlers leave it: the fire a lightning lights and the hurt cooldown
+		// would blur a reading of health
+		Map<LivingEntity, Float> firstHit = new ConcurrentHashMap<>();
+		List<String> hits = new java.util.concurrent.CopyOnWriteArrayList<>();
+		Consumer<LivingIncomingDamageEvent> record = event -> {
+			LivingEntity victim = event.getEntity();
+			if (victim == poisonedInIt || victim == poisonedApart || victim == struckInIt || victim == struckApart) {
+				hits.add(victim.getId() + " " + event.getSource().getMsgId() + " " + event.getAmount());
+			}
+			// the poison hurts with NeoForge's own poison type; the struck cows burn after the strike
+			if (victim == poisonedInIt || victim == poisonedApart
+					|| (victim == struckInIt || victim == struckApart) && event.getSource().is(DamageTypes.LIGHTNING_BOLT)) {
+				firstHit.putIfAbsent(victim, event.getAmount());
+			}
+		};
+		NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, false, LivingIncomingDamageEvent.class, record);
+		int[] waited = {0};
+		helper.onEachTick(() -> {
+			if (firstHit.size() == 4 || ++waited[0] > 100) {
+				try {
+					Float poisonIn = firstHit.get(poisonedInIt), poisonApart = firstHit.get(poisonedApart);
+					Float struckIn = firstHit.get(struckInIt), struckOut = firstHit.get(struckApart);
+					helper.assertTrue(poisonIn != null && poisonIn == 2 && poisonApart != null && poisonApart == 1,
+							"an effect the Stand gave hurts in its share: " + poisonIn + ", one given apart " + poisonApart);
+					helper.assertTrue(struckIn != null && struckIn == 10 && struckOut != null && struckOut == 5,
+							"a lightning the Stand made strikes in its share: " + struckIn + ", one made apart " + struckOut);
+				}
+				catch (RuntimeException failure) {
+					throw new GameTestAssertException(failure.getMessage() + "; the cows' first hits "
+							+ hits.subList(0, Math.min(12, hits.size())) + " (cows " + poisonedInIt.getId() + " " + poisonedApart.getId()
+							+ " " + struckInIt.getId() + " " + struckApart.getId() + ") after " + waited[0] + " ticks");
+				}
+				finally {
+					NeoForge.EVENT_BUS.unregister(record);
+					made.forEach(net.minecraft.world.entity.Entity::discard);
+					kit.close();
+				}
+				helper.succeed();
+			}
+		});
+	}
+
+	private static final short BLINK_KEY = 172;
+
+	/** A place in the chunk of the test's own block, from the chunk's corner, two blocks above the block. */
+	private static Vec3 inOwnChunk(GameTestHelper helper, int x, int z) {
+		BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+		ChunkPos chunk = new ChunkPos(origin);
+		return new Vec3(chunk.getMinBlockX() + x + 0.5, origin.getY() + 2, chunk.getMinBlockZ() + z + 0.5);
+	}
+
+
+	private static float lost(LivingEntity target, DamageSource source, float amount) {
+		target.invulnerableTime = 0;
+		float before = target.getHealth();
+		target.hurt(source, amount);
+		float lost = before - target.getHealth();
+		target.setHealth(target.getMaxHealth());
+		return lost;
+	}
+
+	private static Snowball snowball(GameTestHelper helper, LivingEntity owner, Vec3 at, List<net.minecraft.world.entity.Entity> made) {
+		Snowball shot = new Snowball(helper.getLevel(), owner);
+		shot.moveTo(at.x, at.y, at.z, 0, 0);
+		shot.setNoGravity(true);
+		shot.setDeltaMovement(Vec3.ZERO);
+		helper.getLevel().addFreshEntity(shot);
+		made.add(shot);
+		return shot;
+	}
+
+	private static LightningBolt lightning(GameTestHelper helper, Vec3 at) {
+		LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(helper.getLevel());
+		bolt.moveTo(at.x, at.y, at.z, 0, 0);
+		helper.getLevel().addFreshEntity(bolt);
+		return bolt;
 	}
 
 	@GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 60, batch = "standcfg_special")

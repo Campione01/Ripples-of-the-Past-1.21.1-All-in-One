@@ -59,7 +59,8 @@ public final class ConfigChoicesGameTests {
 	private record Fixture(String mod, ConfigTracker tracker, Path folder) {
 		static Fixture of(String mod, ModConfigSpec spec) throws IOException {
 			var tracker = new ConfigTracker();
-			Path folder = Files.createTempDirectory("rotp-choices-");
+			// under the test run's own folder, not the system temp folder on C:
+			Path folder = Files.createTempDirectory(Files.createDirectories(Path.of("tmp").toAbsolutePath()), "rotp-choices-");
 			var container = ModList.get().getModContainerById(JojoMod.MOD_ID).orElseThrow();
 			tracker.registerConfig(ModConfig.Type.COMMON, spec, container, mod + "-common.toml");
 			tracker.loadConfigs(ModConfig.Type.COMMON, folder);
