@@ -54,6 +54,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.block.ButtonBlock;
 import net.minecraft.world.level.block.LeverBlock;
 import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.RedstoneLampBlock;
@@ -465,6 +466,41 @@ public final class TimeStopWorldGameTests {
 	}
 
 	/** The lever flips; dust, lamp, door and piston react when the stop runs out. A command block keeps running. */
+	/*
+	 * OQ-C03, owner M0157 (redstone waits for time to resume, then runs as normal): a stone button pressed in a long stop
+	 * stays pressed its 20 ticks after it, and one pressed 5 ticks before the stop keeps the 15 it had left. Before, every
+	 * frozen tick fired at the resume, and a button gave a pulse.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 100, batch = GameTestBatches.WORLD_BUTTON)
+	public static void aButtonPressedInStoppedTimeStaysPressedItsFullTimeAfterIt(GameTestHelper helper) {
+		Scene s = start(helper);
+		s.floor();
+		BlockPos before = s.abs(4, 2, 2);
+		BlockPos inStop = s.abs(2, 2, 2);
+		s.button(before);
+		s.button(inStop);
+		s.press(before);
+		int[] stop = new int[1];
+		helper.runAfterDelay(5, () -> s.guarded(() -> {
+			stop[0] = s.stop(40);
+			s.press(inStop);
+		}));
+		Runnable bothPressed = () -> helper.assertTrue(s.pressed(before) && s.pressed(inStop), "a button let go in stopped time"
+				+ " or at once after it: pressed before the stop " + s.pressed(before) + ", in it " + s.pressed(inStop));
+		helper.runAfterDelay(30, () -> s.guarded(bothPressed));
+		helper.runAfterDelay(52, () -> s.guarded(() -> {
+			helper.assertTrue(!s.state.getInstance(stop[0]).map(TimeStopState.Instance::isActive).orElse(false),
+					"setup: the stop is still running");
+			bothPressed.run();
+		}));
+		helper.runAfterDelay(80, () -> s.guarded(() -> {
+			helper.assertTrue(!s.pressed(before) && !s.pressed(inStop), "a button stayed pressed long after the stop: before "
+					+ s.pressed(before) + ", in it " + s.pressed(inStop));
+			s.close();
+			helper.succeed();
+		}));
+	}
+
 	@GameTest(template = "empty", timeoutTicks = 60, batch = GameTestBatches.WORLD_LEVER)
 	public static void aLeverInStoppedTimeChangesNothingUntilTimeResumes(GameTestHelper helper) {
 		Scene s = start(helper);
@@ -794,6 +830,20 @@ public final class TimeStopWorldGameTests {
 
 		private void lever(BlockPos pos) {
 			level.setBlock(pos, Blocks.LEVER.defaultBlockState().setValue(LeverBlock.FACE, AttachFace.FLOOR), 3);
+		}
+
+		private void button(BlockPos pos) {
+			level.setBlock(pos, Blocks.STONE_BUTTON.defaultBlockState().setValue(ButtonBlock.FACE, AttachFace.FLOOR), 3);
+		}
+
+		private void press(BlockPos pos) {
+			BlockState button = level.getBlockState(pos);
+			((ButtonBlock) button.getBlock()).press(button, level, pos, null);
+		}
+
+		private boolean pressed(BlockPos pos) {
+			BlockState button = level.getBlockState(pos);
+			return button.getBlock() instanceof ButtonBlock && button.getValue(ButtonBlock.POWERED);
 		}
 
 		private void pull(BlockPos pos) {

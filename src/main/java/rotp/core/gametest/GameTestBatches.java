@@ -41,6 +41,7 @@ final class GameTestBatches {
 	static final String WORLD_START_END_COST = "jojo_ripples_time_stop_start_end_cost";
 	static final String WORLD_PISTONS = "jojo_ripples_time_stop_world_pistons";
 	static final String WORLD_LEVER = "jojo_ripples_time_stop_world_lever";
+	static final String WORLD_BUTTON = "jojo_ripples_time_stop_world_button";
 	static final String WORLD_BUILDING = "jojo_ripples_time_stop_world_building";
 	static final String WORLD_ENDS = "jojo_ripples_time_stop_world_ends";
 	static final String WORLD_QUEUE = "jojo_ripples_time_stop_world_queue";

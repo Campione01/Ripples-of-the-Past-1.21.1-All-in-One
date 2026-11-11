@@ -118,10 +118,12 @@ public class TimeStopState {
     private final IntOpenHashSet dirtyEntityData = new IntOpenHashSet();
     private final Map<UUID, Map<Integer, Map<Integer, SynchedEntityData.DataValue<?>>>> delayedEntityData = new HashMap<>();
     private final TimeStopRedstoneHold redstoneHold;
+    private final TimeStopScheduledTickHold scheduledTickHold;
 
     public TimeStopState(ServerLevel level) {
         this.level = level;
         this.redstoneHold = new TimeStopRedstoneHold(level);
+        this.scheduledTickHold = new TimeStopScheduledTickHold(level);
     }
 
     public Collection<Instance> getInstances() {
@@ -1457,6 +1459,34 @@ public class TimeStopState {
         if (redstoneHold.hasWork() && !hasActiveStop()) {
             redstoneHold.drain();
         }
+        if (scheduledTickHold.hasWork() && !hasActiveStop()) {
+            scheduledTickHold.drain();
+        }
+    }
+
+    /** A block or fluid tick scheduled into a stopped chunk: its delay counts from the stop's end (TimeStopScheduledTickHold). */
+    @ApiStatus.Internal
+    public static void noteScheduledTick(ServerLevel tickLevel, BlockPos pos, Object type, boolean fluid, long triggerTick) {
+        var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+        if (tickLevel.hasData(attachmentType)) {
+            TimeStopState state = tickLevel.getData(attachmentType);
+            if (!state.instances.isEmpty() && state.isTimeStopped(new ChunkPos(pos))) {
+                state.scheduledTickHold.noteScheduled(pos, type, fluid, triggerTick);
+            }
+        }
+    }
+
+    /** A block or fluid tick come due in a stopped chunk keeps the delay it had left when time stopped there. */
+    @ApiStatus.Internal
+    public void noteFrozenTickDue(BlockPos pos, Object type, boolean fluid) {
+        ChunkPos chunkPos = new ChunkPos(pos);
+        long stopStart = instances.values().stream()
+                .filter(Instance::isActive)
+                .filter(instance -> instance.covers(chunkPos))
+                .mapToLong(this::getStartGameTime)
+                .min()
+                .orElse(level.getGameTime());
+        scheduledTickHold.noteDue(pos, type, fluid, stopStart);
     }
 
     boolean hasActiveStop() {
