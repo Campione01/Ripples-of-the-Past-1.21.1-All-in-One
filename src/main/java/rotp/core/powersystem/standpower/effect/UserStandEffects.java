@@ -144,7 +144,7 @@ public class UserStandEffects extends EntityCustomEffectsMap<StandEffectInstance
 		var it = effects.int2ObjectEntrySet().iterator();
 		while (it.hasNext()) {
 			StandEffectInstance effect = it.next().getValue();
-			if (effect.removeOnUserDeath) {
+			if (effect.removedOnUserDeath()) {
 				onEffectRemoved(effect);
 				it.remove();
 			}
@@ -171,7 +171,7 @@ public class UserStandEffects extends EntityCustomEffectsMap<StandEffectInstance
 		var it = effects.int2ObjectEntrySet().iterator();
 		while (it.hasNext()) {
 			StandEffectInstance effect = it.next().getValue();
-			if (effect.removeOnUserLogout) {
+			if (effect.removedOnUserLogout()) {
 				onEffectRemoved(effect);
 				it.remove();
 			}
@@ -183,7 +183,7 @@ public class UserStandEffects extends EntityCustomEffectsMap<StandEffectInstance
 		var it = effects.int2ObjectEntrySet().iterator();
 		while (it.hasNext()) {
 			StandEffectInstance effect = it.next().getValue();
-			if (effect.removeOnStandChanged) {
+			if (effect.removedOnStandChanged()) {
 				onEffectRemoved(effect);
 				it.remove();
 			}

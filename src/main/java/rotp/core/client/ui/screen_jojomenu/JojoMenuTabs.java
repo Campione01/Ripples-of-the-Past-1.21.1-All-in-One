@@ -34,6 +34,9 @@ import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.client.HamonIntroScreen;
 import rotp.core.impl.powers.hamon.client.HamonSkillsScreen;
 import rotp.core.impl.powers.vampirism.client.VampirismStatsScreen;
+import rotp.core.impl.stands.goldexperience.GoldExperienceLifeformRoster;
+import rotp.core.impl.stands.goldexperience.client.GoldExperienceLifeformsScreen;
+import rotp.core.powersystem.ability.Ability;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -286,6 +289,26 @@ public class JojoMenuTabs {
 			.withName(Component.translatable("jojo_ripples.menu.stand.toggles"))
 			.withScreen(tab -> new StandTogglesScreen(tab.getCategory(), tab))
 			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/stand_toggles.png"), 16, 16));
+
+	// the lifeforms a Gold Experience user made, which Revert also opens; its icon is his Stand's Revert
+	public static final Tab STAND_LIFEFORMS = new Tab(CATEGORY_STAND) {
+		@Override
+		public boolean isActive() {
+			return super.isActive() && GoldExperienceLifeformsScreen.hasMenu(getPowerForMenu(PowerClass.STAND));
+		}
+
+		@Override
+		public void renderIcon(GuiGraphics guiGraphics, int x, int y) {
+			StandPower standPower = getPowerForMenu(PowerClass.STAND);
+			Ability revert = standPower != null ? GoldExperienceLifeformRoster.revertAbility(standPower) : null;
+			if (revert != null) {
+				guiGraphics.blit(x, y, 0, 16, 16, StandSkinsLoader.getInstance().abilityIcons
+						.getAbilityIcon(revert, standPower, StandSkinsLoader.getCurSkin()));
+			}
+		}
+	}
+			.withName(Component.translatable("jojo_ripples.menu.stand.lifeforms"))
+			.withScreen(tab -> new GoldExperienceLifeformsScreen(tab, null));
 
 	private static StandInfoScreen createStandInfoScreen(Tab tab) {
 		StandPower standPower = getPowerForMenu(PowerClass.STAND);

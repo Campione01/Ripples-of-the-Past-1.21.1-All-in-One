@@ -272,8 +272,16 @@ public class GoldExperienceCreateLifeformAbility extends GoldExperienceChosenLif
     }
 
     public static boolean canCreateMoreLifeforms(StandPower standPower) {
-        long mobsCreated = standPower.userStandEffects.getEffectsOfType(ModStandAbilities.EFFECT_GE_CREATED_LIFEFORM.get()).count();
-        return mobsCreated < MAX_CREATED_LIFEFORMS;
+        return countedLifeforms(standPower) < MAX_CREATED_LIFEFORMS;
+    }
+
+    /** The user's lifeforms that take one of the 16 places: the ones younger than GECreatedLifeformEffect#COUNTED_TICKS. */
+    public static int countedLifeforms(StandPower standPower) {
+        LivingEntity user = standPower.getUser();
+        long gameTime = user != null ? user.level().getGameTime() : 0L;
+        return (int) standPower.userStandEffects.getEffectsOfType(ModStandAbilities.EFFECT_GE_CREATED_LIFEFORM.get())
+                .filter(lifeform -> !lifeform.isStopped() && lifeform.countsTowardLimit(gameTime))
+                .count();
     }
 
     public static boolean hasSelectedLifeform(LivingEntity user) {

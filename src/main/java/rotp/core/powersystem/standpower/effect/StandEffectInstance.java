@@ -37,6 +37,11 @@ public abstract class StandEffectInstance extends EntityCustomEffect {
 	
 	public boolean removeOnStandChanged = true;
 	public boolean needsTarget = false;
+
+	/** Whether its user's Stand changing (lost, swapped, lent by a Temp Disc or given back) ends it now: the field by default. */
+	public boolean removedOnStandChanged() {
+		return removeOnStandChanged;
+	}
 	
 	public boolean isFromStandAction = false;
 	public EntityActionInstance standAction;

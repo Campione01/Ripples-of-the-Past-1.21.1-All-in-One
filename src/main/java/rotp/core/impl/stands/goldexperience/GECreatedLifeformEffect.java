@@ -2,7 +2,10 @@ package rotp.core.impl.stands.goldexperience;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
@@ -11,12 +14,19 @@ import rotp.core.entityattachment.custom_effect.EntityCustomEffectType;
 import rotp.core.powersystem.standpower.effect.StandEffectInstance;
 import rotp.core.util.functions.NBTUtil;
 
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.DoubleTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
@@ -28,9 +38,20 @@ import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
+/*
+ * One lifeform its user created, and the server's record of it: the creature is followed wherever it goes, through
+ * unloaded chunks and other dimensions, and the record ends when it dies, is reverted or no longer exists.
+ */
 public class GECreatedLifeformEffect extends StandEffectInstance {
     private static final double MAX_LIFEFORM_DISTANCE = 128.0;
+    // the owner: a lifeform that has lived 7 minutes no longer takes one of its creator's 16 places
+    public static final int COUNTED_TICKS = 7 * 60 * 20;
+    static final String BORN_TAG = "jojo_ripples:ge_lifeform_born";
+    private static final int RELOCATE_INTERVAL = 20;
+    private static final Map<UUID, GECreatedLifeformEffect> BY_CREATURE = new ConcurrentHashMap<>();
+    @Nullable private UUID indexedId;
     private ItemStack sourceItem = ItemStack.EMPTY;
     private ItemStack sourceEntityItemView = ItemStack.EMPTY;
     @Nullable private CompoundTag sourceEntityNbt;
@@ -41,6 +62,13 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
     private Component sourceName = Component.empty();
     private boolean productEffectsApplied;
     private boolean toothSource;
+    private long createdGameTime = -1;
+    // a record saved before the creation time was kept: its age is guessed until the creature tells it
+    private boolean createdTimeGuessed;
+    @Nullable private ResourceKey<Level> lastDimension;
+    @Nullable private Vec3 lastPos;
+    @Nullable private ResourceLocation lifeformType;
+    @Nullable private Component lifeformName;
 
     public GECreatedLifeformEffect(EntityCustomEffectType<?> effectType) {
         super(effectType);
@@ -103,11 +131,75 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
         return toothSource;
     }
 
+    /** The game time it was created at, -1 when not known (a client that was not sent it). */
+    public long getCreatedGameTime() {
+        return createdGameTime;
+    }
+
+    public long getAge(long gameTime) {
+        return createdGameTime < 0 ? 0 : Math.max(gameTime - createdGameTime, 0);
+    }
+
+    public boolean countsTowardLimit(long gameTime) {
+        return createdGameTime < 0 || gameTime - createdGameTime < COUNTED_TICKS;
+    }
+
+    // as in 1.16 a lifeform that still counts turns back when its creator dies, leaves a published server or loses
+    // his Stand (a Temp Disc's loan and return included); one past the 7 minutes is free of him and stays
     @Override
-    protected void start() {}
+    public boolean removedOnUserDeath() {
+        return super.removedOnUserDeath() && countsTowardLimit(level.getGameTime());
+    }
 
     @Override
-    public void updateTarget(Level level) {
+    public boolean removedOnUserLogout() {
+        return super.removedOnUserLogout() && countsTowardLimit(level.getGameTime());
+    }
+
+    @Override
+    public boolean removedOnStandChanged() {
+        return super.removedOnStandChanged() && countsTowardLimit(level.getGameTime());
+    }
+
+    @Nullable
+    public ResourceKey<Level> getLastDimension() {
+        return lastDimension;
+    }
+
+    @Nullable
+    public Vec3 getLastPos() {
+        return lastPos;
+    }
+
+    /** What the lifeform is, or is turning into while it forms. */
+    @Nullable
+    public ResourceLocation getLifeformType() {
+        return lifeformType;
+    }
+
+    @Nullable
+    public Component getLifeformName() {
+        return lifeformName;
+    }
+
+    @Override
+    protected void start() {
+        if (level != null && !level.isClientSide()) {
+            if (createdGameTime < 0) {
+                createdGameTime = level.getGameTime() - tickCount;
+                createdTimeGuessed = tickCount > 0;
+            }
+            index();
+        }
+    }
+
+    @Override
+    public void updateTarget(Level effectLevel) {
+        // a player keeps his effects through a portal: his lifeforms are looked for from where he is now
+        LivingEntity user = getStandUser();
+        if (user != null && user.level() != level) {
+            level = user.level();
+        }
         if (!level.isClientSide()) {
             Entity target = getTarget();
             if (target instanceof GETransformationEntity transformation && !target.isAlive()) {
@@ -125,11 +217,119 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
                 remove();
                 return;
             }
+            else if (target != null && target.isRemoved()) {
+                Entity.RemovalReason reason = target.getRemovalReason();
+                if (reason == Entity.RemovalReason.KILLED || reason == Entity.RemovalReason.DISCARDED) {
+                    // gone without the death that turns it back: nothing is left to revert
+                    clearTarget();
+                    remove();
+                    return;
+                }
+                setTargetEntity(null);
+                if (reason == Entity.RemovalReason.CHANGED_DIMENSION) {
+                    relocate();
+                }
+            }
         }
         super.updateTarget(level);
         if (!level.isClientSide()) {
-            applyLifeformSpawnEffects(getTarget());
+            if (getTarget() == null && getTargetUUID() != null && tickCount % RELOCATE_INTERVAL == 0) {
+                relocate();
+            }
+            Entity target = getTarget();
+            applyLifeformSpawnEffects(target);
+            remember(target);
+            index();
         }
+    }
+
+    // the lifeform in another dimension than its user's, or back in his
+    private void relocate() {
+        UUID id = getTargetUUID();
+        MinecraftServer server = level.getServer();
+        if (id == null || server == null) {
+            return;
+        }
+        for (ServerLevel candidate : server.getAllLevels()) {
+            Entity found = candidate.getEntity(id);
+            if (found != null && found.isAlive()) {
+                setTargetEntity(found);
+                return;
+            }
+        }
+    }
+
+    private void remember(@Nullable Entity target) {
+        if (target == null) {
+            return;
+        }
+        lastDimension = target.level().dimension();
+        lastPos = target.position();
+        Entity creature = target instanceof GETransformationEntity transformation
+                ? transformation.getTransformationTarget() : target;
+        if (creature != null) {
+            lifeformType = BuiltInRegistries.ENTITY_TYPE.getKey(creature.getType());
+            lifeformName = creature.getCustomName();
+            if (creature == target) {
+                stampBirth(creature);
+            }
+        }
+    }
+
+    // the age is kept with the creature too, so a record that lost its own takes it back
+    private void stampBirth(Entity creature) {
+        CompoundTag data = creature.getPersistentData();
+        if (data.contains(BORN_TAG, Tag.TAG_LONG)) {
+            if (createdTimeGuessed) {
+                createdGameTime = data.getLong(BORN_TAG);
+                createdTimeGuessed = false;
+            }
+        }
+        else if (createdGameTime >= 0) {
+            data.putLong(BORN_TAG, createdGameTime);
+        }
+    }
+
+    // the server's records by their creature, for an arrival to find its record without a look at every entity's data
+    private void index() {
+        UUID id = getTargetUUID();
+        if (!Objects.equals(id, indexedId)) {
+            if (indexedId != null) {
+                BY_CREATURE.remove(indexedId, this);
+            }
+            if (id != null) {
+                BY_CREATURE.put(id, this);
+            }
+            indexedId = id;
+        }
+    }
+
+    private void unindex() {
+        if (indexedId != null) {
+            BY_CREATURE.remove(indexedId, this);
+            indexedId = null;
+        }
+    }
+
+    /**
+     * A creature came into a level of the server, as its chunk loaded or it arrived from another dimension, maybe where
+     * nobody has the chunk loaded: if it is a lifeform, its record learns where it is before it can be reached.
+     */
+    static void noteArrival(Entity creature) {
+        GECreatedLifeformEffect effect = BY_CREATURE.get(creature.getUUID());
+        if (effect == null || effect.isStopped()) {
+            return;
+        }
+        Entity target = effect.getTarget();
+        // through a portal the record still holds the creature that left until its next tick
+        if (target == null || target.isRemoved()) {
+            effect.lastDimension = creature.level().dimension();
+            effect.lastPos = creature.position();
+        }
+    }
+
+    static void forgetServerRecords() {
+        BY_CREATURE.clear();
     }
 
     @Override
@@ -138,16 +338,21 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
             Entity target = getTarget();
             Entity lifeform = target instanceof GETransformationEntity transformation
                     && transformation.getTransformationTarget() != null ? transformation.getTransformationTarget() : target;
-            if (userPower != null
+            // 1.16 ties a lifeform to its creator while it still takes one of the 16 places: it costs him stamina every
+            // tick and turns back when he has none, or when he is too far in its own dimension. Past the 7 minutes it is
+            // free of him and goes on existing wherever he goes
+            boolean tied = countsTowardLimit(level.getGameTime());
+            if (tied && userPower != null
                     && !userPower.consumeStamina(GoldExperienceCreateLifeformAbility.getStaminaCostTicking(userPower, lifeform), true)) {
                 remove();
                 return;
             }
-            if (target != null && target.distanceToSqr(getStandUser()) > MAX_LIFEFORM_DISTANCE * MAX_LIFEFORM_DISTANCE) {
+            if (target != null && tied && target.level() == getStandUser().level()
+                    && target.distanceToSqr(getStandUser()) > MAX_LIFEFORM_DISTANCE * MAX_LIFEFORM_DISTANCE) {
                 remove();
                 return;
             }
-            if (target != null && followTarget != null && followTargetMode != null && level instanceof ServerLevel serverLevel) {
+            if (target != null && followTarget != null && followTargetMode != null && target.level() instanceof ServerLevel serverLevel) {
                 Entity followTargetEntity = serverLevel.getEntity(followTarget);
                 if (followTargetMode == GETransformationEntity.FollowTargetMode.DELIVERY
                         && followTargetEntity != null && followTargetEntity.distanceToSqr(target) < 4.0) {
@@ -255,6 +460,7 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
     @Override
     protected void stop() {
         if (!level.isClientSide()) {
+            unindex();
             Entity target = getTarget();
             if (target != null) {
                 GETransformationEntity.restoreEntitySource(target, getStandUser(), sourceItem, sourceBlock,
@@ -272,6 +478,8 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
                 ComponentSerialization.TRUSTED_STREAM_CODEC.encode(registryBuf, getSourceName());
             }
             buf.writeBoolean(toothSource);
+            // the user's client counts its lifeforms toward the limit by age, as the server does
+            buf.writeLong(createdGameTime);
         }
     }
 
@@ -284,6 +492,7 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
                 sourceName = ComponentSerialization.TRUSTED_STREAM_CODEC.decode(registryBuf);
             }
             toothSource = buf.readBoolean();
+            createdGameTime = buf.readLong();
         }
     }
 
@@ -309,6 +518,27 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
         }
         nbt.putBoolean("GEProductEffectsApplied", productEffectsApplied);
         nbt.putBoolean("GEToothSource", toothSource);
+        if (createdGameTime >= 0 && !createdTimeGuessed) {
+            nbt.putLong("GECreatedTime", createdGameTime);
+        }
+        if (lastDimension != null && lastPos != null) {
+            nbt.putString("GELastDimension", lastDimension.location().toString());
+            nbt.put("GELastPos", newDoubleList(lastPos.x, lastPos.y, lastPos.z));
+        }
+        if (lifeformType != null) {
+            nbt.putString("GELifeformType", lifeformType.toString());
+        }
+        if (lifeformName != null) {
+            nbt.putString("GELifeformName", Component.Serializer.toJson(lifeformName, level.registryAccess()));
+        }
+    }
+
+    private static ListTag newDoubleList(double... values) {
+        ListTag list = new ListTag();
+        for (double value : values) {
+            list.add(DoubleTag.valueOf(value));
+        }
+        return list;
     }
 
     @Override
@@ -339,6 +569,26 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
         toothSource = nbt.contains("GEToothSource", Tag.TAG_BYTE)
                 ? nbt.getBoolean("GEToothSource")
                 : ObjectEntity.isToothSourceTag(sourceEntityNbt);
+        createdGameTime = nbt.contains("GECreatedTime", Tag.TAG_LONG) ? nbt.getLong("GECreatedTime") : -1;
+        lastDimension = null;
+        lastPos = null;
+        ResourceLocation dimensionId = ResourceLocation.tryParse(nbt.getString("GELastDimension"));
+        ListTag pos = nbt.getList("GELastPos", Tag.TAG_DOUBLE);
+        if (dimensionId != null && pos.size() == 3) {
+            lastDimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
+            lastPos = new Vec3(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2));
+        }
+        lifeformType = nbt.contains("GELifeformType", Tag.TAG_STRING)
+                ? ResourceLocation.tryParse(nbt.getString("GELifeformType")) : null;
+        lifeformName = null;
+        if (nbt.contains("GELifeformName", Tag.TAG_STRING)) {
+            try {
+                lifeformName = Component.Serializer.fromJson(nbt.getString("GELifeformName"), level.registryAccess());
+            }
+            catch (RuntimeException ignored) {
+                lifeformName = null;
+            }
+        }
         refreshSourceName();
     }
 
