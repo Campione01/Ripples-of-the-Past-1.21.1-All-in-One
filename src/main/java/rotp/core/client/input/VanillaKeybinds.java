@@ -11,6 +11,7 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import org.jetbrains.annotations.ApiStatus;
 import org.lwjgl.glfw.GLFW;
 
+import rotp.core.api.client.input.PowerKeyConflictContexts;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.client.input.controlscheme.VariationKey;
 import rotp.core.client.input.controlscheme.VariationKeyName;
@@ -94,6 +95,15 @@ public class VanillaKeybinds {
 		};
 	}
 
+	/*
+	 * OQ-C05: the grab keys act only through a Stand HUD's scheme (their contexts are active only with a bind there), so a
+	 * non-Stand power's skill key on the same key never shares a press with them. Every other key of the mod acts whatever
+	 * HUD is open (consumeClick, the HUD-mode keys in InputHandler.handleKeyInput) and stays IN_GAME.
+	 */
+	private static IKeyConflictContext standHudKey(IKeyConflictContext activity) {
+		return PowerKeyConflictContexts.whileActive(PowerKeyConflictContexts.stand(), activity::isActive);
+	}
+
 	@ApiStatus.Internal
 	public static boolean shouldActivateGrabChargedHeavyConflictContext(
 			boolean inGameContextActive,
@@ -146,15 +156,15 @@ public class VanillaKeybinds {
 				.inInitOrder().withDescTooltip());
 		event.register(binds.grabChargedHeavy = new Jokerge(
 				MovesetBuilder.GRAB_CHARGED_HEAVY_KEY_MAPPING_NAME,
-				GRAB_CHARGED_HEAVY_CONFLICT_CONTEXT, KeyModifier.SHIFT,
+				standHudKey(GRAB_CHARGED_HEAVY_CONFLICT_CONTEXT), KeyModifier.SHIFT,
 				InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_RIGHT, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
 		event.register(binds.grabThrow = new Jokerge(
-				MovesetBuilder.GRAB_THROW_KEY_MAPPING_NAME, whileBound(() -> binds.grabThrow),
+				MovesetBuilder.GRAB_THROW_KEY_MAPPING_NAME, standHudKey(whileBound(() -> binds.grabThrow)),
 				InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_RIGHT, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
 		event.register(binds.grabRelease = new Jokerge(
-				MovesetBuilder.GRAB_RELEASE_KEY_MAPPING_NAME, whileBound(() -> binds.grabRelease),
+				MovesetBuilder.GRAB_RELEASE_KEY_MAPPING_NAME, standHudKey(whileBound(() -> binds.grabRelease)),
 				InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Q, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
 		event.register(binds.swapItems = new Jokerge(
@@ -329,6 +339,17 @@ public class VanillaKeybinds {
 		public Jokerge(String description, IKeyConflictContext keyConflictContext, KeyModifier keyModifier, InputConstants.Type inputType, int keyCode, String category) { super(description, keyConflictContext, keyModifier, inputType, keyCode, category); }
 		public Jokerge(String description, IKeyConflictContext keyConflictContext, KeyModifier keyModifier, InputConstants.Key keyCode, String category) { super(description, keyConflictContext, keyModifier, keyCode, category); }
 		
+		// NeoForge's same() compares the bare key when contexts do not conflict: a power's keys kept apart stay apart
+		@Override
+		public boolean same(KeyMapping other) {
+			return !PowerKeyConflictContexts.separates(this, other) && super.same(other);
+		}
+
+		@Override
+		public boolean hasKeyModifierConflict(KeyMapping other) {
+			return !PowerKeyConflictContexts.separates(this, other) && super.hasKeyModifierConflict(other);
+		}
+
 		public Jokerge inInitOrder() {
 			this.orderIndex = PER_CATEGORY.computeIfAbsent(this.getCategory(), __ -> new MutableInt()).getAndIncrement();
 			return this;
