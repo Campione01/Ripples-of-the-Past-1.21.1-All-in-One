@@ -75,7 +75,7 @@ public final class PowerKeyConflictContextsSmokeTest {
 				"\".key.disable_hotbars\",KeyConflictContext.IN_GAME" }) {
 			require(keybinds.contains(inGame), "a key that acts whatever HUD is open left IN_GAME: " + inGame);
 		}
-		require(keybinds.contains("publicbooleansame(KeyMappingother){return!PowerKeyConflictContexts.separates(this,other)&&super.same(other);}"),
+		require(keybinds.contains("publicbooleansame(KeyMappingother){return!PowerKeyConflictContexts.separates(this,other)&&"),
 				"the mod's own mappings do not honour the power contexts in the key binds screen");
 	}
 

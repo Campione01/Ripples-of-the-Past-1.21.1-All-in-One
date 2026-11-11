@@ -342,7 +342,8 @@ public class VanillaKeybinds {
 		// NeoForge's same() compares the bare key when contexts do not conflict: a power's keys kept apart stay apart
 		@Override
 		public boolean same(KeyMapping other) {
-			return !PowerKeyConflictContexts.separates(this, other) && super.same(other);
+			return !PowerKeyConflictContexts.separates(this, other) && !KeyPairsToldApart.toldApart(this, other)
+					&& super.same(other);
 		}
 
 		@Override
