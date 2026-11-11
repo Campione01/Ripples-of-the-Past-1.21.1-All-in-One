@@ -35,6 +35,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
@@ -73,19 +74,25 @@ public final class MobAiPauseGameTests {
 		Pig pig = fixture.target(new Vec3(3.5, 1, 1.5));
 		Zombie zombie = fixture.add(helper.spawn(EntityType.ZOMBIE, new Vec3(-0.5, 1, 1.5)));
 		zombie.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET));
+		// only its melee goal: its target goals took the villager of a neighbour cell and dropped it, the pig with it,
+		// and a stroll could lead it elsewhere
+		zombie.targetSelector.removeAllGoals(goal -> true);
+		zombie.goalSelector.removeAllGoals(goal -> !(goal instanceof MeleeAttackGoal));
 		AiStepProbe probe = new AiStepProbe();
 		zombie.goalSelector.addGoal(0, probe);
-		// its own target goals took the villager of a neighbour cell and dropped it again, and the pig with it
-		zombie.targetSelector.removeAllGoals(goal -> true);
 		zombie.setTarget(pig);
 		int pause = 20;
-		// a zombie's melee goal looks for a path once in 20 ticks and finds none before it has touched the ground
-		int chasing = 30;
-		double start = zombie.getX();
+		int chasing = 10;
+		double[] start = new double[1];
+		// the melee goal looks for a path once in 20 ticks and finds none before the zombie has touched the ground
+		helper.runAfterDelay(2, () -> {
+			start[0] = zombie.getX();
+			helper.assertTrue(zombie.onGround() && zombie.getNavigation().moveTo(pig, 1.0), "Setup: no path to the pig");
+		});
 		int[] at = new int[2];
 		double[] x = new double[2];
 		helper.runAfterDelay(chasing, () -> {
-			helper.assertTrue(zombie.getX() - start > 0.05, "Setup: the zombie did not chase the pig: x " + start + " -> " + zombie.getX());
+			helper.assertTrue(zombie.getX() - start[0] > 0.05, "Setup: the zombie did not chase the pig: x " + start[0] + " -> " + zombie.getX());
 			helper.assertTrue(MobAiPause.pause(zombie, pause) && MobAiPause.remainingTicks(zombie) == pause,
 					"The zombie was not paused for " + pause + " ticks: " + MobAiPause.remainingTicks(zombie));
 			at[0] = zombie.tickCount;
