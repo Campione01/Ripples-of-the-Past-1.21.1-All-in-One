@@ -1156,7 +1156,7 @@
   "jojo_ripples.ability.heal_other.dying": "Give life energy to %s",
   "jojo_ripples.skill.lifeshot": "Lifeshot",
   "jojo_ripples.skill.lifeshot.desc": "Overload a struck target's senses with a burst of life energy.",
-  "jojo_ripples.skill.lifeshot.controls": "Use Heavy Punch with at least half a finisher bar, then press the Heavy Punch key again during the Lifeshot Punch",
+  "jojo_ripples.skill.lifeshot.controls": "Heavy Punch with half a finisher bar or more, then again mid-punch",
   "jojo_ripples.ability.lifeshot": "Life Shot",
   "jojo_ripples.ability.lifeshot_punch": "Heavy Punch",
   "jojo_ripples.skill.tooth_lifeform": "Turn Tooth into Lifeform",

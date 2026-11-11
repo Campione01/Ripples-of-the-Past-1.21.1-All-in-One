@@ -1170,7 +1170,7 @@
   "jojo_ripples.ability.lifeshot_punch": "暴走拳",
   "jojo_ripples.skill.tooth_lifeform": "将牙变成生物",
   "jojo_ripples.skill.tooth_lifeform.desc": "在重拳打出牙齿后，将牙齿转化为选定生命形式。",
-  "jojo_ripples.skill.tooth_lifeform.controls": "重拳过程中再次按重拳键追加",
+  "jojo_ripples.skill.tooth_lifeform.controls": "打落牙齿的重拳过程中再次按重拳键追加",
   "jojo_ripples.ability.tooth_lifeform": "将牙变成生物",
   "jojo_ripples.ability.tooth_lifeform.param": "将牙变成：%s",
   "jojo_ripples.skill.revert_lifeform": "还原生命形式",

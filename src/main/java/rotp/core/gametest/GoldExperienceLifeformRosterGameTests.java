@@ -392,59 +392,55 @@ public final class GoldExperienceLifeformRosterGameTests {
 		helper.succeed();
 	}
 
-	@GameTest(template = "empty", batch = BATCH, timeoutTicks = 400)
+	// The pig's Nether chunk is held at the entity-ticking level and awaited in real time before the pig goes there: it
+	// shows an entity only once the ring around it has generated in the background, and the game test server does not
+	// pace its ticks, so a wait counted in ticks ran out under load.
+	@GameTest(template = "empty", batch = BATCH)
 	public static void goldExperienceLifeformInAnotherDimensionShowsThereAndIsNotRevertedFromHere(GameTestHelper helper) {
 		Scene scene = new Scene(helper);
 		ServerLevel nether = helper.getLevel().getServer().getLevel(Level.NETHER);
 		ChunkPos far = new ChunkPos(97, 97);
 		Vec3 there = new Vec3(far.getMiddleBlockX() + 0.5D, 200.0D, far.getMiddleBlockZ() + 0.5D);
-		Holder<Pig> moved = new Holder<>();
-		Holder<GECreatedLifeformEffect> effect = new Holder<>();
-		helper.startSequence()
-				.thenExecute(() -> {
-					helper.assertTrue(nether != null, "GE-LIFE premise: the test server has no Nether");
-					nether.setChunkForced(far.x, far.z, true);
-					// made here and now: the game test server's ticks outrun a chunk generated in the background
-					nether.getChunk(far.x, far.z);
-					scene.open(true);
-					Pig pig = scene.pig(0.0D, 4.0D);
-					pig.setInvulnerable(true);
-					effect.value = scene.lifeform(pig);
-					scene.tick();
-					Entity arrived = pig.changeDimension(new DimensionTransition(nether, there, Vec3.ZERO, 0.0F, 0.0F,
-							DimensionTransition.DO_NOTHING));
-					helper.assertTrue(arrived instanceof Pig && pig.isRemoved(), "GE-LIFE premise: the pig did not go to the Nether");
-					moved.value = (Pig) arrived;
-				})
-				.thenWaitUntil(() -> helper.assertTrue(nether.getEntity(moved.value.getUUID()) == moved.value,
-						"GE-LIFE premise: the pig's Nether chunk has not loaded"))
-				.thenExecute(() -> {
-					// the server ticks the user's effects too: a record that lost the pig before its Nether chunk showed
-					// it looks again within a second
-					for (int tick = 0; tick <= 20; tick++) {
-						scene.tick();
-					}
-					helper.assertTrue(!effect.value.isStopped() && moved.value.isAlive(),
-							"GE-LIFE: a lifeform far away in another dimension must not turn back by distance");
-					Row row = scene.row(moved.value.getUUID());
-					helper.assertTrue(row.place() == Place.ELSEWHERE && Level.NETHER.location().equals(row.dimension())
-							&& row.pos() != null && row.pos().distanceTo(there) < 0.01D && row.entityId() == -1,
-							"GE-LIFE: a lifeform in the Nether must show there and grey, got " + row);
-					helper.assertTrue(GoldExperienceLifeformRoster.revert(scene.user, moved.value.getUUID()) == Answer.NOT_HERE
-							&& moved.value.isAlive() && !effect.value.isStopped(),
-							"GE-LIFE: a lifeform in another dimension was reverted from the menu");
-					for (int tick = 0; tick < 3; tick++) {
-						scene.tick();
-					}
-					helper.assertTrue(!effect.value.isStopped() && moved.value.isAlive(),
-							"GE-LIFE: a lifeform far away in another dimension must not turn back by distance");
-				})
-				.thenExecute(() -> {
-					moved.value.discard();
-					nether.setChunkForced(far.x, far.z, false);
-					scene.close();
-				})
-				.thenSucceed();
+		Entity arrived = null;
+		try {
+			helper.assertTrue(nether != null, "GE-LIFE premise: the test server has no Nether");
+			new GameTestChunkTickets(helper, nether).holdChunk(far);
+			scene.open(true);
+			Pig pig = scene.pig(0.0D, 4.0D);
+			pig.setInvulnerable(true);
+			GECreatedLifeformEffect effect = scene.lifeform(pig);
+			scene.tick();
+			arrived = pig.changeDimension(new DimensionTransition(nether, there, Vec3.ZERO, 0.0F, 0.0F,
+					DimensionTransition.DO_NOTHING));
+			helper.assertTrue(arrived instanceof Pig && pig.isRemoved() && nether.getEntity(pig.getUUID()) == arrived,
+					"GE-LIFE premise: the pig did not go into its held Nether chunk");
+			Pig moved = (Pig) arrived;
+			// the server ticks the user's effects too: the record follows the pig by its id
+			for (int tick = 0; tick <= 20; tick++) {
+				scene.tick();
+			}
+			helper.assertTrue(!effect.isStopped() && moved.isAlive(),
+					"GE-LIFE: a lifeform far away in another dimension must not turn back by distance");
+			Row row = scene.row(moved.getUUID());
+			helper.assertTrue(row.place() == Place.ELSEWHERE && Level.NETHER.location().equals(row.dimension())
+					&& row.pos() != null && row.pos().distanceTo(there) < 0.01D && row.entityId() == -1,
+					"GE-LIFE: a lifeform in the Nether must show there and grey, got " + row);
+			helper.assertTrue(GoldExperienceLifeformRoster.revert(scene.user, moved.getUUID()) == Answer.NOT_HERE
+					&& moved.isAlive() && !effect.isStopped(),
+					"GE-LIFE: a lifeform in another dimension was reverted from the menu");
+			for (int tick = 0; tick < 3; tick++) {
+				scene.tick();
+			}
+			helper.assertTrue(!effect.isStopped() && moved.isAlive(),
+					"GE-LIFE: a lifeform far away in another dimension must not turn back by distance");
+		}
+		finally {
+			if (arrived != null) {
+				arrived.discard();
+			}
+			scene.close();
+		}
+		helper.succeed();
 	}
 
 	@GameTest(template = "empty", batch = BATCH)
@@ -613,10 +609,6 @@ public final class GoldExperienceLifeformRosterGameTests {
 			buf.release();
 		}
 		helper.succeed();
-	}
-
-	private static final class Holder<T> {
-		private T value;
 	}
 
 	/*
