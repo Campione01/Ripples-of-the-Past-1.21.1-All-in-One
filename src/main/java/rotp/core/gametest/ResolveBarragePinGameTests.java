@@ -20,6 +20,7 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.subsystems.target.ActionTarget;
 import com.mojang.authlib.GameProfile;
@@ -98,7 +99,7 @@ public final class ResolveBarragePinGameTests {
 			// knockback factor without Resolve
 			Pig free = spawnPig(helper, new BlockPos(1, 2, 3));
 			holder.free = free;
-			float expected = Mth.clamp((float) stand.getAttackDamage() * 0.0075F, 0, 1);
+			float expected = Mth.clamp((float) StandStatFormulas.ordinaryPower(stand.getAttackDamage()) * 0.0075F, 0, 1);
 			float onMob = StandEntityBarrageAbility.getBarrageKnockbackMultiplier(stand, free);
 			helper.assertTrue(Math.abs(onMob - expected) < EPSILON,
 					"1.16: the barrage knockback factor is attack damage * 0.0075 = " + expected + ", but it is " + onMob);

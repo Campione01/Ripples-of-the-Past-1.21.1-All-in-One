@@ -636,10 +636,10 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 			if (!blockState.requiresCorrectToolForDrops()) {
 				hardness *= 0.6F;
 			}
-			if (hardness < 0 || !(hardness < Math.exp(strength / 4))) {
+			if (hardness < 0 || !(hardness < StandStatFormulas.maxBreakableHardness(strength))) {
 				return false;
 			}
-			int harvestTier = Mth.clamp((int) strength / 4, 0, LEGACY_HARVEST_TIERS.length - 1);
+			int harvestTier = Mth.clamp(StandStatFormulas.getLegacyHarvestTier(strength), 0, LEGACY_HARVEST_TIERS.length - 1);
 			return LEGACY_HARVEST_TIERS[harvestTier].canMine(blockState);
 		}
 

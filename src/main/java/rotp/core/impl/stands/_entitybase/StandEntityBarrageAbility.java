@@ -676,7 +676,7 @@ public class StandEntityBarrageAbility extends StandEntityAbility {
 		}
 
 		protected float getBarrageSwingPitch(StandEntity stand) {
-			return 1.8F - (float) stand.getAttackDamage() * 0.05F + stand.getRandom().nextFloat() * 0.2F;
+			return StandStatFormulas.getBarrageSwingPitch(stand.getAttackDamage()) + stand.getRandom().nextFloat() * 0.2F;
 		}
 
 		@Nullable
@@ -823,7 +823,7 @@ public class StandEntityBarrageAbility extends StandEntityAbility {
 		if (target instanceof StandEntity || isResolveBarrage(stand)) {
 			return 0;
 		}
-		return Mth.clamp((float) stand.getAttackDamage() * 0.0075F, 0, 1);
+		return StandStatFormulas.getBarrageKnockbackFactor(stand.getAttackDamage());
 	}
 
 	public static boolean isResolveBarrage(StandEntity stand) {

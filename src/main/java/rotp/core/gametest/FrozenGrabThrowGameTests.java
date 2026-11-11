@@ -19,6 +19,7 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.subsystems.entity_grab.LivingComponentGrab;
 import rotp.core.subsystems.timestop.TimeStopState;
@@ -296,7 +297,7 @@ public final class FrozenGrabThrowGameTests {
 		private void assertImpact() {
 			helper.assertTrue(target.hurtMarked && impact.isActive() && impact.getKnockbackImpactStrength() > 0,
 					"Resumed throw lost motion synchronization or collision impact");
-			float expected = Math.max(Math.min((float) stand.getAttackDamage() * 0.175F, 10) - 0.5F, 0);
+			float expected = Math.max(Math.min((float) StandStatFormulas.ordinaryPower(stand.getAttackDamage()) * 0.175F, 10) - 0.5F, 0);
 			float actual = impact.serializeNBT(helper.getLevel().registryAccess()).getFloat("ExplosionRadius");
 			helper.assertTrue(Math.abs(actual - expected) < 0.0001F, "Throw lost its collision explosion metadata");
 		}

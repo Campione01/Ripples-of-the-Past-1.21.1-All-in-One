@@ -98,6 +98,10 @@ public class StandEntityHeavyPunchChargedAbility extends StandEntityAbility {
 		}
 	}
 
+	public static float calcExplosionRadius(StandEntity stand) {
+		return StandStatFormulas.getChargedHeavyBlastRadius(stand.getAttackDamage());
+	}
+
 	public static class StandEntityChargedHeavy extends EntityActionInstance implements SyncedDataHolderExtended {
 		// the key went up during BUTTON_CHARGE; synced, as the user's client asks it too (isHeldSincePress)
 		private static final EntityDataAccessor<Boolean> RELEASED_IN_CHARGE = SynchedEntityData.defineId(
@@ -206,7 +210,7 @@ public class StandEntityHeavyPunchChargedAbility extends StandEntityAbility {
 					DamageSource dmgSource = makePunchDamageSource();
 					float dmgAmount = StandStatFormulas.getChargedHeavyAttackDamage(
 							stand.getAttackDamage(), stand.getAttackSpeed(), stand.getPrecision());
-					float explRadius = Math.min((float) stand.getAttackDamage() * 0.25F, 10);
+					float explRadius = calcExplosionRadius(stand);
 
 					entityHitLanded = false;
 					switch (target.getType()) {
