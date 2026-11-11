@@ -80,7 +80,6 @@ final class GoldExperienceLifeformList extends PaperKit.PaperListBase<GoldExperi
                 next.add(entry != null ? entry : new Entry(row));
             }
         }
-        double scroll = getScrollAmount();
         Entry focused = getFocused();
         replaceEntries(next);
         if (focused != null) {
@@ -91,7 +90,10 @@ final class GoldExperienceLifeformList extends PaperKit.PaperListBase<GoldExperi
                 setFocused(null);
             }
         }
-        setScrollAmount(scroll);
+        // only when rows went: setting the scroll stops a glide the wheel started
+        if (getScrollAmount() > getMaxScroll()) {
+            setScrollAmount(getMaxScroll());
+        }
     }
 
     private Comparator<Row> nearestFirst() {

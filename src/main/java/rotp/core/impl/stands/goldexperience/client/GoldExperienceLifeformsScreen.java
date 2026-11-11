@@ -63,6 +63,7 @@ public class GoldExperienceLifeformsScreen extends Screen implements IJojoMenuSc
     private static final int REFRESH_TICKS = 10;
     private static final long NOTICE_MILLIS = 4000;
     private static final long TOOLTIP_DELAY_MILLIS = 350;
+    private static final long REVERT_SPACING_MILLIS = 400;
 
     private final Tab tab;
     // the key that opened it from Revert: once let go, pressing it again closes the menu
@@ -80,6 +81,7 @@ public class GoldExperienceLifeformsScreen extends Screen implements IJojoMenuSc
     private long noticeUntil;
     @Nullable private GoldExperienceLifeformList.Entry hoverEntry;
     private long hoverSince;
+    private long lastRevertAsked = Long.MIN_VALUE / 2;
 
     public GoldExperienceLifeformsScreen(Tab tab, @Nullable ClientKey openedBy) {
         super(Component.translatable(TEXT + "title"));
@@ -172,7 +174,10 @@ public class GoldExperienceLifeformsScreen extends Screen implements IJojoMenuSc
     }
 
     void requestRevert(Row row) {
-        if (pending.add(row.id())) {
+        long now = Util.getMillis();
+        // the rows close up as one goes: the second click of a double click would land on the next one
+        if (now - lastRevertAsked >= REVERT_SPACING_MILLIS && pending.add(row.id())) {
+            lastRevertAsked = now;
             PacketDistributor.sendToServer(ClGELifeformRosterPacket.revert(row.id()));
         }
     }
