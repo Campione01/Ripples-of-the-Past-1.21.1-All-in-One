@@ -1047,7 +1047,7 @@
   "jojo_ripples.skill.grapple_entity.desc": "用绿色法皇的绳索抓住实体，而不是地形。",
   "jojo_ripples.skill.grapple_entity.controls": "瞄準實體時按住 %s + 特殊能力",
   "jojo_ripples.skill.barrier": "Emerald Barrier",
-  "jojo_ripples.skill.barrier.desc": "Place a string barrier that damages and reveals entities passing through it. 替身在場時，按住 %s 再使用可拆除全部結界。",
+  "jojo_ripples.skill.barrier.desc": "張開綠色法皇的絲線結界，穿過的對象會受到傷害並現出位置。替身在場時，按住 %s 再使用可拆除全部結界。",
   "jojo_ripples.skill.barrier.controls": "Special ability",
   "jojo_ripples.skill.flame_burst": "『火焰爆裂』",
   "jojo_ripples.skill.flame_burst.desc": "Magician's Red releases a close-range burst of flames.",

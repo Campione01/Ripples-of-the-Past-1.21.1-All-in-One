@@ -1047,7 +1047,7 @@
   "jojo_ripples.skill.grapple_entity.desc": "Use Hierophant Green's grapple to hook an entity instead of terrain.",
   "jojo_ripples.skill.grapple_entity.controls": "Hold %s + special ability while aiming at an entity",
   "jojo_ripples.skill.barrier": "Emerald Barrier",
-  "jojo_ripples.skill.barrier.desc": "Place a string barrier that damages and reveals entities passing through it. Con el Stand invocado, púlsala manteniendo %s para retirar todas las barreras.",
+  "jojo_ripples.skill.barrier.desc": "Coloca una barrera de hilos que daña y delata a las entidades que la atraviesan. Con el Stand invocado, púlsala manteniendo %s para retirar todas las barreras.",
   "jojo_ripples.skill.barrier.controls": "Special ability",
   "jojo_ripples.skill.flame_burst": "Ráfaga de llamas",
   "jojo_ripples.skill.flame_burst.desc": "Magician's Red releases a close-range burst of flames.",
