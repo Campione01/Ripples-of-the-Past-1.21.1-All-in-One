@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.damage.DefencePiercing;
 import rotp.core.core.JojoMod;
 import rotp.core.init.ModCriteriaTriggers;
 import rotp.core.init.ModParticles;
@@ -401,7 +402,7 @@ public class WoodenCoffinBlock extends HorizontalDirectionalBlock {
 		// 1.16 onLivingHurtStart: a sleeper in a closed coffin takes no damage from any source, /kill and the void included
 		@SubscribeEvent(priority = EventPriority.HIGHEST)
 		public static void protectClosedCoffinSleeper(LivingIncomingDamageEvent event) {
-			if (isSleepingInClosedCoffin(event.getEntity())) {
+			if (isSleepingInClosedCoffin(event.getEntity()) && !DefencePiercing.piercesInvulnerability(event.getSource())) {
 				event.setCanceled(true);
 			}
 		}

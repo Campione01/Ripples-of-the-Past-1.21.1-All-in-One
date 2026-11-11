@@ -16,6 +16,7 @@ import org.jetbrains.annotations.ApiStatus;
 
 import rotp.core.JojoModLivingVariables;
 import rotp.core.JojoModConfig;
+import rotp.core.api.damage.DefencePiercing;
 import rotp.core.api.stand.StandDefaultRotationRules;
 import rotp.core.api.stand.StandManualMovementObservers;
 import rotp.core.api.stand.StandManualMovementObservers.LogicalSide;
@@ -2169,7 +2170,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		float damageMultiplier = dmgSource instanceof DamageSourceModified fixed && fixed.jojo_ripples$isFixedDamage()
 				? 1.0F : JojoModConfig.getCommonConfigInstance(false).standDamageMultiplier.get().floatValue();
 		if (target instanceof LivingEntity targetLiving) {
-			float finalDamage = applyStandInvulDamage(targetLiving, dmgAmount);
+			float finalDamage = DefencePiercing.piercesInvulnerability(dmgSource) ? dmgAmount
+					: applyStandInvulDamage(targetLiving, dmgAmount);
 			if (finalDamage <= 0) {
 				return false;
 			}
@@ -2476,7 +2478,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 					user.isInvulnerableTo(/*level, */damageSource)
 					|| user instanceof Player player && player.getAbilities().invulnerable && !damageSource.is(DamageTypeTags.BYPASSES_INVULNERABILITY))
 				|| canOnlyHurtFromStands && !damageSource.is(DamageTypes.ON_FIRE)
-						&& !DamageUtil.canHurtStands(damageSource)
+						&& !DamageUtil.canHurtStands(damageSource) && !DefencePiercing.piercesInvulnerability(damageSource)
 				// 1.16: whoever the user, no fire damage to a Stand while the fireDamage gamerule is off
 				|| damageSource.is(DamageTypeTags.IS_FIRE) && !level().getGameRules().getBoolean(GameRules.RULE_FIRE_DAMAGE)
 				|| super.isInvulnerableTo(/*level, */damageSource);
@@ -2510,7 +2512,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	}
 
 	protected float barrageClashParryPunches(DamageSource dmgSource, DamageSourceModified modified, float dmgAmount) {
-		if (barrageParryCount <= 0 || isDeadOrDying() || !canBlockDamage(dmgSource) || !canBlockFromAngle(dmgSource.getSourcePosition())) {
+		if (barrageParryCount <= 0 || isDeadOrDying() || !canBlockDamage(dmgSource) || !canBlockFromAngle(dmgSource.getSourcePosition())
+				|| DefencePiercing.piercesGuard(dmgSource)) {
 			return dmgAmount;
 		}
 		int punchesIncoming = modified.jojo_ripples$barrageHitsCount();
@@ -2567,7 +2570,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 
 	// 1.16 getDamageAfterMagicAbsorb: the user's Resistance also cuts the hits their Stand takes
 	protected float userResistanceAbsorb(DamageSource dmgSource, float dmgAmount) {
-		if (dmgSource.is(DamageTypeTags.BYPASSES_EFFECTS) || dmgSource.is(DamageTypeTags.BYPASSES_RESISTANCE)) {
+		if (dmgSource.is(DamageTypeTags.BYPASSES_EFFECTS) || dmgSource.is(DamageTypeTags.BYPASSES_RESISTANCE)
+				|| DefencePiercing.piercesDamageCaps(dmgSource)) {
 			return dmgAmount;
 		}
 		LivingEntity user = getUser();
@@ -2613,7 +2617,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		}
 		LivingEntity user = getUser();
 		if (level().isClientSide() || isManuallyControlled() || !blockableAngle || getCurStandAction() != null
-				|| !canStartBlocking() || !canBlockDamage(dmgSource) || user == null) {
+				|| !canStartBlocking() || !canBlockDamage(dmgSource) || user == null || DefencePiercing.piercesGuard(dmgSource)) {
 			return false;
 		}
 		if (userPower == null) {
@@ -2668,8 +2672,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	protected float standDamageResistance(DamageSource dmgSource, float dmgAmount, boolean isBlocking) {
 		wasDamageBlocked = false;
 		if (canBlockDamage(dmgSource)) {
+			boolean piercesGuard = DefencePiercing.piercesGuard(dmgSource);
 			float blockedRatio = 0;
-			if (isBlocking && userPower != null) {
+			if (isBlocking && userPower != null && !piercesGuard) {
 				blockedRatio = 1F;
 				if (userPower.usesStamina()) {
 					float staminaCost = StandStatFormulas.getGuardStaminaCost(dmgAmount);
@@ -2682,7 +2687,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 			}
 			// 1.16: a Stand busy with any task (the block too, hit from outside the guard) blocks half of the rest
 			EntityActionInstance curAction = getCurStandAction();
-			float multiplier = curAction != null ? getDamageBlockMultiplier(curAction) : 0;
+			float multiplier = curAction != null && !piercesGuard ? getDamageBlockMultiplier(curAction) : 0;
 			if (multiplier != 0) {
 				blockedRatio += (1 - blockedRatio) * multiplier;
 			}
@@ -2693,7 +2698,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 //				}
 			}
 			// 1.16: what the Stand resisted is what it passes on, whatever the user's armor or hurt cooldown
-			float finalDamage = dmgAmount * (1 - getPhysicalResistance(blockedRatio, dmgAmount));
+			// piercing the caps leaves a hit the Stand does not block whole; a blocked one keeps the guard's cut
+			float finalDamage = blockedRatio <= 0 && DefencePiercing.piercesDamageCaps(dmgSource) ? dmgAmount
+					: dmgAmount * (1 - getPhysicalResistance(blockedRatio, dmgAmount));
 			if (wasDamageBlocked) {
 				blockDamage += finalDamage;
 				// 1.16 onLivingDamage: a blocked hit staggers neither the Stand nor its user

@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import rotp.core.api.damage.DefencePiercing;
 import rotp.core.core.JojoMod;
 import rotp.core.powersystem.standpower.StandPower;
 
@@ -101,7 +102,7 @@ public final class StandUserGuard {
 		}
 		if (source.is(DamageTypeTags.IS_EXPLOSION)) {
 			Explosion explosion = sourceExplosion(user, source);
-			StandEntity stand = explosion != null ? guardingStand(user) : null;
+			StandEntity stand = explosion != null && !DefencePiercing.piercesGuard(source) ? guardingStand(user) : null;
 			if (stand != null) {
 				double cos = explosion.center().subtract(user.position()).normalize().dot(stand.getLookAngle());
 				float multiplier = explosionMultiplier(cos, stand.getDurability());
@@ -150,7 +151,8 @@ public final class StandUserGuard {
 	@Nullable
 	private static StandEntity guardFacing(LivingEntity user, DamageSource source) {
 		Vec3 sourcePos = source.getSourcePosition();
-		if (source instanceof StandLinkDamageSource || source.getDirectEntity() == null || sourcePos == null) {
+		if (source instanceof StandLinkDamageSource || source.getDirectEntity() == null || sourcePos == null
+				|| DefencePiercing.piercesGuard(source)) {
 			return null;
 		}
 		StandEntity stand = guardingStand(user);

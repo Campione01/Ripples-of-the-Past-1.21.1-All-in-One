@@ -2,6 +2,7 @@ package rotp.core.core;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.damage.DefencePiercing;
 import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.JojoModConfig;
 import rotp.core.entityattachment.DataEventListeners;
@@ -417,6 +418,9 @@ public class EventHandler {
 		TimeStopState state = serverLevel.getData(ModDataAttachmentTypes.TIME_STOP.get());
 		if (state.shouldFreeze(target)) {
 			float multiplier = JojoModConfig.getCommonConfigInstance(false).timeStopDamageMultiplier.get().floatValue();
+			if (multiplier < 1 && DefencePiercing.piercesDamageCaps(event.getSource())) {
+				return;
+			}
 			event.setNewDamage(event.getNewDamage() * multiplier);
 		}
 	}
@@ -441,10 +445,10 @@ public class EventHandler {
 	public static void onPillarmanUtilityIncomingDamage(LivingIncomingDamageEvent event) {
 		// 1.16 onLivingHurtStart: a guarding Stand takes a hit it can take first; the checks below still run
 		StandUserGuard.redirectToGuardingStand(event);
-		if (VampirismFreezeAbility.onUserIncomingDamage(event)
+		if (!DefencePiercing.piercesGuard(event.getSource()) && (VampirismFreezeAbility.onUserIncomingDamage(event)
 				|| PillarmanBladeDashAttackAbility.onUserIncomingDamage(event)
 				|| PillarmanBladeBarrageAbility.onUserIncomingDamage(event)
-				|| PillarmanUnnaturalAgilityAbility.onUserIncomingDamage(event)) {
+				|| PillarmanUnnaturalAgilityAbility.onUserIncomingDamage(event))) {
 			event.setCanceled(true);
 		}
 		// 1.16 cancelDamageFromBlock: Hamon energy or a Hamon charge stops cactus and sweet berry bush damage
@@ -455,14 +459,15 @@ public class EventHandler {
 
 	@SubscribeEvent(priority = EventPriority.HIGH)
 	public static void onHamonProtectionIncomingDamage(LivingIncomingDamageEvent event) {
-		if (HamonSendoWaveKickAbility.onUserIncomingDamage(event)) {
+		boolean piercesGuard = DefencePiercing.piercesGuard(event.getSource());
+		if (!piercesGuard && HamonSendoWaveKickAbility.onUserIncomingDamage(event)) {
 			event.setCanceled(true);
 			return;
 		}
-		if (HamonRebuffOverdriveAbility.onUserIncomingDamage(event)) {
+		if (!piercesGuard && HamonRebuffOverdriveAbility.onUserIncomingDamage(event)) {
 			return;
 		}
-		if (HamonSnakeMufflerAbility.onUserIncomingDamage(event)) {
+		if (!piercesGuard && HamonSnakeMufflerAbility.onUserIncomingDamage(event)) {
 			event.setCanceled(true);
 			return;
 		}
@@ -473,7 +478,7 @@ public class EventHandler {
 		LivingEntity target = event.getEntity();
 		DamageSource dmgSource = event.getSource();
 		if (target.level().isClientSide() || dmgSource.getDirectEntity() == null
-				|| dmgSource.is(DamageTypeTags.BYPASSES_ARMOR)) {
+				|| dmgSource.is(DamageTypeTags.BYPASSES_ARMOR) || DefencePiercing.piercesDamageCaps(dmgSource)) {
 			return;
 		}
 		Power<?> power = PowerClass.PLAYER_POWER.get(target);

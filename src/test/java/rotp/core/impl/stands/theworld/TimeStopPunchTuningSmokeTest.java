@@ -48,7 +48,7 @@ public final class TimeStopPunchTuningSmokeTest {
 		String blink = compact(source(BLINK));
 		require(blink, "privateVec3getEntityTargetTeleportPos(LivingEntityuser,EntitytargetEntity){"
 				+ "if(entityTargetTeleportPos!=null){returnentityTargetTeleportPos.apply(user,targetEntity);}"
-				+ "if(teleportBehindEntity){");
+				+ "returnBlinkLanding.entityPos(user,targetEntity,teleportBehindEntity);}");
 
 		String timeStop = compact(source(TIME_STOP));
 		require(timeStop, "privatefloatheldWalkSpeed=1.0F;");

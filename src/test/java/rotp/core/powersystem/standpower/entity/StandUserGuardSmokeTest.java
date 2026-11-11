@@ -83,10 +83,10 @@ public final class StandUserGuardSmokeTest {
 		String handler = compact(source(EVENT_HANDLER));
 		requireInOrder(handler,
 				"@SubscribeEvent(priority=EventPriority.HIGHEST)publicstaticvoidonPillarmanUtilityIncomingDamage(LivingIncomingDamageEventevent){"
-						+ "StandUserGuard.redirectToGuardingStand(event);if(VampirismFreezeAbility.onUserIncomingDamage(event)");
+						+ "StandUserGuard.redirectToGuardingStand(event);if(!DefencePiercing.piercesGuard(event.getSource())&&(VampirismFreezeAbility.onUserIncomingDamage(event)");
 		requireInOrder(handler,
 				"@SubscribeEvent(priority=EventPriority.HIGH)publicstaticvoidonHamonProtectionIncomingDamage(",
-				"if(HamonSnakeMufflerAbility.onUserIncomingDamage(event)){event.setCanceled(true);return;}",
+				"if(!piercesGuard&&HamonSnakeMufflerAbility.onUserIncomingDamage(event)){event.setCanceled(true);return;}",
 				"if(StandUserGuard.blockDamage(event)){return;}",
 				"HamonProtectionAbility.reduceDamageAmount(");
 		check(occurrences(handler, "StandUserGuard.") == 2, "the user guard runs once per stage");
@@ -103,7 +103,7 @@ public final class StandUserGuardSmokeTest {
 				"if(stand==null||standTakesHit(stand,user,source)){returnfalse;}",
 				"stand.playStandBlockSound(source);NoKnockbackOnBlocking.setOneTickKbRes(stand);",
 				"returnstand!=null&&stand!=user&&stand.guardsHitsOnUser()&&stand.isFollowingUser()&&stand.isStandBlocking()?stand:null;",
-				"if(sourceinstanceofStandLinkDamageSource||source.getDirectEntity()==null||sourcePos==null){returnnull;}",
+				"if(sourceinstanceofStandLinkDamageSource||source.getDirectEntity()==null||sourcePos==null||DefencePiercing.piercesGuard(source)){returnnull;}",
 				"returnstand!=null&&stand.canBlockDamage(source)&&stand.canBlockFromAngle(sourcePos)?stand:null;",
 				"returnattacker!=stand&&attacker!=user&&!stand.isInvulnerableTo(source);",
 				// in the hurt cooldown only the excess over lastHurt is cut; lastHurt keeps the whole hit
@@ -126,7 +126,7 @@ public final class StandUserGuardSmokeTest {
 				"protectedfloatstandDamageResistance(DamageSourcedmgSource,floatdmgAmount,booleanisBlocking){",
 				"standCrash();",
 				"EntityActionInstancecurAction=getCurStandAction();"
-						+ "floatmultiplier=curAction!=null?getDamageBlockMultiplier(curAction):0;"
+						+ "floatmultiplier=curAction!=null&&!piercesGuard?getDamageBlockMultiplier(curAction):0;"
 						+ "if(multiplier!=0){blockedRatio+=(1-blockedRatio)*multiplier;}"
 						+ "if(blockedRatio>=1){wasDamageBlocked=true;",
 				"if(wasDamageBlocked){blockDamage+=finalDamage;NoKnockbackOnBlocking.setOneTickKbRes(this);}",

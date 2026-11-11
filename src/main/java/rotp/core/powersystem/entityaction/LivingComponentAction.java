@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import rotp.core.api.entity.MobAiPause;
 import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.api.time.EntityTimeRates;
 import rotp.core.core.JojoMod;
@@ -453,7 +454,7 @@ public class LivingComponentAction implements SynchronizablePlayerData, TickingE
 				syncDirtyActionData();
 				return;
 			}
-			int steps = isActionPausedInStoppedTime() ? 0 : actionSteps();
+			int steps = isActionPausedInStoppedTime() || MobAiPause.isPaused(entity) ? 0 : actionSteps();
 			if (steps == 0) {
 				if (action.isOver()) {
 					// Stopped from outside while paused or slowed (key release, damage): clear it as tickAction does.
