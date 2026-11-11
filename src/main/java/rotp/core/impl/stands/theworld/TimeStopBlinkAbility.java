@@ -243,11 +243,12 @@ public class TimeStopBlinkAbility extends Ability {
 		if (StandUtil.standIgnoresStaminaDebuff(power)) {
 			return timeStopTicks;
 		}
-		float tickingCost = effectiveTimeStopCost(power, getBlinkStaminaCostTicking(power, learningName));
+		// weighed as consumeStamina takes it, in the Stand's stamina share, so the reach and the charge agree
+		float tickingCost = power.getStaminaCostShare(effectiveTimeStopCost(power, getBlinkStaminaCostTicking(power, learningName)));
 		if (tickingCost <= 0.0F) {
 			return timeStopTicks;
 		}
-		float staminaAfterBaseCost = power.getStamina() - effectiveTimeStopCost(power, getBlinkStaminaCost(power));
+		float staminaAfterBaseCost = power.getStamina() - power.getStaminaCostShare(effectiveTimeStopCost(power, getBlinkStaminaCost(power)));
 		int affordableTicks = Mth.floor(staminaAfterBaseCost / tickingCost);
 		return Mth.clamp(affordableTicks, TimeStopLearning.MIN_TIME_STOP_TICKS, timeStopTicks);
 	}

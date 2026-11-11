@@ -32,6 +32,7 @@ import rotp.core.powersystem.entityaction.HeldInput;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.LivingComponentAction.TransactionSnapshot;
 import rotp.core.powersystem.entityaction.EntityActionInputState.HeldInputEntry;
+import rotp.core.powersystem.standpower.StandDamageContext;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
@@ -158,9 +159,11 @@ public class AbilityInput {
 				action = event.newHeldInput;
 			}
 			else {
-				action = ability.onKeyPress(
-						level, user, extraClientInput, inputMethod,
-						clickHoldResolveTime, bufferingState);
+				try (var stand = StandDamageContext.enter(StandDamageContext.of(ability.abilityId.powerClass(), user))) {
+					action = ability.onKeyPress(
+							level, user, extraClientInput, inputMethod,
+							clickHoldResolveTime, bufferingState);
+				}
 				if (bufferingState.canBuffer() && bufferingState.shouldBuffer) {
 					HeldInput heldInputObj = null;
 					ActionInputBuffer actionInputBuffer = transaction.inputBuffer(ability);
@@ -345,7 +348,9 @@ public class AbilityInput {
 		RuntimeException failure = null;
 		try {
 			if (heldAction != null && heldAction.action != null) {
-				heldAction.action.onKeyRelease(user);
+				try (var stand = StandDamageContext.enter(StandDamageContext.of(heldAction.powerClass, user))) {
+					heldAction.action.onKeyRelease(user);
+				}
 			}
 		}
 		catch (RuntimeException error) {
@@ -592,7 +597,7 @@ public class AbilityInput {
 				continue;
 			}
 			input.heldKeys.remove(entry.keyId);
-			try {
+			try (var stand = StandDamageContext.enter(StandDamageContext.of(entry.powerClass, user))) {
 				entry.action.onKeyRelease(user);
 			}
 			catch (RuntimeException error) {
@@ -706,7 +711,9 @@ public class AbilityInput {
 			heldInputs.remove(entry.keyId);
 			try {
 				if (entry.action != null) {
-					entry.action.onKeyRelease(user);
+					try (var stand = StandDamageContext.enter(StandDamageContext.of(entry.powerClass, user))) {
+						entry.action.onKeyRelease(user);
+					}
 				}
 			}
 			catch (RuntimeException error) {

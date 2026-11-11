@@ -866,6 +866,12 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		setAbilityCooldown(abilityName, cooldown, cooldown);
 	}
 
+	/** What {@link #setAbilityCooldown} sets for a cooldown of this length, for code that adds it to one it read back. */
+	public int getAbilityCooldownShare(int cooldown) {
+		StandTuning tuning = StandTuning.of(this);
+		return tuning != null ? tuning.cooldown(cooldown) : cooldown;
+	}
+
 	/**
 	 * A cooldown the ability's own code sets, in the Stand's cooldown share (StandTuning): every setter of a Stand cooldown
 	 * comes through here, the core's and an add-on's. A cooldown put back as it was uses {@link #restoreAbilityCooldown}.
@@ -879,8 +885,11 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		restoreAbilityCooldown(abilityName, cooldown, totalCooldown);
 	}
 
-	/** A cooldown as it already was (the server's word on a client, a rollback), not taken in the share again. */
-	@ApiStatus.Internal
+	/**
+	 * A cooldown already in the Stand's cooldown share, not taken in it again: one put back as it was (the server's word
+	 * on a client, a rollback), one worked out from a cooldown read back ({@link #getAbilityCooldown} is in the share), or
+	 * a lock of a fixed length that is no cooldown of the Stand's own (a timer an ability or another Stand sets).
+	 */
 	public void restoreAbilityCooldown(String abilityName, int cooldown, int totalCooldown) {
 		if (abilityName == null || abilityName.isEmpty()) {
 			return;
