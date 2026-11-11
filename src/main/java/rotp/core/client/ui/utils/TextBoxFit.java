@@ -29,6 +29,16 @@ public final class TextBoxFit {
 		return SMALLEST_SCALE;
 	}
 
+	/** The largest scale at which a one-line label of that width fits its room; the smallest when none does. */
+	public static float labelScale(int textWidth, int room) {
+		for (float scale : SCALES) {
+			if (textWidth * scale <= room) {
+				return scale;
+			}
+		}
+		return SMALLEST_SCALE;
+	}
+
 	public static int splitWidth(int width, float scale) {
 		return (int) (width / scale);
 	}

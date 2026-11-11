@@ -71,6 +71,7 @@ public class Ability {
 	private final EnumSet<StandPart> partsRequired = EnumSet.noneOf(StandPart.class);
 	private int resolveLevelToUnlock = -1;
 	private boolean playsVoiceLineOnSneak;
+	private boolean passive;
 	protected int cooldownTicks;
 	protected int cooldownTechnicalTicks;
 	protected int cooldownAdditionalTicks;
@@ -138,9 +139,25 @@ public class Ability {
 	}
 	
 	public boolean addToControlSchemeEditing() {
-		return !isSubAbility;
+		return !isSubAbility && !isPassive();
 	}
-	
+
+	/**
+	 * Marks this ability as a passive skill: it acts by itself and no key uses it. The Stand skills screen lists it
+	 * under its passive skills with its description ({@code <namespace>.ability.<name>.desc}), whether its Resolve level
+	 * is reached and its cooldown; it is not offered on the controls screen. In a moveset:
+	 * {@code .addAbility("my_passive", MY_PASSIVE_TYPE, ability -> ability.passive())}; an ability class may override
+	 * {@link #isPassive()} instead.
+	 */
+	public Ability passive() {
+		this.passive = true;
+		return this;
+	}
+
+	public boolean isPassive() {
+		return passive;
+	}
+
 	
 	public AbilityUsageGroup getAbilityUsageCategory() {
 		return usageGroup;

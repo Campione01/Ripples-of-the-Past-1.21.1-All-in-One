@@ -46,6 +46,15 @@ public final class StandSkillText {
 		return text(standPower, standSkin, skill, ".controls", VariationKeyName.get());
 	}
 	
+	// a passive skill's description: its ability's ".desc" key, the skin's first; nothing when neither has it
+	public static Component passiveDesc(@Nullable StandPower standPower, @Nullable StandSkin standSkin, Ability passive) {
+		String key = passive.getTranslationKey(".desc");
+		if (standSkin != null && standSkin.hasTranslation(key)) {
+			return standSkin.translatable(key);
+		}
+		return Language.getInstance().has(key) ? Component.translatable(key) : Component.empty();
+	}
+
 	public static Component text(@Nullable StandPower standPower, @Nullable StandSkin standSkin, UnlockableSkill skill, String suffix) {
 		return text(standPower, standSkin, skill, suffix, new Object[0]);
 	}
