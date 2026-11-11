@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.damage.DefencePiercing;
 import rotp.core.core.JojoMod;
 import rotp.core.JojoModConfig;
 import rotp.core.customobjects.DamageSourceModified;
@@ -824,7 +825,7 @@ public class ResolveCounter {
 
     @SubscribeEvent(priority = EventPriority.LOW)
     public static void reduceDamageFromResolve(LivingDamageEvent.Pre event) {
-        if (event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+        if (event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY) || DefencePiercing.piercesDamageCaps(event.getSource())) {
             return;
         }
         LivingEntity target = event.getEntity();
