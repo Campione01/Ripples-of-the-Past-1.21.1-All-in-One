@@ -825,7 +825,7 @@ public class ResolveCounter {
 
     @SubscribeEvent(priority = EventPriority.LOW)
     public static void reduceDamageFromResolve(LivingDamageEvent.Pre event) {
-        if (event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY) || DefencePiercing.piercesDamageCaps(event.getSource())) {
+        if (event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY) || DefencePiercing.piercesMitigation(event.getSource())) {
             return;
         }
         LivingEntity target = event.getEntity();

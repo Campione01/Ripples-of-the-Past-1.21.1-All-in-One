@@ -9,6 +9,7 @@
     "EntitySectionWalkCopy",
     "damage.DamageSourceMixin",
 	"damage.LivingEntityMixin",
+	"damage.LivingEntityHurtCooldownPiercingMixin",
 	"damage.PlayerSweepStandKnockbackMixin",
 	"damage.WitchMagicResistanceMixin",
 	"motiontime.EntityBubbleColumnTimeMixin",

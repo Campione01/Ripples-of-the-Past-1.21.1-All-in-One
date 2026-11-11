@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import rotp.core.api.damage.DefencePiercing;
@@ -42,17 +43,20 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.Arrow;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * DefencePiercing's damage type tags, one test per kind of the core's defence: a guarding Stand and its user take the
- * whole hit from a type in jojo_ripples:pierces_guard and the usual cut one otherwise; a Stand body is hurt by a type in
- * pierces_invulnerability that is not a Stand's; a Stand's durability resistance and its user's Resistance leave a type
- * in pierces_damage_caps whole. The test types are put in the tags and taken out again inside one call, so no other
- * test sees them. The user stands facing south (+Z), its Stand half a block in front.
+ * DefencePiercing, one test per kind of the core's defence: a guarding Stand and its user take the whole hit from a type
+ * in jojo_ripples:pierces_guard and the usual cut one otherwise; a Stand body is hurt by a type in
+ * pierces_invulnerability that is not a Stand's; a Stand's durability resistance and its user's Resolve still cut a type
+ * in pierces_damage_caps and yield only to pierces_mitigation; its user's Resistance yields to pierces_damage_caps; an
+ * attacker under a registered rule goes through a raised guard and the hurt cooldown with its melee, not its arrow. The
+ * test types are put in the tags and taken out again inside one call, and the rule only answers for a tagged attacker,
+ * so no other test sees them. The user stands facing south (+Z), its Stand half a block in front.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -86,11 +90,11 @@ public final class DefencePiercingGameTests {
 			float standUnguarded = f.tagged(() -> f.hitStandFrom(0, 2, 6), ModDamageTypes.STAND_ATTACK, DefencePiercing.GUARD);
 			f.holdGuard();
 			float standWhole = f.tagged(() -> f.hitStandFrom(0, 2, 6), ModDamageTypes.STAND_ATTACK, DefencePiercing.GUARD,
-					DefencePiercing.DAMAGE_CAPS);
+					DefencePiercing.MITIGATION);
 			helper.assertTrue(close(standCut, f.standBlocked(6, 1)) && close(standUnguarded, f.standBlocked(6, 0))
 					&& close(standWhole, 6), "A Stand's hit on the guarding Stand passed " + standCut + " (" + f.standBlocked(6, 1)
 							+ " expected) untagged, " + standUnguarded + " (" + f.standBlocked(6, 0) + ") piercing the guard, "
-							+ standWhole + " (6) piercing the guard and the caps");
+							+ standWhole + " (6) piercing the guard and the mitigation");
 		}
 		finally {
 			f.close();
@@ -116,39 +120,115 @@ public final class DefencePiercingGameTests {
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 80)
-	public static void aStandsResistanceAndItsUsersLeaveATypeThatPiercesDamageCapsWhole(GameTestHelper helper) {
+	public static void durabilityAndResolveYieldOnlyToATypeThatPiercesMitigation(GameTestHelper helper) {
 		Fixture f = new Fixture(helper);
 		try {
 			float resisted = f.hitStandFrom(0, -2, 6);
-			float whole = f.tagged(() -> f.hitStandFrom(0, -2, 6), ModDamageTypes.STAND_ATTACK, DefencePiercing.DAMAGE_CAPS);
-			helper.assertTrue(close(resisted, f.standBlocked(6, 0)) && resisted < 6 - EPS && close(whole, 6),
-					"An idle Stand passed " + resisted + " (" + f.standBlocked(6, 0) + " expected) untagged and " + whole
-							+ " (6 expected) piercing the caps");
-
-			f.user.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 200, 1));
-			float userResisted = f.hitStandFrom(0, -2, 6);
-			float userWhole = f.tagged(() -> f.hitStandFrom(0, -2, 6), ModDamageTypes.STAND_ATTACK, DefencePiercing.DAMAGE_CAPS);
-			helper.assertTrue(userResisted < f.standBlocked(6, 0) - EPS && close(userWhole, 6),
-					"With its user under Resistance II an idle Stand passed " + userResisted + " untagged and " + userWhole
-							+ " (6 expected) piercing the caps");
-			f.user.removeEffect(MobEffects.DAMAGE_RESISTANCE);
+			float capped = f.tagged(() -> f.hitStandFrom(0, -2, 6), ModDamageTypes.STAND_ATTACK, DefencePiercing.DAMAGE_CAPS);
+			float whole = f.tagged(() -> f.hitStandFrom(0, -2, 6), ModDamageTypes.STAND_ATTACK, DefencePiercing.MITIGATION);
+			helper.assertTrue(close(resisted, f.standBlocked(6, 0)) && resisted < 6 - EPS && close(capped, resisted) && close(whole, 6),
+					"An idle Stand passed " + resisted + " (" + f.standBlocked(6, 0) + " expected) untagged, " + capped
+							+ " piercing the caps (its durability resistance expected) and " + whole + " (6) piercing the mitigation");
 
 			DamageSource zombieHit = helper.getLevel().damageSources().mobAttack(f.zombieAt(0, -3));
 			float amount = f.scaled(zombieHit, 4);
 			f.power.resolveCounter.setResolveValue(f.power, Float.MAX_VALUE);
 			float resolveCut = f.hitUser(zombieHit, 4);
 			f.resetUser();
-			float resolveWhole = f.tagged(() -> {
+			float resolveCapped = f.tagged(() -> {
 				f.power.resolveCounter.setResolveValue(f.power, Float.MAX_VALUE);
 				return f.hitUser(zombieHit, 4);
 			}, DamageTypes.MOB_ATTACK, DefencePiercing.DAMAGE_CAPS);
-			helper.assertTrue(resolveCut < amount - 1 && close(resolveWhole, amount), "With full Resolve its user took "
-					+ resolveCut + " of a zombie's " + amount + " untagged and " + resolveWhole + " piercing the caps");
+			float resolveWhole = f.tagged(() -> {
+				f.power.resolveCounter.setResolveValue(f.power, Float.MAX_VALUE);
+				return f.hitUser(zombieHit, 4);
+			}, DamageTypes.MOB_ATTACK, DefencePiercing.MITIGATION);
+			helper.assertTrue(resolveCut < amount - 1 && close(resolveCapped, resolveCut) && close(resolveWhole, amount),
+					"With full Resolve its user took " + resolveCut + " of a zombie's " + amount + " untagged, " + resolveCapped
+							+ " piercing the caps (the same expected) and " + resolveWhole + " piercing the mitigation");
 		}
 		finally {
 			f.close();
 		}
 		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 80)
+	public static void aUsersResistanceOnHisStandsHitsYieldsToATypeThatPiercesDamageCaps(GameTestHelper helper) {
+		Fixture f = new Fixture(helper);
+		try {
+			float resisted = f.hitStandFrom(0, -2, 6);
+			f.user.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 200, 1));
+			float userResisted = f.hitStandFrom(0, -2, 6);
+			float userCapped = f.tagged(() -> f.hitStandFrom(0, -2, 6), ModDamageTypes.STAND_ATTACK, DefencePiercing.DAMAGE_CAPS);
+			helper.assertTrue(userResisted < resisted - EPS && close(userCapped, resisted),
+					"With its user under Resistance II an idle Stand passed " + userResisted + " untagged and " + userCapped
+							+ " piercing the caps (" + resisted + ", its durability resistance alone, expected)");
+		}
+		finally {
+			f.close();
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 80)
+	public static void anAttackerUnderARuleGoesThroughAGuardAndTheHurtCooldownWithItsMeleeOnly(GameTestHelper helper) {
+		registerAttackerRule();
+		Fixture f = new Fixture(helper);
+		try {
+			Zombie plain = f.zombieAt(0, 3);
+			Zombie piercing = f.zombieAt(0, 3);
+			piercing.addTag(PIERCING_ATTACKER);
+			float durability = (float) f.stand.getDurability();
+			float raw = durability / 2 + 3;
+			DamageSource plainHit = helper.getLevel().damageSources().mobAttack(plain);
+			DamageSource piercingHit = helper.getLevel().damageSources().mobAttack(piercing);
+			float unguarded = f.hitUser(piercingHit, raw);
+			f.resetUser();
+			f.holdGuard();
+			float cut = f.hitUser(plainHit, raw);
+			f.resetUser();
+			f.holdGuard();
+			float pierced = f.hitUser(piercingHit, raw);
+			f.resetUser();
+			f.holdGuard();
+			Arrow arrow = f.arrowAt(0, 3);
+			arrow.setOwner(piercing);
+			float shot = f.hitUser(helper.getLevel().damageSources().arrow(arrow, piercing), raw);
+			float shotCut = StandUserGuard.userHitAfterGuard(f.scaled(helper.getLevel().damageSources().arrow(arrow, piercing), raw), durability);
+			helper.assertTrue(close(cut, StandUserGuard.userHitAfterGuard(f.scaled(plainHit, raw), durability)) && close(pierced, unguarded)
+					&& unguarded > cut + 1 && close(shot, shotCut), "Through a raised guard a zombie's hit took " + cut
+							+ ", the ruled zombie's " + pierced + " (" + unguarded + ", the unguarded hit, expected), its arrow " + shot
+							+ " (" + shotCut + ", the guarded hit, expected)");
+
+			f.resetUser();
+			LivingComponentAction.getComponent(f.stand).setAction(null, f.user, SyncType.NO_SYNC);
+			float first = f.hitUser(plainHit, 4);
+			float again = f.hitUser(plainHit, 4);
+			f.resetUser();
+			float ruledFirst = f.hitUser(piercingHit, 4);
+			boolean cooling = f.user.invulnerableTime > 10;
+			float ruledAgain = f.hitUser(piercingHit, 4);
+			helper.assertTrue(first > 0 && again == 0 && cooling && ruledAgain > ruledFirst * 0.9F,
+					"In the hurt cooldown a zombie's second hit took " + again + " (0 expected) after " + first
+							+ ", the ruled zombie's " + ruledAgain + " after " + ruledFirst + " (the whole hit expected)");
+		}
+		finally {
+			f.close();
+		}
+		helper.succeed();
+	}
+
+	private static final String PIERCING_ATTACKER = "jojo_ripples.gametest.piercing_attacker";
+	private static final AtomicBoolean RULE_REGISTERED = new AtomicBoolean();
+
+	// pierces the guard and invulnerability for a tagged attacker only, so it changes nothing for the other tests
+	private static void registerAttackerRule() {
+		if (RULE_REGISTERED.compareAndSet(false, true)) {
+			DefencePiercing.registerAttackerRule(JojoMod.resLoc("gametest_piercing_attacker"),
+					(attacker, source, defence) -> attacker.getTags().contains(PIERCING_ATTACKER)
+							&& (defence == DefencePiercing.Defence.GUARD || defence == DefencePiercing.Defence.INVULNERABILITY));
+		}
 	}
 
 	private static boolean close(float a, float b) {
@@ -212,6 +292,13 @@ public final class DefencePiercingGameTests {
 			power.setStamina(power.getMaxStamina());
 			helper.assertTrue(stand.isStandBlocking() && stand.isFollowingUser(), "The held guard is not blocking");
 			face();
+		}
+
+		Arrow arrowAt(double dx, double dz) {
+			Arrow arrow = EntityType.ARROW.create(helper.getLevel());
+			helper.assertTrue(arrow != null, "Could not create the arrow");
+			arrow.moveTo(pos.x + dx, pos.y + 1, pos.z + dz, 0, 0);
+			return arrow;
 		}
 
 		Zombie zombieAt(double dx, double dz) {
