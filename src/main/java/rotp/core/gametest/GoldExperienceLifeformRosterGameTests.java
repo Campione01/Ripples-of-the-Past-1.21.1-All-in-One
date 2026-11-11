@@ -237,6 +237,87 @@ public final class GoldExperienceLifeformRosterGameTests {
 		helper.succeed();
 	}
 
+	/*
+	 * The coordinator's closing point of 2026-11-10: past 7 minutes a lifeform is free of its creator altogether. As in
+	 * 1.16 one that still counts turns back when he dies, leaves a published server, or his Stand changes (lost,
+	 * swapped, lent by a Temp Disc or given back, all through StandPower.setStandInstance); one past 7 minutes stays.
+	 */
+	@GameTest(template = "empty", batch = BATCH)
+	public static void goldExperienceLifeformPastSevenMinutesOutlivesItsCreatorsDeath(GameTestHelper helper) {
+		Scene scene = new Scene(helper);
+		try {
+			Pair lifeforms = Pair.make(scene);
+			// what the death event does with its user's Stand effects (EventHandler, LivingDeathEvent)
+			scene.power.userStandEffects.onStandUserDeath(scene.user);
+			helper.assertTrue(lifeforms.counting.isStopped() && scene.power.userStandEffects.getById(lifeforms.counting.getId()) == null,
+					"GE-LIFE: a lifeform that still counts must turn back when its creator dies, as in 1.16");
+			helper.assertTrue(lifeforms.staysWith(scene),
+					"GE-LIFE: a lifeform past 7 minutes turned back when its creator died; it must go on existing");
+		}
+		finally {
+			scene.close();
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", batch = BATCH)
+	public static void goldExperienceLifeformPastSevenMinutesStaysWhenItsCreatorLogsOut(GameTestHelper helper) {
+		Scene scene = new Scene(helper);
+		try {
+			Pair lifeforms = Pair.make(scene);
+			// what a logout from a published server does (UserStandEffects.onStandUserLogout); single player keeps all
+			scene.power.userStandEffects.removeLogoutEffects(true);
+			helper.assertTrue(lifeforms.counting.isStopped() && scene.power.userStandEffects.getById(lifeforms.counting.getId()) == null,
+					"GE-LIFE: a lifeform that still counts must turn back when its creator leaves a published server, as in 1.16");
+			helper.assertTrue(lifeforms.staysWith(scene),
+					"GE-LIFE: a lifeform past 7 minutes turned back when its creator logged out; it must go on existing");
+		}
+		finally {
+			scene.close();
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", batch = BATCH)
+	public static void goldExperienceLifeformPastSevenMinutesStaysWhenItsCreatorsStandChanges(GameTestHelper helper) {
+		Scene scene = new Scene(helper);
+		try {
+			Pair lifeforms = Pair.make(scene);
+			StandType other = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
+			helper.assertTrue(other != null, "GE-LIFE premise: missing Star Platinum");
+			scene.power.setStand(other);
+			helper.assertTrue(scene.power.getPowerType() == other, "GE-LIFE premise: the Stand did not change");
+			helper.assertTrue(lifeforms.counting.isStopped() && scene.power.userStandEffects.getById(lifeforms.counting.getId()) == null,
+					"GE-LIFE: a lifeform that still counts must turn back when its creator's Stand changes, as in 1.16");
+			helper.assertTrue(lifeforms.staysWith(scene),
+					"GE-LIFE: a lifeform past 7 minutes turned back when its creator's Stand changed; it must go on existing");
+		}
+		finally {
+			scene.close();
+		}
+		helper.succeed();
+	}
+
+	// one lifeform that still counts and one past 7 minutes, made by the same user
+	private record Pair(GECreatedLifeformEffect counting, GECreatedLifeformEffect free, Pig freePig) {
+		static Pair make(Scene scene) {
+			scene.open(true);
+			Pig countingPig = scene.pig(0.0D, 4.0D);
+			Pig freePig = scene.pig(2.0D, 4.0D);
+			GECreatedLifeformEffect counting = scene.lifeform(countingPig);
+			GECreatedLifeformEffect free = scene.lifeformCreatedAt(freePig,
+					scene.level.getGameTime() - GECreatedLifeformEffect.COUNTED_TICKS - 1);
+			free.withTarget(freePig);
+			scene.tick();
+			scene.helper.assertTrue(!counting.isStopped() && !free.isStopped(), "GE-LIFE premise: the two lifeforms did not start");
+			return new Pair(counting, free, freePig);
+		}
+
+		boolean staysWith(Scene scene) {
+			return !free.isStopped() && freePig.isAlive() && scene.power.userStandEffects.getById(free.getId()) == free;
+		}
+	}
+
 	@GameTest(template = "empty", batch = BATCH)
 	public static void goldExperienceLifeformRecordFollowsItsCreatureThroughAnUnload(GameTestHelper helper) {
 		Scene scene = new Scene(helper);

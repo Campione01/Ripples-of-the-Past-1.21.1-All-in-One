@@ -144,6 +144,23 @@ public class GECreatedLifeformEffect extends StandEffectInstance {
         return createdGameTime < 0 || gameTime - createdGameTime < COUNTED_TICKS;
     }
 
+    // as in 1.16 a lifeform that still counts turns back when its creator dies, leaves a published server or loses
+    // his Stand (a Temp Disc's loan and return included); one past the 7 minutes is free of him and stays
+    @Override
+    public boolean removedOnUserDeath() {
+        return super.removedOnUserDeath() && countsTowardLimit(level.getGameTime());
+    }
+
+    @Override
+    public boolean removedOnUserLogout() {
+        return super.removedOnUserLogout() && countsTowardLimit(level.getGameTime());
+    }
+
+    @Override
+    public boolean removedOnStandChanged() {
+        return super.removedOnStandChanged() && countsTowardLimit(level.getGameTime());
+    }
+
     @Nullable
     public ResourceKey<Level> getLastDimension() {
         return lastDimension;
