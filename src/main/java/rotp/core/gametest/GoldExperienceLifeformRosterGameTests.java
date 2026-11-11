@@ -19,6 +19,7 @@ import rotp.core.impl.stands.goldexperience.GoldExperienceLifeformRoster.Answer;
 import rotp.core.impl.stands.goldexperience.GoldExperienceLifeformRoster.Place;
 import rotp.core.impl.stands.goldexperience.GoldExperienceLifeformRoster.Row;
 import rotp.core.impl.stands.goldexperience.GoldExperienceLifeformState;
+import rotp.core.impl.stands.goldexperience.GoldExperienceLifeforms;
 import rotp.core.impl.stands.goldexperience.GoldExperienceRevertLifeformAbility;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.power.ModStandAbilities;
@@ -50,6 +51,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.animal.Pig;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
@@ -131,6 +133,9 @@ public final class GoldExperienceLifeformRosterGameTests {
 			Pig free = scene.pig(2.0D, away);
 			GECreatedLifeformEffect countedRecord = scene.lifeform(counted);
 			GECreatedLifeformEffect freeRecord = scene.lifeformCreatedAt(free, level.getGameTime() - GECreatedLifeformEffect.COUNTED_TICKS - 1);
+			// a chunk forced in this tick lists its creatures by UUID only after the next ticket update: the record is
+			// handed its creature, as the creation press hands it
+			freeRecord.withTarget(free);
 			for (int tick = 0; tick < 5; tick++) {
 				scene.tick();
 			}
@@ -456,6 +461,31 @@ public final class GoldExperienceLifeformRosterGameTests {
 
 	private static final class Holder<T> {
 		private T value;
+	}
+
+	/*
+	 * The server replays every ability press to the clients watching its user (AbilityInput.keyPress sends a
+	 * TrAbilityUsePacket, whose client handler runs AbilityInput.keyPress again, and so onClick). On the presser's own
+	 * client he is the local player; on a watcher's client the same press runs with him as a remote player. The vanilla
+	 * mock player answers isLocalPlayer() like the first, a server-side player like the second.
+	 */
+	@GameTest(template = "empty", batch = BATCH)
+	public static void goldExperienceLifeformWindowsOpenOnlyOnThePressersOwnClient(GameTestHelper helper) {
+		Player presser = helper.makeMockPlayer(GameType.SURVIVAL);
+		Player presserOnAWatchersClient = GameTestPlayers.makeServerMockPlayer(helper, GameType.SURVIVAL);
+		try {
+			helper.assertTrue(presser.isLocalPlayer() && !presserOnAWatchersClient.isLocalPlayer(),
+					"GE-LIFE premise: the two test players no longer answer isLocalPlayer() as a client's own and a remote player do");
+			helper.assertTrue(GoldExperienceLifeforms.pressedOnThisClient(presser),
+					"GE-LIFE: Choose Lifeform and Revert must open their window on the client of the player who pressed");
+			helper.assertTrue(!GoldExperienceLifeforms.pressedOnThisClient(presserOnAWatchersClient),
+					"GE-LIFE: a watching player's client opened a window for someone else's Choose Lifeform or Revert press");
+		}
+		finally {
+			presser.discard();
+			presserOnAWatchersClient.discard();
+		}
+		helper.succeed();
 	}
 
 	private static final class Scene {

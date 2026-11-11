@@ -3,7 +3,6 @@ package rotp.core.impl.stands.goldexperience;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import rotp.core.client.ClientProxy;
 import rotp.core.client.ui.utils.GuiItemIcon;
 import rotp.core.core.JojoMod;
 import rotp.core.impl.stands.goldexperience.client.GoldExperienceLifeformsScreen;
@@ -102,7 +101,7 @@ public class GoldExperienceRevertLifeformAbility extends GoldExperienceUtilityAb
     public void onClick(Level level, LivingEntity user, FriendlyByteBuf extraClientInput) {
         if (level.isClientSide()) {
             // aimed at none of his lifeforms: his own client opens the menu, the server reverts nothing
-            if (user == ClientProxy.getClientPlayer() && readEffectId(extraClientInput, user).orElse(-1) <= 0) {
+            if (GoldExperienceLifeforms.pressedOnThisClient(user) && readEffectId(extraClientInput, user).orElse(-1) <= 0) {
                 GoldExperienceLifeformsScreen.openOnRevert();
             }
             return;
