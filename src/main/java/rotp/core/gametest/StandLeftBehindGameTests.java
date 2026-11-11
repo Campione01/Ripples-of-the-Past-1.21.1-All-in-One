@@ -27,6 +27,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -36,7 +39,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * handed it, so every Stand key did nothing until he recalled it. The Stand now comes along. One that is meant to be
  * away from him, manually controlled within the range its movement is held to, stays. The scene summons the Stand in
  * far chunks it forces, teleports its user back into the test's own and keeps the far chunks loaded without ticking, as
- * a teleport leaves them.
+ * a teleport leaves them. A Stand whose place is in no loaded chunk is hidden: the level takes it out (it leaves the
+ * level) and keeps it in its storage, as it keeps an entity not saved with its chunk; it comes along too (King
+ * Crimson's reproduction sets it into such a chunk).
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -54,20 +59,48 @@ public final class StandLeftBehindGameTests {
 		ActionPhase[] phase = new ActionPhase[1];
 		float[] ticksLeft = new float[1];
 		scene.whenFarTicks(() -> {
-			stand[0] = scene.summonFarAndTeleportBack(null);
-			scene.step(2, () -> checkComeAlongAndPress(helper, scene, stand, pressed, phase, ticksLeft));
+			stand[0] = scene.summonFarAndTeleportBack(null, true);
+			scene.step(2, () -> checkComeAlongAndPress(helper, scene, stand, pressed, phase, ticksLeft, true));
 			scene.step(12, () -> checkActed(helper, scene, stand, pressed, phase, ticksLeft));
 		});
 	}
 
+	@GameTest(template = "empty", timeoutTicks = 60, batch = "stand_left_behind_set_unloaded")
+	public static void aStandSetIntoAChunkNothingLoadsComesAlongAndItsKeyAnswers(GameTestHelper helper) {
+		Scene scene = new Scene(helper, "star_platinum", new Vec3(0.0D, 0.0D, 598.0D), false);
+		StandEntity[] stand = new StandEntity[1];
+		EntityActionInstance[] pressed = new EntityActionInstance[1];
+		ActionPhase[] phase = new ActionPhase[1];
+		float[] ticksLeft = new float[1];
+		scene.step(1, () -> {
+			stand[0] = scene.summonHere();
+			helper.assertTrue(!scene.level.hasChunk(scene.farChunk.x, scene.farChunk.z), "Fixture: the chunk 598 blocks off is loaded");
+			stand[0].setPos(scene.far.x, scene.far.y, scene.far.z);
+			helper.assertTrue(!stand[0].isAddedToLevel() && scene.leftLevel > 0 && !stand[0].isRemoved()
+					&& scene.power.getSummonedStandEntity() == stand[0],
+					"Fixture: the Stand set into a chunk nothing loads is not hidden: in the level " + stand[0].isAddedToLevel()
+							+ ", left it " + scene.leftLevel + " times, removed " + stand[0].isRemoved());
+		});
+		scene.step(3, () -> checkComeAlongAndPress(helper, scene, stand, pressed, phase, ticksLeft, false));
+		scene.step(13, () -> checkActed(helper, scene, stand, pressed, phase, ticksLeft));
+	}
+
 	private static void checkComeAlongAndPress(GameTestHelper helper, Scene scene, StandEntity[] stand,
-			EntityActionInstance[] pressed, ActionPhase[] phase, float[] ticksLeft) {
-		scene.assertFarDoesNotTick();
+			EntityActionInstance[] pressed, ActionPhase[] phase, float[] ticksLeft, boolean farStaysLoaded) {
+		if (farStaysLoaded) {
+			scene.assertFarDoesNotTick();
+		}
+		else {
+			helper.assertTrue(scene.leftLevel > 0, "Fixture: the Stand never left the level, so it was never hidden");
+			helper.assertTrue(scene.level.isPositionEntityTicking(scene.user.blockPosition()),
+					"Fixture: the user's own place does not tick");
+		}
 		StandEntity now = scene.power.getSummonedStandEntity();
 		helper.assertTrue(now == stand[0], "The Stand left behind is no longer its user's: " + now);
 		double away = now.distanceTo(scene.user);
-		helper.assertTrue(away < 4.0D, "Two ticks after its user was teleported 1600 blocks away Star Platinum is still "
-				+ away + " blocks from him, at " + now.position() + ", where nothing ticks it");
+		helper.assertTrue(away < 4.0D && now.isAddedToLevel(), "A few ticks after it was left " + (int) scene.far.distanceTo(scene.origin)
+				+ " blocks away Star Platinum is still " + away + " blocks from its user, at " + now.position()
+				+ (now.isAddedToLevel() ? ", where nothing ticks it" : ", hidden: out of the level"));
 		now.summonLockTicks = 0;
 		scene.power.setStamina(scene.power.getMaxStamina());
 		Ability punch = scene.power.getAbility("punch");
@@ -102,7 +135,7 @@ public final class StandLeftBehindGameTests {
 				far.setManuallyControlled(true);
 				helper.assertTrue(far.getMaxRangeForMovement(scene.user) >= 2000.0D, "Fixture: Hierophant Green's movement is "
 						+ "held to " + far.getMaxRangeForMovement(scene.user) + " blocks");
-			});
+			}, true);
 			place[0] = stand[0].position();
 			scene.step(4, () -> {
 				scene.assertFarDoesNotTick();
@@ -129,8 +162,14 @@ public final class StandLeftBehindGameTests {
 		StandPower power;
 		boolean forced;
 		boolean ticketed;
+		int leftLevel;
+		private Consumer<EntityLeaveLevelEvent> leaveListener;
 
 		Scene(GameTestHelper helper, String standId, Vec3 offset) {
+			this(helper, standId, offset, true);
+		}
+
+		Scene(GameTestHelper helper, String standId, Vec3 offset, boolean forceFar) {
 			this.helper = helper;
 			level = helper.getLevel();
 			origin = helper.absoluteVec(new Vec3(1.5D, 3.0D, 1.5D));
@@ -138,30 +177,55 @@ public final class StandLeftBehindGameTests {
 			farChunk = new ChunkPos(BlockPos.containing(far));
 			user = GameTestPlayers.makeServerMockPlayer(helper, GameType.SURVIVAL);
 			type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc(standId));
-			forEachFarChunk((x, z) -> level.setChunkForced(x, z, true));
-			forced = true;
+			if (forceFar) {
+				forEachFarChunk((x, z) -> level.setChunkForced(x, z, true));
+				forced = true;
+			}
 		}
 
-		StandEntity summonFarAndTeleportBack(Consumer<StandEntity> setUp) {
-			helper.assertTrue(level.isPositionEntityTicking(BlockPos.containing(far)), "Fixture: the forced far chunks do not tick");
+		StandEntity summonHere() {
 			user.setNoGravity(true);
-			user.moveTo(far.x, far.y, far.z, 0.0F, 0.0F);
+			user.moveTo(origin.x, origin.y, origin.z, 0.0F, 0.0F);
 			helper.assertTrue(level.addFreshEntity(user), "Fixture: could not add the Stand user");
+			return summon();
+		}
+
+		private StandEntity summon() {
 			power = PowerClass.STAND.attachGet(user);
 			helper.assertTrue(type != null && StandPowerTransitions.insert(power, new StandInstance(type)).status()
 					== StandPowerTransitions.Status.APPLIED, "Fixture: could not grant " + type);
 			helper.assertTrue(type.summon(user, power), "Fixture: could not summon " + type);
 			StandEntity stand = power.getSummonedStandEntity();
 			helper.assertTrue(stand != null && stand.isAddedToLevel() && stand.distanceTo(user) < 4.0D,
-					"Fixture: the Stand is not out beside its user in the far chunks");
+					"Fixture: the Stand is not out beside its user");
 			stand.setNoGravity(true);
+			leaveListener = event -> {
+				if (event.getEntity() == stand) {
+					leftLevel++;
+				}
+			};
+			NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, EntityLeaveLevelEvent.class, leaveListener);
+			return stand;
+		}
+
+		/*
+		 * keepLoaded: what a teleport leaves, the chunks loaded a while and nothing in them ticking; else they are let
+		 * go at once, and the Stand in them is hidden
+		 */
+		StandEntity summonFarAndTeleportBack(Consumer<StandEntity> setUp, boolean keepLoaded) {
+			helper.assertTrue(level.isPositionEntityTicking(BlockPos.containing(far)), "Fixture: the forced far chunks do not tick");
+			user.setNoGravity(true);
+			user.moveTo(far.x, far.y, far.z, 0.0F, 0.0F);
+			helper.assertTrue(level.addFreshEntity(user), "Fixture: could not add the Stand user");
+			StandEntity stand = summon();
 			if (setUp != null) {
 				setUp.accept(stand);
 			}
-			// what a teleport leaves: the chunks stay loaded a while, and nothing in them ticks
-			forEachFarChunk((x, z) -> level.getChunkSource().addRegionTicket(LOADED_NOT_TICKING, new ChunkPos(x, z), 0,
-					new ChunkPos(x, z)));
-			ticketed = true;
+			if (keepLoaded) {
+				forEachFarChunk((x, z) -> level.getChunkSource().addRegionTicket(LOADED_NOT_TICKING, new ChunkPos(x, z), 0,
+						new ChunkPos(x, z)));
+				ticketed = true;
+			}
 			forEachFarChunk((x, z) -> level.setChunkForced(x, z, false));
 			forced = false;
 			user.teleportTo(origin.x, origin.y, origin.z);
@@ -201,6 +265,10 @@ public final class StandLeftBehindGameTests {
 		}
 
 		void close() {
+			if (leaveListener != null) {
+				NeoForge.EVENT_BUS.unregister(leaveListener);
+				leaveListener = null;
+			}
 			StandEntity stand = power != null ? power.getSummonedStandEntity() : null;
 			if (stand != null) {
 				power.setSummonedStand(null);
