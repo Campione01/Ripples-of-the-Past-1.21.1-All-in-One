@@ -46,9 +46,8 @@ public final class StandHeadLookRuleGameTests {
 	private static final String TURNS_OVER = "the whole body turns over by more than 100 degrees: the head goes with it, or the neck would break";
 	private static final String KICK_POSE = "1.16 MagiciansRedModel's kickPose1-3 pose the head with the body's lean on purpose";
 	private static final String SPLASH_POSE = "1.16 HierophantGreenModel's esPose3 turns the head for a moment of the windup on purpose";
-	private static final String OFFICIAL_SWING = "the owner's pick of 2026-11-12 (R772.1): the official barrage, its head swinging with the blows, in place of G20 and G21";
 	private static final Map<String, Map<String, String>> EXCEPTIONS = Map.of(
-			"crazy_diamond", Map.of("finisher", TURNS_OVER, "grab_finisher", TURNS_OVER, "heavy_charged", TURNS_OVER, "barrage", OFFICIAL_SWING),
+			"crazy_diamond", Map.of("finisher", TURNS_OVER, "grab_finisher", TURNS_OVER, "heavy_charged", TURNS_OVER),
 			"magicians_red", Map.of("kick", KICK_POSE),
 			"hierophant_green", Map.of("emerald_splash", SPLASH_POSE, "rangedAttack", SPLASH_POSE),
 			"silver_chariot", Map.of("sweeping_attack", TURNS_OVER, "no_armor_sweeping_attack", TURNS_OVER),
@@ -127,6 +126,50 @@ public final class StandHeadLookRuleGameTests {
 		return best;
 	}
 
+	/**
+	 * Rule 11 (the owner, 2026-11-12: 推廣，視線固定，頭部轉動範圍不能超出): on a blow the gaze stays on head_rot's look and the head nods and tilts as
+	 * the official Star Platinum's and Crazy Diamond's do, the neck within the widest those clips turn it (gen_unify.py, official_head.py).
+	 */
+	private static final Pattern RULE_11 = Pattern.compile("^(barrage|punch[234]?|attack[12]|heavy_punch|heavyPunch|heavy_charged|finisher|grab_heavy_punch)$");
+	private static final double[] NECK = { 57.5, 72.9, 46.2 };
+	/** Blows rule 11 leaves as they were, with official-head-scales.json's reason. */
+	/** Stands rule 11 leaves alone (official_head.STAND_OUT). */
+	private static final Map<String, String> RULE_11_OUT = Map.of("magicians_red", "1.16 MagiciansRedModel's punch and heavy poses key the head in root space, pinned by the 1.16 pose tests");
+	private static final String APART = "the body comes apart more than before even with the gaze held and no nod or tilt";
+	private static final Map<String, Map<String, String>> RULE_11_KEPT = Map.of(
+			"crazy_diamond", Map.of("heavy_punch", APART, "grab_heavy_punch", APART),
+			"gold_experience", Map.of("heavy_punch", APART, "heavyPunch", APART));
+
+	/** Where a clip's head keys turn the neck past NECK, or its head_rot does not read the look: null if neither. */
+	static String neckPastItsRange(JsonObject clip) {
+		JsonObject bones = clip.getAsJsonObject("bones");
+		JsonElement look = bones.has("head_rot") ? bones.getAsJsonObject("head_rot").get("rotation") : null;
+		if (look == null || !look.toString().contains("query.head_x_rotation") || !look.toString().contains("query.head_y_rotation")) {
+			return "head_rot does not read the look";
+		}
+		JsonElement head = bones.has("head") ? bones.getAsJsonObject("head").get("rotation") : null;
+		if (head == null || !head.isJsonObject()) {
+			return null;
+		}
+		List<JsonElement> keys = new ArrayList<>();
+		if (head.getAsJsonObject().has("vector")) {
+			keys.add(head);
+		}
+		else {
+			head.getAsJsonObject().entrySet().forEach(e -> keys.add(e.getValue()));
+		}
+		for (JsonElement key : keys) {
+			JsonElement vector = key.isJsonObject() ? key.getAsJsonObject().get("vector") : key;
+			for (int axis = 0; axis < 3; axis++) {
+				JsonElement cell = vector.getAsJsonArray().get(axis);
+				if (cell.isJsonPrimitive() && cell.getAsJsonPrimitive().isNumber() && Math.abs(cell.getAsDouble()) > NECK[axis] + 1e-3) {
+					return "the neck turns " + cell.getAsDouble() + " degrees on axis " + axis + ", past " + NECK[axis];
+				}
+			}
+		}
+		return null;
+	}
+
 	private static int measure(GameTestHelper helper, String stand, String asset, List<String> wrong) {
 		JsonObject clips = StandClipPoses116GameTests.readJson(helper, asset).getAsJsonObject("animations");
 		Map<String, String> listed = EXCEPTIONS.getOrDefault(stand, Map.of());
@@ -140,6 +183,15 @@ public final class StandHeadLookRuleGameTests {
 		for (Map.Entry<String, JsonElement> entry : clips.entrySet()) {
 			String name = entry.getKey();
 			if (LEFT_OUT.matcher(name).matches()) {
+				continue;
+			}
+			if (RULE_11.matcher(name).matches() && !listed.containsKey(name) && !RULE_11_KEPT.getOrDefault(stand, Map.of()).containsKey(name)
+					&& !RULE_11_OUT.containsKey(stand)) {
+				measured++;
+				String neck = neckPastItsRange(entry.getValue().getAsJsonObject());
+				if (neck != null) {
+					wrong.add(stand + " " + name + ": " + neck);
+				}
 				continue;
 			}
 			double past = worstPastItsBand(entry.getValue().getAsJsonObject());

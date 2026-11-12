@@ -54,12 +54,17 @@ public final class CoreStandMotionFixesGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 40)
 	public static void theBarragesKeepTheHeadOnTheLook(GameTestHelper helper) {
-		// Crazy Diamond's barrage is the official clip of 2026-11-12, its head moving with the blows (the owner's pick, R772.1)
-		for (String asset : List.of(SP_ANIMS)) {
+		// rule 11 (the owner, 2026-11-12): the gaze stays on head_rot's look throughout, the head nods and tilts with the blows
+		float[] look = { 30, 45 };
+		for (String asset : List.of(SP_ANIMS, CD_ANIMS)) {
 			JsonObject clip = StandClipPoses116GameTests.readJson(helper, asset).getAsJsonObject("animations").getAsJsonObject("barrage");
-			// the owner lowered this rule while the trunk moves (為了動作流暢性優先級可以下調): the head may leave the look by its band, as StandHeadLookRuleGameTests holds it
-			double past = StandHeadLookRuleGameTests.worstPastItsBand(clip);
-			helper.assertTrue(past <= 0, asset + ": the head is " + past + " degrees past its band");
+			float end = clip.get("animation_length").getAsFloat();
+			for (float time = 0; time <= end; time += 0.05F) {
+				float[] headRot = StandClipPoses116GameTests.rotationAt(clip, "head_rot", time, look);
+				helper.assertTrue(headRot[0] == 30 && headRot[1] == 45, asset + ": head_rot leaves the look at " + time + " s: " + Arrays.toString(headRot));
+			}
+			String neck = StandHeadLookRuleGameTests.neckPastItsRange(clip);
+			helper.assertTrue(neck == null, asset + ": " + neck);
 		}
 		helper.succeed();
 	}
