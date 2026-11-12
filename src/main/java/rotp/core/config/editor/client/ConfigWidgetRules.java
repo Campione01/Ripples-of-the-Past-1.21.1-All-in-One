@@ -87,6 +87,7 @@ public final class ConfigWidgetRules {
 					"classicStandObstruction", "standOutline"),
 			section("hamon_vampire", "thirdPersonHamonAura", "firstPersonHamonAura", "hamonAuraBlur",
 					"broadcasted.vampireGlowingEyes"),
+			section("clothes", "clothesArmorPriority"),
 			new SectionRule("stand_aura", List.of("standAura.enabled", "standAura.mode"), "standAura."));
 
 	private static final List<SectionRule> SERVER_SECTIONS = List.of(

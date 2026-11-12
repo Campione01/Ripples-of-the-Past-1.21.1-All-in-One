@@ -63,3 +63,15 @@ StandoByte.
 Third-party code notices are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Resource provenance and
 exclusions are in [ASSET_SOURCES.md](ASSET_SOURCES.md).
+
+<!-- OFFCLOTH -->
+## Clothes from the newer official sources
+
+The clothes system's list-and-merge character format, the 60 added JoJo
+character files with their English and Russian names, the updated Jotaro Kujo
+*Stardust Crusaders* (anime) clothes model, the taller clothes screen texture,
+and the clothes-or-armor setting's text follow the official Ripples of the Past
+for NeoForge 1.21.1 sources the owner received on 2026-11-12. The Jotaro
+clothes sets credit their author, **Motvik**, in their `authors` field, and the
+clothes item tooltip shows it. The Chinese character names, and the Stand ids
+mapped to this port's core and add-ons, were written for this port.

@@ -1,8 +1,11 @@
 package rotp.core.mechanics.clothes.client.layer;
 
+import javax.annotation.Nullable;
+
 import rotp.core.client.firstperson.FirstPersonModelLayer;
 import rotp.core.core.JojoMod;
 import rotp.core.init.ModItemDataComponents;
+import rotp.core.mechanics.clothes.ClothesArmorPriority;
 import rotp.core.mechanics.clothes.itemdata.ClothesSlotType;
 import rotp.core.compat.v1_21_4.renderstate.ExtractRSExtensionManually;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -52,20 +55,30 @@ public class HumanoidClothesLayer<T extends LivingEntity, M extends HumanoidMode
 		
 		M parentModel = getParentModel();
 		int overlay = LivingEntityRenderer.getOverlayCoords(livingEntity, 0);
-		render(parentModel, poseStack, bufferSource, packedLight, overlay);
+		render(parentModel, livingEntity, poseStack, bufferSource, packedLight, overlay);
 	}
-	
+
 	/**
 	 * Don't forget to fill {@link HumanoidClothesRSExtension} before rendering this from outside.
 	 */
+	public static <T extends LivingEntity, M extends HumanoidModel<T>> void render(M parentModel,
+			PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, int overlay) {
+		render(parentModel, null, poseStack, bufferSource, packedLight, overlay);
+	}
+
+	/**
+	 * @param wearer if given, a piece its armor covers is left out when the player has armor shown over clothes
+	 */
 	@SuppressWarnings("unchecked")
-	public static <T extends LivingEntity, M extends HumanoidModel<T>> void render(M parentModel, 
+	public static <T extends LivingEntity, M extends HumanoidModel<T>> void render(M parentModel, @Nullable LivingEntity wearer,
 			PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, int overlay) {
 		HumanoidClothesRSExtension clothesRS = HumanoidClothesRSExtension.getCurRenderData();
 		if (clothesRS == null) return;
 		ClothesModelLoader clothesModels = ClothesModelLoader.getInstance();
 		if (clothesModels == null) return;
+		ClothesArmorPriority priority = ClothesArmorPriority.current();
 		for (ClothesSlotType piece : RENDER_ORDER) {
+			if (wearer != null && !priority.showsClothes(wearer, piece)) continue;
 			ItemStack clothesItem = clothesRS.items.get(piece); if (clothesItem.isEmpty()) continue;
 			var clothesComponent = clothesItem.get(ModItemDataComponents.CLOTHES_PIECE.get()); if (clothesComponent == null) continue;
 			var clothesPiece = clothesComponent.getPiece(); if (clothesPiece == null) continue;

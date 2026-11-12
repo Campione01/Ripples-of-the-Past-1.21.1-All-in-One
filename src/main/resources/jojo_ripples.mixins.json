@@ -142,7 +142,9 @@
 	"gametest.StructureUtilsMixin",
 	"gametest.GameTestInfoMixin",
 	
-	"debughelper.CodecErrorMessageMixin"
+	"debughelper.CodecErrorMessageMixin",
+
+	"RegistryDataLoaderLoaderMixin"
   ],
   "client": [
 	"client.particle.LevelRendererParticleInvoker",
@@ -243,6 +245,8 @@
 	"client.modcompat.WoRStandRendering",
 	"client.CloseResources",
 	"client.keybindui.KeyEntryMixin",
-	"client.keybindui.AbstractSelectionListMixin"
+	"client.keybindui.AbstractSelectionListMixin",
+
+	"client.HumanoidArmorLayerMixin"
   ]
 }

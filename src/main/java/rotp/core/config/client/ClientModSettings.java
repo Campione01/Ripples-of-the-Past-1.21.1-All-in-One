@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 
+import rotp.core.mechanics.clothes.ClothesArmorPriority;
 import rotp.core.util.functions.FileSystemUtil;
 import com.google.common.base.Charsets;
 import com.google.common.io.Files;
@@ -61,6 +62,8 @@ public class ClientModSettings {
 		public boolean firstPersonHamonAura = true;
 		public boolean hamonAuraBlur = false;
 
+		public ClothesArmorPriority clothesArmorPriority = ClothesArmorPriority.CLOTHES;
+
 		public final PlayerClientBroadcastedSettings broadcasted = new PlayerClientBroadcastedSettings();
 
 		private void sanitize() {
@@ -70,6 +73,9 @@ public class ClientModSettings {
 				standAura = new StandAuraSettings();
 			}
 			standAura.sanitize();
+			if (clothesArmorPriority == null) {
+				clothesArmorPriority = ClothesArmorPriority.CLOTHES;
+			}
 		}
 
 		private static float clampTransparency(float transparency) {

@@ -63,3 +63,19 @@ The original 1.16.5 metadata records these sound-effect sources:
 
 The original metadata identifies voice lines from *Eyes of Heaven* and
 *All Star Battle*, sourced through <https://sounds-resource.com/>.
+
+<!-- OFFCLOTH -->
+## Clothes (official sources of 2026-11-12)
+
+Taken from the official Ripples of the Past for NeoForge 1.21.1 sources the
+owner received on 2026-11-12, with the owner's permission to use official
+assets directly:
+
+| Path | Source and author |
+| --- | --- |
+| `assets/jojo_rotp_clothes/geo/clothes/jotaro_p3_anime.geo.json` | official `geo_rotp/clothes/jotaro_p3_anime.geo.json`, model by Motvik (moved to this port's `geo` path) |
+| `assets/jojo_ripples/textures/gui/container/clothes/inventory_clothes.png` | official clothes screen texture, 12 pixels taller for the character's name |
+| `data/jojo_ripples/ripples_clothes/character/*.json` (60 added files) | official character files; Stand ids mapped to this port's core and add-ons |
+| `data/jojo_ripples/ripples_clothes/clothes/jotaro_p3_{anime,manga}.json` | official files with `"authors": "Motvik"` |
+| `assets/jojo_rotp_clothes/lang/{en_us,ru_ru}.json` character names | official; `josefumi.short` corrected to "Josefumi" |
+| `assets/jojo_rotp_clothes/lang/{zh_cn,zh_tw}.json` | written for this port |
