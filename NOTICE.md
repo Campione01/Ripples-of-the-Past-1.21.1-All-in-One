@@ -63,3 +63,12 @@ StandoByte.
 Third-party code notices are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Resource provenance and
 exclusions are in [ASSET_SOURCES.md](ASSET_SOURCES.md).
+
+<!-- lane OFFART (R772.1) -->
+## Later official Stand art
+
+Some Stand assets follow a later state of the official 1.21.1 port than the
+baseline above: the archive of its resources the maintainer received on
+2026-11-12. The files are listed in [ASSET_SOURCES.md](ASSET_SOURCES.md),
+under "Official Stand art of 2026-11-12".
+<!-- end lane OFFART -->

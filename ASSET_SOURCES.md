@@ -63,3 +63,20 @@ The original 1.16.5 metadata records these sound-effect sources:
 
 The original metadata identifies voice lines from *Eyes of Heaven* and
 *All Star Battle*, sourced through <https://sounds-resource.com/>.
+
+<!-- lane OFFART (R772.1) -->
+## Official Stand art of 2026-11-12
+
+These files follow the official 1.21.1 port by StandoByte and its asset
+contributors, as in the archive of its resources received on 2026-11-12, in
+place of the `1a681255` baseline:
+
+| Path under `src/main/resources/assets/jojo_ripples/stand_skins/` | What was taken |
+| --- | --- |
+| `the_world/assets/jojo_ripples/geo/the_world.geo.json` | The elbow cubes of `left_arm_bend` and `right_arm_bend`; the rest of the model keeps this tree's changes. |
+| `gold_experience/assets/jojo_ripples/geo/gold_experience.geo.json` | The elbow cubes of `left_arm_bend` and `right_arm_bend`; the rest of the model keeps this tree's changes. |
+| `star_platinum/assets/jojo_ripples/textures/ability/heavy_charged.png` | The charged heavy punch icon, unchanged. |
+| `crazy_diamond/assets/jojo_ripples/textures/ability/heavy_charged.png` | The charged heavy punch icon, unchanged. |
+| `{star_platinum,the_world,crazy_diamond,gold_experience}/assets/jojo_ripples/sounds.json` | The `stand_punch_heavy_charged` entry: the charged heavy punch lands with the Stand's own heavy punch sounds. |
+| `crazy_diamond/assets/jojo_ripples/animations/crazy_diamond.animation.json` | The `idle` and `summon2` clips, unchanged. |
+<!-- end lane OFFART -->

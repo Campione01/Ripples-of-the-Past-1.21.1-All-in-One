@@ -30,6 +30,12 @@
       "jojo_ripples:stand/the_world/the_world_punch_heavy"
     ]
   },
+  "stand_punch_heavy_charged": {
+    "replace": true,
+    "sounds": [
+      "jojo_ripples:stand/the_world/the_world_punch_heavy"
+    ]
+  },
   "stand_punch_cry": {
     "replace": true,
     "subtitle": "jojo_ripples.subtitle.muda",

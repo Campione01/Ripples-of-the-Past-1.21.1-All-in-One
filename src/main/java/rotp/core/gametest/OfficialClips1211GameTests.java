@@ -39,7 +39,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * 1a681255, the baseline NOTICE.md names), 1.16's poses only where it has none: every part of every official clip
  * (each bone and each top-level field) keeps the official JSON but for the differences listed here with their reasons,
  * and every core ability that has an official clip of its own name plays it but for the abilities listed with the clip
- * they play instead (Star Platinum's Star Finger, by the owner's answer of 2026-10-15).
+ * they play instead (Star Platinum's Star Finger, by the owner's answer of 2026-10-15). Crazy Diamond's idle and summon2
+ * follow the owner's later official archive of 2026-11-12 (R772.1, lane OFFART), as the table's note says.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)

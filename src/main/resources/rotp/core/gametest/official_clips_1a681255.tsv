@@ -2,6 +2,7 @@
 # stand, clip, part (a top-level field of the clip or bones/<bone>), the first 16 hex digits of the SHA-256 of the
 # part's JSON with object keys sorted, numbers as plain decimals without trailing zeros, strings unescaped, no spaces.
 # Generated from the official animation files; do not edit by hand.
+# Re-based on the owner's official archive of 2026-11-12 (lane OFFART, R772.1): crazy_diamond idle, crazy_diamond summon2.
 star_platinum	idle	loop	b5bea41b6c623f7c
 star_platinum	idle	animation_length	2c624232cdd22177
 star_platinum	idle	bones/body	b23c9d93f3638500
@@ -845,7 +846,7 @@ crazy_diamond	idle	bones/left_leg	3c75e5d2417465bb
 crazy_diamond	idle	bones/left_leg_bend	5dfb78051b34fad5
 crazy_diamond	idle	bones/right_leg	7aa8ceb8f6c1d054
 crazy_diamond	idle	bones/right_leg_bend	1561802bbfd67b9e
-crazy_diamond	idle	bones/body	d00d08fea23e4c6f
+crazy_diamond	idle	bones/body	e018e28b0b39e85d
 crazy_diamond	idle	bones/head_rot	41217b5b8da37fb8
 crazy_diamond	idle	bones/body_rot	91bf43a79a53add9
 crazy_diamond	idle	bones/torso	0f49630fbef2321c
@@ -1458,12 +1459,10 @@ crazy_diamond	summon2	bones/left_leg_bend	52bf291e85989438
 crazy_diamond	summon2	bones/right_leg	dfdc602e9ad8ac1f
 crazy_diamond	summon2	bones/right_leg_bend	60c3e51eba7cdc5f
 crazy_diamond	summon2	bones/body_rot	abfe0de8b43b13bd
-crazy_diamond	summon2	bones/torso_bend	eca42cd01d282d21
 crazy_diamond	summon2	bones/head_rot	3f62dabc99a09024
-crazy_diamond	summon2	bones/torso_lower	eca42cd01d282d21
 crazy_diamond	summon2	bones/left_leg_joint	5d7eff86f82b32e5
 crazy_diamond	summon2	bones/right_leg_joint	5d7eff86f82b32e5
-crazy_diamond	summon2	bones/torso	0f49630fbef2321c
+crazy_diamond	summon2	bones/torso	c2743ce5f2e3f2a3
 crazy_diamond	summon2	timeline	74d3a5a36ee8513d
 crazy_diamond	summon3	loop	2ed84e6280495dea
 crazy_diamond	summon3	animation_length	6b86b273ff34fce1
