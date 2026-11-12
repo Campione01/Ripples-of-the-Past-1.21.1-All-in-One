@@ -78,5 +78,9 @@ place of the `1a681255` baseline:
 | `star_platinum/assets/jojo_ripples/textures/ability/heavy_charged.png` | The charged heavy punch icon, unchanged. |
 | `crazy_diamond/assets/jojo_ripples/textures/ability/heavy_charged.png` | The charged heavy punch icon, unchanged. |
 | `{star_platinum,the_world,crazy_diamond,gold_experience}/assets/jojo_ripples/sounds.json` | The `stand_punch_heavy_charged` entry: the charged heavy punch lands with the Stand's own heavy punch sounds. |
-| `crazy_diamond/assets/jojo_ripples/animations/crazy_diamond.animation.json` | The `idle` and `summon2` clips, unchanged. |
+| `crazy_diamond/assets/jojo_ripples/animations/crazy_diamond.animation.json` | The `idle`, `summon2` and `barrage` clips, unchanged. |
+| `crazy_diamond/assets/jojo_ripples/geo/crazy_diamond.geo.json` and `textures/entity/crazy_diamond.png` | The model and its texture, unchanged; the helmet's top is a polygon mesh, kept at the maintainer's choice. |
+| `{magicians_red,silver_chariot}/assets/jojo_ripples/geo/*.geo.json` and `textures/entity/*.png` | The models with their UV edits and the repainted textures, unchanged. |
+| `*/assets/jojo_ripples/textures/stand_icon.png` and `textures/ability/manual_control.png` (all seven Stands) | The Stand icons, unchanged; the manual control icon is the same image. |
+| `the_world/assets/jojo_ripples/animations/the_world.animation.json` | The `time_stop` clip's bones; its timeline markers are this tree's. |
 <!-- end lane OFFART -->

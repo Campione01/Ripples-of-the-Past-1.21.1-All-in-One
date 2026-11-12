@@ -39,8 +39,11 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * 1a681255, the baseline NOTICE.md names), 1.16's poses only where it has none: every part of every official clip
  * (each bone and each top-level field) keeps the official JSON but for the differences listed here with their reasons,
  * and every core ability that has an official clip of its own name plays it but for the abilities listed with the clip
- * they play instead (Star Platinum's Star Finger, by the owner's answer of 2026-10-15). Crazy Diamond's idle and summon2
- * follow the owner's later official archive of 2026-11-12 (R772.1, lane OFFART), as the table's note says.
+ * they play instead (Star Platinum's Star Finger, by the owner's answer of 2026-10-15). Crazy Diamond's idle, summon2
+ * and barrage follow the owner's later official archive of 2026-11-12 (R772.1, lane OFFART), as the table's note says;
+ * the barrage with its head swinging, by the owner's pick of that day in place of G20 and G21 for that clip, as is The
+ * World's official time_stop (its bones; the markers stay ours). Crazy Diamond's model of that archive, mesh helmet top
+ * included, is also the owner's pick, over the cubes-only art direction for that one model.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -61,9 +64,6 @@ public final class OfficialClips1211GameTests {
 			+ " one-tick perform, the markers pinned by HeavyPunchPerform116GameTests";
 	private static final String NO_BONE = "a bone the Stand's geo lacks, absent since the first snapshot c9799c78";
 	private static final String BARRAGE_HEAD = "G1, G21 (2026-11-05): the head takes back its keyed chain, so it stays on the look";
-	private static final String CD_BARRAGE_LOOK = "G21 (2026-11-05): Crazy Diamond's barrage follows the look: head_rot reads it throughout, the"
-			+ " arms take its pitch as Star Platinum's do, the fist no longer turns about its forearm, the fist and stride hold from"
-			+ " the end of the windup to the recovery";
 	private static final String HEAD_RULE = "G20 (2026-11-05, the owner: 統一規則，保留各自姿勢): the head stays on the look, its rotation taking back the bones above it"
 			+ " and head_rot reading the look; the limb keys stay the official's";
 	private static final String BARRAGE_SWAY = "R772.1 (2026-11-06, the owner: 目前近戰人形替身似乎很多都有這個問題): the barrage's sway goes through the hips into the legs, the chest turning over them by 15 at most"
@@ -87,13 +87,6 @@ public final class OfficialClips1211GameTests {
 			new Difference("star_platinum", "barrage", "bones/head_rot", Change.CHANGES, BARRAGE_SWAY),
 			new Difference("star_platinum", "barrage", "bones/body", Change.CHANGES, BARRAGE_SWAY),
 			new Difference("star_platinum", "barrage", "bones/torso", Change.CHANGES, BARRAGE_SWAY),
-			new Difference("crazy_diamond", "barrage", "bones/head", Change.CHANGES, BARRAGE_HEAD),
-			new Difference("crazy_diamond", "barrage", "bones/head_rot", Change.CHANGES, CD_BARRAGE_LOOK),
-			new Difference("crazy_diamond", "barrage", "bones/left_arm_xrot", Change.CHANGES, CD_BARRAGE_LOOK),
-			new Difference("crazy_diamond", "barrage", "bones/right_arm_xrot", Change.CHANGES, CD_BARRAGE_LOOK),
-			new Difference("crazy_diamond", "barrage", "bones/left_arm_bend", Change.CHANGES, CD_BARRAGE_LOOK),
-			new Difference("crazy_diamond", "barrage", "bones/right_arm", Change.CHANGES, CD_BARRAGE_LOOK),
-			new Difference("crazy_diamond", "barrage", "bones/right_leg", Change.CHANGES, CD_BARRAGE_LOOK),
 			new Difference("crazy_diamond", "block_bullet", "timeline", Change.CHANGES, R148_MIRROR + " (LEFT, the official RIGHT)"),
 			new Difference("crazy_diamond", "block_bullet", "bones/left_arm_xrot", Change.ADDS, R148_ARM_LOOK),
 			new Difference("crazy_diamond", "block_bullet", "bones/right_arm_xrot", Change.ADDS, R148_ARM_LOOK),

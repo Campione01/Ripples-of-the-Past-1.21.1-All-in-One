@@ -2,7 +2,7 @@
 # stand, clip, part (a top-level field of the clip or bones/<bone>), the first 16 hex digits of the SHA-256 of the
 # part's JSON with object keys sorted, numbers as plain decimals without trailing zeros, strings unescaped, no spaces.
 # Generated from the official animation files; do not edit by hand.
-# Re-based on the owner's official archive of 2026-11-12 (lane OFFART, R772.1): crazy_diamond idle, crazy_diamond summon2.
+# Re-based on the owner's official archive of 2026-11-12 (lane OFFART, R772.1): crazy_diamond idle, crazy_diamond summon2, crazy_diamond barrage.
 star_platinum	idle	loop	b5bea41b6c623f7c
 star_platinum	idle	animation_length	2c624232cdd22177
 star_platinum	idle	bones/body	b23c9d93f3638500
@@ -941,15 +941,15 @@ crazy_diamond	barrage	bones/body_rot	bcb0ce10960ae18d
 crazy_diamond	barrage	bones/body	05d9689e1474ef0c
 crazy_diamond	barrage	bones/torso	c17eb7cfc6a798d3
 crazy_diamond	barrage	bones/torso_bend	7eb1ca804b1146df
-crazy_diamond	barrage	bones/head	2fea5a47afa0ae35
-crazy_diamond	barrage	bones/head_rot	9174543590f9a656
+crazy_diamond	barrage	bones/head	c0002697bfb8c7ea
+crazy_diamond	barrage	bones/head_rot	f073a3a8ea4153af
 crazy_diamond	barrage	bones/torso_no_arms	23e6502ef0c9e4ba
-crazy_diamond	barrage	bones/left_arm_xrot	23e6502ef0c9e4ba
+crazy_diamond	barrage	bones/left_arm_xrot	94d98b1bf2a7b4de
 crazy_diamond	barrage	bones/left_arm	1d766e9cf5e701c1
-crazy_diamond	barrage	bones/left_arm_bend	7321bc3f03b2d418
+crazy_diamond	barrage	bones/left_arm_bend	d38698a369f73b05
 crazy_diamond	barrage	bones/left_arm_joint	23e6502ef0c9e4ba
-crazy_diamond	barrage	bones/right_arm_xrot	23e6502ef0c9e4ba
-crazy_diamond	barrage	bones/right_arm	f0d230a6f38edfca
+crazy_diamond	barrage	bones/right_arm_xrot	94d98b1bf2a7b4de
+crazy_diamond	barrage	bones/right_arm	772e2b0c71212376
 crazy_diamond	barrage	bones/right_arm_bend	8a5632dd9a85df06
 crazy_diamond	barrage	bones/right_arm_joint	23e6502ef0c9e4ba
 crazy_diamond	barrage	bones/torso_lower	23e6502ef0c9e4ba
@@ -959,7 +959,7 @@ crazy_diamond	barrage	bones/left_leg	c8429d7987cbbdd1
 crazy_diamond	barrage	bones/left_leg_bend	4305bc7edd483c09
 crazy_diamond	barrage	bones/left_leg_joint	23e6502ef0c9e4ba
 crazy_diamond	barrage	bones/right_leg_xrot	23e6502ef0c9e4ba
-crazy_diamond	barrage	bones/right_leg	5fc9c13c221ff767
+crazy_diamond	barrage	bones/right_leg	6d3844a3e46c2b08
 crazy_diamond	barrage	bones/right_leg_bend	93323c7697930744
 crazy_diamond	barrage	bones/right_leg_joint	23e6502ef0c9e4ba
 crazy_diamond	barrage	timeline	df6f9212ad4dff6b
