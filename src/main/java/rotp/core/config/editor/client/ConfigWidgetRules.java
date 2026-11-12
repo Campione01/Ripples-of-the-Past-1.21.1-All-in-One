@@ -92,7 +92,8 @@ public final class ConfigWidgetRules {
 	private static final List<SectionRule> SERVER_SECTIONS = List.of(
 			section("keep_on_death", "keepStandOnDeath", "keepVampirismOnDeath", "keepHamonOnDeath", "dropStandDisc"),
 			section("stand", "skipStandProgression", "standExpMultiplier", "resolveLvlPoints", "standPowerMultiplier",
-					"standResistanceMultiplier", "standStamina", "standBodyThroughWalls", "soulAscension"),
+					"standResistanceMultiplier", "standStamina", "standBodyThroughWalls", "soulAscension",
+					"standAbilityFatigueOverrides"),
 			section("arrows", "standArrowMode", "bannedStands", "standXpCostInitial", "standXpCostIncrease",
 					"arrowDurability", "arrowDurabilityBeetle"),
 			section("time_stop", "timeStopRangeChunks", "timeStopChargeSeconds", "timeStopDamageMultiplier",

@@ -26,6 +26,7 @@ import rotp.core.powersystem.entityaction.HeldInput;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.powersystem.standpower.StandDamageContext;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
@@ -387,7 +388,8 @@ public class EntityActionAbility extends Ability implements EntityActionType {
 			action.forceStop();
 		}
 		else {
-			try (var stand = StandDamageContext.enter(StandDamageContext.of(action))) {
+			try (var stand = StandDamageContext.enter(StandDamageContext.of(action));
+					var use = StandAbilityFatigue.enterUse(action)) {
 				action.onKeyRelease(action.getPowerUser());
 			}
 		}

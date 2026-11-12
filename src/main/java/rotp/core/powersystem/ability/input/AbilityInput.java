@@ -32,6 +32,7 @@ import rotp.core.powersystem.entityaction.HeldInput;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.LivingComponentAction.TransactionSnapshot;
 import rotp.core.powersystem.entityaction.EntityActionInputState.HeldInputEntry;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.powersystem.standpower.StandDamageContext;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
@@ -159,7 +160,8 @@ public class AbilityInput {
 				action = event.newHeldInput;
 			}
 			else {
-				try (var stand = StandDamageContext.enter(StandDamageContext.of(ability.abilityId.powerClass(), user))) {
+				try (var stand = StandDamageContext.enter(StandDamageContext.of(ability.abilityId.powerClass(), user));
+						var use = StandAbilityFatigue.enterUse(user, ability)) {
 					action = ability.onKeyPress(
 							level, user, extraClientInput, inputMethod,
 							clickHoldResolveTime, bufferingState);
@@ -348,7 +350,8 @@ public class AbilityInput {
 		RuntimeException failure = null;
 		try {
 			if (heldAction != null && heldAction.action != null) {
-				try (var stand = StandDamageContext.enter(StandDamageContext.of(heldAction.powerClass, user))) {
+				try (var stand = StandDamageContext.enter(StandDamageContext.of(heldAction.powerClass, user));
+						var use = StandAbilityFatigue.enterUse(user, heldAction.action)) {
 					heldAction.action.onKeyRelease(user);
 				}
 			}
@@ -597,7 +600,8 @@ public class AbilityInput {
 				continue;
 			}
 			input.heldKeys.remove(entry.keyId);
-			try (var stand = StandDamageContext.enter(StandDamageContext.of(entry.powerClass, user))) {
+			try (var stand = StandDamageContext.enter(StandDamageContext.of(entry.powerClass, user));
+					var use = StandAbilityFatigue.enterUse(user, entry.action)) {
 				entry.action.onKeyRelease(user);
 			}
 			catch (RuntimeException error) {
@@ -711,7 +715,8 @@ public class AbilityInput {
 			heldInputs.remove(entry.keyId);
 			try {
 				if (entry.action != null) {
-					try (var stand = StandDamageContext.enter(StandDamageContext.of(entry.powerClass, user))) {
+					try (var stand = StandDamageContext.enter(StandDamageContext.of(entry.powerClass, user));
+							var use = StandAbilityFatigue.enterUse(user, entry.action)) {
 						entry.action.onKeyRelease(user);
 					}
 				}

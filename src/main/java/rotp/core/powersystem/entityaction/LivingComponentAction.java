@@ -28,6 +28,7 @@ import rotp.core.powersystem.entityaction.EntityActionInstance.InputLifecycleSna
 import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.entityaction.netcode.TrEntityActionInstancePacket;
 import rotp.core.powersystem.entityaction.syncdata.SyncActionInstanceData;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.powersystem.standpower.StandDamageContext;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
@@ -609,7 +610,8 @@ public class LivingComponentAction implements SynchronizablePlayerData, TickingE
 	
 	protected void tickAction() {
 		EntityActionInstance tickingAction = action;
-		try (var stand = StandDamageContext.enter(StandDamageContext.of(tickingAction))) {
+		try (var stand = StandDamageContext.enter(StandDamageContext.of(tickingAction));
+				var use = StandAbilityFatigue.enterUse(tickingAction)) {
 			tickingAction._tickAction();
 		}
 		// Action callbacks may stop or replace the current action reentrantly.

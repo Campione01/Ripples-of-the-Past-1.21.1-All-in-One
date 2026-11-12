@@ -21,6 +21,7 @@ import rotp.core.powersystem.entityaction.EntityActionInputState;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.HeldInput;
 import rotp.core.powersystem.entityaction.EntityActionInputState.HeldInputEntry;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.powersystem.standpower.StandDamageContext;
 
 import io.netty.buffer.Unpooled;
@@ -194,7 +195,8 @@ public class ActionInputBuffer {
 						"buffered ability replay input");
 			}
 			HeldInput newAction;
-			try (var stand = StandDamageContext.enter(StandDamageContext.of(ability.abilityId.powerClass(), user))) {
+			try (var stand = StandDamageContext.enter(StandDamageContext.of(ability.abilityId.powerClass(), user));
+					var use = StandAbilityFatigue.enterUse(user, ability)) {
 				newAction = ability.onKeyPress(
 						user.level(), user, replayInput,
 						replaying.inputMethod, 0, bufferingState);

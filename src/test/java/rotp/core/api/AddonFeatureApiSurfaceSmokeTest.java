@@ -142,6 +142,32 @@ public final class AddonFeatureApiSurfaceSmokeTest {
 				standOffset + "#noLerp must stay chainable on the offset it switches");
 		requirePublic(standOffset, "noLerp");
 		requirePublic(standOffset, "lerps");
+
+		check(RotpAddonApi.supportsFeature(RotpAddonApi.FEATURE_STAND_ABILITY_FATIGUE_V1),
+				"the no-cooldown mode's fatigue is not advertised");
+		String abilityClass = "rotp.core.powersystem.ability.Ability";
+		String powerClass = "rotp.core.powersystem.Power";
+		String standPowerClass = "rotp.core.powersystem.standpower.StandPower";
+		String fatigue = "rotp.core.api.stand.StandAbilityFatigue";
+		requirePublic(abilityClass, "practicalSkill");
+		requirePublic(abilityClass, "fatigueCooldown", int.class);
+		requirePublic(abilityClass, "getNormalCooldown", powerClass, int.class);
+		requireOverridable(abilityClass, "isPracticalSkill", powerClass);
+		requireOverridable(abilityClass, "getFatigueCooldown", powerClass, int.class);
+		requirePublic(fatigue, "applies", standPowerClass);
+		requirePublic(fatigue, "recordUse", standPowerClass, abilityClass, int.class);
+		requirePublic(fatigue, "recordUse", standPowerClass, String.class, int.class);
+		requirePublic(fatigue, "chargeRepeat", standPowerClass, abilityClass, boolean.class);
+		requirePublic(fatigue, "chargeRepeat", standPowerClass, abilityClass);
+		requirePublic(fatigue, "addFatigue", standPowerClass, abilityClass, int.class);
+		requirePublic(fatigue, "withoutFatigue", Runnable.class);
+		requirePublic(fatigue, "regenKeptDuringUse", standPowerClass);
+		requirePublic(fatigue, "getFatigueTicks", standPowerClass, String.class);
+		requirePublic(fatigue, "getRepeats", standPowerClass, String.class);
+		requirePublicStaticField(fatigue, "SPECIAL_STATE_REGEN_FACTOR");
+		requirePublic(fatigue, "enterUse", "net.minecraft.world.entity.LivingEntity", abilityClass);
+		requirePublic(fatigue, "enterUse", "rotp.core.powersystem.entityaction.EntityActionInstance");
+		requirePublic(fatigue + "$UseScope", "close");
 	}
 
 	private static void requirePublicStaticField(String owner, String name) {

@@ -30,6 +30,7 @@ import rotp.core.api.timestop.TimeStopEntityMovementAuthorizers;
 import rotp.core.api.timestop.TimeStopLifecycleEvent;
 import rotp.core.api.timestop.TimeStopAwarenessProviders;
 import rotp.core.api.timestop.TimeStopLifecycleEvent.RemovalReason;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.core.JojoMod;
 import rotp.core.customobjects.DamageSourceModified;
@@ -1128,6 +1129,9 @@ public class TimeStopState {
                 new IdentityHashMap<>();
         Map<StandPower, String> cooldownAbilities =
                 new IdentityHashMap<>();
+        // the ability whose use the longest stop was, for the no-cooldown mode's fatigue (none for a stop no ability began)
+        Map<StandPower, Ability> fatigueAbilities =
+                new IdentityHashMap<>();
         for (Instance removed : removedInstances) {
             LivingEntity user = getLivingEntityById(removed.userId());
             StandPower power =
@@ -1143,6 +1147,13 @@ public class TimeStopState {
                 if (previousTicks == null || effectiveTicksPassed > previousTicks) {
                     cooldownTicks.put(power, effectiveTicksPassed);
                     cooldownAbilities.put(power, getCooldownAbilityName(removed, power));
+                    Ability starter = timeStopStarters.containsKey(removed.id()) ? getStartingAbility(removed, power) : null;
+                    if (starter != null) {
+                        fatigueAbilities.put(power, starter);
+                    }
+                    else {
+                        fatigueAbilities.remove(power);
+                    }
                 }
             }
         }
@@ -1169,10 +1180,17 @@ public class TimeStopState {
         }
         for (Map.Entry<StandPower, Integer> cooldown
                 : cooldownTicks.entrySet()) {
-            TimeStopCooldowns.setTimeStopCooldownsOnTimeStopEnd(
-                    cooldown.getKey(),
+            StandPower power = cooldown.getKey();
+            // the stop's start paid its repeat (TimeStopAbility); its end adds the cooldown it skips to its fatigue
+            StandAbilityFatigue.withoutFatigue(() -> TimeStopCooldowns.setTimeStopCooldownsOnTimeStopEnd(
+                    power,
                     cooldownAbilities.get(cooldown.getKey()),
-                    cooldown.getValue());
+                    cooldown.getValue()));
+            Ability fatigued = fatigueAbilities.get(power);
+            if (fatigued != null) {
+                StandAbilityFatigue.addFatigue(power, fatigued,
+                        TimeStopCooldowns.timeStopCooldown(power, cooldown.getValue()));
+            }
         }
     }
 
@@ -1296,7 +1314,10 @@ public class TimeStopState {
         float staminaCostTick = instance.staminaCostTick();
         if (staminaCostTick > 0) {
             staminaCostTick *= PlayerClientBroadcastedSettings.getTimeStopStaminaCostMultiplier(power);
-            staminaCostTick += power.getStaminaTickGain();
+            // 1.16 took the stopper's regeneration back; the no-cooldown mode leaves him its stopped-time share
+            if (StandAbilityFatigue.regenKeptDuringUse(power) <= 0.0F) {
+                staminaCostTick += power.getStaminaTickGain();
+            }
             if (!power.consumeStamina(staminaCostTick, true)) {
                 power.setStamina(0);
                 return true;
