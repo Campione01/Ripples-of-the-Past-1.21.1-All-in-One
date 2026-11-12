@@ -130,3 +130,19 @@ place of the `1a681255` baseline:
 | `*/assets/jojo_ripples/textures/stand_icon.png` and `textures/ability/manual_control.png` (all seven Stands) | The Stand icons, unchanged; the manual control icon is the same image. |
 | `the_world/assets/jojo_ripples/animations/the_world.animation.json` | The `time_stop` clip's bones; its timeline markers are this tree's. |
 <!-- end lane OFFART -->
+
+<!-- OFFPOSES -->
+## JoJo poses (official sources of 2026-11-12)
+
+Taken from the official Ripples of the Past for NeoForge 1.21.1 sources the
+owner received on 2026-11-12, with the owner's permission to use official
+assets directly:
+
+| Path | Source |
+| --- | --- |
+| `assets/jojo_rotp_clothes/jojo_pose/jotaro_p3/animation.json` | official file, unchanged |
+| `assets/jojo_rotp_clothes/jojo_pose/jotaro_p3/data.json` | official file without the cap pose's `voice_line` (moved to the voice pack below) |
+| `assets/jojo_rotp_clothes/voicelines/jotaro_p3/{data,sounds}.json` | the official cap pose's two lines and clips, as a voice pack under the trigger `vl_jojo_pose/jotaro_p3/cap`; subtitles point to this port's existing keys |
+| `assets/jojo_ripples/textures/gui/sprites/widget/pose_slot.png`, `pose_slot_selection.png` | official pose list slot sprites, unchanged |
+| `jojo_ripples.key.jojo_pose(.desc)`, `jojo_ripples.screen.jojo_poses(.none)` (en_us, zh_cn, zh_tw) | written for this port |
+<!-- end OFFPOSES -->

@@ -41,6 +41,9 @@ public class ModClientResources {
 		// OFFVOICE
 		ClientVoiceLinePacksLoader.init(event);
 		// OFFVOICE end
+		// OFFPOSES
+		rotp.core.mechanics.jojopose.client.ClientJojoPoseLoader.init(event);
+		// OFFPOSES end
 	}
 
 	// 1.16 onScreenOpened: runs before TitleScreen.init, which keeps a non-null splash
