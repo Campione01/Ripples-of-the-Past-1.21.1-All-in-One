@@ -25,6 +25,7 @@ public final class MisshapenControlsSmokeTest {
 		face();
 		legs();
 		arms();
+		rawRows();
 		pose();
 		sources();
 		if (!FAILURES.isEmpty()) {
@@ -93,6 +94,36 @@ public final class MisshapenControlsSmokeTest {
 		check(!keys.isHeld("A"), "arms: when every key mapping is let go (a screen opens) the held keys are forgotten");
 	}
 
+	// the Stand's LMB and RMB rows (raw buttons 0 and 1; actions 1 press, 0 release)
+	private static void rawRows() {
+		MisshapenControls.KeyRouter<Integer> rows = new MisshapenControls.KeyRouter<>();
+		check(MisshapenControls.rawRoute(rows, 0, 1, true) == 1, "rows: a left press with misshapen arms goes to the Stand's RMB row");
+		check(MisshapenControls.rawRoute(rows, 0, 0, false) == 1, "rows: its release goes to the RMB row too, even once the"
+				+ " effect has ended (else the RMB move stays held)");
+		check(MisshapenControls.rawRoute(rows, 1, 1, true) == 0 && MisshapenControls.rawRoute(rows, 1, 0, true) == 0,
+				"rows: a right press and release go to the LMB row");
+		check(MisshapenControls.rawRoute(rows, 0, 1, false) == 0 && MisshapenControlsSmokeTest.heldThenSwapped(rows),
+				"rows: a button held as the effect begins keeps its own row until its release");
+		check(MisshapenControls.rawRoute(rows, 2, 1, true) == 2 && !rows.isHeld(2), "rows: the middle button is not swapped");
+		MisshapenControls.rawRoute(rows, 1, 1, true);
+		rows.keepOnly(button -> false);
+		check(!rows.isHeld(1) && MisshapenControls.rawRoute(rows, 1, 0, false) == 1, "rows: a button let go while the player"
+				+ " was replaced (respawn, dimension change) is forgotten");
+
+		// one click, both paths: the Stand row and the vanilla action it reaches agree, each swapped once
+		MisshapenControls.KeyRouter<Integer> stand = new MisshapenControls.KeyRouter<>();
+		MisshapenControls.KeyRouter<String> mappings = new MisshapenControls.KeyRouter<>();
+		int row = MisshapenControls.rawRoute(stand, 0, 1, true);
+		String vanilla = mappings.set("mouse.0", true, "mouse.1", true);
+		check(row == 1 && "mouse.1".equals(vanilla), "rows: a physical left click is the Stand's RMB row and vanilla use,"
+				+ " never left again by a second swap: row " + row + ", vanilla " + vanilla);
+	}
+
+	// pressed before the effect (no swap), then released after it began: the release keeps the LMB row
+	private static boolean heldThenSwapped(MisshapenControls.KeyRouter<Integer> rows) {
+		return MisshapenControls.rawRoute(rows, 0, 0, true) == 0;
+	}
+
 	private static void pose() {
 		ModelPart[] parts = new ModelPart[6];
 		for (int i = 0; i < parts.length; i++) {
@@ -128,6 +159,12 @@ public final class MisshapenControlsSmokeTest {
 		check(controls.contains("ClientPlayerNetworkEvent.LoggingOut event) {\n\t\treleaseSwappedKeys();")
 				&& controls.contains("ClientPlayerNetworkEvent.Clone event) {\n\t\treleaseSwappedKeys();"),
 				"arms: logout, respawn and dimension change let the swapped keys go");
+		String inputHandler = read(root.resolve("src/main/java/rotp/core/client/input/InputHandler.java"));
+		check(inputHandler.contains("ClientKey button = ClientKey.make(InputConstants.Type.MOUSE,\n"
+				+ "\t\t\t\tMisshapenControls.routeRawMouseButton(event.getButton(), event.getAction()));"),
+				"rows: the raw mouse input of the Stand's rows is routed");
+		check(controls.contains("RAW_BUTTONS.clear();") && controls.contains("RAW_BUTTONS.keepOnly("),
+				"rows: logout forgets the raw buttons, respawn and dimension change keep only those still held");
 		check(!controls.contains(".setKey(") && !controls.contains("resetMapping"), "arms: the key bindings are never changed");
 		String pose = read(root.resolve("src/main/java/rotp/core/impl/stands/crazydiamond/client/MisshapenBodyPose.java"));
 		check(pose.contains("entity == mc.getCameraEntity() && mc.options.getCameraType().isFirstPerson()"), "pose: the"

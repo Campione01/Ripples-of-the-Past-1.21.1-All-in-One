@@ -21,6 +21,7 @@ import org.jetbrains.annotations.ApiStatus;
 import org.lwjgl.glfw.GLFW;
 
 import rotp.core.client.ClientGlobals;
+import rotp.core.impl.stands.crazydiamond.client.MisshapenControls;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.client.ClientTickHandler;
 import rotp.core.client.input.clickhold.AmbiguousKeyPress;
@@ -320,7 +321,9 @@ public class InputHandler {
 	public void handleMouseInput(InputEvent.MouseButton.Pre event) {
 		if (mc.getConnection() == null) return;
 
-		ClientKey button = ClientKey.make(InputConstants.Type.MOUSE, event.getButton());
+		// lane MISHEAL (R772.1): misshapen arms swap the Stand's LMB and RMB rows, as 1.16's rebound keys did
+		ClientKey button = ClientKey.make(InputConstants.Type.MOUSE,
+				MisshapenControls.routeRawMouseButton(event.getButton(), event.getAction()));
 		switch (event.getAction()) {
 			case InputConstants.PRESS -> rawMouseClicks.rawPress(button);
 			case InputConstants.RELEASE -> rawMouseClicks.rawRelease(button);

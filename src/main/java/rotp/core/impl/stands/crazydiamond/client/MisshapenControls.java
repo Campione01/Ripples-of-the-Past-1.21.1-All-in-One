@@ -4,8 +4,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
+
+import org.lwjgl.glfw.GLFW;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
@@ -35,6 +38,7 @@ public final class MisshapenControls {
 	// 1.16 ZERO_SENSITIVITY: the sensitivity at which the turn factor 0.6 * s + 0.2 is 0
 	static final double ZERO_SENSITIVITY = -1.0 / 3.0;
 	static final KeyRouter<InputConstants.Key> KEYS = new KeyRouter<>();
+	static final KeyRouter<Integer> RAW_BUTTONS = new KeyRouter<>();
 
 	private MisshapenControls() {}
 
@@ -64,6 +68,25 @@ public final class MisshapenControls {
 
 	public static InputConstants.Key routeClick(InputConstants.Key key) {
 		return KEYS.click(key, otherOfAttackOrUse(key), armsSwapped());
+	}
+
+	/*
+	 * InputHandler.handleMouseInput: 1.16's Stand attack and ability rows rode the rebound attack and use keys. The raw
+	 * button the Stand's input path takes is swapped; the game's own event keeps its button, so a click no Stand move
+	 * takes reaches the key mappings unswapped and is swapped there once, and a click a move takes is cancelled before them.
+	 */
+	public static int routeRawMouseButton(int button, int action) {
+		return rawRoute(RAW_BUTTONS, button, action, armsSwapped());
+	}
+
+	public static int rawRoute(KeyRouter<Integer> router, int button, int action, boolean swap) {
+		Integer other = button == InputConstants.MOUSE_BUTTON_LEFT ? Integer.valueOf(InputConstants.MOUSE_BUTTON_RIGHT)
+				: button == InputConstants.MOUSE_BUTTON_RIGHT ? Integer.valueOf(InputConstants.MOUSE_BUTTON_LEFT) : null;
+		return switch (action) {
+			case InputConstants.PRESS -> router.set(button, true, other, swap);
+			case InputConstants.RELEASE -> router.set(button, false, other, swap);
+			default -> button;
+		};
 	}
 
 	// KeyMapping.releaseAll (a screen opened, the window lost focus) let every key mapping go
@@ -105,12 +128,15 @@ public final class MisshapenControls {
 	@SubscribeEvent
 	public static void releaseSwappedKeysOnLogout(ClientPlayerNetworkEvent.LoggingOut event) {
 		releaseSwappedKeys();
+		RAW_BUTTONS.clear();
 	}
 
-	// respawn (death) and dimension change
+	// respawn (death) and dimension change; a raw button still held keeps its decision for its coming release
 	@SubscribeEvent
 	public static void releaseSwappedKeysOnNewPlayer(ClientPlayerNetworkEvent.Clone event) {
 		releaseSwappedKeys();
+		long window = Minecraft.getInstance().getWindow().getWindow();
+		RAW_BUTTONS.keepOnly(button -> GLFW.glfwGetMouseButton(window, button) == GLFW.GLFW_PRESS);
 	}
 
 	private static void releaseSwappedKeys() {
@@ -159,6 +185,10 @@ public final class MisshapenControls {
 
 		public void clear() {
 			held.clear();
+		}
+
+		public void keepOnly(Predicate<K> stillHeld) {
+			held.keySet().removeIf(key -> !stillHeld.test(key));
 		}
 
 		/** Forgets every held key; returns what the swapped ones drive, to be let go. */
