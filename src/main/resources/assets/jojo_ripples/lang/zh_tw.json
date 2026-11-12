@@ -483,7 +483,7 @@
   "jojo_ripples.config.client.standViewObstructionPrevention": "替身防遮擋",
   "jojo_ripples.config.client.standViewObstructionPrevention.tooltip": "第一人稱下，當自己的替身移動到鏡頭前方時，按原版方式顯示手臂並保留遮擋部分輪廓。",
   "jojo_ripples.config.client.noStandAbilityCooldown": "替身技能無冷卻",
-  "jojo_ripples.config.client.noStandAbilityCooldown.tooltip": "替身技能不再進入冷卻。時停以外的體力消耗不變；時停的體力消耗變為 3 倍；時停中體力恢復速度降為 20%。",
+  "jojo_ripples.config.client.noStandAbilityCooldown.tooltip": "替身技能不再進入冷卻。在原本的冷卻結束前再次使用同一技能會額外消耗體力，連續次數越多消耗越大（前幾次很少）。時停的體力消耗變為 3 倍；替身行動時與自己的時停中，體力恢復速度降為 20%。",
   "jojo_ripples.config.client.characterVoiceLines": "角色語音",
   "jojo_ripples.config.client.characterVoiceLines.tooltip": "是否在玩家使用其能力時播放對應的的JOJO角色語音。",
   "jojo_ripples.config.client.thirdPersonHamonAura": "第三人稱波紋特效",

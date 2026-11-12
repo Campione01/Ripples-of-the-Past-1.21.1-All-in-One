@@ -2,6 +2,7 @@ package rotp.core.subsystems.timestop;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.api.timestop.TimeStopBehaviorPolicies;
 import rotp.core.api.timestop.TimeStopProgressionPolicy;
 import rotp.core.impl.stands.theworld.TimeStopBlinkAbility;
@@ -78,7 +79,8 @@ public final class TimeStopCooldowns {
 		if (cooldown > 0) {
 			power.setAbilityCooldown(blinkAbilityName, cooldown);
 			if (!power.isAbilityOnCooldown(timeStopAbilityName)) {
-				power.setAbilityCooldown(timeStopAbilityName, cooldown);
+				// a lock shared with the time stop: no use of it for the no-cooldown mode's fatigue
+				StandAbilityFatigue.withoutFatigue(() -> power.setAbilityCooldown(timeStopAbilityName, cooldown));
 			}
 		}
 	}

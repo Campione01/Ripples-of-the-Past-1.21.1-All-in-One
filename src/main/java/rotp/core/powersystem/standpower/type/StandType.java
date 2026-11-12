@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.JojoModConfig;
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.client.standskin.StandSkinsScreen;
@@ -483,7 +484,8 @@ public class StandType extends PowerType {
 			if (standEntity != null) {
 				EntityActionInstance action = LivingComponentAction.getCurEntityAction(standEntity);
 				if (action != null && !action.canStaminaRegen(standPower, standEntity)) {
-					return 0;
+					// none while the Stand acts (1.16), a share of it in the no-cooldown mode (the owner, 2026-11-11)
+					return 1.5f * StandAbilityFatigue.regenKeptDuringUse(standPower);
 				}
 			}
 			return 1.5f;

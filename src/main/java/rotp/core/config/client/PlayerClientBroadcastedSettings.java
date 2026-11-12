@@ -3,8 +3,11 @@ package rotp.core.config.client;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntSupplier;
 
 import javax.annotation.Nullable;
+
+import org.jetbrains.annotations.ApiStatus;
 
 import rotp.core.entityattachment.SynchronizablePlayerData;
 import rotp.core.init.ModDataAttachmentTypes;
@@ -28,6 +31,7 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 	public static final float NO_COOLDOWN_TIME_STOP_STAMINA_COST_MULTIPLIER = 3.0F;
 	public static final float NO_COOLDOWN_TIME_STOP_STAMINA_REGEN_MULTIPLIER = 0.2F;
 	private static final Map<Integer, PlayerClientBroadcastedSettings> REMOTE_SETTINGS = new ConcurrentHashMap<>();
+	private static final ThreadLocal<Boolean> NORMAL_COOLDOWN_VIEW = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
 	@Nullable private final transient Player owner;
 	public HumanoidArm standSide = HumanoidArm.RIGHT;
@@ -176,13 +180,31 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 	}
 
 	public static boolean isNoStandAbilityCooldownEnabled(StandPower standPower) {
-		if (standPower == null || !standPower.hasPower()) {
+		if (standPower == null || !standPower.hasPower() || NORMAL_COOLDOWN_VIEW.get()) {
 			return false;
 		}
 		if (standPower.getUser() instanceof Player player) {
 			return getPlayerSettings(player).map(settings -> settings.noStandAbilityCooldown).orElse(false);
 		}
 		return false;
+	}
+
+	/**
+	 * Answers the query as the normal mode would, with every no-cooldown setting read as off: the cooldown an ability
+	 * would set, which the no-cooldown mode's fatigue is derived from (Ability#getNormalCooldown).
+	 */
+	@ApiStatus.Internal
+	public static int inNormalCooldownMode(IntSupplier query) {
+		if (NORMAL_COOLDOWN_VIEW.get()) {
+			return query.getAsInt();
+		}
+		NORMAL_COOLDOWN_VIEW.set(Boolean.TRUE);
+		try {
+			return query.getAsInt();
+		}
+		finally {
+			NORMAL_COOLDOWN_VIEW.set(Boolean.FALSE);
+		}
 	}
 
 	public static float getTimeStopStaminaCostMultiplier(StandPower standPower) {

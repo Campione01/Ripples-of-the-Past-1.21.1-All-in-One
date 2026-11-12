@@ -391,6 +391,16 @@ public final class RotpAddonApi {
 	 */
 	public static final String FEATURE_STAND_OFFSET_NO_LERP_V1 =
 			"stand_offset_no_lerp_v1";
+	/**
+	 * The fatigue of the no-cooldown mode (rotp.core.api.stand.StandAbilityFatigue): repeating an ability before the
+	 * cooldown it skipped would have run out costs extra stamina, derived from its normal cooldown. Ability#practicalSkill
+	 * flags a small practical skill (a gentler start), Ability#fatigueCooldown or an override of
+	 * Ability#getFatigueCooldown sets the cooldown its fatigue is derived from; StandAbilityFatigue#chargeRepeat and
+	 * #addFatigue serve an ability whose cooldown comes when its effect ends, #withoutFatigue a cooldown shared with
+	 * another ability.
+	 */
+	public static final String FEATURE_STAND_ABILITY_FATIGUE_V1 =
+			"stand_ability_fatigue_v1";
 
 	public static final Set<String> FEATURES = Set.of(
 			FEATURE_ABILITY_RESOURCE_NAMESPACE_V1,
@@ -487,7 +497,8 @@ public final class RotpAddonApi {
 			FEATURE_PLAYER_ACTION_GATE_V1,
 			FEATURE_ACTION_STAND_OFFSET_HOOK_V1,
 			FEATURE_ABILITY_CONDITION_REFUSALS_V1,
-			FEATURE_STAND_OFFSET_NO_LERP_V1);
+			FEATURE_STAND_OFFSET_NO_LERP_V1,
+			FEATURE_STAND_ABILITY_FATIGUE_V1);
 
 	private RotpAddonApi() {}
 

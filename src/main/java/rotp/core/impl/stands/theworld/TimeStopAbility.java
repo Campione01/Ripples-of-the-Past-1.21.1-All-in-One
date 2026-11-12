@@ -6,6 +6,7 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import rotp.core.api.simulation.EntitySimulations;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.api.timestop.TimeStopAudioContext;
 import rotp.core.api.timestop.TimeStopAudioCue;
 import rotp.core.api.timestop.TimeStopAudioDecision;
@@ -654,6 +655,9 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 		if (state.getInstance(instance.id()).orElse(null) != instance) {
 			return false;
 		}
+		// in the no-cooldown mode a stop begun while the last one's fatigue runs pays its repeat now (its end adds the
+		// fatigue); the double press is the owner's emergency stop, a small practical skill
+		StandAbilityFatigue.chargeRepeat(power, this, doublePress);
 		TimeStopLearning.markUsedTimeStopToday(power);
 		ModCriteriaTriggers.triggerTimeAbility(user, power);
 		if (!invadingStoppedTime) {

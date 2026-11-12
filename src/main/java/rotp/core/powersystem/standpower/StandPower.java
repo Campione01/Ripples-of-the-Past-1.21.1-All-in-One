@@ -21,6 +21,7 @@ import rotp.core.JojoModLivingVariables;
 import rotp.core.api.leap.LeapAccessPolicies;
 import rotp.core.api.leap.LeapSource;
 import rotp.core.api.stand.StandLeapUnlockProviders;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.api.stand.StandStaminaModifiers;
 import rotp.core.api.time.EntityTimeRates;
 import rotp.core.command.commands.JojoControlsCommand;
@@ -98,6 +99,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	private final Map<String, Integer> abilityCooldowns = new HashMap<>();
 	private final Map<String, Integer> abilityCooldownTotals = new HashMap<>();
 	private final Map<String, Integer> abilityCooldownSets = new HashMap<>();
+	private final AbilityFatigueTracker abilityFatigue = new AbilityFatigueTracker();
 	private boolean willSoulSpawn;
 	
 	public ResolveCounter resolveCounter = new ResolveCounter();
@@ -124,6 +126,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 			int cooldownSteps = cooldownSteps();
 			tickLeapCooldown(cooldownSteps);
 			tickAbilityCooldowns(cooldownSteps);
+			tickAbilityFatigue();
 			resyncScaledCooldowns();
 			tickResolve();
 			tickSoulCheck();
@@ -792,6 +795,23 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		return cooldownClock.steps(rate);
 	}
 
+	// the no-cooldown mode's fatigue runs down as the cooldowns it stands for: by the user's STAND_ACTIONS rate
+	private void tickAbilityFatigue() {
+		if (abilityFatigue.isEmpty() || user.level().isClientSide()) {
+			return;
+		}
+		float rate = EntityTimeRates.hasProviders()
+				? Math.min(EntityTimeRates.rate(EntityTimeRates.Channel.STAND_ACTIONS, user), EntityTimeRates.MAX_RATE)
+				: 1.0F;
+		abilityFatigue.tick(rate);
+	}
+
+	/** The fatigue of the no-cooldown mode per ability (StandAbilityFatigue), kept on the server. */
+	@ApiStatus.Internal
+	public AbilityFatigueTracker getAbilityFatigue() {
+		return abilityFatigue;
+	}
+
 	// the user's client counts its cooldowns down by itself: while they run at another rate, and once when they are back
 	// to 1, the server sends what is left, so its HUD keeps up even where only the server knows the rate
 	private void resyncScaledCooldowns() {
@@ -889,6 +909,11 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 			cooldown = tuning.cooldown(cooldown);
 			totalCooldown = tuning.cooldown(totalCooldown);
 		}
+		// in the no-cooldown mode a fresh cooldown of the ability's own is a use of it: its fatigue (a lower one is a
+		// cooldown cut, as Gold Experience's lifeform revert does)
+		if (abilityName != null && !abilityName.isEmpty() && cooldown > getAbilityCooldown(abilityName)) {
+			StandAbilityFatigue.onCooldownRaised(this, abilityName, cooldown);
+		}
 		restoreAbilityCooldown(abilityName, cooldown, totalCooldown);
 	}
 
@@ -925,6 +950,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	public void resetAbilityCooldowns() {
 		abilityCooldowns.clear();
 		abilityCooldownTotals.clear();
+		abilityFatigue.clear();
 		if (!user.level().isClientSide()) {
 			serverPlayerUser.ifPresent(player -> PacketDistributor.sendToPlayer(player, TrStandAbilityCooldownPacket.resetAll(user.getId())));
 		}
@@ -1279,6 +1305,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		newEntityData.abilityCooldowns.putAll(this.abilityCooldowns);
 		newEntityData.abilityCooldownTotals.clear();
 		newEntityData.abilityCooldownTotals.putAll(this.abilityCooldownTotals);
+		newEntityData.abilityFatigue.copyFrom(this.abilityFatigue);
 		newEntityData.resolveCounter.copyValues(this.resolveCounter, wasDeath);
 		newEntityData.userStandEffects.transferFrom(this.userStandEffects, newEntityData);
 		newEntityData.userStandAwakeningState = this.userStandAwakeningState;
@@ -1304,6 +1331,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		newEntityData.leapCooldown = 0;
 		newEntityData.abilityCooldowns.clear();
 		newEntityData.abilityCooldownTotals.clear();
+		newEntityData.abilityFatigue.clear();
 		newEntityData.resolveCounter = new ResolveCounter();
 		newEntityData.userStandEffects = new UserStandEffects(newEntityData);
 		newEntityData.userStandAwakeningState = new StandAwakening();
@@ -1326,6 +1354,9 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 			abilityCooldowns.forEach((abilityName, cooldown) -> cooldowns.putIntArray(abilityName,
 					new int[] { cooldown, abilityCooldownTotals.getOrDefault(abilityName, cooldown) }));
 			nbt.put("AbilityCooldowns", cooldowns);
+		}
+		if (!abilityFatigue.isEmpty()) {
+			nbt.put("AbilityFatigue", abilityFatigue.save());
 		}
 		nbt.put("Resolve", resolveCounter.writeNBT());
 		nbt.put("Effects", userStandEffects.serializeNBT(provider));
@@ -1367,6 +1398,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 				}
 			}
 		});
+		abilityFatigue.load(nbt.getCompound("AbilityFatigue"));
 		NBTUtil.getCompoundOptional(nbt, "Resolve").ifPresent(resolveCounter::readNBT);
 		NBTUtil.getCompoundOptional(nbt, "Effects").ifPresent(effectsNbt -> userStandEffects.deserializeNBT(provider, effectsNbt));
 		NBTUtil.getCompoundOptional(nbt, "Awakening").ifPresent(userStandAwakeningState::deserializeNBT);

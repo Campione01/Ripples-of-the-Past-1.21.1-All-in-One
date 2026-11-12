@@ -481,7 +481,7 @@
   "jojo_ripples.config.client.standViewObstructionPrevention": "Stand view obstruction prevention",
   "jojo_ripples.config.client.standViewObstructionPrevention.tooltip": "In first person, show your own Stand with the original arms and outline treatment when it moves in front of the camera.",
   "jojo_ripples.config.client.noStandAbilityCooldown": "No Stand ability cooldowns",
-  "jojo_ripples.config.client.noStandAbilityCooldown.tooltip": "Stand abilities ignore cooldowns. Non-time-stop stamina costs are unchanged; time-stop stamina costs are multiplied by 3. During stopped time, stamina regenerates at 20% speed.",
+  "jojo_ripples.config.client.noStandAbilityCooldown.tooltip": "Stand abilities ignore cooldowns. Using the same ability again before its usual cooldown would have ended costs extra stamina, more with each repeat (little for the first few). Time-stop stamina costs are multiplied by 3. While the Stand acts and during your own time stop, stamina regenerates at 20% speed.",
   "jojo_ripples.config.client.characterVoiceLines": "Character voice lines",
   "jojo_ripples.config.client.characterVoiceLines.tooltip": "Whether or not voice lines of the JoJo characters whose powers the players use are played.",
   "jojo_ripples.config.client.thirdPersonHamonAura": "Hamon aura in 3rd person",
