@@ -11,6 +11,7 @@ import rotp.core.mechanics.jojopose.JojoPoseAction;
 import rotp.core.mechanics.jojopose.JojoPoseSets.PoseRef;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.util.Mth;
@@ -47,9 +48,25 @@ public final class JojoPoseChatUI {
 		if (poses.isEmpty()) {
 			return;
 		}
-		Column column = new Column(screen, poses, () -> mc.setScreen(null));
+		ChatScreen chat = (ChatScreen) screen;
+		Column column = new Column(screen, poses, () -> {
+			sendTypedLine(chat);
+			if (mc.screen == chat) {
+				mc.setScreen(null);
+			}
+		});
 		column.widgets.forEach(event::addListener);
 		COLUMNS.put(screen, column);
+	}
+
+	/** As the official ChatScreenMixin: striking a pose sends what was typed, as Enter would, so the line is not lost. */
+	private static void sendTypedLine(ChatScreen chat) {
+		for (var child : chat.children()) {
+			if (child instanceof EditBox input) {
+				chat.handleChatInput(input.getValue(), true);
+				return;
+			}
+		}
 	}
 
 	@SubscribeEvent

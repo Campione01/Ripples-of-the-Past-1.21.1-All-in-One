@@ -152,7 +152,9 @@ public class PacketsRegister {
 	// 16: the action sync packets (entity action, phase time, actiontarget, action synched data, obbsync) carry the
 	// performer's action slot (LivingComponentAction#slotId)
 	// 17: a Gold Experience lifeform's effect tells its user's client when it was created
-	public static final String NETWORK_PROTOCOL_VERSION = "17";
+	// 18: the synced special_action registry has jojo_pose; serverbound clmaptable, clmapdata (explorer map) and cljjpose
+	// (JoJo pose)
+	public static final String NETWORK_PROTOCOL_VERSION = "18";
 
 	public static void register(RegisterPayloadHandlersEvent event) {
 		PayloadRegistrar registrar = event.registrar(NETWORK_PROTOCOL_VERSION);

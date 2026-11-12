@@ -84,7 +84,7 @@ and in `anim_specific` each pose's entry of the highest pack.
 ## In game
 
 - Open the chat: the poses your worn character may strike stand at the right edge. The mouse wheel moves through a
-  long list. Click one to strike it.
+  long list. Click one to strike it; a line typed in the chat box is sent with it, as Enter would.
 - Key "JoJo pose list" (unbound by default; Controls, Ripples of the Past) opens the same list on its own screen, and
   ends the pose you hold.
 - A pose ends when you move, jump, sneak, swing your arm or use a Stand ability you perform yourself; any other

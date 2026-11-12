@@ -86,6 +86,9 @@ public final class NetworkProtocolNegotiationSmokeTest {
 		// a v16 peer would read a Gold Experience lifeform's creation time as the next effect's bytes
 		check(Integer.parseInt(PacketsRegister.NETWORK_PROTOCOL_VERSION) >= 17,
 				"a Gold Experience lifeform's synced creation time needs core protocol v17 or later");
+		// a v17 peer lacks the jojo_pose special action of the synced registry and the explorer map and pose payloads
+		check(Integer.parseInt(PacketsRegister.NETWORK_PROTOCOL_VERSION) >= 18,
+				"the synced jojo_pose special action and the clmaptable, clmapdata and cljjpose payloads need core protocol v18 or later");
 
 		var matching = NetworkComponentNegotiator.validateComponent(
 				requiredComponent(PacketsRegister.NETWORK_PROTOCOL_VERSION),
@@ -93,6 +96,13 @@ public final class NetworkProtocolNegotiationSmokeTest {
 				"client");
 		check(matching.isEmpty(),
 				"matching current peers must negotiate the required play payload");
+
+		var noJojoPose = NetworkComponentNegotiator.validateComponent(
+				requiredComponent(PacketsRegister.NETWORK_PROTOCOL_VERSION),
+				requiredComponent("17"),
+				"client");
+		check(noJojoPose.isPresent() && !noJojoPose.get().success(),
+				"a v17 peer must fail before it decodes a jojo_pose action or is sent a pose request");
 
 		var noLifeformAge = NetworkComponentNegotiator.validateComponent(
 				requiredComponent(PacketsRegister.NETWORK_PROTOCOL_VERSION),

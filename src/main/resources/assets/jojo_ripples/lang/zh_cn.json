@@ -2339,8 +2339,8 @@
   "jojo_ripples.subtitle.star_finger": "\"『流星指刺』!\"",
   "jojo_ripples.subtitle.yare_yare": "\"真是的……\"",
   "jojo_ripples.subtitle.yare_yare_daze": "\"真是够了……\"",
-  "jojo_ripples.key.jojo_pose": "JOJO立列表",
-  "jojo_ripples.key.jojo_pose.desc": "打开所穿角色可摆的JOJO立列表；摆着姿势时按下则结束姿势。聊天栏旁也有此列表。",
-  "jojo_ripples.screen.jojo_poses": "JOJO立",
+  "jojo_ripples.key.jojo_pose": "JOJO立姿势列表",
+  "jojo_ripples.key.jojo_pose.desc": "打开所穿角色可摆的JOJO立姿势列表；摆着姿势时按下则结束姿势。打开聊天栏时，列表也显示在右侧。",
+  "jojo_ripples.screen.jojo_poses": "JOJO立姿势",
   "jojo_ripples.screen.jojo_poses.none": "没有可摆的姿势：请穿上同一角色的整套服装。"
 }
