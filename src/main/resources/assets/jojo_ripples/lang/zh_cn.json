@@ -2319,5 +2319,8 @@
   "jojo.config.standBodyThroughWalls": "替身本体穿墙",
   "jojo.config.standBodyThroughWalls.tooltip": "standard：与1.16版相同，替身只在跟随使用者且没有出招时穿过方块；出招、手动操控或停在固定位置时会被方块挡住。phasing：手动操控的替身在没有出招时也能穿过方块。",
   "jojo.config.vampirismCuringDuration": "吸血鬼治疗持续时间",
-  "jojo.config.vampirismCuringDuration.tooltip": "吸血鬼治疗过程的所需时间"
+  "jojo.config.vampirismCuringDuration.tooltip": "吸血鬼治疗过程的所需时间",
+  "jojo_ripples.subtitle.star_finger": "\"『流星指刺』!\"",
+  "jojo_ripples.subtitle.yare_yare": "\"真是的……\"",
+  "jojo_ripples.subtitle.yare_yare_daze": "\"真是够了……\""
 }

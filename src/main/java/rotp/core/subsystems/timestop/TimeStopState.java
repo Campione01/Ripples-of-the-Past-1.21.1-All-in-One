@@ -1356,11 +1356,12 @@ public class TimeStopState {
             case SOUND -> decision.sound();
             case SILENT -> null;
         };
-        if (resumeVoiceLineUser != null && power != null && voiceLine != null) {
+        if (resumeVoiceLineUser != null && power != null && decision.kind() != TimeStopAudioDecision.Kind.SILENT) {
             // 1.16 sayVoiceLine without interrupting: a line still being said keeps playing
             JojoModUtil.sayVoiceLine(
                     resumeVoiceLineUser,
                     voiceLine,
+                    ModSoundEvents.VOICELINE_TIME_RESUME,
                     1.0F,
                     1.0F,
                     200,

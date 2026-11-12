@@ -385,9 +385,7 @@ public class StandType extends PowerType {
 	protected void playSummonShout(LivingEntity user) {
 		if (user != null && !user.level().isClientSide() && !user.isShiftKeyDown()) {
 			Holder<SoundEvent> shout = summonShoutSupplier.get();
-			if (shout != null) {
-				JojoModUtil.sayVoiceLine(user, shout);
-			}
+			JojoModUtil.sayVoiceLine(user, shout, ModSoundEvents.VOICELINE_STAND_SUMMON, 1.0F, 1.0F, 200, false);
 		}
 	}
 	

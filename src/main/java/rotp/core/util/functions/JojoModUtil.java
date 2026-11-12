@@ -20,6 +20,7 @@ import rotp.core.entityattachment.PlayerVoiceLineData;
 import rotp.core.impl.powers.vampirism.entity.HungryZombieEntity;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModGamerules;
+import rotp.core.mechanics.voiceline.VoiceLineSpeaker;
 import rotp.core.network.s2c.BrokenBlocksParticlesAndSoundsPacket;
 import rotp.core.network.s2c.PlayVoiceLinePacket;
 import rotp.core.network.s2c.TrResetDeathTimePacket;
@@ -373,35 +374,60 @@ public class JojoModUtil {
 
 	public static boolean sayVoiceLine(LivingEntity entity, Holder<SoundEvent> sound, float volume, float pitch,
 			int voiceLineDelay, boolean interrupt) {
-		if (entity == null || sound == null || entity.level().isClientSide()
-				|| entity.hasEffect(MobEffects.INVISIBILITY)) {
+		return sayVoiceLine(entity, sound, null, volume, pitch, voiceLineDelay, interrupt);
+	}
+
+	/**
+	 * Says the 1.16 line {@code sound}, or a voice pack's line for {@code trigger} instead when the speaker's clothes
+	 * make them a character that pack has a line for (VoiceLinePacks, picked on each client). With no 1.16 line, only
+	 * a pack line is said, and only by a speaker who counts as a character.
+	 */
+	public static boolean sayVoiceLine(LivingEntity entity, @Nullable Holder<SoundEvent> sound, @Nullable Holder<SoundEvent> trigger,
+			float volume, float pitch, int voiceLineDelay, boolean interrupt) {
+		if (entity == null || entity.level().isClientSide() || entity.hasEffect(MobEffects.INVISIBILITY)) {
+			return false;
+		}
+		VoiceLineSpeaker speaker = trigger != null ? VoiceLineSpeaker.of(entity) : VoiceLineSpeaker.NONE;
+		if (!speaker.hasCharacter()) {
+			trigger = null;
+		}
+		if (sound == null && trigger == null) {
 			return false;
 		}
 		Level level = entity.level();
 		SoundSource source = SoundSource.VOICE;
 		if (entity instanceof Player player) {
 			PlayVoiceLinePacket packet;
-			if (!canPlayVoiceLine(player, sound, voiceLineDelay)) {
+			Holder<SoundEvent> delayed = sound != null ? sound : trigger;
+			if (!canPlayVoiceLine(player, delayed, voiceLineDelay)) {
 				packet = PlayVoiceLinePacket.notTriggered(entity.getId());
 			}
 			else {
 				PlayLevelSoundEvent.AtPosition event = EventHooks.onPlaySoundAtPosition(level,
-						entity.getX(), entity.getY(), entity.getZ(), sound, source, volume, pitch);
+						entity.getX(), entity.getY(), entity.getZ(), delayed, source, volume, pitch);
 				if (event.isCanceled() || event.getSound() == null) {
 					packet = PlayVoiceLinePacket.notTriggered(entity.getId());
 				}
 				else {
-					sound = event.getSound();
+					if (sound != null) {
+						sound = MultiSoundEventResolver.resolve(event.getSound());
+					}
 					source = event.getSource();
 					volume = event.getNewVolume();
 					pitch = event.getNewPitch();
-					packet = new PlayVoiceLinePacket(MultiSoundEventResolver.resolve(sound), source, entity.getId(), volume, pitch, interrupt);
+					packet = new PlayVoiceLinePacket(sound, trigger, speaker, source, entity.getId(), volume, pitch, interrupt);
+					player.getData(ModDataAttachmentTypes.PLAYER_VOICE_LINES.get()).setLastSaid(packet);
 					sendVoiceLinePacket(level, entity, packet, volume);
 					return true;
 				}
 			}
 			sendVoiceLinePacket(level, entity, packet, volume);
 			return false;
+		}
+		if (trigger != null) {
+			sendVoiceLinePacket(level, entity, new PlayVoiceLinePacket(sound != null ? MultiSoundEventResolver.resolve(sound) : null,
+					trigger, speaker, source, entity.getId(), volume, pitch, interrupt), volume);
+			return true;
 		}
 		level.playSound(null, entity, MultiSoundEventResolver.resolve(sound).value(), source, volume, pitch);
 		return true;

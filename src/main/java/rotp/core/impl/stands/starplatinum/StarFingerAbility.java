@@ -60,7 +60,7 @@ public class StarFingerAbility extends StandEntityAbility {
             LivingEntity powerUser = getPowerUser();
             if (!level().isClientSide() && powerUser != null) {
                 // 1.16 said the line when the action started, not for a press that was only queued
-                Ability.sayShoutOf(ability, powerUser, ModSoundEvents.JOTARO_STAR_FINGER);
+                Ability.sayShoutOf(ability, powerUser, ModSoundEvents.JOTARO_STAR_FINGER, ModSoundEvents.VOICELINE_STAR_FINGER);
             }
             setStandOffset(0, 0.5, StandOffsetFromUser.Rotations.HEAD, false);
             OrientedBoundingBox obb = new OrientedBoundingBox(new Vec3(0, 1.35, 0), 0.125d, 0.125d, 0.8d, getPerformer().getYRot(), getPerformer().getXRot());

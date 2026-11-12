@@ -560,6 +560,7 @@ public final class RotpAddonApiSmokeTest {
 		TimeStopBlinkInputSmokeTest.run();
 		TimeStopPunchTuningSmokeTest.run();
 		AbilityShoutSmokeTest.run();
+		rotp.core.mechanics.voiceline.VoiceLineTriggerWiringSmokeTest.run();
 		StandLossResolveSmokeTest.run();
 		AddonFeatureApiSurfaceSmokeTest.run();
 		ResolveModeValueSmokeTest.run();

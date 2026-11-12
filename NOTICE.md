@@ -75,3 +75,15 @@ for NeoForge 1.21.1 sources the owner received on 2026-11-12. The Jotaro
 clothes sets credit their author, **Motvik**, in their `authors` field, and the
 clothes item tooltip shows it. The Chinese character names, and the Stand ids
 mapped to this port's core and add-ons, were written for this port.
+
+<!-- OFFVOICE -->
+## Voice packs from the newer official sources
+
+The voice pack format (`assets/<namespace>/voicelines/<pack>/`), the three
+packs `jotaro_p3`, `josuke4` and `joseph_p2`, and eight voice clips (Jotaro's
+"yare yare" set of seven and Joseph's Tommy Gun scream) follow the official Ripples
+of the Past for NeoForge 1.21.1 sources the owner received on 2026-11-12, with
+the owner's permission to use official assets, anime voice clips included.
+The packs here name this port's existing subtitle keys, and the Jotaro pack's
+"Star Platinum, The World" line is limited to Star Platinum; the loader and its
+merging of resource packs were written for this port.

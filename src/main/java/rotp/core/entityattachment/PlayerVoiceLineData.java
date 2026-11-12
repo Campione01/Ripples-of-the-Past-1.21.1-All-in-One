@@ -6,6 +6,7 @@ import java.util.Map;
 
 import javax.annotation.Nullable;
 
+import rotp.core.network.s2c.PlayVoiceLinePacket;
 import rotp.core.subsystems.timestop.TimeStopState;
 
 import net.minecraft.core.Holder;
@@ -15,6 +16,7 @@ import net.minecraft.world.entity.player.Player;
 public class PlayerVoiceLineData implements TickingEntityData {
 	private final Map<Holder<SoundEvent>, Integer> recentlyPlayedVoiceLines = new HashMap<>();
 	@Nullable private final Player player;
+	@Nullable private PlayVoiceLinePacket lastSaid;
 
 	public PlayerVoiceLineData() {
 		this.player = null;
@@ -23,6 +25,16 @@ public class PlayerVoiceLineData implements TickingEntityData {
 	public PlayerVoiceLineData(Player player) {
 		this.player = player;
 		addTicking(player);
+	}
+
+	/** The last voice line the server sent for this player, with its voice pack trigger and speaker. */
+	@Nullable
+	public PlayVoiceLinePacket getLastSaid() {
+		return lastSaid;
+	}
+
+	public void setLastSaid(@Nullable PlayVoiceLinePacket line) {
+		this.lastSaid = line;
 	}
 
 	public boolean checkNotRepeatingVoiceLine(Holder<SoundEvent> voiceLine, int voiceLineDelay) {

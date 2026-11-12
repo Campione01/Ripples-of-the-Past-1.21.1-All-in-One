@@ -19,7 +19,9 @@ import rotp.core.impl.powers.hamon.ModHamonSkills;
 import rotp.core.impl.powers.hamon.abilities.HamonAbilityHelpers;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
@@ -115,8 +117,8 @@ public class TommyGunItem extends Item {
 			return;
 		}
 		if (!level.isClientSide()) {
-			if (remainingTicks == getUseDuration(stack, entity) - 14 && ammo == MAX_AMMO - 7 && josephVoiceLine(entity)) {
-				JojoModUtil.sayVoiceLine(entity, ModSoundEvents.JOSEPH_SCREAM_SHOOTING);
+			if (remainingTicks == getUseDuration(stack, entity) - 14 && ammo == MAX_AMMO - 7) {
+				josephVoiceLine(entity, ModSoundEvents.JOSEPH_SCREAM_SHOOTING, ModSoundEvents.VOICELINE_TOMMY_GUN_SCREAM);
 			}
 			if (ammo > 0) {
 				if (shotTick) {
@@ -234,8 +236,8 @@ public class TommyGunItem extends Item {
 
 	@Override
 	public void releaseUsing(ItemStack stack, Level level, LivingEntity entity, int remainingTicks) {
-		if (remainingTicks <= 1 && josephVoiceLine(entity)) {
-			JojoModUtil.sayVoiceLine(entity, ModSoundEvents.JOSEPH_WAR_DECLARATION);
+		if (remainingTicks <= 1) {
+			josephVoiceLine(entity, ModSoundEvents.JOSEPH_WAR_DECLARATION, ModSoundEvents.VOICELINE_TOMMY_GUN_SHOT_MAGAZINE);
 		}
 	}
 
@@ -275,7 +277,7 @@ public class TommyGunItem extends Item {
 				target.invulnerableTime = 0;
 				hamon.hamonPointsFromAction(HamonStat.STRENGTH, 200.0F);
 				hamon.syncOnUpdate(user);
-				JojoModUtil.sayVoiceLine(user, ModSoundEvents.JOSEPH_SHOOT);
+				JojoModUtil.sayVoiceLine(user, ModSoundEvents.JOSEPH_SHOOT, ModSoundEvents.VOICELINE_TOMMY_GUN_PUNCH, 1.0F, 1.0F, 200, false);
 				return true;
 			}
 			return user.level().isClientSide();
@@ -286,6 +288,11 @@ public class TommyGunItem extends Item {
 		return PlayerPower.getPowerData(entity, HamonPowerType.HAMON)
 				.map(hamon -> hamon.characterIs(ModHamonSkills.CHARACTER_JOSEPH.get()))
 				.orElse(false);
+	}
+
+	// 1.16 said the line for a Joseph Hamon user only; a voice pack still has its line for clothes that make one Joseph
+	private static void josephVoiceLine(LivingEntity entity, Holder<SoundEvent> line, Holder<SoundEvent> trigger) {
+		JojoModUtil.sayVoiceLine(entity, josephVoiceLine(entity) ? line : null, trigger, 1.0F, 1.0F, 200, false);
 	}
 
 	@Override

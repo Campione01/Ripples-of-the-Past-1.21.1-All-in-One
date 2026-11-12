@@ -501,6 +501,16 @@ public class Ability {
 		return ability instanceof Ability shouting && shouting.sayShout(user, shout);
 	}
 
+	/** {@link #sayShout}, which a voice pack's line for {@code trigger} replaces for a speaker its clothes make a character. */
+	public boolean sayShout(LivingEntity user, @Nullable Holder<SoundEvent> shout, Holder<SoundEvent> trigger) {
+		return !skipsShoutWhileSneaking(user) && JojoModUtil.sayVoiceLine(user, shout, trigger, 1.0F, 1.0F, 200, false);
+	}
+
+	public static boolean sayShoutOf(@Nullable EntityActionType ability, LivingEntity user, @Nullable Holder<SoundEvent> shout,
+			Holder<SoundEvent> trigger) {
+		return ability instanceof Ability shouting && shouting.sayShout(user, shout, trigger);
+	}
+
 	/**
 	 * A version of {@link Ability#checkSpecificConditions(Power)} with more control, allowing one ability to disable others dynamically
 	 */
