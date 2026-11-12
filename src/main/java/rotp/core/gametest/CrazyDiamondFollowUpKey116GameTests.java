@@ -52,6 +52,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.Cow;
+import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -152,13 +153,13 @@ public final class CrazyDiamondFollowUpKey116GameTests {
 	}
 
 	/*
-	 * 1.16 CrazyDiamondMisshapeBodyPart.checkSpecificConditions took only a living target whose Stand user is a player (the
-	 * mob effects of misshaping were a TODO), a player or a player's Stand: StandAction.canSetFollowUp ran it on the
+	 * 1.16 CrazyDiamondMisshapeBodyPart.checkSpecificConditions took only a player or a player's Stand (the mob effects
+	 * of misshaping were a TODO); the owner opened it to mobs (R772.1). StandAction.canSetFollowUp ran it on the
 	 * finisher's task target to put a misshape follow-up on the heavy key, and the click ran it again on the crosshair's
-	 * target (PowerBaseImpl.clickAction with the mouse target), which refused it without a message.
+	 * target (PowerBaseImpl.clickAction with the mouse target), which refused the user's own Stand without a message.
 	 */
 	@GameTest(template = "empty", timeoutTicks = 100)
-	public static void misshapingFollowsOnlyAFinisherAtAPlayerOrAPlayersStandAsIn116(GameTestHelper helper) {
+	public static void misshapingFollowsAFinisherAtAnyLivingTargetButTheUsersOwnStand(GameTestHelper helper) {
 		ServerLevel level = helper.getLevel();
 		StandType standType = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("crazy_diamond"));
 		StandType enemyType = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
@@ -203,12 +204,14 @@ public final class CrazyDiamondFollowUpKey116GameTests {
 			cow.setNoGravity(true);
 			helper.assertTrue(level.addFreshEntity(cow), "Could not add the cow");
 
-			misshapeRow(helper, power, user, stand, heavy, finisher, misshaping, enemy, enemy, true,
+			misshapeRow(helper, power, user, stand, heavy, finisher, misshaping, enemy, enemy, true, true,
 					"a finisher at a player, the crosshair on the player");
-			misshapeRow(helper, power, user, stand, heavy, finisher, misshaping, cow, cow, false,
+			misshapeRow(helper, power, user, stand, heavy, finisher, misshaping, cow, cow, true, true,
 					"a finisher at a cow, the crosshair on the cow");
-			misshapeRow(helper, power, user, stand, heavy, finisher, misshaping, enemy, cow, true,
+			misshapeRow(helper, power, user, stand, heavy, finisher, misshaping, enemy, cow, true, true,
 					"a finisher at a player, the crosshair moved to a cow");
+			misshapeRow(helper, power, user, stand, heavy, finisher, misshaping, enemy, stand, true, false,
+					"a finisher at a player, the crosshair moved to the user's own Crazy Diamond");
 
 			// the other player 4 blocks away, its Star Platinum where it stood
 			enemy.moveTo(userPos.x + 2.0D, userPos.y, userPos.z + 4.0D, 180.0F, 0.0F);
@@ -219,7 +222,7 @@ public final class CrazyDiamondFollowUpKey116GameTests {
 			StandEntity enemyStand = enemyPower.getSummonedStandEntity();
 			helper.assertTrue(enemyStand != null, "Summoned Star Platinum is missing");
 			enemyStand.moveTo(front.x, front.y, front.z, 180.0F, 0.0F);
-			misshapeRow(helper, power, user, stand, heavy, finisher, misshaping, enemyStand, enemyStand, true,
+			misshapeRow(helper, power, user, stand, heavy, finisher, misshaping, enemyStand, enemyStand, true, true,
 					"a finisher at another player's Stand, the crosshair on the Stand");
 			helper.succeed();
 		}
@@ -298,6 +301,63 @@ public final class CrazyDiamondFollowUpKey116GameTests {
 		}
 		catch (RuntimeException | Error error) {
 			scene.close();
+			throw error;
+		}
+	}
+
+	/*
+	 * The owner opened the misheal to mobs (R772.1): a finisher aimed at a husk's head, then the misshaping punch, leaves
+	 * the husk with a Misshapen Face (MisshapenEffect: it cannot hold a target) when the punch ends.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 200)
+	public static void theFinisherMisshapesAMobsPartToo(GameTestHelper helper) {
+		MisshapeScene scene = MisshapeScene.open(helper, "CrazyDiamondMisshapeMob", 0.0F);
+		Husk husk = EntityType.HUSK.create(helper.getLevel());
+		try {
+			helper.assertTrue(husk != null, "Could not create the husk");
+			Vec3 at = scene.enemy.position();
+			scene.enemy.moveTo(at.x + 8.0D, at.y, at.z, 180.0F, 0.0F);
+			husk.moveTo(at.x, at.y, at.z, 180.0F, 0.0F);
+			husk.setNoAi(true);
+			husk.setNoGravity(true);
+			husk.setPersistenceRequired();
+			helper.assertTrue(helper.getLevel().addFreshEntity(husk), "Could not add the husk");
+			scene.aimAt(husk);
+			EntityActionInstance action = scene.pressFinisher(helper);
+			AbilityConditionCheck followUp = resolve(scene.power, scene.heavy);
+			helper.assertTrue(followUp != null && followUp.ability == scene.misshaping && followUp.conditionCheck.isPositive(),
+					"A finisher at a mob offers the misshaping punch on the heavy key: " + describe(followUp));
+			press(scene.power, scene.user, scene.heavy);
+			int[] ticks = new int[1];
+			helper.onEachTick(() -> {
+				if (scene.closed) return;
+				try {
+					boolean face = husk.hasEffect(ModStatusEffects.MISSHAPEN_FACE);
+					boolean arms = husk.hasEffect(ModStatusEffects.MISSHAPEN_ARMS);
+					boolean legs = husk.hasEffect(ModStatusEffects.MISSHAPEN_LEGS);
+					if (face || arms || legs || action.isOver()) {
+						helper.assertTrue(face && !arms && !legs, "The misshaping punch misshapes the mob's face, the part aimed at:"
+								+ " face " + face + ", arms " + arms + ", legs " + legs + " (the punch struck " + action.punchedTarget + ")");
+						scene.close();
+						husk.discard();
+						helper.succeed();
+					}
+					else if (++ticks[0] > 150) {
+						scene.close();
+						husk.discard();
+						helper.fail("The finisher with the misshaping punch did not end");
+					}
+				}
+				catch (RuntimeException | Error error) {
+					scene.close();
+					husk.discard();
+					throw error;
+				}
+			});
+		}
+		catch (RuntimeException | Error error) {
+			scene.close();
+			if (husk != null) husk.discard();
 			throw error;
 		}
 	}
@@ -626,9 +686,10 @@ public final class CrazyDiamondFollowUpKey116GameTests {
 	}
 
 	// the finisher pressed at the target with a full meter, the crosshair then on the other entity: whether the key gives
-	// the misshaping punch and whether a click takes it (1.16: the crosshair on a player or a player's Stand)
+	// the misshaping punch and whether a click takes it (the crosshair on a living entity but the user's own Stand)
 	private static void misshapeRow(GameTestHelper helper, StandPower power, Player user, StandEntity stand, Ability heavy,
-			Ability finisher, Ability misshaping, LivingEntity target, LivingEntity crosshair, boolean followUp, String row) {
+			Ability finisher, Ability misshaping, LivingEntity target, LivingEntity crosshair, boolean followUp, boolean usable,
+			String row) {
 		LivingComponentAction standAction = LivingComponentAction.getComponent(stand);
 		standAction.setAction(null, user, SyncType.NO_SYNC);
 		user.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
@@ -643,9 +704,8 @@ public final class CrazyDiamondFollowUpKey116GameTests {
 						+ "): the key did not start the finisher at " + target + ": " + describe(pressed) + ", action " + action);
 		LivingComponentAction.getComponent(user).entityAim.setTarget(new ActionTarget(crosshair));
 		AbilityConditionCheck resolved = resolve(power, heavy);
-		boolean usable = followUp && crosshair == target;
 		helper.assertTrue(resolved != null && (followUp ? resolved.ability == misshaping
-				&& resolved.conditionCheck.isPositive() == usable : resolved.ability == finisher), "1.16 gave " + row
+				&& resolved.conditionCheck.isPositive() == usable : resolved.ability == finisher), "Crazy Diamond gives " + row
 						+ (followUp ? " the misshape follow-up on the heavy key, " + (usable ? "usable" : "refused at the click")
 								: " the heavy key as the running finisher, no misshape follow-up") + ": it resolves to "
 						+ describe(resolved));

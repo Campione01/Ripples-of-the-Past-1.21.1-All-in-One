@@ -195,6 +195,7 @@
 	"client.controls.KeyboardHandlerMixin",
 	"client.controls.InputConstantsMixin",
 	"client.controls.MouseHandlerInvoker",
+	"client.controls.KeyMappingMisshapenArmsMixin",
 	"client.lifeshot.ConnectionSensoryOverloadMixin",
 	
 	"entity_like_player.puppetcontrol.mob.MobAILookMixin",
