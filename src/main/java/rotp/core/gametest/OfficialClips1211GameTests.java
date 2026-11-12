@@ -39,7 +39,11 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * 1a681255, the baseline NOTICE.md names), 1.16's poses only where it has none: every part of every official clip
  * (each bone and each top-level field) keeps the official JSON but for the differences listed here with their reasons,
  * and every core ability that has an official clip of its own name plays it but for the abilities listed with the clip
- * they play instead (Star Platinum's Star Finger, by the owner's answer of 2026-10-15).
+ * they play instead (Star Platinum's Star Finger, by the owner's answer of 2026-10-15). Crazy Diamond's idle, summon2
+ * and barrage follow the owner's later official archive of 2026-11-12 (R772.1, lane OFFART), as the table's note says;
+ * the barrage with its head swinging, by the owner's pick of that day in place of G20 and G21 for that clip, as is The
+ * World's official time_stop (its bones; the markers stay ours). Crazy Diamond's model of that archive, mesh helmet top
+ * included, is also the owner's pick, over the cubes-only art direction for that one model.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -60,14 +64,13 @@ public final class OfficialClips1211GameTests {
 			+ " one-tick perform, the markers pinned by HeavyPunchPerform116GameTests";
 	private static final String NO_BONE = "a bone the Stand's geo lacks, absent since the first snapshot c9799c78";
 	private static final String BARRAGE_HEAD = "G1, G21 (2026-11-05): the head takes back its keyed chain, so it stays on the look";
-	private static final String CD_BARRAGE_LOOK = "G21 (2026-11-05): Crazy Diamond's barrage follows the look: head_rot reads it throughout, the"
-			+ " arms take its pitch as Star Platinum's do, the fist no longer turns about its forearm, the fist and stride hold from"
-			+ " the end of the windup to the recovery";
 	private static final String HEAD_RULE = "G20 (2026-11-05, the owner: 統一規則，保留各自姿勢): the head stays on the look, its rotation taking back the bones above it"
 			+ " and head_rot reading the look; the limb keys stay the official's";
 	private static final String BARRAGE_SWAY = "R772.1 (2026-11-06, the owner: 目前近戰人形替身似乎很多都有這個問題): the barrage's sway goes through the hips into the legs, the chest turning over them by 15 at most"
 			+ " and the rest on body, so the chest's own turn stays; the head gives way by its share (the owner: 為了動作流暢性優先級可以下調)";
-	private static final String R148_MIRROR = "af972e0c (R148): the clip mirrored for the hand it is played with";
+	private static final String RULE_11 = "rule 11 (2026-11-12, the owner: 推廣，視線固定，頭部轉動範圍不能超出): the official head over this clip's own trunk"
+			+ " and timing, the gaze held on head_rot's look, the neck within the official clips' own range (official_head.py)";
+	private static final String R148_MIRROR ="af972e0c (R148): the clip mirrored for the hand it is played with";
 	private static final String R148_ARM_LOOK = "af972e0c (R148): the arms follow the look pitch up to 60 degrees";
 
 	private static final List<Difference> DIFFERENCES = List.of(
@@ -82,30 +85,13 @@ public final class OfficialClips1211GameTests {
 			new Difference("silver_chariot", "idle", "bones/left_item", Change.LACKS, NO_BONE),
 			new Difference("silver_chariot", "idle", "bones/right_item", Change.LACKS, NO_BONE),
 			new Difference("crazy_diamond", "uncraft", "bones/torso_old", Change.LACKS, NO_BONE),
-			new Difference("star_platinum", "barrage", "bones/head", Change.CHANGES, BARRAGE_HEAD),
-			new Difference("star_platinum", "barrage", "bones/head_rot", Change.CHANGES, BARRAGE_SWAY),
 			new Difference("star_platinum", "barrage", "bones/body", Change.CHANGES, BARRAGE_SWAY),
 			new Difference("star_platinum", "barrage", "bones/torso", Change.CHANGES, BARRAGE_SWAY),
-			new Difference("crazy_diamond", "barrage", "bones/head", Change.CHANGES, BARRAGE_HEAD),
-			new Difference("crazy_diamond", "barrage", "bones/head_rot", Change.CHANGES, CD_BARRAGE_LOOK),
-			new Difference("crazy_diamond", "barrage", "bones/left_arm_xrot", Change.CHANGES, CD_BARRAGE_LOOK),
-			new Difference("crazy_diamond", "barrage", "bones/right_arm_xrot", Change.CHANGES, CD_BARRAGE_LOOK),
-			new Difference("crazy_diamond", "barrage", "bones/left_arm_bend", Change.CHANGES, CD_BARRAGE_LOOK),
-			new Difference("crazy_diamond", "barrage", "bones/right_arm", Change.CHANGES, CD_BARRAGE_LOOK),
-			new Difference("crazy_diamond", "barrage", "bones/right_leg", Change.CHANGES, CD_BARRAGE_LOOK),
 			new Difference("crazy_diamond", "block_bullet", "timeline", Change.CHANGES, R148_MIRROR + " (LEFT, the official RIGHT)"),
 			new Difference("crazy_diamond", "block_bullet", "bones/left_arm_xrot", Change.ADDS, R148_ARM_LOOK),
 			new Difference("crazy_diamond", "block_bullet", "bones/right_arm_xrot", Change.ADDS, R148_ARM_LOOK),
 			new Difference("crazy_diamond", "repair_item", "timeline", Change.ADDS, R148_MIRROR + " (RIGHT)"),
 			new Difference("crazy_diamond", "uncraft", "timeline", Change.ADDS, R148_MIRROR + " (RIGHT)"),
-			new Difference("star_platinum", "punch", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("star_platinum", "punch", "bones/head_rot", Change.CHANGES, HEAD_RULE),
-			new Difference("star_platinum", "punch2", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("star_platinum", "punch3", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("star_platinum", "punch4", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("star_platinum", "heavy_punch", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("star_platinum", "heavy_charged", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("star_platinum", "heavy_charged", "bones/head_rot", Change.CHANGES, HEAD_RULE),
 			new Difference("star_platinum", "bearing_shot", "bones/head", Change.CHANGES, HEAD_RULE),
 			new Difference("star_platinum", "bearing_shot", "bones/head_rot", Change.CHANGES, HEAD_RULE),
 			new Difference("star_platinum", "bow_shoot", "bones/head", Change.CHANGES, HEAD_RULE),
@@ -124,13 +110,6 @@ public final class OfficialClips1211GameTests {
 			new Difference("star_platinum", "break_free", "bones/head_rot", Change.CHANGES, HEAD_RULE),
 			new Difference("star_platinum", "star_finger", "bones/head", Change.CHANGES, HEAD_RULE),
 			new Difference("star_platinum", "star_finger", "bones/head_rot", Change.CHANGES, HEAD_RULE),
-			new Difference("crazy_diamond", "punch", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("crazy_diamond", "punch", "bones/head_rot", Change.CHANGES, HEAD_RULE),
-			new Difference("crazy_diamond", "punch2", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("crazy_diamond", "punch3", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("crazy_diamond", "punch4", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("crazy_diamond", "heavy_punch", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("crazy_diamond", "heavy_punch", "bones/head_rot", Change.CHANGES, HEAD_RULE),
 			new Difference("crazy_diamond", "repair_item", "bones/head", Change.CHANGES, HEAD_RULE),
 			new Difference("crazy_diamond", "repair_item", "bones/head_rot", Change.ADDS, HEAD_RULE),
 			new Difference("crazy_diamond", "uncraft", "bones/head", Change.CHANGES, HEAD_RULE),
@@ -153,13 +132,23 @@ public final class OfficialClips1211GameTests {
 			new Difference("crazy_diamond", "grab_punch", "bones/head_rot", Change.CHANGES, HEAD_RULE),
 			new Difference("crazy_diamond", "grab_barrage", "bones/head", Change.CHANGES, HEAD_RULE),
 			new Difference("crazy_diamond", "grab_barrage", "bones/head_rot", Change.CHANGES, HEAD_RULE),
-			new Difference("crazy_diamond", "grab_heavy_punch", "bones/head", Change.CHANGES, HEAD_RULE),
-			new Difference("crazy_diamond", "grab_heavy_punch", "bones/head_rot", Change.CHANGES, HEAD_RULE),
 			new Difference("crazy_diamond", "break_free", "bones/head", Change.CHANGES, HEAD_RULE),
 			new Difference("crazy_diamond", "break_free", "bones/head_rot", Change.CHANGES, HEAD_RULE),
 			new Difference("crazy_diamond", "block_toss", "bones/head", Change.CHANGES, HEAD_RULE),
 			new Difference("crazy_diamond", "block_toss", "bones/head_rot", Change.CHANGES, HEAD_RULE),
-			new Difference("silver_chariot", "idle", "bones/head", Change.CHANGES, HEAD_RULE));
+			new Difference("silver_chariot", "idle", "bones/head", Change.CHANGES, HEAD_RULE),
+			new Difference("crazy_diamond", "barrage", "bones/head", Change.CHANGES, RULE_11),
+			new Difference("crazy_diamond", "barrage", "bones/head_rot", Change.CHANGES, RULE_11),
+			new Difference("crazy_diamond", "grab_heavy_punch", "bones/head", Change.CHANGES, HEAD_RULE),
+			new Difference("crazy_diamond", "grab_heavy_punch", "bones/head_rot", Change.CHANGES, HEAD_RULE),
+			new Difference("crazy_diamond", "heavy_punch", "bones/head", Change.CHANGES, HEAD_RULE),
+			new Difference("crazy_diamond", "heavy_punch", "bones/head_rot", Change.CHANGES, HEAD_RULE),
+			new Difference("crazy_diamond", "punch", "bones/head_rot", Change.CHANGES, RULE_11),
+			new Difference("star_platinum", "barrage", "bones/head", Change.CHANGES, RULE_11),
+			new Difference("star_platinum", "barrage", "bones/head_rot", Change.CHANGES, RULE_11),
+			new Difference("star_platinum", "heavy_charged", "bones/head_rot", Change.CHANGES, RULE_11),
+			new Difference("star_platinum", "heavy_punch", "bones/head", Change.CHANGES, RULE_11),
+			new Difference("star_platinum", "punch", "bones/head_rot", Change.CHANGES, RULE_11));
 
 	/*
 	 * Each clip of the official port's seven core Stand files is in the port's file of that Stand, and each of its parts

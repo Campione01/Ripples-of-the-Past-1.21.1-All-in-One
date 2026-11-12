@@ -7,14 +7,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
 
 import org.joml.Vector3f;
 
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.authlib.GameProfile;
 
@@ -56,11 +54,17 @@ public final class CoreStandMotionFixesGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 40)
 	public static void theBarragesKeepTheHeadOnTheLook(GameTestHelper helper) {
+		// rule 11 (the owner, 2026-11-12): the gaze stays on head_rot's look throughout, the head nods and tilts with the blows
+		float[] look = { 30, 45 };
 		for (String asset : List.of(SP_ANIMS, CD_ANIMS)) {
 			JsonObject clip = StandClipPoses116GameTests.readJson(helper, asset).getAsJsonObject("animations").getAsJsonObject("barrage");
-			// the owner lowered this rule while the trunk moves (為了動作流暢性優先級可以下調): the head may leave the look by its band, as StandHeadLookRuleGameTests holds it
-			double past = StandHeadLookRuleGameTests.worstPastItsBand(clip);
-			helper.assertTrue(past <= 0, asset + ": the head is " + past + " degrees past its band");
+			float end = clip.get("animation_length").getAsFloat();
+			for (float time = 0; time <= end; time += 0.05F) {
+				float[] headRot = StandClipPoses116GameTests.rotationAt(clip, "head_rot", time, look);
+				helper.assertTrue(headRot[0] == 30 && headRot[1] == 45, asset + ": head_rot leaves the look at " + time + " s: " + Arrays.toString(headRot));
+			}
+			String neck = StandHeadLookRuleGameTests.neckPastItsRange(clip);
+			helper.assertTrue(neck == null, asset + ": " + neck);
 		}
 		helper.succeed();
 	}
@@ -98,14 +102,7 @@ public final class CoreStandMotionFixesGameTests {
 				helper.assertTrue(pitch[0] == 30, arm + " does not take the look's pitch at " + time + " s: " + Arrays.toString(pitch));
 			}
 		}
-		// the same forearm direction as the clip this came from, with no turn of the fist about the forearm
-		for (Map.Entry<String, JsonElement> key : clip.getAsJsonObject("bones").getAsJsonObject("left_arm_bend").getAsJsonObject("rotation").entrySet()) {
-			float time = Float.parseFloat(key.getKey());
-			if (time > 0.25F && time < 2.35F) {
-				helper.assertTrue(key.getValue().getAsJsonObject().getAsJsonArray("vector").get(1).getAsFloat() == 0,
-						"left_arm_bend turns the fist about the forearm at " + time + " s");
-			}
-		}
+		// the forearm's own keys are the official clip's of 2026-11-12 (the owner's pick, R772.1), not G21's
 		for (String[] held : new String[][] { { "right_arm", "2" }, { "right_leg", "0" } }) {
 			int axis = Integer.parseInt(held[1]);
 			float[] atWindupEnd = StandClipPoses116GameTests.channelAt(clip, held[0], "position", 0.3F, look);
@@ -174,7 +171,8 @@ public final class CoreStandMotionFixesGameTests {
 		helper.succeed();
 	}
 
-	// G12, G21: the 16 x 16 reductions lost a column of the head; 32 x 32 is the size of 1.16's and of the official's
+	// G12, G21: the 16 x 16 reductions lost a column of the head; 32 x 32 is the size of 1.16's and of the official's, and the
+	// official's icon of 2026-11-12 for Gold Experience is drawn at 64 x 64 (R772.1, the owner's pick)
 	@GameTest(template = "empty", timeoutTicks = 20)
 	public static void theCoreStandsIconsAreWholeHeads(GameTestHelper helper) {
 		for (String stand : List.of("star_platinum", "the_world", "crazy_diamond", "gold_experience", "magicians_red", "silver_chariot", "hierophant_green")) {
@@ -182,7 +180,8 @@ public final class CoreStandMotionFixesGameTests {
 			byte[] manual = bytes(helper, root + "ability/manual_control.png");
 			helper.assertTrue(Arrays.equals(manual, bytes(helper, root + "stand_icon.png")), stand + ": the O icon and the Stand icon differ");
 			BufferedImage image = image(manual);
-			helper.assertTrue(image.getWidth() == 32 && image.getHeight() == 32, stand + "'s icon is " + image.getWidth() + "x" + image.getHeight());
+			int size = stand.equals("gold_experience") ? 64 : 32;
+			helper.assertTrue(image.getWidth() == size && image.getHeight() == size, stand + "'s icon is " + image.getWidth() + "x" + image.getHeight());
 			if (SYMMETRIC_ICONS.contains(stand)) {
 				int off = silhouetteOffAxis(image);
 				helper.assertTrue(off == 0, stand + "'s icon lacks " + off + " pixels of its mirror image");

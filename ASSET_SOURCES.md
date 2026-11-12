@@ -109,3 +109,24 @@ official assets directly:
 | `assets/jojo_ripples/textures/gui/container/cartography_table2.png`, `cartography_table2_name_field.png` | official explorer map table screen |
 | `assets/jojo_ripples/textures/gui/cartography_vanilla.png`, `cartography_explorer.png` | official cartography table mode icons |
 | `assets/jojo_ripples/textures/map/decorations/hamon_temple.png` | official hamon temple map icon |
+
+<!-- lane OFFART (R772.1) -->
+## Official Stand art of 2026-11-12
+
+These files follow the official 1.21.1 port by StandoByte and its asset
+contributors, as in the archive of its resources received on 2026-11-12, in
+place of the `1a681255` baseline:
+
+| Path under `src/main/resources/assets/jojo_ripples/stand_skins/` | What was taken |
+| --- | --- |
+| `the_world/assets/jojo_ripples/geo/the_world.geo.json` | The elbow cubes of `left_arm_bend` and `right_arm_bend`; the rest of the model keeps this tree's changes. |
+| `gold_experience/assets/jojo_ripples/geo/gold_experience.geo.json` | The elbow cubes of `left_arm_bend` and `right_arm_bend`; the rest of the model keeps this tree's changes. |
+| `star_platinum/assets/jojo_ripples/textures/ability/heavy_charged.png` | The charged heavy punch icon, unchanged. |
+| `crazy_diamond/assets/jojo_ripples/textures/ability/heavy_charged.png` | The charged heavy punch icon, unchanged. |
+| `{star_platinum,the_world,crazy_diamond,gold_experience}/assets/jojo_ripples/sounds.json` | The `stand_punch_heavy_charged` entry: the charged heavy punch lands with the Stand's own heavy punch sounds. |
+| `crazy_diamond/assets/jojo_ripples/animations/crazy_diamond.animation.json` | The `idle`, `summon2` and `barrage` clips, unchanged. |
+| `crazy_diamond/assets/jojo_ripples/geo/crazy_diamond.geo.json` and `textures/entity/crazy_diamond.png` | The model and its texture, unchanged; the helmet's top is a polygon mesh, kept at the maintainer's choice. |
+| `{magicians_red,silver_chariot}/assets/jojo_ripples/geo/*.geo.json` and `textures/entity/*.png` | The models with their UV edits and the repainted textures, unchanged. |
+| `*/assets/jojo_ripples/textures/stand_icon.png` and `textures/ability/manual_control.png` (all seven Stands) | The Stand icons, unchanged; the manual control icon is the same image. |
+| `the_world/assets/jojo_ripples/animations/the_world.animation.json` | The `time_stop` clip's bones; its timeline markers are this tree's. |
+<!-- end lane OFFART -->

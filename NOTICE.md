@@ -97,3 +97,12 @@ official Ripples of the Past for NeoForge 1.21.1 sources the owner received on
 2026-11-12, used with the owner's permission. The tutorial toasts, the explorer
 map mode and the Stand toggle HUD setting follow that version's behaviour and
 were rewritten into this port's settings and checks.
+
+<!-- lane OFFART (R772.1) -->
+## Later official Stand art
+
+Some Stand assets follow a later state of the official 1.21.1 port than the
+baseline above: the archive of its resources the maintainer received on
+2026-11-12. The files are listed in [ASSET_SOURCES.md](ASSET_SOURCES.md),
+under "Official Stand art of 2026-11-12".
+<!-- end lane OFFART -->
