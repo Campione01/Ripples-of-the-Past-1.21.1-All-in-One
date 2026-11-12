@@ -6,7 +6,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -62,6 +65,9 @@ public class ClientModSettings {
 		public boolean characterVoiceLines = true;
 		public boolean screenSplash = false;
 		public boolean toggleDisableHotbars = false;
+		public boolean tutorialEnabled = true;
+		/** The tips the player has learned (TutorialTips): they never show again until the tutorial is turned back on. */
+		public List<String> tutorialSeen = new ArrayList<>();
 
 		public boolean thirdPersonHamonAura = true;
 		public boolean firstPersonHamonAura = true;
@@ -84,6 +90,18 @@ public class ClientModSettings {
 			if (resolveHudLayout == null) {
 				resolveHudLayout = ResolveHudLayout.STRIP;
 			}
+			if (tutorialSeen == null) {
+				tutorialSeen = new ArrayList<>();
+			}
+			tutorialSeen.removeIf(Objects::isNull);
+		}
+
+		/** Turned back on, the tutorial shows all its tips again: the official version's "Reset Tutorial". */
+		public void setTutorialEnabled(boolean enabled) {
+			if (enabled && !tutorialEnabled) {
+				tutorialSeen.clear();
+			}
+			tutorialEnabled = enabled;
 		}
 
 		private static float clampTransparency(float transparency) {

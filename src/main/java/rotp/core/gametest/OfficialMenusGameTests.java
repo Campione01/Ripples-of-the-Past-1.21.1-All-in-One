@@ -3,6 +3,7 @@ package rotp.core.gametest;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,25 +11,45 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
+import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.client.ui.hud_power.ResolvePips;
+import rotp.core.client.ui.tutorial_toast.TutorialTips;
+import rotp.core.core.JojoRegistries;
+import rotp.core.init.power.ModStands;
+import rotp.core.powersystem.PowerClass;
+import rotp.core.powersystem.standpower.StandInstance;
+import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.type.StandType;
+import rotp.core.powersystem.standpower.type.StandTypePersistentData;
 import rotp.core.config.client.ClientModSettings;
 import rotp.core.config.client.ResolveHudLayout;
 import rotp.core.config.client.StandToggle;
@@ -49,6 +70,9 @@ public final class OfficialMenusGameTests {
 	private static final String SETTINGS = "rotp/core/config/client/ClientModSettings";
 	private static final String LAYOUT = "rotp/core/config/client/ResolveHudLayout";
 	private static final String TOGGLES_HUD = "rotp/core/client/ui/hud_power/StandTogglesHud";
+	private static final String TIPS = "rotp/core/client/ui/tutorial_toast/TutorialTips";
+	private static final String TOASTS = "rotp/core/client/ui/tutorial_toast/ModTutorialToasts";
+	private static final String TOAST = "rotp/core/client/ui/tutorial_toast/TutorialToast";
 
 	private OfficialMenusGameTests() {}
 
@@ -155,6 +179,149 @@ public final class OfficialMenusGameTests {
 		helper.succeed();
 	}
 
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void tutorialTipsShowOneAtATimeOnceASessionAfterTheFirstSeconds(GameTestHelper helper) {
+		Predicate<String> always = tip -> true;
+		Set<String> seen = new HashSet<>();
+		TutorialTips.Schedule schedule = new TutorialTips.Schedule();
+		helper.assertTrue(schedule.tick(true, TutorialTips.FIRST_TICKS - 1, seen, always) == null, "No tip in a player's first ten seconds");
+		helper.assertTrue(TutorialTips.SUMMON.equals(schedule.tick(true, TutorialTips.FIRST_TICKS, seen, always)), "The summon tip comes first");
+		int shownTicks = 0;
+		while (schedule.showing() != null && shownTicks < 1000) {
+			helper.assertTrue(schedule.tick(true, 1000, seen, always) == null, "A second tip must wait while one shows");
+			shownTicks++;
+		}
+		helper.assertTrue(shownTicks == TutorialTips.SHOW_TICKS + 1, "A tip shows for 160 ticks (shown " + shownTicks + ")");
+		for (int i = 0; i < TutorialTips.PAUSE_TICKS; i++) {
+			helper.assertTrue(schedule.tick(true, 1000, seen, always) == null, "The next tip must wait out the pause");
+		}
+		helper.assertTrue(TutorialTips.SKILLS.equals(schedule.tick(true, 1000, seen, always)), "After the pause the skills tip shows");
+		seen.add(TutorialTips.SKILLS);
+		schedule.tick(true, 1000, seen, always);
+		helper.assertTrue(schedule.showing() == null, "A tip the player learned leaves at once");
+		for (int i = 0; i < TutorialTips.PAUSE_TICKS + 400; i++) {
+			helper.assertTrue(schedule.tick(true, 1000, new HashSet<>(), always) == null, "A tip shows at most once a session");
+		}
+
+		TutorialTips.Schedule nextSession = new TutorialTips.Schedule();
+		helper.assertTrue(TutorialTips.SKILLS.equals(nextSession.tick(true, 1000, Set.of(TutorialTips.SUMMON), always)),
+				"A learned tip never shows again");
+		TutorialTips.Schedule off = new TutorialTips.Schedule();
+		helper.assertTrue(off.tick(false, 1000, Set.of(), always) == null, "The tutorial turned off shows nothing");
+		helper.assertTrue(off.tick(true, 1000, Set.of(), always) != null && off.tick(false, 1000, Set.of(), always) == null
+				&& off.showing() == null, "Turning the tutorial off ends the shown tip");
+		helper.assertTrue(new TutorialTips.Schedule().tick(true, 1000, Set.of(), tip -> false) == null, "A tip that would not help stays away");
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 40)
+	public static void tutorialTipsFollowWhatThePlayerCanDoAndHasDone(GameTestHelper helper) {
+		helper.assertTrue(TutorialTips.learned(TutorialTips.SUMMON, true, false) && !TutorialTips.learned(TutorialTips.SUMMON, false, true),
+				"Summoning the Stand learns the summon tip");
+		helper.assertTrue(TutorialTips.learned(TutorialTips.SKILLS, false, true) && !TutorialTips.learned(TutorialTips.SKILLS, true, false),
+				"Opening the Stand skills screen learns the skills tip");
+		helper.assertTrue(TutorialTips.wanted(TutorialTips.SUMMON, true, false, false) && !TutorialTips.wanted(TutorialTips.SUMMON, true, true, false)
+				&& !TutorialTips.wanted(TutorialTips.SUMMON, false, false, false), "The summon tip helps only an unsummoned Stand that can be summoned");
+		helper.assertTrue(TutorialTips.wanted(TutorialTips.SKILLS, false, false, true) && !TutorialTips.wanted(TutorialTips.SKILLS, true, true, false),
+				"The skills tip helps only when a skill can be learned");
+		helper.assertTrue(!TutorialTips.canSummon(null) && !TutorialTips.canLearnStandSkill(null), "No Stand, no tip");
+
+		Player boyUser = standUser(helper, ModStands.BOY_II_MAN.get());
+		Player player = standUser(helper, JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum")));
+		try {
+			helper.assertFalse(TutorialTips.canSummon(PowerClass.STAND.attachGet(boyUser)), "A Stand that is never summoned gets no summon tip");
+			StandPower power = PowerClass.STAND.attachGet(player);
+			helper.assertTrue(TutorialTips.canSummon(power), "Star Platinum is summoned, so the summon tip helps");
+
+			StandTypePersistentData data = power.getCurTypeData();
+			power.setResolveLevel(power.getMaxResolveLevel());
+			data.setExp(1_000_000, power);
+			// 1.16 rules: the max Resolve level learns every skill by itself, so one is taken back to leave something to learn
+			helper.assertFalse(TutorialTips.canLearnStandSkill(power), "At the max Resolve level every skill is already learned");
+			String relocked = data.getAllSkills().keySet().iterator().next();
+			helper.assertTrue(data._setSkillUnlocked(relocked, false, false), "Could not take back the skill " + relocked);
+			helper.assertTrue(TutorialTips.canLearnStandSkill(power), "With the exp and Resolve for them, Star Platinum's skills can be learned");
+			for (int round = 0; round < 50 && TutorialTips.canLearnStandSkill(power); round++) {
+				List.copyOf(data.getAllSkills().keySet()).forEach(name -> data.unlockSkill(power, name));
+			}
+			helper.assertFalse(TutorialTips.canLearnStandSkill(power), "With every skill learned, the skills tip has nothing to teach");
+		}
+		finally {
+			boyUser.discard();
+			player.discard();
+		}
+		helper.succeed();
+	}
+
+	private static Player standUser(GameTestHelper helper, StandType type) {
+		helper.assertTrue(type != null, "Missing registered Stand");
+		Player player = GameTestPlayers.makeServerMockPlayer(helper, GameType.SURVIVAL);
+		Vec3 pos = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(1, 2, 1)));
+		player.moveTo(pos.x, pos.y, pos.z, 0, 0);
+		helper.assertTrue(helper.getLevel().addFreshEntity(player), "Could not add the Stand user");
+		helper.assertTrue(StandPowerTransitions.insert(PowerClass.STAND.attachGet(player), new StandInstance(type)).status()
+				== StandPowerTransitions.Status.APPLIED, "Could not give the user " + type);
+		return player;
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void tutorialTurnedBackOnShowsItsTipsAgain(GameTestHelper helper) {
+		ClientModSettings.Settings defaults = new ClientModSettings.Settings();
+		helper.assertTrue(defaults.tutorialEnabled && defaults.tutorialSeen.isEmpty(), "The tutorial is on by default, as in the official version");
+		ClientModSettings.Settings saved = readSettings(helper,
+				"{\"tutorialEnabled\": false, \"tutorialSeen\": [\"stand_summon\", \"stand_skills\"]}");
+		helper.assertTrue(!saved.tutorialEnabled && saved.tutorialSeen.equals(List.of(TutorialTips.SUMMON, TutorialTips.SKILLS)),
+				"The learned tips must load back from the settings file");
+		saved.setTutorialEnabled(false);
+		helper.assertTrue(saved.tutorialSeen.size() == 2, "Turning it off keeps what was learned");
+		saved.setTutorialEnabled(true);
+		helper.assertTrue(saved.tutorialEnabled && saved.tutorialSeen.isEmpty(), "Turned back on, the tutorial shows all its tips again");
+		ClientModSettings.Settings stillOn = readSettings(helper, "{\"tutorialSeen\": [\"stand_summon\"]}");
+		stillOn.setTutorialEnabled(true);
+		helper.assertTrue(stillOn.tutorialSeen.equals(List.of(TutorialTips.SUMMON)), "Setting it on while on must not forget anything");
+		helper.assertTrue(readSettings(helper, "{\"tutorialSeen\": null}").tutorialSeen != null, "A broken list loads as empty");
+
+		ConfigEntry entry = clientEntry(helper, "tutorialEnabled");
+		helper.assertTrue(entry.kind() == ConfigEntry.Kind.BOOLEAN && entry.defaultValue().getAsBoolean(), "The tutorial row is a switch, on by default");
+		helper.assertTrue(inSection(ConfigEntry.Side.CLIENT, "controls", "tutorialEnabled"), "The tutorial row must sit in the controls section");
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void tutorialToastsAreDrivenByTheClientTick(GameTestHelper helper) {
+		helper.assertTrue(annotations(helper, TOASTS, null).contains("Lnet/neoforged/fml/common/EventBusSubscriber;")
+				&& annotations(helper, TOASTS, "onClientTick").contains("Lnet/neoforged/bus/api/SubscribeEvent;"),
+				"The tutorial toasts are no longer subscribed to the client tick");
+		Set<String> tick = refs(helper, TOASTS, "onClientTick");
+		for (String ref : List.of(TIPS + "$Schedule.tick", TIPS + ".learned", TIPS + ".wanted", TIPS + ".canLearnStandSkill",
+				"type:rotp/core/powersystem/standpower/client_screens/StandSkillsScreen", SETTINGS + ".edit",
+				"net/minecraft/client/gui/components/toasts/ToastComponent.addToast")) {
+			helper.assertTrue(tick.contains(ref), "The tutorial tick no longer uses " + ref);
+		}
+		Set<String> render = refs(helper, TOAST, "render");
+		helper.assertTrue(render.contains(TIPS + "$Schedule.progress") && render.contains("java/util/function/BooleanSupplier.getAsBoolean"),
+				"The toast no longer shows its time and leaves when its tip ends");
+		for (String code : List.of("en_us", "zh_cn", "zh_tw")) {
+			JsonObject lang = readLang(helper, code);
+			for (String key : List.of("jojo_ripples.tutorial.summon_stand", "jojo_ripples.tutorial.stand_skills.1", "jojo_ripples.tutorial.stand_skills.2")) {
+				helper.assertTrue(lang.has(key), code + " lacks " + key);
+			}
+		}
+		helper.succeed();
+	}
+
+	private static JsonObject readLang(GameTestHelper helper, String code) {
+		String path = "/assets/" + JojoMod.MOD_ID + "/lang/" + code + ".json";
+		try (InputStream in = OfficialMenusGameTests.class.getResourceAsStream(path)) {
+			helper.assertTrue(in != null, "Missing " + path);
+			return JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+		}
+		catch (IOException e) {
+			helper.fail("Cannot read " + path + ": " + e);
+			return null;
+		}
+	}
+
 	private static void expectPips(GameTestHelper helper, ResolvePips.Shown shown, int filled, int outlined, int mode, String what) {
 		helper.assertTrue(shown != null && shown.filled() == filled && shown.outlined() == outlined && shown.modeLevel() == mode,
 				what + " (got " + shown + ")");
@@ -219,7 +386,8 @@ public final class OfficialMenusGameTests {
 		Set<String> found = new HashSet<>();
 		boolean seen = false;
 		for (MethodNode method : node.methods) {
-			if (!method.name.equals(methodName)) {
+			// a lambda in the method is compiled into a method of its own: lambda$<method>$<n>
+			if (!method.name.equals(methodName) && !method.name.startsWith("lambda$" + methodName + "$")) {
 				continue;
 			}
 			seen = true;
@@ -229,6 +397,9 @@ public final class OfficialMenusGameTests {
 				}
 				else if (insn instanceof FieldInsnNode field) {
 					found.add(field.owner + "." + field.name);
+				}
+				else if (insn instanceof TypeInsnNode type) {
+					found.add("type:" + type.desc);
 				}
 				else if (insn instanceof LdcInsnNode ldc && ldc.cst instanceof String text) {
 					found.add("\"" + text + "\"");
@@ -243,6 +414,32 @@ public final class OfficialMenusGameTests {
 			}
 		}
 		helper.assertTrue(seen, "Missing method " + className + "." + methodName);
+		return found;
+	}
+
+	// the descriptors of the annotations on the class (methodName null) or on its methods of that name
+	static Set<String> annotations(GameTestHelper helper, String className, @Nullable String methodName) {
+		ClassNode node = new ClassNode();
+		try (InputStream in = OfficialMenusGameTests.class.getResourceAsStream("/" + className + ".class")) {
+			helper.assertTrue(in != null, "Missing class file " + className);
+			new ClassReader(in).accept(node, ClassReader.SKIP_CODE);
+		}
+		catch (IOException e) {
+			helper.fail("Cannot read " + className + ": " + e);
+		}
+		Set<String> found = new HashSet<>();
+		List<List<AnnotationNode>> lists = new ArrayList<>();
+		if (methodName == null) {
+			lists.add(node.visibleAnnotations);
+			lists.add(node.invisibleAnnotations);
+		}
+		else {
+			node.methods.stream().filter(method -> method.name.equals(methodName)).forEach(method -> {
+				lists.add(method.visibleAnnotations);
+				lists.add(method.invisibleAnnotations);
+			});
+		}
+		lists.stream().filter(list -> list != null).flatMap(List::stream).forEach(annotation -> found.add(annotation.desc));
 		return found;
 	}
 }

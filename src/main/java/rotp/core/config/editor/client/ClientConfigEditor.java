@@ -182,6 +182,7 @@ public final class ClientConfigEditor {
 				bool("releaseToUseAbility", CONTROLS, CLIENT_LABEL + "releaseToUseAbility", s -> s.releaseToUseAbility, (s, v) -> s.releaseToUseAbility = v),
 				bool("poseOnLmbRmb", CONTROLS, null, s -> s.poseOnLmbRmb, (s, v) -> s.poseOnLmbRmb = v),
 				bool("toggleDisableHotbars", CONTROLS, null, s -> s.toggleDisableHotbars, (s, v) -> s.toggleDisableHotbars = v),
+				bool("tutorialEnabled", CONTROLS, CLIENT_LABEL + "tutorialEnabled", s -> s.tutorialEnabled, Settings::setTutorialEnabled),
 
 				bool("standMotionTilt", DISPLAY, CLIENT_LABEL + "standMotionTilt", s -> s.standMotionTilt, (s, v) -> s.standMotionTilt = v),
 				bool("standAimMarker", DISPLAY, CLIENT_LABEL + "standAimMarker", s -> s.standAimMarker, (s, v) -> s.standAimMarker = v),
