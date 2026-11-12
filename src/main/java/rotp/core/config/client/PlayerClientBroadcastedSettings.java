@@ -28,7 +28,11 @@ import net.neoforged.neoforge.common.util.INBTSerializable;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData, INBTSerializable<CompoundTag> {
-	public static final float NO_COOLDOWN_TIME_STOP_STAMINA_COST_MULTIPLIER = 3.0F;
+	/**
+	 * The time stop's costs in the no-cooldown mode. 3 until the owner's decision of 2026-11-11: the mode's fatigue alone
+	 * prices its repeats (StandAbilityFatigue), so a stop costs its normal price. Kept as the switch it was.
+	 */
+	public static final float NO_COOLDOWN_TIME_STOP_STAMINA_COST_MULTIPLIER = 1.0F;
 	public static final float NO_COOLDOWN_TIME_STOP_STAMINA_REGEN_MULTIPLIER = 0.2F;
 	private static final Map<Integer, PlayerClientBroadcastedSettings> REMOTE_SETTINGS = new ConcurrentHashMap<>();
 	private static final ThreadLocal<Boolean> NORMAL_COOLDOWN_VIEW = ThreadLocal.withInitial(() -> Boolean.FALSE);

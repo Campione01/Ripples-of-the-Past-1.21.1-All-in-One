@@ -126,54 +126,32 @@ public final class StandAbilityFatigueTimeStopGameTests {
 	}
 
 	/*
-	 * The time stop's fatigue: its end adds the normal cooldown, 3 x the ticks it ran; the double press after it, the
-	 * owner's emergency stop, pays its first repeat at its start as a small practical skill (1/32 of the skipped cooldown
-	 * at 7.5 a tick) on top of its start cost.
+	 * The time stop in the no-cooldown mode since the owner's decision of 2026-11-11: a stop costs its normal price (no
+	 * x3); its end adds the normal cooldown, 3 x the ticks it ran, to its fatigue; and the owner's emergency stop, the
+	 * double press, stays gentle when it repeats inside that fatigue: its first three repeats pay 1/64, 1/32 and 1/16 of
+	 * the skipped cooldown at 7.5 a tick (a practical use), and add no fatigue of their own.
 	 */
-	@GameTest(template = "empty", timeoutTicks = 120, batch = GameTestBatches.TIME_STOP)
-	public static void aStopsFatigueComesAtItsEndAndAnEmergencyStopPaysItsRepeatAtItsStart(GameTestHelper helper) {
+	@GameTest(template = "empty", timeoutTicks = 200, batch = GameTestBatches.TIME_STOP)
+	public static void aStopCostsItsNormalPriceAndItsEmergencyRepeatsStayGentle(GameTestHelper helper) {
 		Scene scene = new Scene(helper);
 		try {
 			scene.setUp();
+			float before = scene.power.getStamina();
 			scene.holdToFire();
 			TimeStopState.Instance started = scene.instance();
 			helper.assertTrue(started != null && started.totalTicks() == 100,
 					"setup: a full charge did not start the trained 100-tick stop: " + started);
+			float paid = before - scene.power.getStamina();
+			float normalStart = scene.power.getStaminaCostShare(
+					TimeStopLearning.getTimeStopStaminaCost(scene.power, TimeStopLearning.TIME_STOP, 100));
+			helper.assertTrue(near(paid, normalStart), "a full stop's start in the no-cooldown mode cost " + paid
+					+ ", not its normal " + normalStart + " (the owner dropped the x3 on 2026-11-11)");
 			helper.assertTrue(StandAbilityFatigue.getFatigueTicks(scene.power, TimeStopLearning.TIME_STOP) == 0.0F,
 					"a stop's start added fatigue: " + StandAbilityFatigue.getFatigueTicks(scene.power, TimeStopLearning.TIME_STOP));
 			helper.runAfterDelay(TimeStopAbility.TIME_STOP_OPENING_SETTLE_TICKS + 12, () -> {
 				try {
 					scene.resumeAtOnce();
-					// past the window in which a press after a resume is no double press
-					helper.runAfterDelay(TimeStopAbility.DOUBLE_PRESS_WINDOW_TICKS + 2, () -> {
-						try {
-							helper.assertTrue(scene.removed.size() == 1, "setup: the resumed stop did not end: " + scene.removed);
-							int ran = Math.max(scene.removed.get(0).ticksPassed(), 0);
-							int cooldown = 3 * ran;
-							helper.assertTrue(ran > 0 && near(scene.fatigueAtRemoval, cooldown) && scene.cooldownAtRemoval == cooldown,
-									"a stop that ran " + ran + " ticks left fatigue " + scene.fatigueAtRemoval + " (cooldown "
-											+ scene.cooldownAtRemoval + "), not the normal cooldown 3 x " + ran);
-							float left = StandAbilityFatigue.getFatigueTicks(scene.power, TimeStopLearning.TIME_STOP);
-							float startCost = PlayerClientBroadcastedSettings.getTimeStopStaminaCostMultiplier(scene.power)
-									* TimeStopLearning.getTimeStopStaminaCost(scene.power, TimeStopLearning.TIME_STOP, 4);
-							scene.power.setStamina(scene.power.getMaxStamina());
-							scene.doublePress();
-							TimeStopState.Instance emergency = scene.instance();
-							helper.assertTrue(left > 0.0F && emergency != null && emergency.totalTicks() == 4,
-									"setup: no 4-tick emergency stop while the fatigue " + left + " ran: " + emergency);
-							float extra = scene.power.getMaxStamina() - scene.power.getStamina() - scene.power.getStaminaCostShare(startCost);
-							float expected = scene.power.getStaminaCostShare(StandAbilityFatigue.STAMINA_PER_FATIGUE_TICK
-									* Math.min(left, cooldown) / 32.0F);
-							helper.assertTrue(near(extra, expected)
-									&& StandAbilityFatigue.getRepeats(scene.power, TimeStopLearning.TIME_STOP) == 1,
-									"the emergency stop's first repeat paid " + extra + " over its start, not the practical 1/32 of 7.5 x "
-											+ Math.min(left, cooldown) + " = " + expected);
-						}
-						finally {
-							scene.close();
-						}
-						helper.succeed();
-					});
+					emergencyRepeat(helper, scene, 1, new ArrayList<>());
 				}
 				catch (RuntimeException | Error error) {
 					scene.close();
@@ -185,6 +163,52 @@ public final class StandAbilityFatigueTimeStopGameTests {
 			scene.close();
 			throw error;
 		}
+	}
+
+	// one double press past the window in which a press after a resume is no double press, its stop resumed at once
+	private static void emergencyRepeat(GameTestHelper helper, Scene scene, int repeat, List<Float> extras) {
+		helper.runAfterDelay(TimeStopAbility.DOUBLE_PRESS_WINDOW_TICKS + 2, () -> {
+			try {
+				helper.assertTrue(scene.removed.size() == repeat, "setup: the stops did not end: " + scene.removed);
+				int ran = Math.max(scene.removed.get(0).ticksPassed(), 0);
+				int cooldown = 3 * ran;
+				if (repeat == 1) {
+					helper.assertTrue(ran > 0 && near(scene.fatigueAtRemoval, cooldown) && scene.cooldownAtRemoval == cooldown,
+							"a stop that ran " + ran + " ticks left fatigue " + scene.fatigueAtRemoval + " (cooldown "
+									+ scene.cooldownAtRemoval + "), not the normal cooldown 3 x " + ran);
+				}
+				float left = StandAbilityFatigue.getFatigueTicks(scene.power, TimeStopLearning.TIME_STOP);
+				float startCost = PlayerClientBroadcastedSettings.getTimeStopStaminaCostMultiplier(scene.power)
+						* TimeStopLearning.getTimeStopStaminaCost(scene.power, TimeStopLearning.TIME_STOP, 4);
+				scene.power.setStamina(scene.power.getMaxStamina());
+				scene.doublePress();
+				TimeStopState.Instance emergency = scene.instance();
+				helper.assertTrue(left > 0.0F && emergency != null && emergency.totalTicks() == 4,
+						"setup: no 4-tick emergency stop while the fatigue " + left + " ran: " + emergency);
+				float extra = scene.power.getMaxStamina() - scene.power.getStamina() - scene.power.getStaminaCostShare(startCost);
+				float share = (float) Math.pow(2.0D, repeat - StandAbilityFatigue.FULL_COST_REPEAT_PRACTICAL);
+				float full = StandAbilityFatigue.STAMINA_PER_FATIGUE_TICK * Math.min(left, cooldown);
+				float expected = scene.power.getStaminaCostShare(full * share);
+				helper.assertTrue(near(extra, expected) && StandAbilityFatigue.getRepeats(scene.power, TimeStopLearning.TIME_STOP) == repeat
+						&& near(StandAbilityFatigue.getFatigueTicks(scene.power, TimeStopLearning.TIME_STOP), left),
+						"emergency repeat " + repeat + " paid " + extra + " over its start, not " + share + " of 7.5 x "
+								+ Math.min(left, cooldown) + " = " + expected + ", or changed the fatigue " + left);
+				extras.add(extra);
+				scene.resumeAtOnce();
+				if (repeat < 3) {
+					emergencyRepeat(helper, scene, repeat + 1, extras);
+					return;
+				}
+				JojoMod.getLogger().info("Fatigue emergency stops: extra over the start {} after a stop that ran {} ticks",
+						extras, ran);
+			}
+			catch (RuntimeException | Error error) {
+				scene.close();
+				throw error;
+			}
+			scene.close();
+			helper.succeed();
+		});
 	}
 
 	private static StandPower theWorldUser(GameTestHelper helper, List<FakePlayer> users, boolean noCooldown) {

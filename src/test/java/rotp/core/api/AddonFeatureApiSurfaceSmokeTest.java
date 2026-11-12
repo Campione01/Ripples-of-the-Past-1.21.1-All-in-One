@@ -165,6 +165,9 @@ public final class AddonFeatureApiSurfaceSmokeTest {
 		requirePublic(fatigue, "getFatigueTicks", standPowerClass, String.class);
 		requirePublic(fatigue, "getRepeats", standPowerClass, String.class);
 		requirePublicStaticField(fatigue, "SPECIAL_STATE_REGEN_FACTOR");
+		requirePublic(fatigue, "enterUse", "net.minecraft.world.entity.LivingEntity", abilityClass);
+		requirePublic(fatigue, "enterUse", "rotp.core.powersystem.entityaction.EntityActionInstance");
+		requirePublic(fatigue + "$UseScope", "close");
 	}
 
 	private static void requirePublicStaticField(String owner, String name) {

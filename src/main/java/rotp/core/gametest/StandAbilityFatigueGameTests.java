@@ -11,16 +11,22 @@ import com.mojang.authlib.GameProfile;
 import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.api.time.EntityTimeRates;
+import rotp.core.JojoModConfig;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.powersystem.PowerClass;
+import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.ability.Ability;
+import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.EntityActionAbility;
+import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
+import rotp.core.powersystem.entityaction.type.EntityActionType;
+import rotp.core.powersystem.standpower.AbilityFatigueOverrides;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
@@ -116,15 +122,19 @@ public final class StandAbilityFatigueGameTests {
 				new Use(users.player("hierophant_green", true), SPLASH, 65),
 				new Use(users.player("the_world", true), "ts_punch", 50));
 		StandPower plain = users.player("hierophant_green", true);
-		float multiplier = PlayerClientBroadcastedSettings.NO_COOLDOWN_TIME_STOP_STAMINA_COST_MULTIPLIER;
-		float surcharge = (multiplier - 1.0F) * (TimeStopLearning.BASE_STAMINA_COST
-				+ TimeStopLearning.BASE_STAMINA_COST_TICK * TimeStopLearning.HUMAN_MAX_TIME_STOP_TICKS);
+		// the owner's decision of 2026-11-11: no x3 on the time stop in the mode, a stop costs its normal price, and a full
+		// repeat that skips a whole full stop's cooldown pays what the former x3 added to that stop
+		float normalStop = TimeStopLearning.BASE_STAMINA_COST
+				+ TimeStopLearning.BASE_STAMINA_COST_TICK * TimeStopLearning.HUMAN_MAX_TIME_STOP_TICKS;
+		float formerSurcharge = (3.0F - 1.0F) * normalStop;
 		float calibration = StandAbilityFatigue.repeatCost(3 * TimeStopLearning.HUMAN_MAX_TIME_STOP_TICKS,
 				3 * TimeStopLearning.HUMAN_MAX_TIME_STOP_TICKS, StandAbilityFatigue.FULL_COST_REPEAT, false);
 		users.run(
 				() -> {
-					helper.assertTrue(near(calibration, surcharge), "a full repeat that skips a full time stop's cooldown"
-							+ " costs " + calibration + ", the no-cooldown time stop's surcharge today " + surcharge);
+					float multiplier = PlayerClientBroadcastedSettings.getTimeStopStaminaCostMultiplier(uses.get(0).power());
+					helper.assertTrue(multiplier == 1.0F && near(calibration, formerSurcharge), "in the no-cooldown mode a time stop"
+							+ " costs x" + multiplier + " (the normal " + normalStop + " for a full one) and a full repeat that skips a"
+							+ " full stop's cooldown " + calibration + ", the former x3's " + formerSurcharge);
 					for (Use use : uses) {
 						int normal = use.ability(users).getNormalCooldown(use.power(), -1);
 						helper.assertTrue(normal == use.cooldown(), "setup: " + use.name() + "'s normal cooldown is " + normal);
@@ -154,7 +164,7 @@ public final class StandAbilityFatigueGameTests {
 				});
 	}
 
-	// F4: the first repeats cost 1/16, 1/8, 1/4 and 1/2 of the full repeat; a practical skill's half of that
+	// F4: the first repeats cost 1/16, 1/8, 1/4 and 1/2 of the full repeat; a practical skill's a quarter of that
 	@GameTest(template = "empty", timeoutTicks = 40)
 	public static void theFirstRepeatsCostLittleAndAPracticalSkillLess(GameTestHelper helper) {
 		Users users = new Users(helper);
@@ -194,8 +204,8 @@ public final class StandAbilityFatigueGameTests {
 			float normalPaid = StandAbilityFatigue.chargeRepeat(normal, splash, false);
 			float practicalPaid = StandAbilityFatigue.chargeRepeat(practical, splash, true);
 			helper.assertTrue(left > 0.0F && near(normalPaid, 7.5F * Math.min(left, 65.0F) / 16.0F)
-					&& near(practicalPaid, normalPaid / 2.0F), "a practical skill's first repeat paid " + practicalPaid
-							+ ", a plain one's " + normalPaid + " with " + left + " ticks left: the practical one pays half until the full repeat");
+					&& near(practicalPaid, normalPaid / 4.0F), "a practical skill's first repeat paid " + practicalPaid
+							+ ", a plain one's " + normalPaid + " with " + left + " ticks left: the practical one pays a quarter");
 		});
 		users.run(steps.toArray(Runnable[]::new));
 	}
@@ -331,6 +341,96 @@ public final class StandAbilityFatigueGameTests {
 					"a player in the no-cooldown mode took cooldown " + player.getAbilityCooldown("star_finger") + " and fatigue "
 							+ StandAbilityFatigue.getFatigueTicks(player, "star_finger"));
 		});
+	}
+
+	// item 3 of the review: the server's table hand-sets an ability's tier or makes it practical, by Stand id and name
+	@GameTest(template = "empty", timeoutTicks = 40)
+	public static void theServersTableSetsAnAbilitysTierOrMakesItPractical(GameTestHelper helper) {
+		Users users = new Users(helper);
+		StandPower power = users.player("star_platinum", true);
+		Ability finger = users.ability(power, "star_finger");
+		String key = power.getPowerType().getId() + "/star_finger";
+		List<String> table = List.of(key + "=300", key + "=" + AbilityFatigueOverrides.PRACTICAL);
+		users.run(
+				() -> {
+					List<? extends String> configured = JojoModConfig.getCommonConfigInstance(false).standAbilityFatigueOverrides.get();
+					helper.assertTrue(AbilityFatigueOverrides.parse(AbilityFatigueOverrides.DEFAULTS).size()
+							== AbilityFatigueOverrides.DEFAULTS.size() && configured.equals(AbilityFatigueOverrides.DEFAULTS),
+							"the server's table does not carry the defaults, each a valid line: " + configured);
+					AbilityFatigueOverrides.runWithTable(table, () -> {
+						finger.setCooldownOnUse(power);
+						checkFatigue(helper, power, "star_finger", 300.0F, 0);
+					});
+				},
+				() -> AbilityFatigueOverrides.runWithTable(table, () -> {
+					float left = StandAbilityFatigue.getFatigueTicks(power, "star_finger");
+					float bar = power.getStamina();
+					finger.setCooldownOnUse(power);
+					float paid = bar - power.getStamina();
+					float expected = power.getStaminaCostShare(7.5F * Math.min(left, 300.0F) / 64.0F);
+					helper.assertTrue(near(paid, expected), "Star Finger, set to 300 ticks and practical, paid " + paid
+							+ " for its first repeat with " + left + " ticks left, not 7.5 x min(left, 300) / 64 = " + expected);
+				}));
+	}
+
+	/*
+	 * Item 4 of the review, in the shape of Made in Heaven's Universe Reset, whose action sets the time system's cooldown
+	 * for 60 s: a cooldown one ability's action sets on another is a lock, no use of it; its own counts; a cooldown set
+	 * from no ability's use (an entity, an effect) still counts for the ability it is set on.
+	 */
+	@GameTest(template = "empty", timeoutTicks = 40)
+	public static void aCooldownAnotherAbilitysActionSetsIsNoUseOfIt(GameTestHelper helper) {
+		Users users = new Users(helper);
+		StandPower power = users.player("star_platinum", true);
+		LivingEntity user = power.getUser();
+		EntityActionAbility reset = new EntityActionAbility(ModStandAbilities.GUARD.get(),
+				new AbilityId(PowerClass.STAND, power.getPowerType().getId(), RESET), ResetAction::new) {
+			{
+				setDefaultPhaseLength(ActionPhase.WINDUP, 0);
+				setDefaultPhaseLength(ActionPhase.PERFORM, 1);
+				setDefaultPhaseLength(ActionPhase.RECOVERY, 0);
+			}
+		};
+		users.run(() -> {
+			LivingComponentAction slot = LivingComponentAction.getComponent(user, PowerClass.STAND);
+			EntityActionInstance action = reset.initActionOnAbilityUse(helper.getLevel(), user, user, null);
+			slot.setAction(action, user, SyncType.NO_SYNC);
+			try {
+				for (int tick = 0; tick < 10 && !((ResetAction) action).performed; tick++) {
+					slot.tick();
+				}
+				helper.assertTrue(((ResetAction) action).performed, "setup: the reset's action did not perform: " + action.getPhase());
+			}
+			finally {
+				slot.setAction(null, user, SyncType.NO_SYNC);
+			}
+			float locked = StandAbilityFatigue.getFatigueTicks(power, TIME_SYSTEM);
+			helper.assertTrue(power.getAbilityCooldown(TIME_SYSTEM) == 1200 && locked == 0.0F,
+					"the reset's action set the time system's cooldown " + power.getAbilityCooldown(TIME_SYSTEM)
+							+ " and fatigued it " + locked + " ticks: a lock another ability sets is no use of it");
+			checkFatigue(helper, power, RESET, 200.0F, 0);
+			power.setAbilityCooldown(TIME_SYSTEM, 1300);
+			checkFatigue(helper, power, TIME_SYSTEM, 1300.0F, 0);
+		});
+	}
+
+	private static final String RESET = "universe_reset";
+	private static final String TIME_SYSTEM = "time_system";
+
+	private static final class ResetAction extends EntityActionInstance {
+		private boolean performed;
+
+		ResetAction(EntityActionType ability) {
+			super(ability);
+		}
+
+		@Override
+		public void actionPerformStart() {
+			performed = true;
+			StandPower power = StandPower.get(getPowerUser());
+			power.setAbilityCooldown(TIME_SYSTEM, 1200);
+			power.setAbilityCooldown(RESET, 200);
+		}
 	}
 
 	private static void registerRates() {

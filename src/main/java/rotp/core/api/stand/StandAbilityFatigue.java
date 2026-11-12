@@ -1,5 +1,7 @@
 package rotp.core.api.stand;
 
+import java.util.ArrayDeque;
+
 import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -7,9 +9,13 @@ import org.jetbrains.annotations.ApiStatus;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.powersystem.Moveset;
 import rotp.core.powersystem.ability.Ability;
+import rotp.core.powersystem.entityaction.EntityActionInstance;
+import rotp.core.powersystem.entityaction.HeldInput;
+import rotp.core.powersystem.standpower.AbilityFatigueOverrides;
 import rotp.core.powersystem.standpower.StandPower;
 
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 
 /**
  * The fatigue of the core's no-cooldown mode (the owner, 2026-11-11): a player whose "No Stand ability cooldowns" setting
@@ -28,10 +34,15 @@ import net.minecraft.world.entity.LivingEntity;
  * ability's use, or a cooldown one ability sets on another, never adds to it.
  * <p>
  * The core records a use by itself where the normal mode sets the ability's cooldown: Ability#setCooldownOnUse, and
- * StandPower#setAbilityCooldown when it raises the ability's own stored cooldown. An ability whose cooldown comes when
- * its effect ends charges the repeat at its start ({@link #chargeRepeat}) and adds the fatigue at its end
- * ({@link #addFatigue}), as the core's time stop does. Cooldowns set on other abilities as a shared lock go inside
- * {@link #withoutFatigue}.
+ * StandPower#setAbilityCooldown when it raises the ability's own stored cooldown. While an ability's press or action runs
+ * ({@link #enterUse}, opened by the core around them), a cooldown it sets on another ability, or on another user's, is a
+ * lock and no use of that ability; a cooldown set outside any press or action (by an entity, an effect, a level tick)
+ * counts for the ability it is set on. An ability whose cooldown comes when its effect ends charges the repeat at its
+ * start ({@link #chargeRepeat}) and adds the fatigue at its end ({@link #addFatigue}), as the core's time stop does.
+ * {@link #withoutFatigue} keeps any cooldown set inside it out of the fatigue.
+ * <p>
+ * The server's config (standAbilityFatigueOverrides) may hand-set the cooldown an ability's fatigue is derived from, or
+ * make it a practical skill, by its Stand's id and its moveset name; it overrides what the ability's code says.
  * <p>
  * In the mode, stamina regeneration also goes on while the Stand acts and during a special state of its user (his time
  * stop), at {@link #SPECIAL_STATE_REGEN_FACTOR} of its rate instead of none. RotpAddonApi#FEATURE_STAND_ABILITY_FATIGUE_V1.
@@ -42,20 +53,27 @@ public final class StandAbilityFatigue {
 	/** Fatigue stacks up to this many normal cooldowns of the use that adds to it. */
 	public static final int STACKED_COOLDOWNS_MAX = 4;
 	/**
-	 * The calibration point: today's no-cooldown time stop pays 2 x (225 / 100 + 9) = 22.5 stamina more per tick of a
-	 * 100-tick stop than the normal mode, and skips 3 cooldown ticks per tick of stop, 7.5 stamina per cooldown tick.
+	 * The calibration point, the time stop's former no-cooldown price (x3 until the owner's decision of 2026-11-11): it
+	 * paid 2 x (225 / 100 + 9) = 22.5 stamina more per tick of a 100-tick stop and skipped 3 cooldown ticks per tick of
+	 * stop, 7.5 stamina per cooldown tick. A full repeat that skips a whole cooldown still pays that.
 	 */
 	public static final float STAMINA_PER_FATIGUE_TICK = 7.5F;
 	/** The skipped cooldown a repeat pays for at most: the cooldown of a full 100-tick time stop. */
 	public static final int COSTED_FATIGUE_TICKS_MAX = 300;
 	/** The repeat that pays the full cost; each earlier one pays half of the next (1/16, 1/8, 1/4, 1/2, 1). */
 	public static final int FULL_COST_REPEAT = 5;
-	/** The same for a small practical skill: one repeat gentler (1/32, 1/16, 1/8, 1/4, 1/2, 1). */
-	public static final int FULL_COST_REPEAT_PRACTICAL = 6;
+	/**
+	 * The same for a small practical skill and the time stop's double press: two repeats gentler (1/64, 1/32, 1/16, 1/8,
+	 * 1/4, 1/2, 1), so its first two or three repeats stay small (the owner's emergency time stop).
+	 */
+	public static final int FULL_COST_REPEAT_PRACTICAL = 7;
 	/** The share of stamina regeneration kept while the Stand acts and during its user's special state. */
 	public static final float SPECIAL_STATE_REGEN_FACTOR = 0.2F;
 
 	private static final ThreadLocal<int[]> WITHOUT_FATIGUE = ThreadLocal.withInitial(() -> new int[1]);
+	private static final ThreadLocal<ArrayDeque<Use>> USES = ThreadLocal.withInitial(ArrayDeque::new);
+
+	private record Use(LivingEntity user, String abilityName) {}
 
 	private StandAbilityFatigue() {}
 
@@ -115,7 +133,7 @@ public final class StandAbilityFatigue {
 		if (!applies(power) || ability == null) {
 			return 0.0F;
 		}
-		return use(power, ability.name(), ability, fatigueCooldown(power, ability, power.getAbilityCooldownShare(cooldownTicks)), false);
+		return use(power, ability.name(), ability, power.getAbilityCooldownShare(cooldownTicks), false);
 	}
 
 	/** {@link #recordUse(StandPower, Ability, int)} for the ability of the user's moveset under this name. */
@@ -123,8 +141,7 @@ public final class StandAbilityFatigue {
 		if (!applies(power) || abilityName == null || abilityName.isEmpty()) {
 			return 0.0F;
 		}
-		Ability ability = movesetAbility(power, abilityName);
-		return use(power, abilityName, ability, fatigueCooldown(power, ability, power.getAbilityCooldownShare(cooldownTicks)), false);
+		return use(power, abilityName, movesetAbility(power, abilityName), power.getAbilityCooldownShare(cooldownTicks), false);
 	}
 
 	/**
@@ -136,7 +153,7 @@ public final class StandAbilityFatigue {
 		if (!applies(power) || ability == null) {
 			return 0.0F;
 		}
-		boolean practical = practicalUse || ability.isPracticalSkill(power);
+		boolean practical = isPractical(power, ability.name(), ability, practicalUse);
 		float extra = power.getAbilityFatigue().chargeRepeat(ability.name(), practical, gameTime(power));
 		return pay(power, extra);
 	}
@@ -149,7 +166,7 @@ public final class StandAbilityFatigue {
 	public static void addFatigue(StandPower power, Ability ability, int cooldownTicks) {
 		if (applies(power) && ability != null) {
 			power.getAbilityFatigue().addFatigue(ability.name(),
-					fatigueCooldown(power, ability, power.getAbilityCooldownShare(cooldownTicks)), gameTime(power));
+					fatigueCooldown(power, ability.name(), ability, power.getAbilityCooldownShare(cooldownTicks)), gameTime(power));
 		}
 	}
 
@@ -169,6 +186,53 @@ public final class StandAbilityFatigue {
 		return WITHOUT_FATIGUE.get()[0] > 0;
 	}
 
+	/**
+	 * Marks the ability's press or action as running on this thread until the scope is closed: a cooldown set meanwhile on
+	 * another ability, or on another user's, is no use of it. The core opens it around a key press, a buffered press's
+	 * replay, a hold's release and each tick of an action; an add-on runs its own ability code elsewhere (an entity that
+	 * carries a skill on) inside one when that code sets other abilities' cooldowns. Server side, players only.
+	 */
+	public static UseScope enterUse(@Nullable LivingEntity user, @Nullable Ability ability) {
+		if (!(user instanceof Player) || user.level().isClientSide() || ability == null) {
+			return UseScope.NONE;
+		}
+		USES.get().push(new Use(user, ability.name()));
+		return new UseScope(true);
+	}
+
+	/** {@link #enterUse(LivingEntity, Ability)} for an action: its ability and its power's user. */
+	public static UseScope enterUse(@Nullable EntityActionInstance action) {
+		return action != null && action.ability instanceof Ability ability
+				? enterUse(action.getPowerUser(), ability)
+				: UseScope.NONE;
+	}
+
+	/** {@link #enterUse(LivingEntity, Ability)} for a held input that is an ability's action. */
+	public static UseScope enterUse(@Nullable LivingEntity user, @Nullable HeldInput held) {
+		return held instanceof EntityActionInstance action && action.ability instanceof Ability ability
+				? enterUse(user, ability)
+				: UseScope.NONE;
+	}
+
+	/** An open {@link #enterUse} scope; closing it ends the use. */
+	public static final class UseScope implements AutoCloseable {
+		private static final UseScope NONE = new UseScope(false);
+		private final boolean pushed;
+		private boolean closed;
+
+		private UseScope(boolean pushed) {
+			this.pushed = pushed;
+		}
+
+		@Override
+		public void close() {
+			if (pushed && !closed) {
+				closed = true;
+				USES.get().pop();
+			}
+		}
+	}
+
 	/** The fatigue ticks left on the power's ability of this name (server side). */
 	public static float getFatigueTicks(StandPower power, String abilityName) {
 		return power != null ? power.getAbilityFatigue().getFatigue(abilityName) : 0.0F;
@@ -186,7 +250,7 @@ public final class StandAbilityFatigue {
 			return;
 		}
 		int normal = ability.getNormalCooldown(power, ticksHeld);
-		use(power, ability.name(), ability, fatigueCooldown(power, ability, power.getAbilityCooldownShare(normal)), false);
+		use(power, ability.name(), ability, power.getAbilityCooldownShare(normal), false);
 	}
 
 	/** StandPower#setAbilityCooldown raising the ability's stored cooldown in the no-cooldown mode (already in the share). */
@@ -195,14 +259,19 @@ public final class StandAbilityFatigue {
 		if (!applies(power) || isWithoutFatigue()) {
 			return;
 		}
-		Ability ability = movesetAbility(power, abilityName);
-		use(power, abilityName, ability, fatigueCooldown(power, ability, sharedCooldownTicks), false);
+		Use current = USES.get().peek();
+		if (current != null && (current.user() != power.getUser() || !current.abilityName().equals(abilityName))) {
+			// set by another ability's press or action: a lock on this one, as Made in Heaven's reset sets the time system
+			return;
+		}
+		use(power, abilityName, movesetAbility(power, abilityName), sharedCooldownTicks, false);
 	}
 
-	private static float use(StandPower power, String abilityName, @Nullable Ability ability, int cooldownTicks,
+	private static float use(StandPower power, String abilityName, @Nullable Ability ability, int sharedCooldownTicks,
 			boolean practicalUse) {
-		boolean practical = practicalUse || ability != null && ability.isPracticalSkill(power);
-		float extra = power.getAbilityFatigue().use(abilityName, cooldownTicks, practical, gameTime(power));
+		boolean practical = isPractical(power, abilityName, ability, practicalUse);
+		int cooldown = fatigueCooldown(power, abilityName, ability, sharedCooldownTicks);
+		float extra = power.getAbilityFatigue().use(abilityName, cooldown, practical, gameTime(power));
 		return pay(power, extra);
 	}
 
@@ -214,8 +283,21 @@ public final class StandAbilityFatigue {
 		return extra;
 	}
 
-	private static int fatigueCooldown(StandPower power, @Nullable Ability ability, int cooldownTicks) {
+	// the server's override first, then what the ability's code says
+	private static int fatigueCooldown(StandPower power, String abilityName, @Nullable Ability ability, int cooldownTicks) {
+		AbilityFatigueOverrides.Entry override = AbilityFatigueOverrides.find(power, abilityName);
+		if (override != null && override.ticks() >= 0) {
+			return override.ticks();
+		}
 		return Math.max(ability != null ? ability.getFatigueCooldown(power, cooldownTicks) : cooldownTicks, 0);
+	}
+
+	private static boolean isPractical(StandPower power, String abilityName, @Nullable Ability ability, boolean practicalUse) {
+		if (practicalUse || ability != null && ability.isPracticalSkill(power)) {
+			return true;
+		}
+		AbilityFatigueOverrides.Entry override = AbilityFatigueOverrides.find(power, abilityName);
+		return override != null && override.practical();
 	}
 
 	@Nullable

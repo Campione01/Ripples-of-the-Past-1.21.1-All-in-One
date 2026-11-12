@@ -397,7 +397,9 @@ public final class RotpAddonApi {
 	 * flags a small practical skill (a gentler start), Ability#fatigueCooldown or an override of
 	 * Ability#getFatigueCooldown sets the cooldown its fatigue is derived from; StandAbilityFatigue#chargeRepeat and
 	 * #addFatigue serve an ability whose cooldown comes when its effect ends, #withoutFatigue a cooldown shared with
-	 * another ability.
+	 * another ability, #enterUse marks ability code the core does not run itself (an entity carrying a skill on) so that
+	 * the cooldowns it sets on other abilities are locks, not uses. The server's config standAbilityFatigueOverrides
+	 * hand-sets tiers and practical skills by Stand id and ability name.
 	 */
 	public static final String FEATURE_STAND_ABILITY_FATIGUE_V1 =
 			"stand_ability_fatigue_v1";

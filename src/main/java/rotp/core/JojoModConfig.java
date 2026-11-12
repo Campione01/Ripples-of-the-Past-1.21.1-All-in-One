@@ -13,6 +13,7 @@ import rotp.core.mechanics.resolve.ResolveCounter;
 import rotp.core.network.NetworkPayloadValidation;
 import rotp.core.network.s2c.CommonConfigPacket;
 import rotp.core.network.s2c.ResetSyncedCommonConfigPacket;
+import rotp.core.powersystem.standpower.AbilityFatigueOverrides;
 import rotp.core.powersystem.standpower.StandUtil;
 
 import javax.annotation.Nullable;
@@ -135,6 +136,7 @@ public class JojoModConfig {
 		public final ConfigValue<Boolean> saveDestroyedBlocks;
 		public final ConfigValue<Boolean> endermenBeyondTimeSpace;
 		public final ConfigValue<List<? extends String>> bannedStands;
+		public final ConfigValue<List<? extends String>> standAbilityFatigueOverrides;
 		public final ConfigValue<StandUtil.StandRandomPoolFilter> standArrowMode;
 		public final ConfigValue<Integer> standXpCostInitial;
 		public final ConfigValue<Integer> standXpCostIncrease;
@@ -358,6 +360,15 @@ public class JojoModConfig {
 			soulAscension = ConfigValue.fromSpec(
 					builder.translation("jojo.config.soulAscension")
 					.define("soulAscension", true), true);
+			// server-side only: the fatigue of the no-cooldown mode is the server's
+			standAbilityFatigueOverrides = ConfigValue.fromSpec(
+					builder.comment("Hand-set fatigue of Stand abilities in a player's no-cooldown mode, by Stand id and ability name.",
+							"\"<stand id>/<ability>=<ticks>\" derives the ability's fatigue from that many ticks instead of its",
+							"normal cooldown (0: no fatigue); \"<stand id>/<ability>=practical\" makes its first repeats cheaper.")
+					.translation("jojo.config.standAbilityFatigueOverrides")
+					.defineListAllowEmpty("standAbilityFatigueOverrides", AbilityFatigueOverrides.DEFAULTS,
+							() -> JojoMod.MOD_ID + ":star_platinum/star_finger=80", AbilityFatigueOverrides::isValid),
+					AbilityFatigueOverrides.DEFAULTS);
 			builder.pop();
 
 			saveDestroyedBlocks = ConfigValue.fromSpec(
@@ -414,6 +425,7 @@ public class JojoModConfig {
 			saveDestroyedBlocks = ConfigValue.synced(false);
 			endermenBeyondTimeSpace = ConfigValue.synced(true);
 			bannedStands = ConfigValue.synced(List.<String>of());
+			standAbilityFatigueOverrides = ConfigValue.synced(AbilityFatigueOverrides.DEFAULTS);
 			standArrowMode = ConfigValue.synced(StandUtil.StandRandomPoolFilter.NONE);
 			standXpCostInitial = ConfigValue.synced(30);
 			standXpCostIncrease = ConfigValue.synced(5);
