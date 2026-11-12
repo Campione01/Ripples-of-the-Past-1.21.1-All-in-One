@@ -489,6 +489,7 @@
   "jojo_ripples.config.option.clothesArmorPriority.clothes": "Одяг",
   "jojo_ripples.config.option.clothesArmorPriority.armor": "Обладунок",
   "jojo_ripples.config.section.clothes": "Одяг",
+  "jojo_ripples.container.explorer_cartography_table": "Створити мапи дослідника",
   "jojo_ripples.config.client.tutorialEnabled": "Навчання керуванню",
   "jojo_ripples.config.client.tutorialEnabled.tooltip": "Підказки в правому верхньому куті, кожна — доки ви не зробите те, що в ній сказано. Вимкніть і знову ввімкніть, щоб побачити їх усі ще раз.",
   "jojo_ripples.tutorial.summon_stand": "[%s] - призвати Станд",

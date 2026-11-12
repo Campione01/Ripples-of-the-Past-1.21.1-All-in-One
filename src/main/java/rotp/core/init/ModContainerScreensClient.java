@@ -18,6 +18,8 @@ public class ModContainerScreensClient {
 		event.register(ModContainers.PLAYER_CLOTHES.get(), PlayerClothesScreen::new);
 		event.register(ModContainers.SEWING_MACHINE.get(), SewingMachineScreen::new);
 		event.register(ModContainers.WALKMAN.get(), WalkmanScreen::new);
+		// OFFMENUS
+		event.register(ModContainers.EXPLORER_MAP_TABLE.get(), rotp.core.mechanics.explorer_map_creation.client.ExplorerMapScreen::new);
 	}
 	
 }

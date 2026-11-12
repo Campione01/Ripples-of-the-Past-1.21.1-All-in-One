@@ -496,6 +496,7 @@
   "jojo_ripples.config.option.clothesArmorPriority.clothes": "服",
   "jojo_ripples.config.option.clothesArmorPriority.armor": "防具",
   "jojo_ripples.config.section.clothes": "服",
+  "jojo_ripples.container.explorer_cartography_table": "探検家の地図を作る",
   "jojo_ripples.config.client.tutorialEnabled": "操作チュートリアル",
   "jojo_ripples.config.client.tutorialEnabled.tooltip": "右上にヒントを表示します。それぞれ書かれたとおりに操作すると消えます。オフにしてからオンに戻すと、すべてのヒントがもう一度表示されます。",
   "jojo_ripples.tutorial.summon_stand": "[%s] - スタンドを召喚",

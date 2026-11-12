@@ -10,7 +10,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
@@ -18,6 +21,7 @@ import javax.imageio.ImageIO;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mojang.authlib.GameProfile;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Handle;
@@ -32,12 +36,31 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.CartographyTableMenu;
+import net.minecraft.world.inventory.ContainerLevelAccess;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.MapDecorations;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.saveddata.maps.MapDecorationTypes;
+import net.minecraft.world.level.saveddata.maps.MapId;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.loading.FMLPaths;
+import net.neoforged.neoforge.common.util.FakePlayer;
+import rotp.core.init.ModMapDecorationTypes;
+import rotp.core.mechanics.explorer_map_creation.ClExplorerMapDataPacket;
+import rotp.core.mechanics.explorer_map_creation.ClExplorerMapModePacket;
+import rotp.core.mechanics.explorer_map_creation.ExplorerMapMenu;
+import rotp.core.mechanics.explorer_map_creation.ExplorerMapRules;
+import rotp.core.mechanics.explorer_map_creation.ExplorerMapTables;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.core.api.stand.StandPowerTransitions;
@@ -73,6 +96,7 @@ public final class OfficialMenusGameTests {
 	private static final String TIPS = "rotp/core/client/ui/tutorial_toast/TutorialTips";
 	private static final String TOASTS = "rotp/core/client/ui/tutorial_toast/ModTutorialToasts";
 	private static final String TOAST = "rotp/core/client/ui/tutorial_toast/TutorialToast";
+	private static final String EXPLORER = "rotp/core/mechanics/explorer_map_creation/";
 
 	private OfficialMenusGameTests() {}
 
@@ -308,6 +332,123 @@ public final class OfficialMenusGameTests {
 			}
 		}
 		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void explorerMapRulesKeepWhatTheClientSendsInBounds(GameTestHelper helper) {
+		helper.assertTrue(ExplorerMapRules.clampToBorder(Integer.MAX_VALUE, -100.5, 100.5) == 99
+				&& ExplorerMapRules.clampToBorder(Integer.MIN_VALUE, -100.5, 100.5) == -100
+				&& ExplorerMapRules.clampToBorder(42, -100.5, 100.5) == 42, "A destination must stay inside the world border");
+		helper.assertTrue(ExplorerMapRules.cleanName("x".repeat(80)).length() == ExplorerMapRules.NAME_MAX
+				&& ExplorerMapRules.cleanName("a§b\nc").equals("abc") && ExplorerMapRules.cleanName(null).isEmpty(),
+				"A map's name is cut to 50 characters and cleaned as an anvil cleans it");
+		helper.assertTrue(ExplorerMapRules.canMark(MapDecorationTypes.TARGET_X) && ExplorerMapRules.canMark(ModMapDecorationTypes.HAMON_TEMPLE)
+				&& ExplorerMapRules.canMark(ModMapDecorationTypes.PILLARMAN_TEMPLE), "Fixed marks can be chosen");
+		helper.assertTrue(!ExplorerMapRules.canMark(MapDecorationTypes.PLAYER) && !ExplorerMapRules.canMark(MapDecorationTypes.FRAME)
+				&& !ExplorerMapRules.canMark(null), "A player or frame marker cannot be put on a map");
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void explorerMapModeOpensOnlyAtTheTableTheServerSaw(GameTestHelper helper) {
+		BlockPos table = helper.absolutePos(new BlockPos(1, 2, 1));
+		helper.setBlock(new BlockPos(1, 2, 1), Blocks.CARTOGRAPHY_TABLE);
+		MenuPlayer player = new MenuPlayer(helper, table.south());
+		player.containerMenu = new CartographyTableMenu(1, player.getInventory(), ContainerLevelAccess.create(helper.getLevel(), table));
+		helper.assertFalse(ClExplorerMapModePacket.switchMode(player, true), "No table seen yet: the mode must not switch");
+		ExplorerMapTables.remember(player, table.east(3));
+		helper.assertFalse(ClExplorerMapModePacket.switchMode(player, true), "No cartography table there: the mode must not switch");
+		ExplorerMapTables.remember(player, table);
+		player.moveTo(table.getX() + 40, table.getY(), table.getZ());
+		helper.assertFalse(ClExplorerMapModePacket.switchMode(player, true), "Out of reach of the table: the mode must not switch");
+		player.moveTo(table.getX() + 0.5, table.getY(), table.getZ() + 1.5);
+		player.containerMenu = player.inventoryMenu;
+		helper.assertFalse(ClExplorerMapModePacket.switchMode(player, true), "Without the table's screen open the mode must not switch");
+		player.containerMenu = new CartographyTableMenu(1, player.getInventory(), ContainerLevelAccess.create(helper.getLevel(), table));
+		helper.assertTrue(ClExplorerMapModePacket.switchMode(player, true) && player.containerMenu instanceof ExplorerMapMenu,
+				"At the table the server saw, the explorer mode must open");
+		helper.assertTrue(ClExplorerMapModePacket.switchMode(player, false) && player.containerMenu instanceof CartographyTableMenu,
+				"And back to vanilla's mode");
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void explorerMapMenuMakesAMapOfTheChosenPlace(GameTestHelper helper) {
+		BlockPos table = helper.absolutePos(new BlockPos(1, 2, 1));
+		helper.setBlock(new BlockPos(1, 2, 1), Blocks.CARTOGRAPHY_TABLE);
+		MenuPlayer player = new MenuPlayer(helper, table.south());
+		ExplorerMapMenu menu = new ExplorerMapMenu(1, player.getInventory(), ContainerLevelAccess.create(helper.getLevel(), table));
+		player.containerMenu = menu;
+		menu.inputMapSlot.set(new ItemStack(Items.MAP));
+		ClExplorerMapDataPacket.posX(Integer.MAX_VALUE).applyTo(menu);
+		ClExplorerMapDataPacket.posZ(-1234).applyTo(menu);
+		ClExplorerMapDataPacket.icon(MapDecorationTypes.PLAYER).applyTo(menu);
+		helper.assertTrue(menu.icon.is(MapDecorationTypes.TARGET_X), "A player marker must be refused");
+		ClExplorerMapDataPacket.icon(ModMapDecorationTypes.HAMON_TEMPLE).applyTo(menu);
+		ClExplorerMapDataPacket.name("y".repeat(70)).applyTo(menu);
+		int borderEdge = (int) Math.floor(helper.getLevel().getWorldBorder().getMaxX()) - 1;
+		helper.assertTrue(menu.posX == borderEdge && menu.posZ == -1234, "The destination must stay inside the border: " + menu.posX);
+		helper.assertTrue(menu.icon.is(ModMapDecorationTypes.HAMON_TEMPLE) && menu.itemName.length() == ExplorerMapRules.NAME_MAX,
+				"The icon and the cut name must be taken");
+
+		ItemStack result = menu.resultMapSlot.getItem();
+		MapDecorations decorations = result.get(DataComponents.MAP_DECORATIONS);
+		helper.assertTrue(result.is(Items.FILLED_MAP) && decorations != null && decorations.decorations().values().stream()
+				.anyMatch(entry -> entry.type().is(ModMapDecorationTypes.HAMON_TEMPLE) && entry.x() == borderEdge && entry.z() == -1234),
+				"The result must be a filled map marked at the destination: " + result);
+		menu.resultMapSlot.onTake(player, result);
+		MapId id = result.get(DataComponents.MAP_ID);
+		MapItemSavedData data = id != null ? helper.getLevel().getMapData(id) : null;
+		helper.assertTrue(data != null && data.scale == ExplorerMapMenu.MAP_SCALE && data.dimension == helper.getLevel().dimension(),
+				"Taking the result must make a new map at the explorer map's scale");
+		helper.assertTrue(menu.inputMapSlot.getItem().isEmpty(), "Taking the result must use the empty map up");
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void explorerMapScreenIsRegisteredAndReachedFromTheTable(GameTestHelper helper) {
+		helper.assertTrue(refs(helper, "rotp/core/init/ModContainerScreensClient", "registerScreens")
+				.contains(EXPLORER + "client/ExplorerMapScreen.<init>"), "The explorer map menu has no screen");
+		helper.assertTrue(annotations(helper, EXPLORER + "client/ExplorerMapModeButtons", "onCartographyScreenInit")
+				.contains("Lnet/neoforged/bus/api/SubscribeEvent;"), "The cartography table no longer gets its mode buttons");
+		Set<String> buttons = refs(helper, EXPLORER + "client/ExplorerMapModeButtons", "create");
+		helper.assertTrue(buttons.contains("net/neoforged/neoforge/network/PacketDistributor.sendToServer")
+				&& buttons.contains("type:" + EXPLORER + "ClExplorerMapModePacket"), "The mode buttons no longer ask the server");
+		Set<String> packets = refs(helper, "rotp/core/PacketsRegister", "register");
+		helper.assertTrue(packets.contains("type:" + EXPLORER + "ClExplorerMapModePacket$Handler")
+				&& packets.contains("type:" + EXPLORER + "ClExplorerMapDataPacket$Handler"), "The explorer map packets are not registered");
+		String textures = "/assets/" + JojoMod.MOD_ID + "/textures/";
+		expectPng(helper, textures + "gui/container/cartography_table2.png", 256, 256);
+		expectPng(helper, textures + "gui/container/cartography_table2_name_field.png", 110, 16);
+		expectPng(helper, textures + "gui/cartography_vanilla.png", 16, 16);
+		expectPng(helper, textures + "gui/cartography_explorer.png", 16, 16);
+		expectPng(helper, textures + "map/decorations/hamon_temple.png", 8, 8);
+		for (String code : List.of("en_us", "zh_cn", "zh_tw")) {
+			helper.assertTrue(readLang(helper, code).has("jojo_ripples.container.explorer_cartography_table"), code + " lacks the explorer title");
+		}
+		helper.succeed();
+	}
+
+	// a server player that takes any menu it is given, where a fake player would refuse it
+	private static final class MenuPlayer extends FakePlayer {
+		MenuPlayer(GameTestHelper helper, BlockPos at) {
+			super(helper.getLevel(), new GameProfile(UUID.randomUUID(), "offmenus-map-maker"));
+			moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
+		}
+
+		@Override
+		public OptionalInt openMenu(@Nullable MenuProvider provider) {
+			return openMenu(provider, (Consumer<RegistryFriendlyByteBuf>) null);
+		}
+
+		@Override
+		public OptionalInt openMenu(@Nullable MenuProvider provider, @Nullable Consumer<RegistryFriendlyByteBuf> extraData) {
+			if (provider == null) {
+				return OptionalInt.empty();
+			}
+			containerMenu = provider.createMenu(1, getInventory(), this);
+			return OptionalInt.of(1);
+		}
 	}
 
 	private static JsonObject readLang(GameTestHelper helper, String code) {

@@ -75,3 +75,13 @@ for NeoForge 1.21.1 sources the owner received on 2026-11-12. The Jotaro
 clothes sets credit their author, **Motvik**, in their `authors` field, and the
 clothes item tooltip shows it. The Chinese character names, and the Stand ids
 mapped to this port's core and add-ons, were written for this port.
+
+<!-- OFFMENUS -->
+## HUD and menu pieces from the newer official sources
+
+The Resolve pips of the HUD's pip layout, the cartography table's explorer map
+screen and mode icons, and the hamon temple map icon are textures of the
+official Ripples of the Past for NeoForge 1.21.1 sources the owner received on
+2026-11-12, used with the owner's permission. The tutorial toasts, the explorer
+map mode and the Stand toggle HUD setting follow that version's behaviour and
+were rewritten into this port's settings and checks.

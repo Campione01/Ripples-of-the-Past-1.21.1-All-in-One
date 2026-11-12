@@ -451,6 +451,7 @@
   "jojo_ripples.config.option.clothesArmorPriority.clothes": "服装",
   "jojo_ripples.config.option.clothesArmorPriority.armor": "盔甲",
   "jojo_ripples.config.section.clothes": "服装",
+  "jojo_ripples.container.explorer_cartography_table": "制作探险家地图",
   "jojo_ripples.config.client.tutorialEnabled": "操作教学",
   "jojo_ripples.config.client.tutorialEnabled.tooltip": "在右上角显示提示，每条提示在你照做之后不再出现。关闭后再打开，所有提示会重新显示。",
   "jojo_ripples.tutorial.summon_stand": "[%s] - 释放『替身』",

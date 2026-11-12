@@ -497,6 +497,7 @@
   "jojo_ripples.config.option.clothesArmorPriority.clothes": "Одежда",
   "jojo_ripples.config.option.clothesArmorPriority.armor": "Броня",
   "jojo_ripples.config.section.clothes": "Одежда",
+  "jojo_ripples.container.explorer_cartography_table": "Создать карты исследователя",
   "jojo_ripples.config.client.tutorialEnabled": "Обучение управлению",
   "jojo_ripples.config.client.tutorialEnabled.tooltip": "Подсказки в правом верхнем углу, каждая — пока вы не сделаете то, что в ней сказано. Выключите и снова включите, чтобы увидеть их все ещё раз.",
   "jojo_ripples.tutorial.summon_stand": "[%s] - призвать Стенд",

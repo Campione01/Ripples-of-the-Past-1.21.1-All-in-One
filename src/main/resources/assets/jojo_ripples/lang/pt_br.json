@@ -495,6 +495,7 @@
   "jojo_ripples.config.option.clothesArmorPriority.clothes": "Roupas",
   "jojo_ripples.config.option.clothesArmorPriority.armor": "Armadura",
   "jojo_ripples.config.section.clothes": "Roupas",
+  "jojo_ripples.container.explorer_cartography_table": "Criar mapas de explorador",
   "jojo_ripples.config.client.tutorialEnabled": "Tutorial dos controles",
   "jojo_ripples.config.client.tutorialEnabled.tooltip": "Dicas no canto superior direito, cada uma até você fazer o que ela diz. Desligue e ligue de novo para ver todas outra vez.",
   "jojo_ripples.tutorial.summon_stand": "[%s] - invocar Stand",

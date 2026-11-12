@@ -79,3 +79,17 @@ assets directly:
 | `data/jojo_ripples/ripples_clothes/clothes/jotaro_p3_{anime,manga}.json` | official files with `"authors": "Motvik"` |
 | `assets/jojo_rotp_clothes/lang/{en_us,ru_ru}.json` character names | official; `josefumi.short` corrected to "Josefumi" |
 | `assets/jojo_rotp_clothes/lang/{zh_cn,zh_tw}.json` | written for this port |
+
+<!-- OFFMENUS -->
+## HUD and menus (official sources of 2026-11-12)
+
+Taken unchanged from the official Ripples of the Past for NeoForge 1.21.1
+sources the owner received on 2026-11-12, with the owner's permission to use
+official assets directly:
+
+| Path | Source and author |
+| --- | --- |
+| `assets/jojo_ripples/textures/hud/stand_resolve/stand_resolve_{stages_h,stage_[1-4]_h,stage_unlocked[1-4]_h,lvl_[1-4]_h}.png` (13 files) | official `textures/hud/stand_resolve/`, same names; the vertical and `_tph` files the official never draws were not taken |
+| `assets/jojo_ripples/textures/gui/container/cartography_table2.png`, `cartography_table2_name_field.png` | official explorer map table screen |
+| `assets/jojo_ripples/textures/gui/cartography_vanilla.png`, `cartography_explorer.png` | official cartography table mode icons |
+| `assets/jojo_ripples/textures/map/decorations/hamon_temple.png` | official hamon temple map icon |

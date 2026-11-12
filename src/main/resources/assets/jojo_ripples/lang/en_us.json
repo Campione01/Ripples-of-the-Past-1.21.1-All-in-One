@@ -450,6 +450,7 @@
   "jojo_ripples.config.option.clothesArmorPriority.clothes": "Clothes",
   "jojo_ripples.config.option.clothesArmorPriority.armor": "Armor",
   "jojo_ripples.config.section.clothes": "Clothes",
+  "jojo_ripples.container.explorer_cartography_table": "Create Explorer Maps",
   "jojo_ripples.config.client.tutorialEnabled": "Controls Tutorial",
   "jojo_ripples.config.client.tutorialEnabled.tooltip": "Tips in the top right corner, each until you do what it says. Turn this off and on again to see them all once more.",
   "jojo_ripples.tutorial.summon_stand": "[%s] - summon Stand",

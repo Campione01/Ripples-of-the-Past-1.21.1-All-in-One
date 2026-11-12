@@ -496,6 +496,7 @@
   "jojo_ripples.config.option.clothesArmorPriority.clothes": "衣",
   "jojo_ripples.config.option.clothesArmorPriority.armor": "甲",
   "jojo_ripples.config.section.clothes": "衣裳",
+  "jojo_ripples.container.explorer_cartography_table": "製探險之圖",
   "jojo_ripples.config.client.tutorialEnabled": "操控之教",
   "jojo_ripples.config.client.tutorialEnabled.tooltip": "右上示訣，依訣而行則去。閉而復開，則諸訣再見。",
   "jojo_ripples.tutorial.summon_stand": "[%s] - 召替身",
