@@ -42,6 +42,9 @@ public class ClientModSettings {
 		public boolean compactStandHotbar = false;
 		public boolean standExpBar = false;
 		public ResolveHudLayout resolveHudLayout = ResolveHudLayout.STRIP;
+		public boolean showBreakBlocksToggle = false;
+		public boolean showPickUpItemsToggle = false;
+		public boolean showBeyondRangeToggle = false;
 
 		public boolean resolveShaders = true;
 		public boolean timeStopAnimation = true;

@@ -173,6 +173,9 @@ public final class ClientConfigEditor {
 				bool("standExpBar", HUD, CLIENT_LABEL + "standExpBar", s -> s.standExpBar, (s, v) -> s.standExpBar = v),
 				enumeration("resolveHudLayout", HUD, CLIENT_LABEL + "resolveHudLayout", ResolveHudLayout.class,
 						s -> s.resolveHudLayout, (s, v) -> s.resolveHudLayout = v),
+				bool("showBreakBlocksToggle", HUD, CLIENT_LABEL + "showBreakBlocksToggle", s -> s.showBreakBlocksToggle, (s, v) -> s.showBreakBlocksToggle = v),
+				bool("showPickUpItemsToggle", HUD, CLIENT_LABEL + "showPickUpItemsToggle", s -> s.showPickUpItemsToggle, (s, v) -> s.showPickUpItemsToggle = v),
+				bool("showBeyondRangeToggle", HUD, CLIENT_LABEL + "showBeyondRangeToggle", s -> s.showBeyondRangeToggle, (s, v) -> s.showBeyondRangeToggle = v),
 
 				bool("abilitySelectionWheel", CONTROLS, CLIENT_LABEL + "abilitySelectionWheel", s -> s.abilitySelectionWheel, (s, v) -> s.abilitySelectionWheel = v),
 				bool("abilitySelectionScroll", CONTROLS, CLIENT_LABEL + "abilitySelectionScroll", s -> s.abilitySelectionScroll, (s, v) -> s.abilitySelectionScroll = v),

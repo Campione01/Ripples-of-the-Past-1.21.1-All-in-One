@@ -31,6 +31,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.core.client.ui.hud_power.ResolvePips;
 import rotp.core.config.client.ClientModSettings;
 import rotp.core.config.client.ResolveHudLayout;
+import rotp.core.config.client.StandToggle;
 import rotp.core.config.editor.ConfigEntry;
 import rotp.core.config.editor.client.ClientConfigEditor;
 import rotp.core.config.editor.client.ConfigWidgetRules;
@@ -47,6 +48,7 @@ public final class OfficialMenusGameTests {
 	private static final String PIPS = "rotp/core/client/ui/hud_power/ResolvePips";
 	private static final String SETTINGS = "rotp/core/config/client/ClientModSettings";
 	private static final String LAYOUT = "rotp/core/config/client/ResolveHudLayout";
+	private static final String TOGGLES_HUD = "rotp/core/client/ui/hud_power/StandTogglesHud";
 
 	private OfficialMenusGameTests() {}
 
@@ -106,6 +108,50 @@ public final class OfficialMenusGameTests {
 		for (String name : textures) {
 			expectPng(helper, "/assets/" + JojoMod.MOD_ID + "/textures/hud/stand_resolve/stand_resolve_" + name + ".png", 32, 16);
 		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void standToggleIconsCanStayOnTheHudEachByItsOwnSetting(GameTestHelper helper) {
+		ClientModSettings.Settings defaults = new ClientModSettings.Settings();
+		for (StandToggle toggle : StandToggle.values()) {
+			helper.assertFalse(toggle.isAlwaysShown(defaults), toggle + " must only show after its key by default, as before");
+		}
+		ClientModSettings.Settings pickUp = readSettings(helper, "{\"showPickUpItemsToggle\": true}");
+		helper.assertTrue(!StandToggle.BREAK_BLOCKS.isAlwaysShown(pickUp) && StandToggle.PICK_UP_ITEMS.isAlwaysShown(pickUp)
+				&& !StandToggle.BEYOND_EFFECTIVE_RANGE.isAlwaysShown(pickUp), "Only the pick-up toggle's setting was saved on");
+		ClientModSettings.Settings others = readSettings(helper, "{\"showBreakBlocksToggle\": true, \"showBeyondRangeToggle\": true}");
+		helper.assertTrue(StandToggle.BREAK_BLOCKS.isAlwaysShown(others) && !StandToggle.PICK_UP_ITEMS.isAlwaysShown(others)
+				&& StandToggle.BEYOND_EFFECTIVE_RANGE.isAlwaysShown(others), "The block and range toggles' settings were saved on");
+		for (String key : List.of("showBreakBlocksToggle", "showPickUpItemsToggle", "showBeyondRangeToggle")) {
+			ConfigEntry entry = clientEntry(helper, key);
+			helper.assertTrue(entry.kind() == ConfigEntry.Kind.BOOLEAN && !entry.defaultValue().getAsBoolean(),
+					key + " must be a switch, off by default");
+			helper.assertTrue(inSection(ConfigEntry.Side.CLIENT, "hud", key), key + " must sit in the HUD section");
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void standToggleHudKeepsTheChosenIconsWhileTheStandControlsShow(GameTestHelper helper) {
+		Set<String> gate = refs(helper, TOGGLES_HUD, "isAlwaysShown");
+		helper.assertTrue(gate.contains("rotp/core/config/client/StandToggle.isAlwaysShown") && gate.contains(TOGGLES_HUD + ".standControlsShown"),
+				"An icon must stay only by its setting and while the Stand's controls show");
+		helper.assertTrue(refs(helper, TOGGLES_HUD, "standControlsShown").contains("rotp/core/client/input/controlscheme/ClientControlScheme.hasAbility"),
+				"The Stand's controls are those with a Stand ability");
+		helper.assertTrue(refs(helper, TOGGLES_HUD, "shouldRender").contains(TOGGLES_HUD + ".isAlwaysShown"),
+				"The toggles element no longer shows for an icon kept on the HUD");
+		helper.assertTrue(refs(helper, TOGGLES_HUD, "renderElement").contains(TOGGLES_HUD + ".isAlwaysShown"),
+				"The toggles element no longer draws an icon kept on the HUD");
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void standToggleHudTooltipNamesTheHoveredToggleAndItsState(GameTestHelper helper) {
+		Set<String> tooltip = refs(helper, TOGGLES_HUD, "checkTooltip");
+		helper.assertTrue(tooltip.contains("rotp/core/config/client/StandToggle.langKey") && tooltip.contains("\"options.on\"")
+				&& tooltip.contains("\"options.off\"") && tooltip.contains(TOGGLES_HUD + ".drawn"),
+				"A hovered icon must name its toggle, on or off, from the icons drawn");
 		helper.succeed();
 	}
 
