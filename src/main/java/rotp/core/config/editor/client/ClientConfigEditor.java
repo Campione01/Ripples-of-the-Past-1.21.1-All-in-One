@@ -25,6 +25,7 @@ import rotp.core.config.client.ClientModSettings;
 import rotp.core.mechanics.clothes.ClothesArmorPriority;
 import rotp.core.config.client.ClientModSettings.Settings;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
+import rotp.core.config.client.ResolveHudLayout;
 import rotp.core.config.client.StandAuraSettings;
 import rotp.core.config.editor.AddonConfigCatalog;
 import rotp.core.config.editor.AddonConfigKeys;
@@ -170,6 +171,8 @@ public final class ClientConfigEditor {
 				bool("showLockedSlots", HUD, CLIENT_LABEL + "showLockedSlots", s -> s.showLockedSlots, (s, v) -> s.showLockedSlots = v),
 				bool("compactStandHotbar", HUD, DISPLAY_LABEL + "compact_hotbar", s -> s.compactStandHotbar, (s, v) -> s.compactStandHotbar = v),
 				bool("standExpBar", HUD, CLIENT_LABEL + "standExpBar", s -> s.standExpBar, (s, v) -> s.standExpBar = v),
+				enumeration("resolveHudLayout", HUD, CLIENT_LABEL + "resolveHudLayout", ResolveHudLayout.class,
+						s -> s.resolveHudLayout, (s, v) -> s.resolveHudLayout = v),
 
 				bool("abilitySelectionWheel", CONTROLS, CLIENT_LABEL + "abilitySelectionWheel", s -> s.abilitySelectionWheel, (s, v) -> s.abilitySelectionWheel = v),
 				bool("abilitySelectionScroll", CONTROLS, CLIENT_LABEL + "abilitySelectionScroll", s -> s.abilitySelectionScroll, (s, v) -> s.abilitySelectionScroll = v),

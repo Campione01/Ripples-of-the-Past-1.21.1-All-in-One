@@ -9,6 +9,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.slf4j.Logger;
 
 import rotp.core.mechanics.clothes.ClothesArmorPriority;
@@ -40,6 +41,7 @@ public class ClientModSettings {
 		public boolean releaseToUseAbility = false;
 		public boolean compactStandHotbar = false;
 		public boolean standExpBar = false;
+		public ResolveHudLayout resolveHudLayout = ResolveHudLayout.STRIP;
 
 		public boolean resolveShaders = true;
 		public boolean timeStopAnimation = true;
@@ -75,6 +77,9 @@ public class ClientModSettings {
 			standAura.sanitize();
 			if (clothesArmorPriority == null) {
 				clothesArmorPriority = ClothesArmorPriority.CLOTHES;
+			}
+			if (resolveHudLayout == null) {
+				resolveHudLayout = ResolveHudLayout.STRIP;
 			}
 		}
 
@@ -369,5 +374,11 @@ public class ClientModSettings {
 
 	public static ClientModSettings getInstance() {
 		return instance;
+	}
+
+	/** Loads a settings file as the game would, without making it the game's settings; writes defaults to a missing file. */
+	@ApiStatus.Internal
+	public static Settings readDetached(File optionsFile) {
+		return new ClientModSettings(optionsFile).settings;
 	}
 }

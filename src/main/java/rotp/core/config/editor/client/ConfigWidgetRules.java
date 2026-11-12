@@ -78,7 +78,8 @@ public final class ConfigWidgetRules {
 	private static final List<SectionRule> CLIENT_SECTIONS = List.of(
 			section("effects", "characterVoiceLines", "menacingParticles", "ownAfkMenacingFirstPerson", "screenSplash",
 					"resolveShaders", "timeStopAnimation"),
-			section("hud", "showLockedSlots", "compactStandHotbar", "standExpBar", "standStatsTranslucency", "standStatsInvertBnW"),
+			section("hud", "showLockedSlots", "compactStandHotbar", "standExpBar", "resolveHudLayout", "standStatsTranslucency",
+					"standStatsInvertBnW"),
 			section("controls", "abilitySelectionWheel", "abilitySelectionScroll", "releaseToUseAbility", "toggleDisableHotbars"),
 			section("your_stand", "broadcasted.standSide", "broadcasted.noStandAbilityCooldown",
 					"broadcasted.standAttackTargetLock", "broadcasted.standAimAssist", "broadcasted.standBreaksBlocks",
