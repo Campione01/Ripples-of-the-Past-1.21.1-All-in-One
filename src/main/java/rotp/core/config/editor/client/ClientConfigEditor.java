@@ -22,6 +22,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.loading.FMLEnvironment;
 import rotp.core.client.shader.ModShaders;
 import rotp.core.config.client.ClientModSettings;
+import rotp.core.mechanics.clothes.ClothesArmorPriority;
 import rotp.core.config.client.ClientModSettings.Settings;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.config.client.StandAuraSettings;
@@ -47,6 +48,7 @@ public final class ClientConfigEditor {
 	private static final String HAMON = "hamonAura";
 	private static final String STAND_AURA = "standAura";
 	private static final String BROADCAST = "broadcasted";
+	private static final String CLOTHES = "clothes";
 	private static final String CLIENT_LABEL = "jojo_ripples.config.client.";
 	private static final String DISPLAY_LABEL = "jojo_ripples.stand_display.";
 	private static final String TOGGLE_LABEL = "jojo_ripples.stand_toggles.";
@@ -194,6 +196,9 @@ public final class ClientConfigEditor {
 				bool("thirdPersonHamonAura", HAMON, CLIENT_LABEL + "thirdPersonHamonAura", s -> s.thirdPersonHamonAura, (s, v) -> s.thirdPersonHamonAura = v),
 				bool("firstPersonHamonAura", HAMON, CLIENT_LABEL + "firstPersonHamonAura", s -> s.firstPersonHamonAura, (s, v) -> s.firstPersonHamonAura = v),
 				bool("hamonAuraBlur", HAMON, CLIENT_LABEL + "hamonAuraBlur", s -> s.hamonAuraBlur, (s, v) -> s.hamonAuraBlur = v),
+
+				enumeration("clothesArmorPriority", CLOTHES, CLIENT_LABEL + "clothesArmorPriority", ClothesArmorPriority.class,
+						s -> s.clothesArmorPriority, (s, v) -> s.clothesArmorPriority = v),
 
 				bool("standAura.enabled", STAND_AURA, DISPLAY_LABEL + "aura_enabled", s -> s.standAura.enabled, (s, v) -> s.standAura.enabled = v),
 				enumeration("standAura.mode", STAND_AURA, DISPLAY_LABEL + "aura_mode", StandAuraSettings.Mode.class,

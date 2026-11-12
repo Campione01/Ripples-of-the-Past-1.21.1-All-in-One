@@ -1,6 +1,7 @@
 package rotp.core.mechanics.clothes.client.ui;
 
 import rotp.core.core.JojoMod;
+import rotp.core.mechanics.clothes.CharacterFromClothes;
 import rotp.core.mechanics.clothes.container.PlayerClothesMenu;
 
 import net.minecraft.client.gui.GuiGraphics;
@@ -24,6 +25,7 @@ public class PlayerClothesScreen extends EffectRenderingInventoryScreen<PlayerCl
 	public PlayerClothesScreen(PlayerClothesMenu menu, Inventory inventory, Component title) {
 		super(menu, inventory, title);
 		this.titleLabelX = 97;
+		this.imageHeight += PlayerClothesMenu.TOP_MARGIN;
 	}
 
 //	@Override
@@ -48,7 +50,16 @@ public class PlayerClothesScreen extends EffectRenderingInventoryScreen<PlayerCl
 
 	@Override
 	protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-		guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 4210752, false);
+		CharacterFromClothes worn = CharacterFromClothes.fromClothes(menu.clothesInventory);
+		worn.character().ifPresent(character -> {
+			Component characterName = character.value().getName(true);
+			if (worn.storyPart().isPresent()) {
+				characterName = characterName.copy().append(worn.storyPart().get().value().getPartIconAsText());
+			}
+			characterName = Component.translatable("jojo_ripples.menu.player.clothes.cur_character", characterName);
+			int x = (imageWidth - font.width(characterName)) / 2;
+			guiGraphics.drawString(font, characterName, x, 6, 0x404040, false);
+		});
 	}
 
 	/**
@@ -81,7 +92,8 @@ public class PlayerClothesScreen extends EffectRenderingInventoryScreen<PlayerCl
 		int i = this.leftPos;
 		int j = this.topPos;
 		guiGraphics.blit(SCREEN_TEXTURE, i, j, 0, 0, this.imageWidth, this.imageHeight);
-		renderEntityInInventoryFollowsMouse(guiGraphics, i + 26, j + 8, i + 75, j + 78, 30, 0.0625F, this.xMouse, this.yMouse, this.minecraft.player);
+		int top = j + PlayerClothesMenu.TOP_MARGIN;
+		renderEntityInInventoryFollowsMouse(guiGraphics, i + 26, top + 8, i + 75, top + 78, 30, 0.0625F, this.xMouse, this.yMouse, this.minecraft.player);
 	}
 
 	public static void renderEntityInInventoryFollowsMouse(

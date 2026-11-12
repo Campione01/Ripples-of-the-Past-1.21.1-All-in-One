@@ -127,7 +127,10 @@ public class ClothesItem extends Item {
 				tooltipComponents.add(partName);
 			}
 		});
-		
+
+		clothesSet.getAuthors().ifPresent(authors -> tooltipComponents.add(
+				Component.translatable("jojo_ripples.asset_credits", authors).withStyle(ChatFormatting.DARK_GRAY)));
+
 		var splitPieces = clothes.splitInto(null);
 		if (splitPieces != null) {
 			tooltipComponents.add(Component.translatable("ripples_clothes_split", 

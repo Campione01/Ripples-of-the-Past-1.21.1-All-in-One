@@ -25,13 +25,16 @@ public class ClothesSet {
 	protected final Holder<StoryCharacter> character;
 	protected final Optional<Holder<StoryPart>> storyPart;
 	protected final Map<ClothesSlotType, ClothesPiece> pieces;
-	
+	protected final Optional<String> authors;
+
 	protected Component name;
-	
-	public ClothesSet(Holder<StoryCharacter> character, Optional<Holder<StoryPart>> storyPart, Map<ClothesSlotType, ClothesPiece> clothesPieces) {
+
+	public ClothesSet(Holder<StoryCharacter> character, Optional<Holder<StoryPart>> storyPart,
+			Map<ClothesSlotType, ClothesPiece> clothesPieces, Optional<String> authors) {
 		this.character = character;
 		this.storyPart = storyPart;
 		this.pieces = clothesPieces;
+		this.authors = authors;
 	}
 	
 	public void initName(ResourceKey<ClothesSet> key) {
@@ -47,7 +50,12 @@ public class ClothesSet {
 	public Optional<Holder<StoryPart>> getStoryPart() {
 		return storyPart;
 	}
-	
+
+	/** Who made the set's model and texture, as its file credits them. */
+	public Optional<String> getAuthors() {
+		return authors;
+	}
+
 	@Nullable
 	public ClothesPiece getPiece(ClothesSlotType slot) { 
 		return pieces.get(slot);
@@ -74,7 +82,8 @@ public class ClothesSet {
 			builder -> builder.group(
 					StoryCharacter.REG_CODEC.fieldOf("character").forGetter(set -> set.character),
 					StoryPart.REG_CODEC.optionalFieldOf("story_part").forGetter(set -> set.storyPart),
-					Codec.unboundedMap(ClothesSlotType.CODEC, ClothesPiece.CODEC).fieldOf("pieces").forGetter(set -> set.pieces))
+					Codec.unboundedMap(ClothesSlotType.CODEC, ClothesPiece.CODEC).fieldOf("pieces").forGetter(set -> set.pieces),
+					Codec.STRING.optionalFieldOf("authors").forGetter(set -> set.authors))
 			.apply(builder, ClothesSet::new));
 
 	public static final Codec<Holder<ClothesSet>> REG_CODEC = RegistryFixedCodec.create(JojoRegistries.CLOTHES_SETS_REG_KEY);
