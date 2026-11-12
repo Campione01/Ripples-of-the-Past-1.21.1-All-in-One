@@ -2338,5 +2338,9 @@
   "jojo.config.vampirismCuringDuration.tooltip": "吸血鬼治疗过程的所需时间",
   "jojo_ripples.subtitle.star_finger": "\"『流星指刺』!\"",
   "jojo_ripples.subtitle.yare_yare": "\"真是的……\"",
-  "jojo_ripples.subtitle.yare_yare_daze": "\"真是够了……\""
+  "jojo_ripples.subtitle.yare_yare_daze": "\"真是够了……\"",
+  "jojo_ripples.key.jojo_pose": "JOJO立列表",
+  "jojo_ripples.key.jojo_pose.desc": "打开所穿角色可摆的JOJO立列表；摆着姿势时按下则结束姿势。聊天栏旁也有此列表。",
+  "jojo_ripples.screen.jojo_poses": "JOJO立",
+  "jojo_ripples.screen.jojo_poses.none": "没有可摆的姿势：请穿上同一角色的整套服装。"
 }

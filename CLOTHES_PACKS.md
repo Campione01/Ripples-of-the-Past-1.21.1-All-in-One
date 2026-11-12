@@ -95,3 +95,7 @@ Make the model in Blockbench in the GeckoLib animated model format.
   piece belongs to.
 - The mod's settings, client page, section Clothes: "Worn item priority" picks what a player shows when wearing armor and clothes in the same
   slot. It defaults to the clothes.
+
+## Poses
+
+A clothes pack may give its character JoJo poses and pose voice lines: see [JOJO_POSES.md](JOJO_POSES.md).

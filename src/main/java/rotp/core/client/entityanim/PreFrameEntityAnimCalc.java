@@ -10,6 +10,9 @@ import rotp.core.client.entityanim.molang.AnimMolangQuery.AnimMolangVariables;
 import rotp.core.client.entityanim.playerbend.ArmsFollowPitch;
 import rotp.core.client.entityanim.pose.AnimFramePose;
 import rotp.core.client.entityanim.pose.AnimatedEntity;
+import rotp.core.client.entityanim.pose.OfficialRigPose;
+import rotp.core.mechanics.jojopose.JojoPoseAction;
+import rotp.core.mechanics.jojopose.client.ClientJojoPoseLoader;
 import rotp.core.client.entityrender.stand.StandEntityModel;
 import rotp.core.client.entityrender.stand.StandEntityRenderer;
 import rotp.core.client.standskin.StandSkin;
@@ -251,10 +254,12 @@ public class PreFrameEntityAnimCalc {
 
 				if (animVariables.animId == null) {
 					float standTicks = stand.tickCount + partialTick;
+					// OFFPOSES: a user's JoJo pose may name the summon clip its Stand appears with
+					int summonVariant = ClientJojoPoseLoader.standSummonVariant(stand).orElse(stand.getSummonPoseRandomByte());
 					RotpAnimDefinition summonAnim = standSkin != null ?
-							standSkin.getStandAnimation(anims -> anims.getSummonAnim(SUMMON_ANIM.name(), stand.getSummonPoseRandomByte())) : null;
+							standSkin.getStandAnimation(anims -> anims.getSummonAnim(SUMMON_ANIM.name(), summonVariant)) : null;
 					if (summonAnim != null && standTicks <= summonAnim.lengthInSeconds * 20) {
-						animVariables.animId = ActionAnimIdentifier.getOrCreate(SUMMON_ANIM.name(), stand.getSummonPoseRandomByte(), false);
+						animVariables.animId = ActionAnimIdentifier.getOrCreate(SUMMON_ANIM.name(), summonVariant, false);
 						animVariables.time = standTicks;
 					}
 					else {
@@ -300,6 +305,10 @@ public class PreFrameEntityAnimCalc {
 				anim = animPossiblyReplaced.anim;
 				animVariables.animId = animPossiblyReplaced.animId;
 			}
+			else if (action instanceof JojoPoseAction.PosingInstance posing) {
+				// OFFPOSES: a pose's clip comes from the pose sets, not the action animation files
+				anim = ClientJojoPoseLoader.clip(posing.poseSet, posing.poseName);
+			}
 			else {
 				anim = getPlayerAnim(animVariables.animSet, animVariables.animId, AnimationSet.handedClipArm(living));
 			}
@@ -322,6 +331,10 @@ public class PreFrameEntityAnimCalc {
 				float lookXRot = molangVariables.xRot;
 				pose = anim.calcAnimPose(molangVariables,
 						performPose == null && actionComponent != null ? actionComponent.clPrevPunchPose : null, timeSeconds, 1);
+				if (action instanceof JojoPoseAction.PosingInstance) {
+					// pose clips are made on the official player rig; other clips may name a real part head_rot
+					OfficialRigPose.remap(pose);
+				}
 				if (headLookLimit != null) {
 					anim.limitHeadLook(pose, molangVariables, headLookLimit,
 							performPose == null && actionComponent != null ? actionComponent.clPrevPunchPose : null, timeSeconds, 1);

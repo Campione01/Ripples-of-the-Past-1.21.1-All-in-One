@@ -201,6 +201,8 @@ public class PacketsRegister {
 		// OFFMENUS: the cartography table's explorer map mode
 		registerPacket(registrar, PayloadRegistrar::playToServer, new rotp.core.mechanics.explorer_map_creation.ClExplorerMapModePacket.Handler(JojoMod.resLoc("clmaptable")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new rotp.core.mechanics.explorer_map_creation.ClExplorerMapDataPacket.Handler(JojoMod.resLoc("clmapdata")));
+		// OFFPOSES: a player strikes or ends a JoJo pose
+		registerPacket(registrar, PayloadRegistrar::playToServer, new rotp.core.mechanics.jojopose.ClJojoPosePacket.Handler(JojoMod.resLoc("cljjpose")));
 
 		registerPacket(registrar, PayloadRegistrar::playToClient, new DatapackStandsPacket.Handler(JojoMod.resLoc("datastands")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new CommonConfigPacket.Handler(JojoMod.resLoc("commonconfig")));

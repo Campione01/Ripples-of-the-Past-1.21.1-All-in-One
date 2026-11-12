@@ -106,3 +106,15 @@ baseline above: the archive of its resources the maintainer received on
 2026-11-12. The files are listed in [ASSET_SOURCES.md](ASSET_SOURCES.md),
 under "Official Stand art of 2026-11-12".
 <!-- end lane OFFART -->
+
+<!-- OFFPOSES -->
+## JoJo poses from the newer official sources
+
+The pose set format (`assets/<namespace>/jojo_pose/<set>/`), Jotaro's three
+poses `point`, `cap` and `volume13`, and the pose list's slot sprites follow the
+official Ripples of the Past for NeoForge 1.21.1 sources the owner received on
+2026-11-12, with the owner's permission to use official assets. The cap pose's
+"yare yare" lines moved from the pose data into a voice pack; the loader, the
+bone table that puts the official rig's clips on this port's player model, and
+the pose key were written for this port.
+<!-- end OFFPOSES -->

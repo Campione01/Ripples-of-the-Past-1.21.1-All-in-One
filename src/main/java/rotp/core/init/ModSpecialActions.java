@@ -4,6 +4,7 @@ import java.util.function.Supplier;
 
 import rotp.core.core.JojoMod;
 import rotp.core.core.JojoRegistries;
+import rotp.core.mechanics.jojopose.JojoPoseAction;
 import rotp.core.powersystem.entityaction.type.SpecialEntityActionType;
 import rotp.core.subsystems.entity_useitem.VanillaItemClickAsAction;
 import rotp.core.subsystems.entity_useitem.VanillaItemUseAsAction;
@@ -28,4 +29,8 @@ public class ModSpecialActions {
 	public static final Supplier<SpecialEntityActionType> STAND_ENTITY_BLOCK = ACTIONS.register("stand_entity_block", 
 			StandEntityAutoBlockAction::new);
 	
+	// OFFPOSES: the official JoJo poses
+	public static final Supplier<SpecialEntityActionType> JOJO_POSE = ACTIONS.register("jojo_pose",
+			JojoPoseAction::new);
+
 }

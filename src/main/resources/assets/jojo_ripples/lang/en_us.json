@@ -2337,5 +2337,9 @@
   "item.jojo_ripples.creative_only_tooltip": "Creative-only item",
   "jojo_ripples.subtitle.star_finger": "\"Star Finger!\"",
   "jojo_ripples.subtitle.yare_yare": "\"Yare yare...\"",
-  "jojo_ripples.subtitle.yare_yare_daze": "\"Yare yare daze...\""
+  "jojo_ripples.subtitle.yare_yare_daze": "\"Yare yare daze...\"",
+  "jojo_ripples.key.jojo_pose": "JoJo pose list",
+  "jojo_ripples.key.jojo_pose.desc": "Opens the list of JoJo poses your worn character can strike; while you hold a pose, ends it. The list is also beside the chat.",
+  "jojo_ripples.screen.jojo_poses": "JoJo Poses",
+  "jojo_ripples.screen.jojo_poses.none": "No poses: wear a full set of one character's clothes."
 }

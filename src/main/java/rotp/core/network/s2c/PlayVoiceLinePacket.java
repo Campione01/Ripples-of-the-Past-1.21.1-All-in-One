@@ -40,7 +40,8 @@ public record PlayVoiceLinePacket(@Nullable Holder<SoundEvent> sound, @Nullable 
 
 	@Nullable
 	public ResourceLocation triggerId() {
-		return trigger != null ? trigger.unwrapKey().map(key -> key.location()).orElse(null) : null;
+		// OFFPOSES: a pose's trigger is a sound event no registry holds (JojoPoseAction.voiceTriggerHolder)
+		return trigger != null ? trigger.unwrapKey().map(key -> key.location()).orElseGet(() -> trigger.value().getLocation()) : null;
 	}
 
 	public static class Handler implements PacketsRegister.PacketOGHandler<PlayVoiceLinePacket> {
