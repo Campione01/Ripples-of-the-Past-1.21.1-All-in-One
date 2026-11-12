@@ -8,15 +8,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.lwjgl.glfw.GLFW;
-
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.player.Input;
 import net.minecraft.util.Mth;
 
 /**
- * 1.16 InputHandler's misshapen controls (face: inverted look, legs: inverted walking, arms: swapped mouse buttons) and the
- * misshapen pose. Every check runs and every failure is listed.
+ * 1.16 InputHandler's misshapen controls (face: inverted look, legs: inverted walking, arms: attack and use swapped on any
+ * device) and the misshapen pose. Every check runs and every failure is listed.
  */
 public final class MisshapenControlsSmokeTest {
 	private static final List<String> FAILURES = new ArrayList<>();
@@ -64,26 +62,35 @@ public final class MisshapenControlsSmokeTest {
 		check(sneaking.jumping && !sneaking.shiftKeyDown, "legs: sneak must jump");
 	}
 
+	// "A" is bound to attack, "U" to use, "W" to neither
 	private static void arms() {
-		int left = GLFW.GLFW_MOUSE_BUTTON_LEFT;
-		int right = GLFW.GLFW_MOUSE_BUTTON_RIGHT;
-		int middle = GLFW.GLFW_MOUSE_BUTTON_MIDDLE;
-		MisshapenControls.ClickRouter router = new MisshapenControls.ClickRouter();
-		check(router.route(left, GLFW.GLFW_PRESS, true) == right, "arms: a left press must arrive as the right button");
-		check(router.route(left, GLFW.GLFW_RELEASE, false) == right, "arms: its release must arrive as the right button too, even"
-				+ " once the effect has ended (else the use key stays held)");
-		check(router.route(left, GLFW.GLFW_PRESS, false) == left && router.route(left, GLFW.GLFW_RELEASE, false) == left,
-				"arms: with the arms put right the left button is the left button again");
-		check(router.route(right, GLFW.GLFW_PRESS, true) == left && router.route(right, GLFW.GLFW_RELEASE, true) == left,
-				"arms: a right press and release must arrive as the left button");
-		check(router.route(middle, GLFW.GLFW_PRESS, true) == middle, "arms: the middle button is not swapped");
-		router.route(right, GLFW.GLFW_PRESS, true);
-		router.keepOnly(button -> false);
-		check(!router.isSwappedHeld(right) && router.route(right, GLFW.GLFW_RELEASE, false) == right, "arms: a button let go while"
-				+ " the player was replaced (respawn, dimension change) is forgotten");
-		router.route(left, GLFW.GLFW_PRESS, true);
-		router.clear();
-		check(!router.isSwappedHeld(left), "arms: logging out forgets every swapped button");
+		MisshapenControls.KeyRouter<String> keys = new MisshapenControls.KeyRouter<>();
+		check("U".equals(keys.set("A", true, "U", true)) && "U".equals(keys.click("A", "U", true)),
+				"arms: the attack key pressed with misshapen arms must press and click use");
+		check("U".equals(keys.set("A", true, "U", true)), "arms: its repeats keep driving use");
+		check("U".equals(keys.set("A", false, "U", false)), "arms: its release lets go of use, even once the effect has ended"
+				+ " (else use stays held)");
+		check(!keys.isHeld("A"), "arms: a released key is forgotten");
+		check("A".equals(keys.set("U", true, "A", true)) && "A".equals(keys.set("U", false, "A", true)),
+				"arms: the use key drives attack, held actions included");
+
+		check("A".equals(keys.set("A", true, "U", false)), "arms: without the effect the attack key is attack");
+		check("A".equals(keys.set("A", true, "U", true)) && "A".equals(keys.click("A", "U", true))
+				&& "A".equals(keys.set("A", false, "U", true)), "arms: a key held as the effect begins keeps driving what it"
+						+ " pressed until its release, which lets that go");
+
+		check("W".equals(keys.set("W", true, null, true)) && !keys.isHeld("W") && "W".equals(keys.click("W", null, true)),
+				"arms: a key bound to neither attack nor use is left alone");
+
+		keys.set("A", true, "U", true);
+		keys.set("U", true, "A", false);
+		List<String> swapped = keys.takeSwapped();
+		check(swapped.equals(List.of("U")), "arms: on logout, respawn or a dimension change the swapped keys are let go"
+				+ " (use, driven by the attack key), the unswapped one is not: " + swapped);
+		check(!keys.isHeld("A") && !keys.isHeld("U"), "arms: and every held key is forgotten");
+		keys.set("A", true, "U", true);
+		keys.clear();
+		check(!keys.isHeld("A"), "arms: when every key mapping is let go (a screen opens) the held keys are forgotten");
 	}
 
 	private static void pose() {
@@ -107,11 +114,21 @@ public final class MisshapenControlsSmokeTest {
 	private static void sources() {
 		Path root = Path.of(System.getProperty("user.dir"));
 		String mixins = read(root.resolve("src/main/resources/jojo_ripples.mixins.json"));
-		check(mixins.contains("\"client.controls.MouseHandlerMisshapenArmsMixin\""), "arms: the mouse button mixin must be in"
+		check(mixins.contains("\"client.controls.KeyMappingMisshapenArmsMixin\""), "arms: the key mapping mixin must be in"
 				+ " the client mixin list");
+		check(!mixins.contains("MouseHandlerMisshapenArmsMixin"), "arms: one path only, the mouse button path is gone");
+		String mixin = read(root.resolve("src/main/java/rotp/core/mixin/client/controls/KeyMappingMisshapenArmsMixin.java"));
+		check(mixin.contains("MisshapenControls.routeSet(key, held)") && mixin.contains("MisshapenControls.routeClick(key)"),
+				"arms: both KeyMapping.set and KeyMapping.click are routed");
+		check(mixin.contains("@Inject(method = \"releaseAll\", at = @At(\"HEAD\"))")
+				&& mixin.contains("MisshapenControls.forgetHeldKeys();"), "arms: KeyMapping.releaseAll forgets the held keys");
 		String controls = read(root.resolve("src/main/java/rotp/core/impl/stands/crazydiamond/client/MisshapenControls.java"));
 		check(controls.contains("mc.player != null && mc.screen == null && mc.player.hasEffect(ModStatusEffects.MISSHAPEN_ARMS)"),
-				"arms: clicks in a screen (inventory, menus) are never swapped");
+				"arms: keys in a screen (inventory, menus) are never swapped");
+		check(controls.contains("ClientPlayerNetworkEvent.LoggingOut event) {\n\t\treleaseSwappedKeys();")
+				&& controls.contains("ClientPlayerNetworkEvent.Clone event) {\n\t\treleaseSwappedKeys();"),
+				"arms: logout, respawn and dimension change let the swapped keys go");
+		check(!controls.contains(".setKey(") && !controls.contains("resetMapping"), "arms: the key bindings are never changed");
 		String pose = read(root.resolve("src/main/java/rotp/core/impl/stands/crazydiamond/client/MisshapenBodyPose.java"));
 		check(pose.contains("entity == mc.getCameraEntity() && mc.options.getCameraType().isFirstPerson()"), "pose: the"
 				+ " first-person hand keeps its shape");

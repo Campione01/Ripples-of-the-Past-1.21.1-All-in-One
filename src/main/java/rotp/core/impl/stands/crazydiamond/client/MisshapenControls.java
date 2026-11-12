@@ -1,15 +1,20 @@
 package rotp.core.impl.stands.crazydiamond.client;
 
-import java.util.HashSet;
-import java.util.Set;
-import java.util.function.IntPredicate;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import org.lwjgl.glfw.GLFW;
+import javax.annotation.Nullable;
+
+import com.mojang.blaze3d.platform.InputConstants;
 
 import rotp.core.core.JojoMod;
 import rotp.core.init.ModStatusEffects;
 
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Options;
 import net.minecraft.client.player.Input;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.api.distmarker.Dist;
@@ -21,14 +26,15 @@ import net.neoforged.neoforge.client.event.MovementInputUpdateEvent;
 
 /**
  * 1.16 InputHandler: what a misshapen part does to its player's controls. The face inverts the mouse look, the legs invert
- * walking (and jump with sneak), the arms swap the left and right mouse buttons. Everything is read from the effect each
- * time, so it ends with the effect; the options file is never touched (1.16 rebound the attack and use keys).
+ * walking (and jump with sneak), the arms swap attack and use on whatever key or button each is bound to. Everything is
+ * read from the effect each time, so it ends with the effect; the key bindings and the options file are never touched
+ * (1.16 rebound the attack and use keys).
  */
 @EventBusSubscriber(modid = JojoMod.MOD_ID, value = Dist.CLIENT)
 public final class MisshapenControls {
 	// 1.16 ZERO_SENSITIVITY: the sensitivity at which the turn factor 0.6 * s + 0.2 is 0
 	static final double ZERO_SENSITIVITY = -1.0 / 3.0;
-	static final ClickRouter CLICKS = new ClickRouter();
+	static final KeyRouter<InputConstants.Key> KEYS = new KeyRouter<>();
 
 	private MisshapenControls() {}
 
@@ -51,11 +57,34 @@ public final class MisshapenControls {
 		input.shiftKeyDown = jumping;
 	}
 
-	// called by MouseHandlerMisshapenArmsMixin for every mouse button event, before the game sees it
-	public static int routeMouseButton(int button, int action) {
+	// KeyMappingMisshapenArmsMixin: every key or button the game passes to KeyMapping.set and KeyMapping.click
+	public static InputConstants.Key routeSet(InputConstants.Key key, boolean down) {
+		return KEYS.set(key, down, otherOfAttackOrUse(key), armsSwapped());
+	}
+
+	public static InputConstants.Key routeClick(InputConstants.Key key) {
+		return KEYS.click(key, otherOfAttackOrUse(key), armsSwapped());
+	}
+
+	// KeyMapping.releaseAll (a screen opened, the window lost focus) let every key mapping go
+	public static void forgetHeldKeys() {
+		KEYS.clear();
+	}
+
+	private static boolean armsSwapped() {
 		Minecraft mc = Minecraft.getInstance();
-		boolean swap = mc.player != null && mc.screen == null && mc.player.hasEffect(ModStatusEffects.MISSHAPEN_ARMS);
-		return CLICKS.route(button, action, swap);
+		return mc.player != null && mc.screen == null && mc.player.hasEffect(ModStatusEffects.MISSHAPEN_ARMS);
+	}
+
+	@Nullable
+	private static InputConstants.Key otherOfAttackOrUse(InputConstants.Key key) {
+		Options options = Minecraft.getInstance().options;
+		InputConstants.Key attack = options.keyAttack.getKey();
+		InputConstants.Key use = options.keyUse.getKey();
+		if (attack.equals(use) || options.keyAttack.isUnbound() || options.keyUse.isUnbound()) {
+			return null;
+		}
+		return key.equals(attack) ? use : key.equals(use) ? attack : null;
 	}
 
 	@SubscribeEvent
@@ -74,57 +103,74 @@ public final class MisshapenControls {
 	}
 
 	@SubscribeEvent
-	public static void forgetSwappedClicksOnLogout(ClientPlayerNetworkEvent.LoggingOut event) {
-		CLICKS.clear();
+	public static void releaseSwappedKeysOnLogout(ClientPlayerNetworkEvent.LoggingOut event) {
+		releaseSwappedKeys();
 	}
 
-	// respawn and dimension change: a button let go meanwhile (a screen took the release) is forgotten
+	// respawn (death) and dimension change
 	@SubscribeEvent
-	public static void forgetSwappedClicksOnNewPlayer(ClientPlayerNetworkEvent.Clone event) {
-		long window = Minecraft.getInstance().getWindow().getWindow();
-		CLICKS.keepOnly(button -> GLFW.glfwGetMouseButton(window, button) == GLFW.GLFW_PRESS);
+	public static void releaseSwappedKeysOnNewPlayer(ClientPlayerNetworkEvent.Clone event) {
+		releaseSwappedKeys();
+	}
+
+	private static void releaseSwappedKeys() {
+		for (InputConstants.Key driven : KEYS.takeSwapped()) {
+			KeyMapping.set(driven, false);
+		}
 	}
 
 
 	/**
-	 * Left and right buttons pressed while the arms are misshapen go to the other button, and so does their release, even
-	 * once the effect has ended, so no key stays held down.
+	 * What each held attack or use key drives, decided once at its press: the other one's mappings while the arms are
+	 * misshapen, its own otherwise. Its repeats and its release follow that decision, so a key held as the effect begins or
+	 * ends lets go of what it pressed and nothing stays held.
 	 */
-	public static final class ClickRouter {
-		private final Set<Integer> swappedHeld = new HashSet<>();
+	public static final class KeyRouter<K> {
+		private final Map<K, K> held = new HashMap<>();
 
-		public int route(int button, int action, boolean swap) {
-			if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT && button != GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-				return button;
+		public K set(K key, boolean down, @Nullable K other, boolean swap) {
+			K drives = held.get(key);
+			if (!down) {
+				held.remove(key);
+				return drives != null ? drives : key;
 			}
-			if (action == GLFW.GLFW_PRESS) {
-				if (swap) {
-					swappedHeld.add(button);
-					return other(button);
-				}
-				swappedHeld.remove(button);
-				return button;
+			if (drives != null) {
+				return drives;
 			}
-			if (action == GLFW.GLFW_RELEASE && swappedHeld.remove(button)) {
-				return other(button);
+			if (other == null) {
+				return key;
 			}
-			return button;
+			drives = swap ? other : key;
+			held.put(key, drives);
+			return drives;
+		}
+
+		public K click(K key, @Nullable K other, boolean swap) {
+			K drives = held.get(key);
+			if (drives != null) {
+				return drives;
+			}
+			return other != null && swap ? other : key;
+		}
+
+		public boolean isHeld(K key) {
+			return held.containsKey(key);
 		}
 
 		public void clear() {
-			swappedHeld.clear();
+			held.clear();
 		}
 
-		public void keepOnly(IntPredicate stillHeld) {
-			swappedHeld.removeIf(button -> !stillHeld.test(button));
-		}
-
-		public boolean isSwappedHeld(int button) {
-			return swappedHeld.contains(button);
-		}
-
-		private static int other(int button) {
-			return button == GLFW.GLFW_MOUSE_BUTTON_LEFT ? GLFW.GLFW_MOUSE_BUTTON_RIGHT : GLFW.GLFW_MOUSE_BUTTON_LEFT;
+		/** Forgets every held key; returns what the swapped ones drive, to be let go. */
+		public List<K> takeSwapped() {
+			List<K> swapped = new ArrayList<>();
+			held.forEach((key, drives) -> {
+				if (!drives.equals(key)) {
+					swapped.add(drives);
+				}
+			});
+			held.clear();
+			return swapped;
 		}
 	}
 }

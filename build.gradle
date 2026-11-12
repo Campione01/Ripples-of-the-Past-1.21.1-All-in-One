@@ -534,7 +534,7 @@ tasks.register('stoppedTimeVanillaClickSmokeTest', JavaExec) {
 // lane MISHEAL (R772.1)
 tasks.register('misshapenControlsSmokeTest', JavaExec) {
     group = 'verification'
-    description = 'Verifies the misshapen parts\' 1.16 controls (inverted look and walking, swapped mouse buttons) and pose.'
+    description = 'Verifies the misshapen parts\' 1.16 controls (inverted look and walking, attack and use swapped on any device) and pose.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
     mainClass =
