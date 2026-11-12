@@ -25,6 +25,7 @@ import rotp.core.config.client.ClientModSettings;
 import rotp.core.mechanics.clothes.ClothesArmorPriority;
 import rotp.core.config.client.ClientModSettings.Settings;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
+import rotp.core.config.client.ResolveHudLayout;
 import rotp.core.config.client.StandAuraSettings;
 import rotp.core.config.editor.AddonConfigCatalog;
 import rotp.core.config.editor.AddonConfigKeys;
@@ -170,12 +171,18 @@ public final class ClientConfigEditor {
 				bool("showLockedSlots", HUD, CLIENT_LABEL + "showLockedSlots", s -> s.showLockedSlots, (s, v) -> s.showLockedSlots = v),
 				bool("compactStandHotbar", HUD, DISPLAY_LABEL + "compact_hotbar", s -> s.compactStandHotbar, (s, v) -> s.compactStandHotbar = v),
 				bool("standExpBar", HUD, CLIENT_LABEL + "standExpBar", s -> s.standExpBar, (s, v) -> s.standExpBar = v),
+				enumeration("resolveHudLayout", HUD, CLIENT_LABEL + "resolveHudLayout", ResolveHudLayout.class,
+						s -> s.resolveHudLayout, (s, v) -> s.resolveHudLayout = v),
+				bool("showBreakBlocksToggle", HUD, CLIENT_LABEL + "showBreakBlocksToggle", s -> s.showBreakBlocksToggle, (s, v) -> s.showBreakBlocksToggle = v),
+				bool("showPickUpItemsToggle", HUD, CLIENT_LABEL + "showPickUpItemsToggle", s -> s.showPickUpItemsToggle, (s, v) -> s.showPickUpItemsToggle = v),
+				bool("showBeyondRangeToggle", HUD, CLIENT_LABEL + "showBeyondRangeToggle", s -> s.showBeyondRangeToggle, (s, v) -> s.showBeyondRangeToggle = v),
 
 				bool("abilitySelectionWheel", CONTROLS, CLIENT_LABEL + "abilitySelectionWheel", s -> s.abilitySelectionWheel, (s, v) -> s.abilitySelectionWheel = v),
 				bool("abilitySelectionScroll", CONTROLS, CLIENT_LABEL + "abilitySelectionScroll", s -> s.abilitySelectionScroll, (s, v) -> s.abilitySelectionScroll = v),
 				bool("releaseToUseAbility", CONTROLS, CLIENT_LABEL + "releaseToUseAbility", s -> s.releaseToUseAbility, (s, v) -> s.releaseToUseAbility = v),
 				bool("poseOnLmbRmb", CONTROLS, null, s -> s.poseOnLmbRmb, (s, v) -> s.poseOnLmbRmb = v),
 				bool("toggleDisableHotbars", CONTROLS, null, s -> s.toggleDisableHotbars, (s, v) -> s.toggleDisableHotbars = v),
+				bool("tutorialEnabled", CONTROLS, CLIENT_LABEL + "tutorialEnabled", s -> s.tutorialEnabled, Settings::setTutorialEnabled),
 
 				bool("standMotionTilt", DISPLAY, CLIENT_LABEL + "standMotionTilt", s -> s.standMotionTilt, (s, v) -> s.standMotionTilt = v),
 				bool("standAimMarker", DISPLAY, CLIENT_LABEL + "standAimMarker", s -> s.standAimMarker, (s, v) -> s.standAimMarker = v),

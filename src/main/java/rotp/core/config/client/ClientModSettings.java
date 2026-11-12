@@ -9,6 +9,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.slf4j.Logger;
 
 import rotp.core.mechanics.clothes.ClothesArmorPriority;
@@ -40,6 +41,10 @@ public class ClientModSettings {
 		public boolean releaseToUseAbility = false;
 		public boolean compactStandHotbar = false;
 		public boolean standExpBar = false;
+		public ResolveHudLayout resolveHudLayout = ResolveHudLayout.STRIP;
+		public boolean showBreakBlocksToggle = false;
+		public boolean showPickUpItemsToggle = false;
+		public boolean showBeyondRangeToggle = false;
 
 		public boolean resolveShaders = true;
 		public boolean timeStopAnimation = true;
@@ -57,6 +62,7 @@ public class ClientModSettings {
 		public boolean characterVoiceLines = true;
 		public boolean screenSplash = false;
 		public boolean toggleDisableHotbars = false;
+		public boolean tutorialEnabled = true;
 
 		public boolean thirdPersonHamonAura = true;
 		public boolean firstPersonHamonAura = true;
@@ -76,6 +82,17 @@ public class ClientModSettings {
 			if (clothesArmorPriority == null) {
 				clothesArmorPriority = ClothesArmorPriority.CLOTHES;
 			}
+			if (resolveHudLayout == null) {
+				resolveHudLayout = ResolveHudLayout.STRIP;
+			}
+		}
+
+		/** Turned back on, the tutorial shows all its tips again (TutorialProgress): the official version's "Reset Tutorial". */
+		public void setTutorialEnabled(boolean enabled) {
+			if (enabled && !tutorialEnabled) {
+				TutorialProgress.resetCurrent();
+			}
+			tutorialEnabled = enabled;
 		}
 
 		private static float clampTransparency(float transparency) {
@@ -369,5 +386,16 @@ public class ClientModSettings {
 
 	public static ClientModSettings getInstance() {
 		return instance;
+	}
+
+	/** The folder of the settings file, where other client files of the mod sit beside it. */
+	public File directory() {
+		return optionsFile.getAbsoluteFile().getParentFile();
+	}
+
+	/** Loads a settings file as the game would, without making it the game's settings; writes defaults to a missing file. */
+	@ApiStatus.Internal
+	public static Settings readDetached(File optionsFile) {
+		return new ClientModSettings(optionsFile).settings;
 	}
 }

@@ -87,3 +87,13 @@ the owner's permission to use official assets, anime voice clips included.
 The packs here name this port's existing subtitle keys, and the Jotaro pack's
 "Star Platinum, The World" line is limited to Star Platinum; the loader and its
 merging of resource packs were written for this port.
+
+<!-- OFFMENUS -->
+## HUD and menu pieces from the newer official sources
+
+The Resolve pips of the HUD's pip layout, the cartography table's explorer map
+screen and mode icons, and the hamon temple map icon are textures of the
+official Ripples of the Past for NeoForge 1.21.1 sources the owner received on
+2026-11-12, used with the owner's permission. The tutorial toasts, the explorer
+map mode and the Stand toggle HUD setting follow that version's behaviour and
+were rewritten into this port's settings and checks.

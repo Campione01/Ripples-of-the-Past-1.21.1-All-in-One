@@ -198,6 +198,9 @@ public class PacketsRegister {
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClPhotoSaveDataPacket.Handler(JojoMod.resLoc("clphotosave")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClPhotoRequestPacket.Handler(JojoMod.resLoc("clphotorequest")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClPlayerMovementInputPacket.Handler(JojoMod.resLoc("clmovinput")));
+		// OFFMENUS: the cartography table's explorer map mode
+		registerPacket(registrar, PayloadRegistrar::playToServer, new rotp.core.mechanics.explorer_map_creation.ClExplorerMapModePacket.Handler(JojoMod.resLoc("clmaptable")));
+		registerPacket(registrar, PayloadRegistrar::playToServer, new rotp.core.mechanics.explorer_map_creation.ClExplorerMapDataPacket.Handler(JojoMod.resLoc("clmapdata")));
 
 		registerPacket(registrar, PayloadRegistrar::playToClient, new DatapackStandsPacket.Handler(JojoMod.resLoc("datastands")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new CommonConfigPacket.Handler(JojoMod.resLoc("commonconfig")));
