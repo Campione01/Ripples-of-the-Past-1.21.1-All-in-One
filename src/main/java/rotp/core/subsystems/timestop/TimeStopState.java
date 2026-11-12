@@ -1184,7 +1184,7 @@ public class TimeStopState {
             // the stop's start paid its repeat (TimeStopAbility); its end adds the cooldown it skips to its fatigue
             StandAbilityFatigue.withoutFatigue(() -> TimeStopCooldowns.setTimeStopCooldownsOnTimeStopEnd(
                     power,
-                    cooldownAbilities.get(power),
+                    cooldownAbilities.get(cooldown.getKey()),
                     cooldown.getValue()));
             Ability fatigued = fatigueAbilities.get(power);
             if (fatigued != null) {
