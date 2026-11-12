@@ -8,6 +8,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.config.client.ClientModSettings;
+import rotp.core.config.client.TutorialProgress;
 import rotp.core.core.JojoMod;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.standpower.StandPower;
@@ -23,7 +24,8 @@ public final class ModTutorialToasts {
 	@SubscribeEvent
 	public static void onClientTick(ClientTickEvent.Post event) {
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.player == null || ClientModSettings.getInstance() == null || mc.isPaused()) {
+		TutorialProgress progress = TutorialProgress.current();
+		if (mc.player == null || progress == null || mc.isPaused()) {
 			return;
 		}
 		ClientModSettings.Settings settings = ClientModSettings.getSettingsReadOnly();
@@ -33,13 +35,13 @@ public final class ModTutorialToasts {
 		if (hasStand) {
 			boolean skillsScreenOpen = mc.screen instanceof StandSkillsScreen;
 			for (String tip : TutorialTips.ALL) {
-				if (!settings.tutorialSeen.contains(tip) && TutorialTips.learned(tip, summoned, skillsScreenOpen)) {
-					ClientModSettings.edit(edited -> edited.tutorialSeen.add(tip), false);
+				if (!progress.seen().contains(tip) && TutorialTips.learned(tip, summoned, skillsScreenOpen)) {
+					progress.add(tip);
 				}
 			}
 		}
 		boolean canSummon = TutorialTips.canSummon(power);
-		String next = SCHEDULE.tick(settings.tutorialEnabled, mc.player.tickCount, settings.tutorialSeen,
+		String next = SCHEDULE.tick(settings.tutorialEnabled, mc.player.tickCount, progress.seen(),
 				tip -> hasStand && TutorialTips.wanted(tip, canSummon, summoned,
 						TutorialTips.SKILLS.equals(tip) && TutorialTips.canLearnStandSkill(power)));
 		if (next != null) {

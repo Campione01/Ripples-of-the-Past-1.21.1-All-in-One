@@ -76,6 +76,7 @@ import rotp.core.powersystem.standpower.type.StandTypePersistentData;
 import rotp.core.config.client.ClientModSettings;
 import rotp.core.config.client.ResolveHudLayout;
 import rotp.core.config.client.StandToggle;
+import rotp.core.config.client.TutorialProgress;
 import rotp.core.config.editor.ConfigEntry;
 import rotp.core.config.editor.client.ClientConfigEditor;
 import rotp.core.config.editor.client.ConfigWidgetRules;
@@ -290,20 +291,42 @@ public final class OfficialMenusGameTests {
 
 	@GameTest(template = "empty", timeoutTicks = 20)
 	public static void tutorialTurnedBackOnShowsItsTipsAgain(GameTestHelper helper) {
-		ClientModSettings.Settings defaults = new ClientModSettings.Settings();
-		helper.assertTrue(defaults.tutorialEnabled && defaults.tutorialSeen.isEmpty(), "The tutorial is on by default, as in the official version");
-		ClientModSettings.Settings saved = readSettings(helper,
-				"{\"tutorialEnabled\": false, \"tutorialSeen\": [\"stand_summon\", \"stand_skills\"]}");
-		helper.assertTrue(!saved.tutorialEnabled && saved.tutorialSeen.equals(List.of(TutorialTips.SUMMON, TutorialTips.SKILLS)),
-				"The learned tips must load back from the settings file");
-		saved.setTutorialEnabled(false);
-		helper.assertTrue(saved.tutorialSeen.size() == 2, "Turning it off keeps what was learned");
-		saved.setTutorialEnabled(true);
-		helper.assertTrue(saved.tutorialEnabled && saved.tutorialSeen.isEmpty(), "Turned back on, the tutorial shows all its tips again");
-		ClientModSettings.Settings stillOn = readSettings(helper, "{\"tutorialSeen\": [\"stand_summon\"]}");
-		stillOn.setTutorialEnabled(true);
-		helper.assertTrue(stillOn.tutorialSeen.equals(List.of(TutorialTips.SUMMON)), "Setting it on while on must not forget anything");
-		helper.assertTrue(readSettings(helper, "{\"tutorialSeen\": null}").tutorialSeen != null, "A broken list loads as empty");
+		helper.assertTrue(new ClientModSettings.Settings().tutorialEnabled, "The tutorial is on by default, as in the official version");
+		helper.assertTrue(readSettings(helper, "{\"tutorialEnabled\": false}").tutorialEnabled == false, "A saved off must load back");
+		Path dir = FMLPaths.GAMEDIR.get().resolve("offmenus-tests");
+		Path file = dir.resolve(TutorialProgress.FILE_NAME + "-" + System.nanoTime());
+		try {
+			TutorialProgress progress = new TutorialProgress(file.toFile());
+			progress.add(TutorialTips.SUMMON);
+			progress.add(TutorialTips.SKILLS);
+			helper.assertTrue(new TutorialProgress(file.toFile()).seen().equals(Set.of(TutorialTips.SUMMON, TutorialTips.SKILLS)),
+					"The learned tips must load back from their file");
+			TutorialProgress.setCurrent(progress);
+			ClientModSettings.Settings off = readSettings(helper, "{\"tutorialEnabled\": false}");
+			off.setTutorialEnabled(false);
+			helper.assertTrue(progress.seen().size() == 2, "Turning it off keeps what was learned");
+			off.setTutorialEnabled(true);
+			helper.assertTrue(off.tutorialEnabled && progress.seen().isEmpty() && new TutorialProgress(file.toFile()).seen().isEmpty(),
+					"Turned back on, the tutorial shows all its tips again, saved so");
+			progress.add(TutorialTips.SUMMON);
+			ClientModSettings.Settings stillOn = new ClientModSettings.Settings();
+			stillOn.setTutorialEnabled(true);
+			helper.assertTrue(progress.seen().equals(Set.of(TutorialTips.SUMMON)), "Setting it on while on must not forget anything");
+			Files.writeString(file, "{broken", StandardCharsets.UTF_8);
+			helper.assertTrue(new TutorialProgress(file.toFile()).seen().isEmpty(), "A broken file loads as nothing learned");
+		}
+		catch (IOException e) {
+			helper.fail("Cannot write " + file + ": " + e);
+		}
+		finally {
+			TutorialProgress.setCurrent(null);
+			try {
+				Files.deleteIfExists(file);
+			}
+			catch (IOException ignored) {
+				// a leftover file in the test run folder harms nothing
+			}
+		}
 
 		ConfigEntry entry = clientEntry(helper, "tutorialEnabled");
 		helper.assertTrue(entry.kind() == ConfigEntry.Kind.BOOLEAN && entry.defaultValue().getAsBoolean(), "The tutorial row is a switch, on by default");
@@ -318,7 +341,7 @@ public final class OfficialMenusGameTests {
 				"The tutorial toasts are no longer subscribed to the client tick");
 		Set<String> tick = refs(helper, TOASTS, "onClientTick");
 		for (String ref : List.of(TIPS + "$Schedule.tick", TIPS + ".learned", TIPS + ".wanted", TIPS + ".canLearnStandSkill",
-				"type:rotp/core/powersystem/standpower/client_screens/StandSkillsScreen", SETTINGS + ".edit",
+				"type:rotp/core/powersystem/standpower/client_screens/StandSkillsScreen", "rotp/core/config/client/TutorialProgress.add",
 				"net/minecraft/client/gui/components/toasts/ToastComponent.addToast")) {
 			helper.assertTrue(tick.contains(ref), "The tutorial tick no longer uses " + ref);
 		}
