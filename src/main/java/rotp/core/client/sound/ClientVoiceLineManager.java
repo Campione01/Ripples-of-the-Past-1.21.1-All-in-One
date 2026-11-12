@@ -8,11 +8,18 @@ import java.util.Set;
 import javax.annotation.Nullable;
 
 import rotp.core.client.sound.sounds.EntityLingeringSoundInstance;
+import rotp.core.client.sound.sounds.VoicePackLineSoundInstance;
 import rotp.core.config.client.ClientModSettings;
 import rotp.core.core.JojoMod;
+import rotp.core.mechanics.voiceline.VoiceLinePacks.PickedLine;
+import rotp.core.network.s2c.PlayVoiceLinePacket;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.core.Holder;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
@@ -41,6 +48,29 @@ public final class ClientVoiceLineManager {
 		}
 
 		SoundInstance sound = new EntityLingeringSoundInstance(soundEvent, source, volume, pitch, entity, entity.level());
+		return play(entity, sound);
+	}
+
+	/** A line from the server: a voice pack's line for its trigger and speaker if one is loaded, else the 1.16 sound. */
+	public static boolean playVoiceLine(Entity entity, PlayVoiceLinePacket line) {
+		PickedLine packLine = ClientVoiceLinePacksLoader.getPacks().pick(line.triggerId(), line.speaker(), entity.getRandom());
+		if (packLine == null) {
+			return playVoiceLine(entity, line.sound() != null ? line.sound().value() : null,
+					line.source(), line.volume(), line.pitch(), line.interrupt());
+		}
+		if (line.source() == null || !ClientModSettings.getSettingsReadOnly().characterVoiceLines
+				|| !line.interrupt() && isVoiceLinePlaying(entity)) {
+			voiceLineNotTriggered(entity);
+			return false;
+		}
+		Holder<SoundEvent> stopsWith = line.sound() != null ? line.sound() : line.trigger();
+		ResourceLocation stopId = stopsWith.unwrapKey().map(ResourceKey::location).orElseGet(() -> stopsWith.value().getLocation());
+		Component subtitle = packLine.subtitle().<Component>map(Component::translatable).orElse(null);
+		return play(entity, new VoicePackLineSoundInstance(packLine.sound(), subtitle, stopId,
+				line.source(), line.volume(), line.pitch(), entity));
+	}
+
+	private static boolean play(Entity entity, SoundInstance sound) {
 		CURRENT_VOICE_LINES.put(entity.getId(), sound);
 		LAST_VOICE_LINE_TRIGGERED.add(entity.getId());
 		ClientsideSoundsHelper.playNonVanillaClassSound(sound);

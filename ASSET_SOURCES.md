@@ -79,3 +79,19 @@ assets directly:
 | `data/jojo_ripples/ripples_clothes/clothes/jotaro_p3_{anime,manga}.json` | official files with `"authors": "Motvik"` |
 | `assets/jojo_rotp_clothes/lang/{en_us,ru_ru}.json` character names | official; `josefumi.short` corrected to "Josefumi" |
 | `assets/jojo_rotp_clothes/lang/{zh_cn,zh_tw}.json` | written for this port |
+
+<!-- OFFVOICE -->
+## Voice packs (official sources of 2026-11-12)
+
+Taken from the official Ripples of the Past for NeoForge 1.21.1 sources the
+owner received on 2026-11-12, with the owner's permission to use official
+assets directly, anime voice clips included:
+
+| Path | Source |
+| --- | --- |
+| `assets/jojo_ripples/sounds/stand_user/jotaro_yare_yare_{1,2,3,4}.ogg` | official clips, unchanged |
+| `assets/jojo_ripples/sounds/stand_user/jotaro_yare_yare_daze_{1,2,3}.ogg` | official clips, unchanged |
+| `assets/jojo_ripples/sounds/hamon_user/joseph_scream_shooting.ogg` | official clip, unchanged |
+| `assets/jojo_ripples/voicelines/{jotaro_p3,josuke4,joseph_p2}/data.json` | official files, unchanged |
+| `assets/jojo_ripples/voicelines/{jotaro_p3,josuke4,joseph_p2}/sounds.json` | official files; subtitles point to this port's existing keys, and `vl_time_stop` is limited to Star Platinum |
+| `jojo_ripples.subtitle.{star_finger,yare_yare,yare_yare_daze}` (en_us, zh_cn, zh_tw) | written for this port |

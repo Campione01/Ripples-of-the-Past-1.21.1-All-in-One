@@ -505,12 +505,13 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 			case SOUND -> decision.sound();
 			case SILENT -> null;
 		};
-		if (voiceLine == null || skipsShoutWhileSneaking(user)) {
+		if (decision.kind() == TimeStopAudioDecision.Kind.SILENT || skipsShoutWhileSneaking(user)) {
 			return null;
 		}
-		Holder<SoundEvent> resolved = MultiSoundEventResolver.resolve(voiceLine);
+		Holder<SoundEvent> resolved = voiceLine != null ? MultiSoundEventResolver.resolve(voiceLine) : null;
 		// 1.16 TimeStop: voiceLineDelay 0, a charge let go early must not keep the next one's line back
-		return JojoModUtil.sayVoiceLine(user, resolved, 0) ? resolved : null;
+		return JojoModUtil.sayVoiceLine(user, resolved, ModSoundEvents.VOICELINE_TIME_STOP, 1.0F, 1.0F, 0, false)
+				? (resolved != null ? resolved : ModSoundEvents.VOICELINE_TIME_STOP) : null;
 	}
 
 	private Holder<SoundEvent> getTimeStopVoiceLine(LivingEntity user, StandPower power, boolean standAlreadySummoned) {

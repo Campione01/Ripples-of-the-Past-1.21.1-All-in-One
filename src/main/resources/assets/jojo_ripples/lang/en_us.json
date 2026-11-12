@@ -2318,5 +2318,8 @@
   "item.jojo_ripples.stand_full_clear": "Full Stand Clear",
   "item.jojo_ripples.stand_full_clear_one_time": "Full Stand Clear (one-time)",
   "item.jojo_ripples.stand_full_clear.hint": "Also clears all the Stand abilities learned, and the Arrow xp cost penalty",
-  "item.jojo_ripples.creative_only_tooltip": "Creative-only item"
+  "item.jojo_ripples.creative_only_tooltip": "Creative-only item",
+  "jojo_ripples.subtitle.star_finger": "\"Star Finger!\"",
+  "jojo_ripples.subtitle.yare_yare": "\"Yare yare...\"",
+  "jojo_ripples.subtitle.yare_yare_daze": "\"Yare yare daze...\""
 }
