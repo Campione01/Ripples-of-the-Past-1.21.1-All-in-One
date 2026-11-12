@@ -1,5 +1,6 @@
 package rotp.core.item.polaroid;
 
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -27,6 +28,7 @@ import net.minecraft.world.level.storage.DimensionDataStorage;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -37,23 +39,46 @@ public class PhotosHandler {
 	private static final long PHOTO_UPLOAD_TIMEOUT_TICKS = 20 * 30;
 	private static final Map<MinecraftServer, PhotosHandler> HANDLERS = new WeakHashMap<>();
 
-	private final MinecraftServer server;
+	// weakly: HANDLERS' value must not reach its key, or the weak key keeps a stopped server for ever
+	private final WeakReference<MinecraftServer> serverRef;
 	private final PhotoSessionRegistry<ServerPlayer> sessions = new PhotoSessionRegistry<>();
 
 	public PhotosHandler(MinecraftServer server) {
-		this.server = server;
+		this.serverRef = new WeakReference<>(server);
 	}
 
+	/** The server's handler; a stopped server gets one that is not kept. */
 	public static PhotosHandler get(MinecraftServer server) {
-		return HANDLERS.computeIfAbsent(server, PhotosHandler::new);
+		synchronized (HANDLERS) {
+			if (server.isStopped()) {
+				HANDLERS.remove(server);
+				return new PhotosHandler(server);
+			}
+			return HANDLERS.computeIfAbsent(server, PhotosHandler::new);
+		}
+	}
+
+	/** Read by the game tests. */
+	public static boolean hasHandlerForTests(MinecraftServer server) {
+		synchronized (HANDLERS) {
+			return HANDLERS.containsKey(server);
+		}
+	}
+
+	private MinecraftServer server() {
+		MinecraftServer server = serverRef.get();
+		if (server == null) {
+			throw new IllegalStateException("The photos handler outlived its server");
+		}
+		return server;
 	}
 
 	public long incPolaroidPhotoId() {
-		return ServerSavedData.get(server).incPolaroidPhotoId();
+		return ServerSavedData.get(server()).incPolaroidPhotoId();
 	}
 
 	public UUID serverId() {
-		return ServerSavedData.get(server).getServerUUID();
+		return ServerSavedData.get(server()).getServerUUID();
 	}
 
 	public boolean authorizePhotoUpload(ServerPlayer player) {
@@ -61,7 +86,7 @@ public class PhotosHandler {
 	}
 
 	public boolean authorizePhotoUpload(ServerPlayer uploader, ServerPlayer target) {
-		if (uploader.server != server || target.server != server
+		if (uploader.server != server() || target.server != server()
 				|| uploader.hasDisconnected() || target.hasDisconnected()) {
 			return false;
 		}
@@ -82,7 +107,7 @@ public class PhotosHandler {
 			return Optional.empty();
 		}
 
-		ServerPlayer target = server.getPlayerList().getPlayer(permit.get().target());
+		ServerPlayer target = server().getPlayerList().getPlayer(permit.get().target());
 		if (target == null || target.hasDisconnected()
 				|| target.getId() != requestedTargetEntityId
 				|| target.serverLevel() != uploader.serverLevel()) {
@@ -120,7 +145,7 @@ public class PhotosHandler {
 	}
 
 	public void putPhoto(long id, byte[] photoData, UUID photoSender) {
-		DimensionDataStorage storage = server.overworld().getDataStorage();
+		DimensionDataStorage storage = server().overworld().getDataStorage();
 		PolaroidPhotoData photo = new PolaroidPhotoData(photoData, photoSender);
 		photo.setDirty();
 		storage.set(makePhotoId(id), photo);
@@ -139,12 +164,12 @@ public class PhotosHandler {
 	public void requestPhoto(long photoId, ServerPlayer player) {
 		long gameTime = gameTime();
 		cleanupExpiredUploads(gameTime);
-		if (!isKnownPhotoId(photoId, ServerSavedData.get(server).getPolaroidPhotoId())) {
+		if (!isKnownPhotoId(photoId, ServerSavedData.get(server()).getPolaroidPhotoId())) {
 			PacketDistributor.sendToPlayer(player, PhotoDataPacket.failed(serverId(), photoId));
 			return;
 		}
 
-		DimensionDataStorage storage = server.overworld().getDataStorage();
+		DimensionDataStorage storage = server().overworld().getDataStorage();
 		PolaroidPhotoData photo = storage.get(new SavedData.Factory<>(
 				PolaroidPhotoData::new, PolaroidPhotoData::load), makePhotoId(photoId));
 		UUID serverId = serverId();
@@ -164,7 +189,7 @@ public class PhotosHandler {
 	}
 
 	private long gameTime() {
-		return server.overworld().getGameTime();
+		return server().overworld().getGameTime();
 	}
 
 	private static String makePhotoId(long id) {
@@ -177,7 +202,10 @@ public class PhotosHandler {
 
 	@SubscribeEvent
 	public static void onServerTick(ServerTickEvent.Post event) {
-		PhotosHandler handler = HANDLERS.get(event.getServer());
+		PhotosHandler handler;
+		synchronized (HANDLERS) {
+			handler = HANDLERS.get(event.getServer());
+		}
 		if (handler != null) {
 			handler.cleanupExpiredUploads(handler.gameTime());
 		}
@@ -194,7 +222,10 @@ public class PhotosHandler {
 	@SubscribeEvent
 	public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
 		if (event.getEntity() instanceof ServerPlayer player) {
-			PhotosHandler handler = HANDLERS.get(player.server);
+			PhotosHandler handler;
+			synchronized (HANDLERS) {
+				handler = HANDLERS.get(player.server);
+			}
 			if (handler != null) {
 				UUID playerId = player.getUUID();
 				handler.sessions.removePlayer(playerId,
@@ -206,7 +237,20 @@ public class PhotosHandler {
 
 	@SubscribeEvent
 	public static void onServerStopping(ServerStoppingEvent event) {
-		PhotosHandler handler = HANDLERS.remove(event.getServer());
+		forget(event.getServer());
+	}
+
+	// Again once the levels are saved and the players logged out; also on the crash path, which skips the above.
+	@SubscribeEvent
+	public static void onServerStopped(ServerStoppedEvent event) {
+		forget(event.getServer());
+	}
+
+	private static void forget(MinecraftServer server) {
+		PhotosHandler handler;
+		synchronized (HANDLERS) {
+			handler = HANDLERS.remove(server);
+		}
 		if (handler != null) {
 			handler.sessions.clear();
 		}

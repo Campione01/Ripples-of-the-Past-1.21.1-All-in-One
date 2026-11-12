@@ -1,5 +1,6 @@
 package rotp.core.powersystem.standpower;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
 import java.util.Map;
 
@@ -32,6 +33,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
  * Which Stand a damage is the work of, whatever its type, for the Stand's damage shares (StandTuningDamage), so an
@@ -52,9 +54,11 @@ public final class StandDamageContext {
 	public record Owner(StandPower power, StandType type) {}
 
 	private static final ThreadLocal<ArrayDeque<Owner>> RUNNING = ThreadLocal.withInitial(ArrayDeque::new);
-	// identity keys: an entity is equal to another with its id, an effect to another with its numbers
-	private static final Map<Entity, Owner> MADE = new MapMaker().weakKeys().makeMap();
-	private static final Map<MobEffectInstance, Owner> GIVEN = new MapMaker().weakKeys().makeMap();
+	// identity keys: an entity is equal to another with its id, an effect to another with its numbers. The values hold
+	// the power weakly: through its user and level a power reaches the entities and effects of the session, keys
+	// included, so a strong value would keep the entry, and with it a stopped server, for ever.
+	private static final Map<Entity, Remembered> MADE = new MapMaker().weakKeys().makeMap();
+	private static final Map<MobEffectInstance, Remembered> GIVEN = new MapMaker().weakKeys().makeMap();
 	private static final Scope NONE = new Scope(null);
 
 	/** Code that runs as the Stand's until the scope closes: use it in try-with-resources. A null power opens nothing. */
@@ -90,7 +94,19 @@ public final class StandDamageContext {
 	public static void claim(Entity entity, StandPower power) {
 		Owner owner = ownerOf(power);
 		if (owner != null && !entity.level().isClientSide()) {
-			MADE.put(entity, owner);
+			MADE.put(entity, Remembered.of(owner));
+		}
+	}
+
+	private record Remembered(WeakReference<StandPower> power, StandType type) {
+		private static Remembered of(Owner owner) {
+			return new Remembered(new WeakReference<>(owner.power()), owner.type());
+		}
+
+		@Nullable
+		private static Owner owner(@Nullable Remembered remembered) {
+			StandPower power = remembered != null ? remembered.power().get() : null;
+			return power != null ? new Owner(power, remembered.type()) : null;
 		}
 	}
 
@@ -113,7 +129,7 @@ public final class StandDamageContext {
 			LivingEntity owner = damaging.getOwner();
 			return owner != null ? ownerOf(StandPower.get(StandUtil.getStandUser(owner))) : null;
 		}
-		return MADE.get(entity);
+		return Remembered.owner(MADE.get(entity));
 	}
 
 	/** The Stand a damage is the work of, or null: see the class description. */
@@ -151,7 +167,7 @@ public final class StandDamageContext {
 	}
 
 	private static boolean isOwn(@Nullable Entity entity, Owner owner) {
-		return entity == null || isOwnUser(owner, entity) || owner.equals(MADE.get(entity));
+		return entity == null || isOwnUser(owner, entity) || owner.equals(Remembered.owner(MADE.get(entity)));
 	}
 
 	@Nullable
@@ -169,13 +185,13 @@ public final class StandDamageContext {
 		if (entity instanceof StandEntity stand) {
 			return enter(stand.getUserPower());
 		}
-		return MADE.isEmpty() ? NONE : enter(MADE.get(entity));
+		return MADE.isEmpty() ? NONE : enter(Remembered.owner(MADE.get(entity)));
 	}
 
 	/** An effect's tick (MobEffectInstanceStandDamageScopeMixin): one a Stand gave ticks as its. */
 	@ApiStatus.Internal
 	public static Scope effectTicks(MobEffectInstance effect) {
-		return GIVEN.isEmpty() ? NONE : enter(GIVEN.get(effect));
+		return GIVEN.isEmpty() ? NONE : enter(Remembered.owner(GIVEN.get(effect)));
 	}
 
 	@SubscribeEvent(priority = EventPriority.LOWEST)
@@ -186,7 +202,7 @@ public final class StandDamageContext {
 		Owner owner = running();
 		Entity entity = event.getEntity();
 		if (owner != null && isMadeThing(entity, owner)) {
-			MADE.putIfAbsent(entity, owner);
+			MADE.putIfAbsent(entity, Remembered.of(owner));
 		}
 	}
 
@@ -218,7 +234,14 @@ public final class StandDamageContext {
 		}
 		// an effect the holder already has takes the new one into itself, and that one ticks on
 		MobEffectInstance ticking = event.getOldEffectInstance() != null ? event.getOldEffectInstance() : event.getEffectInstance();
-		GIVEN.put(ticking, owner);
+		GIVEN.put(ticking, Remembered.of(owner));
+	}
+
+	// The session's entities and effects are gone with it; the next one starts with none.
+	@SubscribeEvent
+	public static void onServerStopped(ServerStoppedEvent event) {
+		MADE.clear();
+		GIVEN.clear();
 	}
 
 	/** A Stand's code running: closing it ends that, in the order scopes were opened. */
