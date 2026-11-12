@@ -746,6 +746,15 @@ public class CrazyDHealAbility extends StandEntityAbility {
 						result.hpForExp += healingSpeed;
 					}
 				}
+
+				// a misshapen part, restored wrongly by a Crazy Diamond, is put right by a proper heal (owner, R772.1)
+				if (MisshapenEffect.isMisshapen(toHeal)) {
+					result.synched.isHealing = true;
+					result.synched.barrageVisuals |= useOriginalBarrageVisuals(entity);
+					if (!level.isClientSide()) {
+						MisshapenEffect.cure(toHeal);
+					}
+				}
 			}
 
 			return result;

@@ -531,6 +531,16 @@ tasks.register('stoppedTimeVanillaClickSmokeTest', JavaExec) {
             'rotp.core.client.input.StoppedTimeVanillaClickSmokeTest'
 }
 
+// lane MISHEAL (R772.1)
+tasks.register('misshapenControlsSmokeTest', JavaExec) {
+    group = 'verification'
+    description = 'Verifies the misshapen parts\' 1.16 controls (inverted look and walking, swapped mouse buttons) and pose.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    mainClass =
+            'rotp.core.impl.stands.crazydiamond.client.MisshapenControlsSmokeTest'
+}
+
 tasks.register('offThreadListenerRulesSmokeTest', JavaExec) {
     group = 'verification'
     description = 'Verifies no listener of an event fired off the main thread names the world\'s random.'
@@ -724,6 +734,7 @@ tasks.named('check').configure {
     dependsOn tasks.named('animationLoaderForeignFilesSmokeTest')
     dependsOn tasks.named('molangUnaryNegationSmokeTest')
     dependsOn tasks.named('offThreadListenerRulesSmokeTest')
+    dependsOn tasks.named('misshapenControlsSmokeTest') // lane MISHEAL (R772.1)
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.

@@ -23,7 +23,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 public class CrazyDMisshapingPunchInput extends Ability {
@@ -98,10 +97,10 @@ public class CrazyDMisshapingPunchInput extends Ability {
 		};
 	}
 
-	// 1.16 CrazyDiamondMisshapeBodyPart.checkSpecificConditions: a living target whose Stand user is a player (mobs were
-	// left as a TODO), not the user itself (Action.checkTarget)
+	// 1.16 CrazyDiamondMisshapeBodyPart.checkSpecificConditions took only a player or a player's Stand, mobs being a TODO;
+	// the owner opened it to mobs (MisshapenEffect): any living target but the user and the user's own Stand
 	static boolean canMisshape(Entity target, LivingEntity user) {
-		return target instanceof LivingEntity living && !target.is(user) && StandUtil.getStandUser(living) instanceof Player;
+		return target instanceof LivingEntity living && !target.is(user) && !StandUtil.getStandUser(living).is(user);
 	}
 
 	// 1.16 StandAction.canSetFollowUp ran those checks on the finisher's task target, within the action's range of the Stand
