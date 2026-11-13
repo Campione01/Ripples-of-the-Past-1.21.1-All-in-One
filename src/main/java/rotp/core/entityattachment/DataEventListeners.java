@@ -1,9 +1,9 @@
 package rotp.core.entityattachment;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.jetbrains.annotations.ApiStatus;
 
@@ -15,7 +15,9 @@ public class DataEventListeners {
 	// Sorted maps: a map hashed on the data class visited the data in an order that changed with every JVM run.
 	private Map<Class<?>, SynchronizableEntityData> entityDataSync = new TreeMap<>(EntityDataOrder.SYNC_ORDER);
 	private Map<Class<?>, SynchronizablePlayerData> playerDataSync = new TreeMap<>(EntityDataOrder.SYNC_ORDER);
-	private List<TickingEntityData> pendingAddToTick = new ArrayList<>(2);
+	// Data can be attached on a thread that does not tick the entity (a client sound listener ran on the sound engine
+	// thread); only the thread that ticks it moves the data into the ticking map.
+	private final Queue<TickingEntityData> pendingAddToTick = new ConcurrentLinkedQueue<>();
 	private Map<Class<?>, TickingEntityData> ticking = new TreeMap<>(EntityDataOrder.TICK_ORDER);
 	private Map<Class<?>, PostNbtReadEntityData> postNbtCallback = new TreeMap<>(EntityDataOrder.SYNC_ORDER);
 	
@@ -61,11 +63,9 @@ public class DataEventListeners {
 	}
 	
 	public void onTick() {
-		if (!pendingAddToTick.isEmpty()) {
-			for (var attachment : pendingAddToTick) {
-				this.ticking.put(attachment.getClass(), attachment);
-			}
-			pendingAddToTick.clear();
+		TickingEntityData attachment;
+		while ((attachment = pendingAddToTick.poll()) != null) {
+			this.ticking.put(attachment.getClass(), attachment);
 		}
 		for (var listener : ticking.values()) {
 			listener.tick();

@@ -160,8 +160,9 @@ public class ClientsideSoundsHelper {
 			return;
 		}
 
-		JojoModLivingVariables playerVars = JojoModLivingVariables.get(player);
-		if (!playerVars.isDyingBody()) {
+		// read only: creating the data here would attach it to the player from the thread that plays the sound
+		JojoModLivingVariables playerVars = JojoModLivingVariables.getIfPresent(player);
+		if (playerVars == null || !playerVars.isDyingBody()) {
 			return;
 		}
 		float progress = playerVars.getDyingBodyProgress();
