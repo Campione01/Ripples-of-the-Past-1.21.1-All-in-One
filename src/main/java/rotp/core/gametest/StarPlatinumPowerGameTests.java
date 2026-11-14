@@ -20,8 +20,8 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * The owner (2026-11): Star Platinum's power is well above The World's, 30 at its top. Its base stays 16; the
- * summoned Stand reads both ends, and its punches follow.
+ * The owner (2026-11, numbers of 2026-11-13): Star Platinum's power is well above The World's, 20 at its base and 35 at
+ * its top; the summoned Stand reads both ends, and its punches follow.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -29,21 +29,21 @@ public final class StarPlatinumPowerGameTests {
 	private StarPlatinumPowerGameTests() {}
 
 	@GameTest(template = "empty", timeoutTicks = 40)
-	public static void starPlatinumPowerRunsFromSixteenToThirty(GameTestHelper helper) {
+	public static void starPlatinumPowerRunsFromTwentyToThirtyFive(GameTestHelper helper) {
 		StandType starPlatinum = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
 		StandType theWorld = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("the_world"));
 		helper.assertTrue(starPlatinum != null && theWorld != null, "Missing Star Platinum or The World");
-		helper.assertTrue(starPlatinum.getStandStats().power(0) == 16 && starPlatinum.getStandStats().power(1) == 30,
+		helper.assertTrue(starPlatinum.getStandStats().power(0) == 20 && starPlatinum.getStandStats().power(1) == 35,
 				"Star Platinum's power runs " + starPlatinum.getStandStats().power(0) + " to " + starPlatinum.getStandStats().power(1));
 		helper.assertTrue(starPlatinum.getStandStats().power(1) > theWorld.getStandStats().power(1),
 				"Star Platinum's top power is not above The World's " + theWorld.getStandStats().power(1));
 
 		double lowest = summonedPower(helper, starPlatinum, false);
 		double highest = summonedPower(helper, starPlatinum, true);
-		helper.assertTrue(lowest == 16 && highest == 30,
+		helper.assertTrue(lowest == 20 && highest == 35,
 				"The summoned Star Platinum's power is " + lowest + " at Resolve 0 and " + highest + " at its highest");
-		helper.assertTrue(StandStatFormulas.getLightAttackDamage(highest) == 7.5F
-				&& StandStatFormulas.getHeavyAttackDamage(highest) == 30F,
+		helper.assertTrue(StandStatFormulas.getLightAttackDamage(highest) == 8.75F
+				&& StandStatFormulas.getHeavyAttackDamage(highest) == 35F,
 				"Star Platinum's punches at its top: light " + StandStatFormulas.getLightAttackDamage(highest)
 						+ ", heavy " + StandStatFormulas.getHeavyAttackDamage(highest));
 		helper.succeed();

@@ -24,7 +24,7 @@ public class StandInitStarPlatinum {
 	public static EntityStandType create(ResourceLocation id) {
 		return new EntityStandType(
 				new StandStats.Builder()
-				.power(16.0, 30.0)
+				.power(20.0, 35.0)
 				.speed(16.0, 19.0)
 				.range(1, 2)
 				.durability(16.0, 20.0)

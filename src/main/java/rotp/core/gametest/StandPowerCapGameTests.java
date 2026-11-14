@@ -47,18 +47,19 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * Only damage follows a Stand's power above 20, the top of the ordinary scale (StandStatFormulas.ORDINARY_POWER_CAP): the
- * leap, the blasts, the knockbacks, the swing pitch, the speed of what a Stand throws, what its punch may break and the
- * resistance read power at most 20. Star Platinum (30 at its top) and Crazy Diamond (21 at its top, the owner's numbers of
- * 2026-11-13) are the Stands above it; every other value of every Stand is the formula as it was before the cap.
+ * Only damage follows a Stand's power above 21, the top of the ordinary scale (StandStatFormulas.ORDINARY_POWER_CAP, the
+ * owner's numbers of 2026-11-13): the leap, the blasts, the knockbacks, the swing pitch, the speed of what a Stand throws,
+ * what its punch may break and the resistance read power at most 21. Star Platinum (35 at its top) and The World (23 at
+ * its top) are the Stands above it; every other value of every Stand is the formula as it was before the cap.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class StandPowerCapGameTests {
 	// pinned here, not read from StandStatFormulas.ORDINARY_POWER_CAP: a change of the cap must move this test
-	private static final float TOP = 20F;
+	private static final float TOP = 21F;
+	private static final float STAR_PLATINUM_TOP = 35F;
 	private static final Set<ResourceLocation> ABOVE_THE_SCALE = Set.of(
-			JojoMod.resLoc("star_platinum"), JojoMod.resLoc("crazy_diamond"));
+			JojoMod.resLoc("star_platinum"), JojoMod.resLoc("the_world"));
 	private static final float EPSILON = 1.0E-5F;
 	private static final float[] FINISHER_METERS = { 0F, 0.5F, 1F };
 	private static final float[] BLOCKED_RATIOS = { 0F, 0.5F };
@@ -67,7 +68,7 @@ public final class StandPowerCapGameTests {
 	private StandPowerCapGameTests() {}
 
 	@GameTest(template = "empty", timeoutTicks = 60)
-	public static void everyStandsPowerReadsStayTheUncappedFormulasExceptStarPlatinumAndCrazyDiamondAboveTwenty(GameTestHelper helper) {
+	public static void everyStandsPowerReadsStayTheUncappedFormulasExceptStarPlatinumAndTheWorldAboveTwentyOne(GameTestHelper helper) {
 		List<String> failures = new ArrayList<>();
 		int standsAbove = 0;
 		int checked = 0;
@@ -87,7 +88,7 @@ public final class StandPowerCapGameTests {
 					standsAbove++;
 					if (!ABOVE_THE_SCALE.contains(id)) {
 						failures.add(id + " has power " + power + ", above " + TOP
-								+ ": only Star Platinum and Crazy Diamond are meant to be");
+								+ ": only Star Platinum and The World are meant to be");
 					}
 					continue;
 				}
@@ -97,14 +98,14 @@ public final class StandPowerCapGameTests {
 		}
 		failures.forEach(failure -> JojoMod.getLogger().error("POWER-CAP FAIL " + failure));
 		helper.assertTrue(coreSeen && checked >= 8 && standsAbove >= ABOVE_THE_SCALE.size(),
-				"Fixture: " + checked + " stat sets checked, " + standsAbove + " above 20, Star Platinum registered: " + coreSeen);
+				"Fixture: " + checked + " stat sets checked, " + standsAbove + " above " + TOP + ", Star Platinum registered: " + coreSeen);
 		helper.assertTrue(failures.isEmpty(), failures.size() + " of " + checked + " stat sets differ, first: "
 				+ (failures.isEmpty() ? "" : failures.get(0)));
 		helper.succeed();
 	}
 
 	@GameTest(template = "empty", timeoutTicks = 100)
-	public static void starPlatinumAtItsTopPowerReadsTwentyEverywhereButDamage(GameTestHelper helper) {
+	public static void starPlatinumAtItsTopPowerReadsTwentyOneEverywhereButDamage(GameTestHelper helper) {
 		StandType type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
 		helper.assertTrue(type != null, "Missing Star Platinum");
 		ServerLevel level = helper.getLevel();
@@ -126,14 +127,14 @@ public final class StandPowerCapGameTests {
 			power.setStamina(power.getMaxStamina());
 			stand.updateStrengthMultipliers();
 			double strength = stand.getAttackDamage();
-			helper.assertTrue(strength == 30, "Fixture: the Stand's power is " + strength + ", not 30");
+			helper.assertTrue(strength == STAR_PLATINUM_TOP, "Fixture: the Stand's power is " + strength + ", not " + STAR_PLATINUM_TOP);
 
 			near(helper, "leap", stand.getLeapStrength(), TOP / 5F);
 			near(helper, "heavy punch blast radius", StandEntityHeavyPunchAbility.calcExplosionRadius(stand), Math.min(TOP * 0.175F, 10));
 			near(helper, "charged heavy blast radius", StandEntityHeavyPunchChargedAbility.calcExplosionRadius(stand), Math.min(TOP * 0.25F, 10));
-			helper.assertTrue(StandEntityHeavyPunchAbility.calcExplosionRadius(stand) != Math.min(30 * 0.175F, 10)
-					&& StandEntityHeavyPunchChargedAbility.calcExplosionRadius(stand) != Math.min(30 * 0.25F, 10),
-					"Fixture: the blast radii are those of power 30");
+			helper.assertTrue(StandEntityHeavyPunchAbility.calcExplosionRadius(stand) != Math.min(STAR_PLATINUM_TOP * 0.175F, 10)
+					&& StandEntityHeavyPunchChargedAbility.calcExplosionRadius(stand) != Math.min(STAR_PLATINUM_TOP * 0.25F, 10),
+					"Fixture: the blast radii are those of power " + STAR_PLATINUM_TOP);
 
 			Pig pig = helper.spawn(EntityType.PIG, new BlockPos(1, 2, 3));
 			near(helper, "barrage knockback factor", StandEntityBarrageAbility.getBarrageKnockbackMultiplier(stand, pig), TOP * 0.0075F);
@@ -165,22 +166,24 @@ public final class StandPowerCapGameTests {
 			}
 			float base = 1.8F - TOP * 0.05F;
 			helper.assertTrue(lowest >= base - EPSILON && highest < base + 0.2F + EPSILON,
-					"The barrage swing pitch runs " + lowest + " to " + highest + " at power 30, not " + base + " up by 0.2");
+					"The barrage swing pitch runs " + lowest + " to " + highest + " at power " + STAR_PLATINUM_TOP + ", not " + base
+							+ " up by 0.2");
 
 			StandStats stats = type.getStandStats();
-			float lightAt30 = StandStatFormulas.getLightAttackDamage(strength);
-			float heavyAt30 = StandStatFormulas.getHeavyAttackDamage(strength);
-			float barrageHitAt30 = StandStatFormulas.getBarrageHitDamage(strength, stand.getPrecision());
-			float chargedAt30 = StandStatFormulas.getChargedHeavyAttackDamage(strength, stand.getAttackSpeed(), stand.getPrecision());
-			helper.assertTrue(lightAt30 == 7.5F && heavyAt30 == 30F, "Star Platinum's light and heavy punch damage: " + lightAt30 + ", " + heavyAt30);
+			float lightAtTop = StandStatFormulas.getLightAttackDamage(strength);
+			float heavyAtTop = StandStatFormulas.getHeavyAttackDamage(strength);
+			float barrageHitAtTop = StandStatFormulas.getBarrageHitDamage(strength, stand.getPrecision());
+			float chargedAtTop = StandStatFormulas.getChargedHeavyAttackDamage(strength, stand.getAttackSpeed(), stand.getPrecision());
+			helper.assertTrue(lightAtTop == STAR_PLATINUM_TOP * 0.25F && heavyAtTop == STAR_PLATINUM_TOP,
+					"Star Platinum's light and heavy punch damage: " + lightAtTop + ", " + heavyAtTop);
 			double precisionPart = stand.getPrecision() / 16;
-			float barrageHitBy30 = (0.04F + 30 * 0.01F) * (float) (1 + precisionPart * 0.5 * Math.min(precisionPart, 0.5));
-			near(helper, "barrage hit damage", barrageHitAt30, barrageHitBy30);
-			float barrageSecond = barrageHitBy30 * Math.max((int) (stand.getAttackSpeed() * 8.0 - 20.0), 0);
-			near(helper, "charged heavy damage", chargedAt30, Math.max(45F, barrageSecond * 1.1F));
-			helper.assertTrue(chargedAt30 > StandStatFormulas.getChargedHeavyAttackDamage(TOP, stand.getAttackSpeed(), stand.getPrecision())
-					&& lightAt30 > StandStatFormulas.getLightAttackDamage(TOP),
-					"Star Platinum's damage at power 30 is not above its damage at 20");
+			float barrageHitByTop = (0.04F + STAR_PLATINUM_TOP * 0.01F) * (float) (1 + precisionPart * 0.5 * Math.min(precisionPart, 0.5));
+			near(helper, "barrage hit damage", barrageHitAtTop, barrageHitByTop);
+			float barrageSecond = barrageHitByTop * Math.max((int) (stand.getAttackSpeed() * 8.0 - 20.0), 0);
+			near(helper, "charged heavy damage", chargedAtTop, Math.max(STAR_PLATINUM_TOP * 1.5F, barrageSecond * 1.1F));
+			helper.assertTrue(chargedAtTop > StandStatFormulas.getChargedHeavyAttackDamage(TOP, stand.getAttackSpeed(), stand.getPrecision())
+					&& lightAtTop > StandStatFormulas.getLightAttackDamage(TOP),
+					"Star Platinum's damage at power " + STAR_PLATINUM_TOP + " is not above its damage at " + TOP);
 
 			near(helper, "projectile speed", StandStatFormulas.projectileVelocityScaling(strength, 1F), (TOP - 8) / 12F + 1);
 			near(helper, "block mining efficiency", StandStatFormulas.getBlockMiningEfficiency(strength), (TOP - 16.5F) * 2);
@@ -191,14 +194,14 @@ public final class StandPowerCapGameTests {
 			helper.assertTrue(Math.abs(StandStatFormulas.maxBreakableHardness(strength) - Math.exp(TOP / 4)) < 1.0E-9
 					&& StandStatFormulas.getLegacyHarvestTier(strength) == (int) TOP / 4
 					&& StandStatFormulas.getStandHarvestLevel(strength) == StandStatFormulas.getStandHarvestLevel(TOP),
-					"What a punch of power 30 may break is not what one of power 20 may");
+					"What a punch of power " + STAR_PLATINUM_TOP + " may break is not what one of power " + TOP + " may");
 			double durability = stand.getDurability();
 			for (float blocked : BLOCKED_RATIOS) {
 				helper.assertTrue(StandStatFormulas.getPhysicalResistance(durability, strength, blocked, 1F)
 						== StandStatFormulas.getPhysicalResistance(durability, TOP, blocked, 1F),
-						"The physical resistance reads power above 20 (blocked " + blocked + ")");
+						"The physical resistance reads power above " + TOP + " (blocked " + blocked + ")");
 			}
-			helper.assertTrue(stats.power(1F) == 30, "Star Platinum's top power is " + stats.power(1F));
+			helper.assertTrue(stats.power(1F) == STAR_PLATINUM_TOP, "Star Platinum's top power is " + stats.power(1F));
 			helper.succeed();
 		}
 		finally {
@@ -288,7 +291,7 @@ public final class StandPowerCapGameTests {
 
 	private static void near(GameTestHelper helper, String what, float actual, float expected) {
 		helper.assertTrue(Math.abs(actual - expected) <= EPSILON * Math.max(1F, Math.abs(expected)),
-				"Star Platinum at power 30: " + what + " is " + actual + ", at power 20 it is " + expected);
+				"Star Platinum at power " + STAR_PLATINUM_TOP + ": " + what + " is " + actual + ", at power " + TOP + " it is " + expected);
 	}
 
 	private static float heavyPunchKnockback(StandEntityHeavyPunch action, StandEntity stand) {

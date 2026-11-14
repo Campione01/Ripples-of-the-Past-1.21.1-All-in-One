@@ -17,7 +17,7 @@ import net.minecraft.world.level.block.state.BlockState;
 public class StandStatFormulas {
 
 	/** The top of the ordinary power scale: above it only damage follows a Stand's power, so every other use reads this cap. */
-	public static final double ORDINARY_POWER_CAP = 20;
+	public static final double ORDINARY_POWER_CAP = 21;
 
 	public static double ordinaryPower(double strength) {
 		return Math.min(strength, ORDINARY_POWER_CAP);
