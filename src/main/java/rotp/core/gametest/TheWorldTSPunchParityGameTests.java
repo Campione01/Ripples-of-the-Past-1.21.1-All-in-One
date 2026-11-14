@@ -303,11 +303,11 @@ public final class TheWorldTSPunchParityGameTests {
             Vec3 origin = new Vec3(cell.getMiddleBlockX() + 0.5, suite.helper.absolutePos(BlockPos.ZERO).getY() + 8,
                     cell.getMiddleBlockZ() + 0.5);
             caster = actor(origin);
-            if (spec.kind == Kind.OUT_LIGHT_QUEUED) {
+            if (spec.kind == Kind.OUT_LIGHT_QUEUED || spec.kind == Kind.LIGHT_WINDUP) {
                 double speed = spec.meter == 1 ? 24 : 16;
                 caster.user.getAttribute(ModEntityAttributes.STAND_SPEED).setBaseValue(speed);
                 StandEntity.updateStandStatAttributes(caster.stand, caster.user);
-                premise(near(caster.stand.getAttackSpeed(), speed), "deterministic native queued-light speed");
+                premise(near(caster.stand.getAttackSpeed(), speed), "deterministic native light speed");
             }
             premise(caster.power.usesStamina() && caster.power.isStaminaInfinite() == spec.creative(), "finite/Creative actual stamina policy");
             unlock("time_stop");

@@ -24,7 +24,7 @@ public class StandInitTheWorld {
 		return new EntityStandType(
 				new StandStats.Builder()
 				.power(19.0, 23.0)
-				.speed(16.0, 18.5)
+				.speed(18.0, 22.0)
 				.range(5, 10)
 				.durability(16.0, 20.0)
 				.precision(12)

@@ -162,6 +162,7 @@ public final class StandRecallKeepsSkillsGameTests {
 	@GameTest(template = "empty", timeoutTicks = 60)
 	public static void aMoveOfTheStandsBodyStopsWithIt(GameTestHelper helper) {
 		StandTaskTargetOffsetGameTests.withStand(helper, "star_platinum", scene -> {
+			StandTaskTargetOffsetGameTests.oneTickFirstPunchWindup(helper, scene.user(), scene.stand());
 			EntityActionInstance punch = scene.start("punch", ActionPhase.WINDUP);
 			recall(scene);
 			helper.assertTrue(punch.isOver() || scene.stand().getCurStandAction() == null,
