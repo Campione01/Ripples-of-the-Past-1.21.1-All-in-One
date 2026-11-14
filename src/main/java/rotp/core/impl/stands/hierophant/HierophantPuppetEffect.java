@@ -1,5 +1,6 @@
 package rotp.core.impl.stands.hierophant;
 
+import rotp.core.api.power.AbilityRefusals;
 import rotp.core.client.ClientProxy;
 import rotp.core.core.JojoMod;
 import rotp.core.entityattachment.ComponentUtil;
@@ -30,6 +31,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 
 @EventBusSubscriber(modid = JojoMod.MOD_ID)
 public class HierophantPuppetEffect extends StandEffectInstance {
@@ -153,6 +155,11 @@ public class HierophantPuppetEffect extends StandEffectInstance {
 				ClientEntityController.setInstance(null);
 			}
 		}
+	}
+
+	@SubscribeEvent
+	public static void refuseOtherAbilitiesInsideAPuppet(FMLCommonSetupEvent event) {
+		AbilityRefusals.register(JojoMod.resLoc("hierophant_puppet"), HierophantPuppetAbility::refuseInsideAPuppet);
 	}
 
 	@SubscribeEvent
