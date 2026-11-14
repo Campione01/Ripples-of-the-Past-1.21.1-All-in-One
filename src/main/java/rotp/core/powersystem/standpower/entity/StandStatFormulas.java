@@ -71,7 +71,9 @@ public class StandStatFormulas {
 	}
 
 	private static final Random RANDOM = new Random();
-	public static int getLightAttackWindup(double speed, float finisherMeter, float guardCounter, boolean firstPunch) {
+
+	/** The light windup in ticks before it is rounded to whole ticks: the mean of the ticks it takes. */
+	public static double getLightAttackWindupMean(double speed, float finisherMeter, float guardCounter, boolean firstPunch) {
 		double val = (24 - speed) / 4;
 		if (val <= 0) return 0;
 
@@ -83,14 +85,47 @@ public class StandStatFormulas {
 		if (firstPunch) {
 			val /= 2;
 		}
+		return val;
+	}
 
-		int ticks = Mth.floor(val);
-		if (RANDOM.nextDouble() < val - ticks) ticks++;
-		return ticks;
+	public static int getLightAttackWindup(double speed, float finisherMeter, float guardCounter, boolean firstPunch) {
+		return roundAtRandom(getLightAttackWindupMean(speed, finisherMeter, guardCounter, firstPunch));
 	}
 
 	public static int getLightAttackWindup(double speed, float finisherMeter, boolean firstPunch) {
 		return getLightAttackWindup(speed, finisherMeter, 0, firstPunch);
+	}
+
+	/**
+	 * The light windup of a punch in a sequence of punches (owner, 2026-11-14). A first punch whose windup is above 0 and
+	 * below a tick takes the tick, where rounding at random left it none as often as the windup fell short of the tick;
+	 * what it takes beyond its windup, the carry, comes off the windups of the next punches of its sequence, and a windup
+	 * of a tick or more never goes below a tick for it. Every other windup rounds as
+	 * {@link #getLightAttackWindup(double, float, float, boolean)} rounds it, so a sequence keeps the formula's mean windup
+	 * but for the carry still unpaid when it ends, which is below a tick.
+	 * @param carry the carry the punch before this one in its sequence left; a first punch starts the sequence without one
+	 */
+	public static LightWindup getLightAttackWindup(double speed, float finisherMeter, float guardCounter, boolean firstPunch,
+			double carry) {
+		double mean = getLightAttackWindupMean(speed, finisherMeter, guardCounter, firstPunch);
+		if (firstPunch) {
+			return mean > 0 && mean < 1 ? new LightWindup(1, 1 - mean) : new LightWindup(roundAtRandom(mean), 0);
+		}
+		double least = mean >= 1 ? 1 : 0;
+		double owed = Math.max(carry, 0);
+		double paid = Math.min(owed, Math.max(mean - least, 0));
+		return new LightWindup(roundAtRandom(Math.max(mean - paid, least)), owed - paid);
+	}
+
+	/** A light windup in whole ticks, and the carry its sequence's next punch takes off its own windup. */
+	public record LightWindup(int ticks, double carry) {}
+
+	// whole ticks, the part of a tick taken as often as it is long
+	private static int roundAtRandom(double ticks) {
+		if (ticks <= 0) return 0;
+		int whole = Mth.floor(ticks);
+		if (RANDOM.nextDouble() < ticks - whole) whole++;
+		return whole;
 	}
 	
 	public static int getLightAttackRecovery(double speed, float finisherMeter) {

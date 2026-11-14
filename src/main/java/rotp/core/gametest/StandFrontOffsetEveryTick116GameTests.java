@@ -231,9 +231,6 @@ public final class StandFrontOffsetEveryTick116GameTests {
 					"Fixture: the summoned Star Platinum does not follow its user whole");
 			stand.summonLockTicks = 0;
 			stand.gradualSummonWeaknessTicks = 0;
-			if (row == StrikeRow.PUNCH_AT_A_BLOCK) {
-				StandTaskTargetOffsetGameTests.oneTickFirstPunchWindup(helper, user, stand);
-			}
 
 			ActionTarget aim;
 			if (row == StrikeRow.PUNCH_AT_A_BLOCK) {
@@ -421,9 +418,6 @@ public final class StandFrontOffsetEveryTick116GameTests {
 					"Fixture: the summoned " + row.stand + " does not follow its user whole");
 			stand.summonLockTicks = 0;
 			stand.gradualSummonWeaknessTicks = 0;
-			if (row == Row.PUNCH) {
-				StandTaskTargetOffsetGameTests.oneTickFirstPunchWindup(helper, user, stand);
-			}
 
 			cow = EntityType.COW.create(helper.getLevel());
 			helper.assertTrue(cow != null, "Could not make a cow");
