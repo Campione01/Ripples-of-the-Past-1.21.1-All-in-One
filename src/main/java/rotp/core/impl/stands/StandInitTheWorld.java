@@ -23,7 +23,7 @@ public class StandInitTheWorld {
 	public static EntityStandType create(ResourceLocation id) {
 		return new EntityStandType(
 				new StandStats.Builder()
-				.power(16.0, 19.0)
+				.power(19.0, 23.0)
 				.speed(16.0, 18.5)
 				.range(5, 10)
 				.durability(16.0, 20.0)
