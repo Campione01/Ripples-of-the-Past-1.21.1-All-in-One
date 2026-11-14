@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
@@ -48,14 +49,16 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 /**
  * Only damage follows a Stand's power above 20, the top of the ordinary scale (StandStatFormulas.ORDINARY_POWER_CAP): the
  * leap, the blasts, the knockbacks, the swing pitch, the speed of what a Stand throws, what its punch may break and the
- * resistance read power at most 20. Star Platinum is the one Stand above it (30 at its top); every other value of every
- * Stand is the formula as it was before the cap.
+ * resistance read power at most 20. Star Platinum (30 at its top) and Crazy Diamond (21 at its top, the owner's numbers of
+ * 2026-11-13) are the Stands above it; every other value of every Stand is the formula as it was before the cap.
  */
 @GameTestHolder(JojoMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class StandPowerCapGameTests {
 	// pinned here, not read from StandStatFormulas.ORDINARY_POWER_CAP: a change of the cap must move this test
 	private static final float TOP = 20F;
+	private static final Set<ResourceLocation> ABOVE_THE_SCALE = Set.of(
+			JojoMod.resLoc("star_platinum"), JojoMod.resLoc("crazy_diamond"));
 	private static final float EPSILON = 1.0E-5F;
 	private static final float[] FINISHER_METERS = { 0F, 0.5F, 1F };
 	private static final float[] BLOCKED_RATIOS = { 0F, 0.5F };
@@ -64,7 +67,7 @@ public final class StandPowerCapGameTests {
 	private StandPowerCapGameTests() {}
 
 	@GameTest(template = "empty", timeoutTicks = 60)
-	public static void everyStandsPowerReadsStayTheUncappedFormulasExceptStarPlatinumAboveTwenty(GameTestHelper helper) {
+	public static void everyStandsPowerReadsStayTheUncappedFormulasExceptStarPlatinumAndCrazyDiamondAboveTwenty(GameTestHelper helper) {
 		List<String> failures = new ArrayList<>();
 		int standsAbove = 0;
 		int checked = 0;
@@ -82,8 +85,9 @@ public final class StandPowerCapGameTests {
 				double speed = stats.speed(ratio);
 				if (power > TOP) {
 					standsAbove++;
-					if (!id.equals(JojoMod.resLoc("star_platinum"))) {
-						failures.add(id + " has power " + power + ", above " + TOP + ": only Star Platinum is meant to be");
+					if (!ABOVE_THE_SCALE.contains(id)) {
+						failures.add(id + " has power " + power + ", above " + TOP
+								+ ": only Star Platinum and Crazy Diamond are meant to be");
 					}
 					continue;
 				}
@@ -92,7 +96,7 @@ public final class StandPowerCapGameTests {
 			}
 		}
 		failures.forEach(failure -> JojoMod.getLogger().error("POWER-CAP FAIL " + failure));
-		helper.assertTrue(coreSeen && checked >= 8 && standsAbove >= 1,
+		helper.assertTrue(coreSeen && checked >= 8 && standsAbove >= ABOVE_THE_SCALE.size(),
 				"Fixture: " + checked + " stat sets checked, " + standsAbove + " above 20, Star Platinum registered: " + coreSeen);
 		helper.assertTrue(failures.isEmpty(), failures.size() + " of " + checked + " stat sets differ, first: "
 				+ (failures.isEmpty() ? "" : failures.get(0)));

@@ -23,7 +23,7 @@ public class StandInitCrazyDiamond {
 	public static EntityStandType create(ResourceLocation id) {
 		return new EntityStandType(
 				new StandStats.Builder()
-				.power(14.0, 17.0)
+				.power(18.0, 21.0)
 				.speed(14.0, 16.5)
 				.range(1, 2)
 				.durability(11.0, 13.0)
