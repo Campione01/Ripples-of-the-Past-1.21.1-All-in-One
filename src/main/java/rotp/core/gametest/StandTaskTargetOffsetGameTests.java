@@ -449,7 +449,6 @@ public final class StandTaskTargetOffsetGameTests {
 	@GameTest(template = "empty", timeoutTicks = 100)
 	public static void aPunchKeepsItsTargetButNeverTurnsItsOffsetToItAsIn116(GameTestHelper helper) {
 		withStand(helper, "star_platinum", scene -> {
-			oneTickFirstPunchWindup(helper, scene.user, scene.stand);
 			Cow cow = scene.cow(new Vec3(1.5D, 0.0D, 0.0D));
 			userAims(scene.user, cow);
 			EntityActionInstance punch = scene.start("punch", ActionPhase.WINDUP);
@@ -1063,14 +1062,6 @@ public final class StandTaskTargetOffsetGameTests {
 		user.xRotO = 0.0F;
 		user.yBodyRot = bodyYaw;
 		user.yBodyRotO = bodyYaw;
-	}
-
-	// a first punch's windup is (24 - speed) / 8 ticks, its part below a tick drawn at random: one tick at speed 16
-	static void oneTickFirstPunchWindup(GameTestHelper helper, Player user, StandEntity stand) {
-		user.getAttribute(ModEntityAttributes.STAND_SPEED).setBaseValue(16.0D);
-		StandEntity.updateStandStatAttributes(stand, user);
-		helper.assertTrue(stand.getAttackSpeed() == 16.0D, "Fixture: the Stand's speed is " + stand.getAttackSpeed()
-				+ ", not 16");
 	}
 
 	// StandEntity.tick places a following Stand through updatePosition

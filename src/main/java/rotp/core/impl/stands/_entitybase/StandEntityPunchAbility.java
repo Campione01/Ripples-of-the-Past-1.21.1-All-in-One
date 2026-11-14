@@ -240,9 +240,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 			if (action instanceof StandEntityPunch punch) {
 				punch.handedAnimation = usesSinglePunchHandedAnimation(stand.getUserPower(), stand);
 			}
-			action.phasesLength.put(ActionPhase.WINDUP, StandStatFormulas.getLightAttackWindup(
-					stand.getAttackSpeed(), stand.getFinisherMeter(), stand.guardCounter(), 
-					isFirstPunch(stand)));
+			action.phasesLength.put(ActionPhase.WINDUP, lightWindup(action, stand));
 			float lightRecovery = StandStatFormulas.getLightAttackRecovery(stand.getAttackSpeed(), stand.getFinisherMeter());
 			action.phasesLength.put(ActionPhase.PERFORM, lightRecovery);
 			action.phasesLength.put(ActionPhase.RECOVERY, lightRecovery * (stand.isArmsOnlyMode() ? 2 : 4));
@@ -292,6 +290,8 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		 * landed, or the target is not living). Null when a hitEntity override did not say: the sound plays.
 		 */
 		@Nullable protected Boolean impactSoundDue;
+		// server: the windup carry this punch leaves to the next punch of its sequence
+		private double windupCarry;
 
 		public StandEntityPunch(EntityActionType ability) {
 			super(ability);
@@ -1542,6 +1542,21 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	
 	// 
 	
+	// the carry goes from punch to punch of a sequence (StandStatFormulas.LightWindup); a punch that never starts, as the
+	// copy a buffered press makes before its replay, is never asked for its carry
+	private int lightWindup(EntityActionInstance action, StandEntity stand) {
+		boolean firstPunch = isFirstPunch(stand);
+		if (!(action instanceof StandEntityPunch punch)) {
+			return StandStatFormulas.getLightAttackWindup(stand.getAttackSpeed(), stand.getFinisherMeter(),
+					stand.guardCounter(), firstPunch);
+		}
+		double carry = !firstPunch && stand.getCurStandAction() instanceof StandEntityPunch previous ? previous.windupCarry : 0;
+		StandStatFormulas.LightWindup windup = StandStatFormulas.getLightAttackWindup(stand.getAttackSpeed(),
+				stand.getFinisherMeter(), stand.guardCounter(), firstPunch, carry);
+		punch.windupCarry = windup.carry();
+		return windup.ticks();
+	}
+
 	private boolean isFirstPunch(StandEntity stand) {
 		EntityActionInstance previous = stand.getCurStandAction();
 		if (previous == null) return true;

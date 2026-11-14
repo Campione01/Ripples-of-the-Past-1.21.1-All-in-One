@@ -191,9 +191,6 @@ public final class StandActionStunGameTests {
 					+ " them");
 			stand.summonLockTicks = 0;
 			stand.gradualSummonWeaknessTicks = 0;
-			if (punch()) {
-				StandTaskTargetOffsetGameTests.oneTickFirstPunchWindup(helper, user, stand);
-			}
 
 			Ability ability = power.getAbility(punch() ? "punch" : held() ? HELD_STAND_ACTION : STAND_ACTION);
 			if (row == Row.PRESSED_WITH_STAND_STUNNED) {
