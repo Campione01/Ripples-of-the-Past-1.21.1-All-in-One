@@ -7,8 +7,10 @@ import javax.annotation.Nullable;
 import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
+import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
+import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.ability.input.ActionInputBuffer.BufferingState;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
@@ -95,6 +97,30 @@ public class HierophantPuppetAbility extends StandEntityAbility {
 		return userPower != null && userPower.userStandEffects
 				.getEffectOfType(ModStandAbilities.EFFECT_HG_PUPPET.get())
 				.isPresent();
+	}
+
+	private static final ConditionCheck INSIDE_A_PUPPET = ConditionCheck.createNegative("hierophant_puppet");
+
+	/*
+	 * Inside its puppet Hierophant Green cannot fight outside, as in the manga, where it works a body from inside it (owner,
+	 * 2026-11-13; 1.16 had no puppet, the official 1.21.1 port left every ability usable). Registered as a refusal so that
+	 * every place the core checks conditions asks it: the HUD, the press on both sides, a queued press, a held tick. Only
+	 * the puppet's own controls stay: this ability, which lets the puppet go, and the manual control key, which switches
+	 * the puppet's control (HierophantPuppetEffect.onManualControlToggle) and which refusals never ask.
+	 */
+	@Nullable
+	static ConditionCheck refuseInsideAPuppet(Ability ability, Power<?> context, LivingEntity user) {
+		if (ability.abilityId.powerClass() != PowerClass.STAND || ability instanceof HierophantPuppetAbility) {
+			return null;
+		}
+		return isInsideAPuppet(PowerClass.STAND.cast(context)) ? INSIDE_A_PUPPET : null;
+	}
+
+	// a puppet that was let go stays listed until its user's next effect tick
+	private static boolean isInsideAPuppet(@Nullable StandPower userPower) {
+		return userPower != null && userPower.userStandEffects
+				.getEffectsOfType(ModStandAbilities.EFFECT_HG_PUPPET.get())
+				.anyMatch(puppet -> !puppet.isStopped());
 	}
 
 	protected String releaseSpriteName;

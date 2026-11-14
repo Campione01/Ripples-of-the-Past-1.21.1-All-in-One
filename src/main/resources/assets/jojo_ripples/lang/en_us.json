@@ -847,6 +847,7 @@
   "jojo.message.action_condition.no_stand_part.arms": "Your Stand is missing its arms",
   "jojo.message.action_condition.no_stand_part.legs": "Your Stand is missing its legs",
   "jojo.message.action_condition.manual_control_disabled": "Manual control is disabled",
+  "jojo.message.action_condition.hierophant_puppet": "Hierophant Green is inside its puppet: release the puppet first",
   "jojo_ripples.subtitle.stand_summon": "Stand summoned",
   "jojo_ripples.subtitle.stand_unsummon": "Stand unsummoned",
   "jojo_ripples.subtitle.stand_attack_light": "Attack",

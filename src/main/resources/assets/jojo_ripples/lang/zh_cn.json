@@ -856,6 +856,7 @@
   "jojo.message.action_condition.no_stand_part.arms": "你的『替身』失去了它的手臂",
   "jojo.message.action_condition.no_stand_part.legs": "你的『替身』失去了它的腿",
   "jojo.message.action_condition.manual_control_disabled": "当前无法手动控制『替身』",
+  "jojo.message.action_condition.hierophant_puppet": "绿色法皇正在傀儡体内，请先解除傀儡操控",
   "jojo_ripples.subtitle.stand_summon": "释放『替身』",
   "jojo_ripples.subtitle.stand_unsummon": "收回『替身』",
   "jojo_ripples.subtitle.stand_attack_light": "攻击",
