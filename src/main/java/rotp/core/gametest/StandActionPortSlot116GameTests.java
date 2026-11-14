@@ -104,6 +104,7 @@ public final class StandActionPortSlot116GameTests {
 		List<String> wrong = new ArrayList<>();
 		int punchAlone;
 		try (Cell cell = new Cell(helper, 0)) {
+			StandTaskTargetOffsetGameTests.oneTickFirstPunchWindup(helper, cell.user, cell.stand);
 			cell.press("punch", InputMethod.CLICK, TASK_KEY);
 			EntityActionInstance punch = cell.standSlot().getAction();
 			helper.assertTrue(punch != null && punch.getPhase() == ActionPhase.WINDUP, "setup: the punch is not in its windup: "
@@ -113,6 +114,7 @@ public final class StandActionPortSlot116GameTests {
 		}
 
 		try (Cell cell = new Cell(helper, 1)) {
+			StandTaskTargetOffsetGameTests.oneTickFirstPunchWindup(helper, cell.user, cell.stand);
 			cell.press("punch", InputMethod.CLICK, TASK_KEY);
 			EntityActionInstance punch = cell.standSlot().getAction();
 			BufferingState pressed = cell.press(PORT, InputMethod.CLICK, PORT_KEY);
@@ -222,6 +224,7 @@ public final class StandActionPortSlot116GameTests {
 	public static void theTimeStopWithItsStandOutChargesInItsUsersStandPowerSlotKeepingItsTaskRulesAsIn116(
 			GameTestHelper helper) {
 		try (Scene s = new Scene(helper, "PortSlotStopDuringPunch")) {
+			StandTaskTargetOffsetGameTests.oneTickFirstPunchWindup(helper, s.user, s.stand);
 			s.press(s.standPower, "punch", InputMethod.CLICK, TASK_KEY);
 			EntityActionInstance punch = s.standSlot().getAction();
 			helper.assertTrue(punch != null && punch.getPhase() == ActionPhase.WINDUP, "setup: The World's punch is not in its"
@@ -333,6 +336,7 @@ public final class StandActionPortSlot116GameTests {
 	@GameTest(template = "empty", timeoutTicks = 100, batch = GameTestBatches.TIME_STOP)
 	public static void theTimeStopsChargeWithItsStandOutRegeneratesStaminaAsWithNoTaskAsIn116(GameTestHelper helper) {
 		try (Scene s = new Scene(helper, "PortSlotStopStamina")) {
+			StandTaskTargetOffsetGameTests.oneTickFirstPunchWindup(helper, s.user, s.stand);
 			helper.assertTrue(!s.standPower.isStaminaInfinite(), "setup: The World's user has infinite stamina");
 			float idle = s.staminaGainInATick();
 			helper.assertTrue(idle > 0, "setup: The World out with no action regenerated " + idle + " in a tick");

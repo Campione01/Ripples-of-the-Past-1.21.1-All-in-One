@@ -399,6 +399,9 @@ public final class StandTaskTargetTurnGameTests {
 				cow.setHealth(cow.getMaxHealth() - 4.0F);
 				LivingComponentAction.getComponent(scene.user()).entityAim.setTarget(new ActionTarget(cow));
 				LivingComponentAction.getComponent(scene.stand()).entityAim.setTarget(new ActionTarget(cow));
+				if (name.equals("punch")) {
+					StandTaskTargetOffsetGameTests.oneTickFirstPunchWindup(helper, scene.user(), scene.stand());
+				}
 				EntityActionInstance action = scene.start(name, (ActionPhase) row[2]);
 				discardStrings(scene);
 				StandTaskTargetOffsetGameTests.turn(scene.user(), VIEW_YAW, VIEW_YAW);

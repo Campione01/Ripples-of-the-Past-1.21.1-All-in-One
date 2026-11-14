@@ -24,7 +24,7 @@ public class StandInitCrazyDiamond {
 		return new EntityStandType(
 				new StandStats.Builder()
 				.power(17.0, 20.0)
-				.speed(14.0, 16.5)
+				.speed(15.0, 18.0)
 				.range(1, 2)
 				.durability(11.0, 13.0)
 				.precision(11.0, 12.0)

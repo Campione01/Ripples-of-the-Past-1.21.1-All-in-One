@@ -25,7 +25,7 @@ public class StandInitStarPlatinum {
 		return new EntityStandType(
 				new StandStats.Builder()
 				.power(20.0, 35.0)
-				.speed(16.0, 19.0)
+				.speed(18.0, 23.0)
 				.range(1, 2)
 				.durability(16.0, 20.0)
 				.precision(20)
