@@ -1,6 +1,5 @@
 package rotp.addons.stonefree.ability;
 
-import java.util.Comparator;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
@@ -15,7 +14,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.TicketType;
 import net.minecraft.server.players.PlayerList;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
@@ -32,7 +30,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.stonefree.StoneFreeAddon;
 import rotp.addons.stonefree.StoneFreeServices;
-import rotp.addons.stonefree.ability.StoneFreeBarrierGameTests.Fixture;
+import rotp.addons.stonefree.ability.StoneFreeActionFixture.Fixture;
 import rotp.addons.stonefree.entity.StoneFreeStandEntity;
 import rotp.addons.stonefree.entity.StoneFreeStringEntity;
 import rotp.addons.stonefree.entity.StoneFreeStringEntity.Kind;
@@ -56,15 +54,16 @@ import rotp.core.subsystems.target.ActionTarget;
 @GameTestHolder("rotp_sf_barrier_review")
 @PrefixGameTestTemplate(false)
 public final class StoneFreeGrappleGameTests {
-    private static final TicketType<ChunkPos> SITE_TICKET =
-            TicketType.create("rotp_sf_grapple_site", Comparator.comparingLong(ChunkPos::toLong));
+    private static final int REMOTE_CHUNK_WAIT_TICKS = 4000;
+    private static final long REMOTE_CHUNK_WAIT_NANOS = GameTestChunkTickets.WAIT_BUDGET_MILLIS * 1_000_000L;
+    private static final int REMOTE_CHUNK_WAIT_TEST_TICKS = 62_000;
 
     private StoneFreeGrappleGameTests() {}
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standGrapplePullsAtDonorSpeedAndLetsGoWithinTwoBlocks(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             Vec3 place = holdGrappleFromItsPlace(helper, fixture);
             PolarBear target = target(helper, fixture, place.add(0.0D, 10.0D, 0.0D));
@@ -87,7 +86,7 @@ public final class StoneFreeGrappleGameTests {
                         string.tick();
                         helper.assertTrue(!string.isAlive(),
                                 "The Stand's grapple kept its catch after pulling it within two blocks");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
@@ -97,15 +96,17 @@ public final class StoneFreeGrappleGameTests {
     // (TargetRequirement BLOCK, StoneFreeUserBarrier :76-78) only a block; the extended punch and
     // stone_free_grapple_entity kept none (standKeepsTarget false; StoneFreeGrapple :58-60 only as a shift variation),
     // nor did the user's strings, StandActions with no Stand task.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void pressedTargetsFollowTheDonorsTargetChecks(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, true);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, true);
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             PolarBear bear = target(helper, fixture, stand.position().add(0.0D, 0.0D, 3.0D));
             helper.assertTrue(stand.canAttack(bear), "Setup: Stone Free may not attack the bear");
             ActionTarget atBear = new ActionTarget(bear);
-            ActionTarget atBlock = new ActionTarget(fixture.first, Direction.UP);
+            BlockPos targetBlock = fixture.column.above(4);
+            fixture.setBlock(helper, targetBlock, Blocks.STONE.defaultBlockState());
+            ActionTarget atBlock = new ActionTarget(targetBlock, Direction.UP);
             String[][] rows = {
                     {StoneFreeAddon.EXTENDED_PUNCH_NAME, "false", "false"},
                     {StoneFreeAddon.GRAPPLE_ENTITY_NAME, "false", "false"},
@@ -124,15 +125,15 @@ public final class StoneFreeGrappleGameTests {
                         "1.16's target checks for " + row[0] + ": mob " + row[1] + ", block " + row[2]
                                 + "; the port took mob " + entity + ", block " + block);
             }
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
         });
     }
 
     // 1.16 DamagingEntity.onHitEntity after SFGrapplingStringEntity.hurtTarget returned true.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standGrappleMarksItsCatchAsHurtByTheUserWithoutHurtingIt(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             Vec3 place = holdGrappleFromItsPlace(helper, fixture);
             PolarBear target = target(helper, fixture, place.add(0.0D, 10.0D, 0.0D));
@@ -144,17 +145,17 @@ public final class StoneFreeGrappleGameTests {
                         helper.assertTrue(target.getHealth() == target.getMaxHealth() && target.hurtTime == 0,
                                 "The Stand's grapple hurt what it caught: health " + target.getHealth() + " of "
                                         + target.getMaxHealth() + ", hurtTime " + target.hurtTime);
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
     // 1.16 OwnerBoundProjectileEntity.dragTarget pulled the catch's root vehicle. A boat is not living, so the
     // string passes it and catches its rider.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standGrapplePullsTheVehicleItsCatchRides(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             Vec3 place = holdGrappleFromItsPlace(helper, fixture);
             Boat boat = EntityType.BOAT.create(helper.getLevel());
@@ -178,17 +179,17 @@ public final class StoneFreeGrappleGameTests {
                                 "The Stand's grapple did not pull the vehicle its catch rides: vehicle motion="
                                         + boat.getDeltaMovement() + ", rider motion=" + rider.getDeltaMovement()
                                         + ", expected " + unitPull);
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
     // 1.16 OwnerBoundProjectileEntity.doDragEntity: an effect that resets motion every tick would undo a pull,
     // so such a catch is moved outright.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standGrappleMovesAnImmobilisedCatchInsteadOfSettingItsMotion(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             Vec3 place = holdGrappleFromItsPlace(helper, fixture);
             PolarBear target = target(helper, fixture, place.add(0.0D, 10.0D, 0.0D));
@@ -208,15 +209,15 @@ public final class StoneFreeGrappleGameTests {
                                         + target.position().subtract(before) + " with motion "
                                         + target.getDeltaMovement() + ", expected a move of " + unitPull
                                         + " and no motion");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userEntityGrapplePullsUserToTheStringsEndOnItsCatch(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PolarBear target = target(helper, fixture, fixture.owner.position().add(0.0D, 10.0D, 0.0D));
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_ENTITY_NAME);
             await(helper, fixture, Kind.USER_GRAPPLE, 12, string -> string.getEntityAttachedTo() == target,
@@ -248,16 +249,16 @@ public final class StoneFreeGrappleGameTests {
                         string.tick();
                         helper.assertTrue(!string.isAlive(),
                                 "The user's grapple held on with its end on the catch within two blocks of the user");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
     // The port already had this half of the donor rule; it stays pinned beside the half above.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userEntityGrappleLetsGoOnceFeetAreWithinTwoBlocks(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PolarBear target = target(helper, fixture, fixture.owner.position().add(0.0D, 10.0D, 0.0D));
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_ENTITY_NAME);
             await(helper, fixture, Kind.USER_GRAPPLE, 12, string -> string.getEntityAttachedTo() == target,
@@ -267,15 +268,15 @@ public final class StoneFreeGrappleGameTests {
                         string.tick();
                         helper.assertTrue(!string.isAlive(),
                                 "The user's grapple held on with its catch standing within two blocks of the user");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 140)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 140 + GameTestChunkTickets.WAIT_TICKS)
     public static void looseGrappleFliesFourBlocksATickForFortyTicks(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_ENTITY_NAME);
             watchFlight(helper, fixture, new Flight(), 60);
         });
@@ -296,20 +297,20 @@ public final class StoneFreeGrappleGameTests {
             helper.assertTrue(flight.lastAge == 40 && Math.abs(flight.lastReach - 160.0D) < 0.01D,
                     "A loose grapple was last seen " + flight.lastAge + " ticks old, " + flight.lastReach
                             + " blocks out; the donor lets it fly 40 ticks, 160 blocks");
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
         helper.assertTrue(ticksLeft > 0, "The loose grapple never appeared or never ended: seen=" + flight.seen
                 + ", last age " + flight.lastAge);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchFlight(helper, fixture, flight, ticksLeft - 1));
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userGrappleAnchorsOnABlockBeyondTwentyFourBlocks(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
         BlockPos anchor = anchorAbove(helper, fixture, 34.0D);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
             await(helper, fixture, Kind.USER_GRAPPLE, 16, StoneFreeStringEntity::isAttachedToBlock, string -> {
                 fixture.owner.setDeltaMovement(Vec3.ZERO);
@@ -318,26 +319,26 @@ public final class StoneFreeGrappleGameTests {
                 helper.assertTrue(string.isAlive() && fixture.owner.getDeltaMovement().distanceTo(pull) < 1.0E-6D,
                         "The user was not pulled at 2.0 towards a block anchor 34 blocks up: motion="
                                 + fixture.owner.getDeltaMovement() + ", expected " + pull);
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
 
     // 1.16 InitStands:169-170: the user's grapples have no hold type. One press throws a string that stays out
     // by itself and takes 1 stamina a tick (SFUGrapplingStringEntity.tick), whatever is left of it.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userGrappleStaysOutAfterOnePressAndTakesOneStaminaATick(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
         anchorAbove(helper, fixture, 34.0D);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
-            StoneFreeBarrierGameTests.later(helper, fixture, 4, () -> {
+            StoneFreeActionFixture.later(helper, fixture, 4, () -> {
                 StoneFreeStringEntity string = find(helper, fixture, Kind.USER_GRAPPLE);
                 helper.assertTrue(string != null,
                         "The user's grapple string was gone 4 ticks after its key was pressed and released");
                 fixture.power.setStamina(fixture.power.getMaxStamina() * 0.5F);
                 float before = fixture.power.getStamina();
-                StoneFreeBarrierGameTests.later(helper, fixture, 10, () -> {
+                StoneFreeActionFixture.later(helper, fixture, 10, () -> {
                     helper.assertTrue(find(helper, fixture, Kind.USER_GRAPPLE) == string,
                             "The user's grapple string did not stay out 14 ticks after its one press");
                     float taken = before - fixture.power.getStamina();
@@ -345,14 +346,14 @@ public final class StoneFreeGrappleGameTests {
                             "A grapple string out for 10 ticks took " + taken + " stamina instead of 1 a tick: "
                                     + before + " -> " + fixture.power.getStamina());
                     fixture.power.setStamina(0.5F);
-                    StoneFreeBarrierGameTests.later(helper, fixture, 3, () -> {
+                    StoneFreeActionFixture.later(helper, fixture, 3, () -> {
                         helper.assertTrue(find(helper, fixture, Kind.USER_GRAPPLE) == string
                                         && fixture.power.getStamina() == 0.0F,
                                 "A grapple string its user could no longer pay for did not stay out on empty"
                                         + " stamina as in 1.16: string "
                                         + find(helper, fixture, Kind.USER_GRAPPLE) + ", stamina "
                                         + fixture.power.getStamina());
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
                 });
             });
@@ -361,15 +362,15 @@ public final class StoneFreeGrappleGameTests {
 
     // 1.16 StoneFreeUserGrapple.replaceAction and StringAction.checkSpecificConditions: with a string out the
     // grapple's slot is Recover String, no second string can be thrown, and holding Recover String ends the first.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void grappleSlotRecoversTheStringThatIsOutInsteadOfThrowingASecond(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
         anchorAbove(helper, fixture, 34.0D);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             Ability grapple = fixture.power.getAbility(StoneFreeAddon.USER_GRAPPLE_NAME);
             Ability recover = fixture.power.getAbility(StoneFreeAddon.USER_RECOVER_STRING_NAME);
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
-            StoneFreeBarrierGameTests.later(helper, fixture, 4, () -> {
+            StoneFreeActionFixture.later(helper, fixture, 4, () -> {
                 helper.assertTrue(find(helper, fixture, Kind.USER_GRAPPLE) != null,
                         "The user's grapple string was gone 4 ticks after its key was pressed and released");
                 AvailableAbilities moves = fixture.power.updateAvailableMoves();
@@ -383,20 +384,20 @@ public final class StoneFreeGrappleGameTests {
                 helper.assertTrue(recover.checkConditions(fixture.power).isPositive(),
                         "Recover String refused a user with a string out");
                 BufferingState buffering = BufferingState.clickOnly();
-                AbilityInput.keyPress(StoneFreeBarrierGameTests.GRAPPLE_KEY, recover, fixture.owner, null,
+                AbilityInput.keyPress(StoneFreeActionFixture.GRAPPLE_KEY, recover, fixture.owner, null,
                         InputMethod.HOLD, 0.0F, buffering, grapple.abilityId);
                 helper.assertTrue(buffering.isActionSuccess, "Public held Recover String did not start");
-                StoneFreeBarrierGameTests.later(helper, fixture, 3, () -> {
+                StoneFreeActionFixture.later(helper, fixture, 3, () -> {
                     helper.assertTrue(find(helper, fixture, Kind.USER_GRAPPLE) == null,
                             "Holding Recover String did not take the grapple string back");
-                    AbilityInput.keyRelease(StoneFreeBarrierGameTests.GRAPPLE_KEY, fixture.owner);
-                    StoneFreeBarrierGameTests.later(helper, fixture, 4, () -> {
+                    AbilityInput.keyRelease(StoneFreeActionFixture.GRAPPLE_KEY, fixture.owner);
+                    StoneFreeActionFixture.later(helper, fixture, 4, () -> {
                         Ability slotAfter = fixture.power.updateAvailableMoves()
                                 .getContextVariation(StoneFreeAddon.USER_GRAPPLE_NAME);
                         helper.assertTrue(slotAfter == grapple && grapple.checkConditions(fixture.power).isPositive(),
                                 "The grapple's slot did not come back once the string was recovered: slot="
                                         + name(slotAfter));
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
                 });
             });
@@ -406,27 +407,27 @@ public final class StoneFreeGrappleGameTests {
     // 1.16 SFUGrapplingStringEntity:71 dropped the string on a tick that saw Recover String held, and the 1.16
     // client ended a hold no sooner than the client tick after its press (InputHandler:336 and 741-760): the
     // briefest press took the string back. Here the release may reach the server before the action's first tick.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void briefRecoverStringPressTakesTheStringBack(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
         anchorAbove(helper, fixture, 34.0D);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             Ability grapple = fixture.power.getAbility(StoneFreeAddon.USER_GRAPPLE_NAME);
             Ability recover = fixture.power.getAbility(StoneFreeAddon.USER_RECOVER_STRING_NAME);
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
-            StoneFreeBarrierGameTests.later(helper, fixture, 4, () -> {
+            StoneFreeActionFixture.later(helper, fixture, 4, () -> {
                 helper.assertTrue(find(helper, fixture, Kind.USER_GRAPPLE) != null
                                 && recover != null && recover.checkConditions(fixture.power).isPositive(),
                         "Setup: no grapple string out for Recover String to take back");
                 BufferingState buffering = BufferingState.clickOnly();
-                AbilityInput.keyPress(StoneFreeBarrierGameTests.GRAPPLE_KEY, recover, fixture.owner, null,
+                AbilityInput.keyPress(StoneFreeActionFixture.GRAPPLE_KEY, recover, fixture.owner, null,
                         InputMethod.HOLD, 0.0F, buffering, grapple.abilityId);
                 helper.assertTrue(buffering.isActionSuccess, "Public Recover String press did not start");
-                AbilityInput.keyRelease(StoneFreeBarrierGameTests.GRAPPLE_KEY, fixture.owner);
-                StoneFreeBarrierGameTests.later(helper, fixture, 4, () -> {
+                AbilityInput.keyRelease(StoneFreeActionFixture.GRAPPLE_KEY, fixture.owner);
+                StoneFreeActionFixture.later(helper, fixture, 4, () -> {
                     helper.assertTrue(find(helper, fixture, Kind.USER_GRAPPLE) == null,
                             "A Recover String press released before its first tick left the grapple string out");
-                    StoneFreeBarrierGameTests.succeed(helper, fixture);
+                    StoneFreeActionFixture.succeed(helper, fixture);
                 });
             });
         });
@@ -434,17 +435,17 @@ public final class StoneFreeGrappleGameTests {
 
     // The port draws a user string from the Stand's arms, which are also its owner. The press's action is over at
     // once, so the arms have to stay for the string and leave with it.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void armsThatThrewTheUsersGrappleStayWithTheStringAndLeaveWithIt(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, false);
-        aimStraightUp(helper, fixture);
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, false);
+        aimStraightUp(fixture);
         anchorAbove(helper, fixture, 34.0D);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, 1, () -> {
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
             StoneFreeStandEntity arms = StoneFreeServices.controller(fixture.owner);
             helper.assertTrue(arms != null && arms.isArmsOnlyMode(),
                     "The press did not bring out the Stand's arms for the string");
-            StoneFreeBarrierGameTests.later(helper, fixture, 20, () -> {
+            StoneFreeActionFixture.later(helper, fixture, 20, () -> {
                 StoneFreeStringEntity string = find(helper, fixture, Kind.USER_GRAPPLE);
                 helper.assertTrue(string != null, "The user's grapple string was gone 20 ticks after its press");
                 helper.assertTrue(arms.isAlive() && StoneFreeServices.controller(fixture.owner) == arms
@@ -453,28 +454,28 @@ public final class StoneFreeGrappleGameTests {
                                 + ", current controller=" + StoneFreeServices.controller(fixture.owner)
                                 + ", string owner=" + string.getOwner());
                 StoneFreeServices.discardUserGrapples(fixture.owner);
-                StoneFreeBarrierGameTests.later(helper, fixture, 15, () -> {
+                StoneFreeActionFixture.later(helper, fixture, 15, () -> {
                     helper.assertTrue(fixture.power.getSummonedStandEntity() == null,
                             "The Stand's arms stayed out 15 ticks after the user's grapple string was gone");
-                    StoneFreeBarrierGameTests.succeed(helper, fixture);
+                    StoneFreeActionFixture.succeed(helper, fixture);
                 });
             });
         });
     }
 
     // The core's retractAndUnsummon waits while any ability key is down, and nothing asks the arms again.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void armsLeaveWithTheUsersGrappleWhileAnAbilityKeyIsStillHeld(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, false);
-        aimStraightUp(helper, fixture);
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, false);
+        aimStraightUp(fixture);
         anchorAbove(helper, fixture, 34.0D);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, 1, () -> {
             // The key that threw the string stays down.
             press(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME, InputMethod.CLICK);
             StoneFreeStandEntity arms = StoneFreeServices.controller(fixture.owner);
             helper.assertTrue(arms != null && arms.isArmsOnlyMode(),
                     "The press did not bring out the Stand's arms for the string");
-            StoneFreeBarrierGameTests.later(helper, fixture, 20, () -> {
+            StoneFreeActionFixture.later(helper, fixture, 20, () -> {
                 helper.assertTrue(find(helper, fixture, Kind.USER_GRAPPLE) != null
                                 && StoneFreeServices.controller(fixture.owner) == arms,
                         "The string or the arms that threw it were gone 20 ticks after the press: string "
@@ -482,13 +483,13 @@ public final class StoneFreeGrappleGameTests {
                                 + StoneFreeServices.controller(fixture.owner));
                 helper.assertTrue(holdsAbilityKey(fixture), "The pressed key no longer counted as held");
                 StoneFreeServices.discardUserGrapples(fixture.owner);
-                StoneFreeBarrierGameTests.later(helper, fixture, 15, () -> {
+                StoneFreeActionFixture.later(helper, fixture, 15, () -> {
                     helper.assertTrue(holdsAbilityKey(fixture), "The pressed key no longer counted as held");
                     helper.assertTrue(fixture.power.getSummonedStandEntity() == null,
                             "The Stand's arms stayed out 15 ticks after the user's grapple string was gone,"
                                     + " because an ability key was still held: arms action "
                                     + arms.getCurStandAction() + ", arms alive " + arms.isAlive());
-                    StoneFreeBarrierGameTests.succeed(helper, fixture);
+                    StoneFreeActionFixture.succeed(helper, fixture);
                 });
             });
         });
@@ -500,11 +501,11 @@ public final class StoneFreeGrappleGameTests {
      * out and came back over its 16 ticks, so the arms that threw it, also its owner here, stay until it is back,
      * as they stay for the user's grapple, and leave with it.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void armsBroughtOutForAUserStringStayUntilItIsBackAndLeaveWithIt(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, false);
-        aimStraightUp(helper, fixture);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> {
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, false);
+        aimStraightUp(fixture);
+        StoneFreeActionFixture.later(helper, fixture, 1, () -> {
             click(helper, fixture, StoneFreeAddon.USER_STRING_ATTACK_NAME);
             StoneFreeStandEntity arms = StoneFreeServices.controller(fixture.owner);
             EntityActionInstance thrown = LivingComponentAction.getCurEntityAction(fixture.owner, PowerClass.STAND);
@@ -534,11 +535,11 @@ public final class StoneFreeGrappleGameTests {
                             "1.16's user attack string went 8 blocks out and was back by age 16; thrown from the"
                                     + " arms it went " + flight.farthest + " and was last seen at age "
                                     + flight.lastAge);
-                    StoneFreeBarrierGameTests.later(helper, fixture, 15, () -> {
+                    StoneFreeActionFixture.later(helper, fixture, 15, () -> {
                         helper.assertTrue(fixture.power.getSummonedStandEntity() == null,
                                 "The Stand's arms stayed out 15 ticks after the user string they threw was back:"
                                         + " arms action " + arms.getCurStandAction() + ", alive " + arms.isAlive());
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
                 });
             });
@@ -573,15 +574,15 @@ public final class StoneFreeGrappleGameTests {
     }
 
     private static void runArmsStayForString(GameTestHelper helper, String abilityName, Kind kind, int lastAge) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, false);
-        aimStraightUp(helper, fixture);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> {
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, false);
+        aimStraightUp(fixture);
+        StoneFreeActionFixture.later(helper, fixture, 1, () -> {
             helper.assertTrue(fixture.owner.addEffect(new MobEffectInstance(ModStatusEffects.RESOLVE, 400)),
                     "Could not give the user Resolve");
             boolean pick = kind == Kind.USER_SPIKE;
             press(helper, fixture, abilityName, pick ? InputMethod.HOLD : InputMethod.CLICK);
             if (!pick) {
-                AbilityInput.keyRelease(StoneFreeBarrierGameTests.GRAPPLE_KEY, fixture.owner);
+                AbilityInput.keyRelease(StoneFreeActionFixture.GRAPPLE_KEY, fixture.owner);
             }
             StoneFreeStandEntity arms = StoneFreeServices.controller(fixture.owner);
             helper.assertTrue(arms != null && arms.isArmsOnlyMode() && arms.getUnsummonDuration() == 3,
@@ -589,7 +590,7 @@ public final class StoneFreeGrappleGameTests {
             fixture.stand = arms;
             await(helper, fixture, kind, 10, string -> true, string -> {
                 // The pick fired; its key goes up, as a player's would.
-                AbilityInput.keyRelease(StoneFreeBarrierGameTests.GRAPPLE_KEY, fixture.owner);
+                AbilityInput.keyRelease(StoneFreeActionFixture.GRAPPLE_KEY, fixture.owner);
                 Flight flight = new Flight();
                 flight.lastReach = -1.0D;
                 when(helper, fixture, 30, () -> {
@@ -607,11 +608,11 @@ public final class StoneFreeGrappleGameTests {
                                     + lastAge + "; thrown from arms under Resolve it was last seen at age "
                                     + flight.lastAge + (flight.lastReach < 0.0D ? ""
                                             : ", the arms leaving from its age " + (int) flight.lastReach));
-                    StoneFreeBarrierGameTests.later(helper, fixture, 15, () -> {
+                    StoneFreeActionFixture.later(helper, fixture, 15, () -> {
                         helper.assertTrue(fixture.power.getSummonedStandEntity() == null,
                                 "The Stand's arms stayed out 15 ticks after the " + kind + " they threw was back:"
                                         + " arms action " + arms.getCurStandAction() + ", alive " + arms.isAlive());
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
                 });
             });
@@ -620,17 +621,17 @@ public final class StoneFreeGrappleGameTests {
 
     // Arms whose user grapple string goes while they still perform another user string (a Close Wounds charge) stay
     // for that string and leave once it is over.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void armsStayForTheUserStringTheyStillPerformWhenTheGrappleGoes(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, false);
-        aimStraightUp(helper, fixture);
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, false);
+        aimStraightUp(fixture);
         anchorAbove(helper, fixture, 34.0D);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, 1, () -> {
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
             StoneFreeStandEntity arms = StoneFreeServices.controller(fixture.owner);
             helper.assertTrue(arms != null && arms.isArmsOnlyMode(),
                     "The press did not bring out the Stand's arms for the string");
-            StoneFreeBarrierGameTests.later(helper, fixture, 4, () -> {
+            StoneFreeActionFixture.later(helper, fixture, 4, () -> {
                 helper.assertTrue(find(helper, fixture, Kind.USER_GRAPPLE) != null
                                 && StoneFreeServices.controller(fixture.owner) == arms,
                         "Setup: the grapple string or its arms were gone 4 ticks after the press");
@@ -650,13 +651,13 @@ public final class StoneFreeGrappleGameTests {
                         "The arms left with the grapple string while they still charged Close Wounds: arms action "
                                 + arms.getCurStandAction() + ", controller "
                                 + StoneFreeServices.controller(fixture.owner));
-                StoneFreeBarrierGameTests.later(helper, fixture, 30, () -> {
+                StoneFreeActionFixture.later(helper, fixture, 30, () -> {
                     helper.assertTrue(!fixture.owner.hasEffect(ModStatusEffects.BLEEDING),
                             "Close Wounds did not fire after the grapple string went");
                     helper.assertTrue(fixture.power.getSummonedStandEntity() == null,
                             "The Stand's arms stayed out after the Close Wounds they performed was over: arms action "
                                     + arms.getCurStandAction() + ", alive " + arms.isAlive());
-                    StoneFreeBarrierGameTests.succeed(helper, fixture);
+                    StoneFreeActionFixture.succeed(helper, fixture);
                 });
             });
         });
@@ -667,11 +668,11 @@ public final class StoneFreeGrappleGameTests {
      * autoSummonStand) closed its user's wounds with no Stand. The port draws it from the arms (D-rotp-stone-free-02):
      * arms that threw a user string and are leaving stay for a Close Wounds held before they are gone, and leave after.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void closeWoundsHeldAsTheArmsLeaveClosesTheWoundsAsIn116(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, false);
-        aimStraightUp(helper, fixture);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> {
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, false);
+        aimStraightUp(fixture);
+        StoneFreeActionFixture.later(helper, fixture, 1, () -> {
             helper.assertTrue(fixture.owner.addEffect(new MobEffectInstance(ModStatusEffects.BLEEDING, 400, 2)),
                     "Could not make the user bleed");
             click(helper, fixture, StoneFreeAddon.USER_STRING_ATTACK_NAME);
@@ -691,11 +692,11 @@ public final class StoneFreeGrappleGameTests {
      * The pick (1.16 holdToFire(5)) throws its spike from the arms here: arms leaving after a Mobius toggle, in 3 ticks
      * under Resolve, stay for a pick held before they are gone, which throws its spike and sets its cooldown as it fires.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void pickHeldAsTheArmsLeaveUnderResolveThrowsItsSpike(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, false);
-        aimStraightUp(helper, fixture);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> {
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, false);
+        aimStraightUp(fixture);
+        StoneFreeActionFixture.later(helper, fixture, 1, () -> {
             helper.assertTrue(fixture.owner.addEffect(new MobEffectInstance(ModStatusEffects.RESOLVE, 400)),
                     "Could not give the user Resolve");
             click(helper, fixture, StoneFreeAddon.USER_MOBIUS_STRIP_NAME);
@@ -723,7 +724,7 @@ public final class StoneFreeGrappleGameTests {
                                                     + ", cooldown " + fixture.power.isAbilityOnCooldown(pick.name())
                                                     + ", arms alive " + arms.isAlive() + ", controller "
                                                     + StoneFreeServices.controller(fixture.owner));
-                                    StoneFreeBarrierGameTests.succeed(helper, fixture);
+                                    StoneFreeActionFixture.succeed(helper, fixture);
                                 });
                     });
         });
@@ -731,11 +732,11 @@ public final class StoneFreeGrappleGameTests {
 
     // 1.16 Close Wounds needed no Stand: arms gone before its charge fires (removed as an unsummon's end removes them)
     // leave it closing the wounds on its user alone, paid as usual.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void closeWoundsWhoseArmsAreGoneClosesTheWoundsOnTheUserAsIn116(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, false);
-        aimStraightUp(helper, fixture);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> {
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, false);
+        aimStraightUp(fixture);
+        StoneFreeActionFixture.later(helper, fixture, 1, () -> {
             helper.assertTrue(fixture.owner.addEffect(new MobEffectInstance(ModStatusEffects.BLEEDING, 400, 2)),
                     "Could not make the user bleed");
             press(helper, fixture, StoneFreeAddon.USER_CLOSE_WOUNDS_NAME, InputMethod.HOLD);
@@ -744,13 +745,13 @@ public final class StoneFreeGrappleGameTests {
             helper.assertTrue(arms != null && arms.isArmsOnlyMode() && charge != null && charge.getPerformer() == arms
                             && charge.getPhase() == ActionPhase.BUTTON_CHARGE,
                     "Setup: the press did not bring out the arms to charge Close Wounds: " + charge);
-            StoneFreeBarrierGameTests.later(helper, fixture, 2, () -> {
+            StoneFreeActionFixture.later(helper, fixture, 2, () -> {
                 fixture.power.getPowerType().forceUnsummon(fixture.owner, fixture.power);
                 helper.assertTrue(fixture.power.getSummonedStandEntity() == null && !charge.isOver()
                                 && LivingComponentAction.getCurEntityAction(fixture.owner, PowerClass.STAND) == charge,
                         "Setup: the arms are not gone with Close Wounds still charging: " + charge);
                 float stamina = fixture.power.getStamina();
-                watchWoundsClose(helper, fixture, stamina, 12, () -> StoneFreeBarrierGameTests.succeed(helper, fixture));
+                watchWoundsClose(helper, fixture, stamina, 12, () -> StoneFreeActionFixture.succeed(helper, fixture));
             });
         });
     }
@@ -759,11 +760,11 @@ public final class StoneFreeGrappleGameTests {
      * The end of an arms-only punch starts the arms' unsummon (StandEntity.onActionSet); a Close Wounds they still
      * charge from the user's Stand-power slot keeps them out, so it fires from them, and they leave after it.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void armsKeepTheCloseWoundsTheyChargeWhenTheirPunchEnds(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, false);
-        aimStraightUp(helper, fixture);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> {
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, false);
+        aimStraightUp(fixture);
+        StoneFreeActionFixture.later(helper, fixture, 1, () -> {
             helper.assertTrue(fixture.owner.addEffect(new MobEffectInstance(ModStatusEffects.BLEEDING, 400, 2))
                             && fixture.owner.addEffect(new MobEffectInstance(ModStatusEffects.RESOLVE, 400)),
                     "Could not make the user bleed under Resolve");
@@ -773,7 +774,7 @@ public final class StoneFreeGrappleGameTests {
             StoneFreeStandEntity arms = StoneFreeServices.controller(fixture.owner);
             helper.assertTrue(arms != null && arms.isArmsOnlyMode() && arms.getUnsummonDuration() == 3,
                     "Setup: no arms-only Stone Free, leaving in 3 ticks under Resolve");
-            StoneFreeBarrierGameTests.later(helper, fixture, arms.summonLockTicks + 1, () -> {
+            StoneFreeActionFixture.later(helper, fixture, arms.summonLockTicks + 1, () -> {
                 Ability punch = fixture.power.getAbility("punch");
                 BufferingState punched = BufferingState.clickCanBuffer();
                 AbilityInput.keyPress(PUNCH_KEY, punch, fixture.owner, null, InputMethod.CLICK, 0.0F, punched,
@@ -820,7 +821,7 @@ public final class StoneFreeGrappleGameTests {
             when(helper, fixture, 15, () -> fixture.power.getSummonedStandEntity() == null,
                     "The arms stayed out after the Close Wounds they performed was over: arms action "
                             + arms.getCurStandAction(),
-                    () -> StoneFreeBarrierGameTests.succeed(helper, fixture));
+                    () -> StoneFreeActionFixture.succeed(helper, fixture));
         });
     }
 
@@ -837,7 +838,7 @@ public final class StoneFreeGrappleGameTests {
         helper.assertTrue(ticksLeft > 0, "Close Wounds never closed the wounds: the user's Stand-power action "
                 + LivingComponentAction.getCurEntityAction(fixture.owner, PowerClass.STAND) + ", Stand "
                 + fixture.power.getSummonedStandEntity());
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchWoundsClose(helper, fixture, now, ticksLeft - 1, then));
     }
 
@@ -853,7 +854,7 @@ public final class StoneFreeGrappleGameTests {
             return;
         }
         helper.assertTrue(ticksLeft > 0, failure.get());
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> when(helper, fixture, ticksLeft - 1, condition, failure, then));
     }
 
@@ -864,14 +865,14 @@ public final class StoneFreeGrappleGameTests {
     // 1.21 ticks an entity only inside the simulation distance, and a string that does not tick neither runs
     // out nor checks anything. This user is a mob, which the donor's bound for players does not cover.
     @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
-            timeoutTicks = StoneFreeBarrierGameTests.CHUNK_WAIT_TEST_TICKS + 200)
+            timeoutTicks = REMOTE_CHUNK_WAIT_TEST_TICKS + 200)
     public static void userGrappleThatFliesOutOfTheEntityTickingAreaEndsThere(GameTestHelper helper) {
         atRemoteSite(helper, 40, (column, release) -> {
             Cow owner = EntityType.COW.create(helper.getLevel());
             helper.assertTrue(owner != null, "Missing Stone Free owner fixture");
             owner.setNoAi(true);
             Fixture fixture = remoteFixture(helper, owner, column, release);
-            StoneFreeBarrierGameTests.later(helper, fixture, 2, () -> {
+            StoneFreeActionFixture.later(helper, fixture, 2, () -> {
                 BlockPos outside = fixture.owner.blockPosition().east(12);
                 helper.assertTrue(helper.getLevel().isLoaded(outside)
                                 && !helper.getLevel().isPositionEntityTicking(outside),
@@ -894,7 +895,7 @@ public final class StoneFreeGrappleGameTests {
     // distance, which was then also where entities stopped ticking. With a smaller simulation distance that
     // edge is nearer.
     @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
-            timeoutTicks = StoneFreeBarrierGameTests.CHUNK_WAIT_TEST_TICKS + 200)
+            timeoutTicks = REMOTE_CHUNK_WAIT_TEST_TICKS + 200, batch = "rotp_sf_player_grapple_distance")
     public static void playersGrappleEndsAtTheSimulationDistanceWhenThatIsBelowTheViewDistance(
             GameTestHelper helper) {
         atRemoteSite(helper, 80, (column, release) -> {
@@ -916,7 +917,7 @@ public final class StoneFreeGrappleGameTests {
                 restore.run();
                 throw error;
             }
-            awaitPlayerArea(helper, fixture, StoneFreeBarrierGameTests.CHUNK_WAIT_TICKS, System.nanoTime(), () -> {
+            awaitPlayerArea(helper, fixture, REMOTE_CHUNK_WAIT_TICKS, System.nanoTime(), () -> {
                 click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
                 watchLevelFlight(helper, fixture, new Flight(), 30, flight -> {
                     helper.assertTrue(flight.seen, "The press threw no grapple string");
@@ -946,13 +947,13 @@ public final class StoneFreeGrappleGameTests {
             ready.run();
             return;
         }
-        helper.assertTrue(!StoneFreeBarrierGameTests.chunkWaitSpent(ticksLeft, startNanos),
+        helper.assertTrue(!remoteChunkWaitSpent(ticksLeft, startNanos),
                 "The player's chunks did not settle within "
-                + StoneFreeBarrierGameTests.chunkWaitBudget(startNanos) + ": 30 blocks east ticks entities "
+                + remoteChunkWaitBudget(startNanos) + ": 30 blocks east ticks entities "
                 + level.isPositionEntityTicking(inside) + ", 44 blocks east loaded " + level.isLoaded(outside)
                 + " and ticks entities " + level.isPositionEntityTicking(outside));
-        StoneFreeBarrierGameTests.yieldToChunkWorkers();
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        yieldToChunkWorkers();
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> awaitPlayerArea(helper, fixture, ticksLeft - 1, startNanos, ready));
     }
 
@@ -968,7 +969,7 @@ public final class StoneFreeGrappleGameTests {
             done.accept(flight);
             return;
         }
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchLevelFlight(helper, fixture, flight, ticksLeft - 1, done));
     }
 
@@ -991,7 +992,7 @@ public final class StoneFreeGrappleGameTests {
         StoneFreeState state = StoneFreeState.get(fixture.owner);
         helper.assertTrue(state.userGrapple().isEmpty(), "The ended grapple left its saved id behind");
         // Past the 20 tick recount of active strings and the arms' unsummon.
-        StoneFreeBarrierGameTests.later(helper, fixture, 25, () -> {
+        StoneFreeActionFixture.later(helper, fixture, 25, () -> {
             Ability grapple = fixture.power.getAbility(StoneFreeAddon.USER_GRAPPLE_NAME);
             Ability slot = fixture.power.updateAvailableMoves()
                     .getContextVariation(StoneFreeAddon.USER_GRAPPLE_NAME);
@@ -1002,7 +1003,7 @@ public final class StoneFreeGrappleGameTests {
                             + " regeneration: " + state.activeUserStrings());
             helper.assertTrue(fixture.power.getSummonedStandEntity() == null,
                     "The Stand's arms stayed out after the grapple ended");
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
         });
     }
 
@@ -1011,13 +1012,12 @@ public final class StoneFreeGrappleGameTests {
      * are loaded, so a level string thrown east from its middle leaves the ticking area 8 blocks on.
      */
     private static void atRemoteSite(GameTestHelper helper, int chunksAway, BiConsumer<BlockPos, Runnable> body) {
-        ServerLevel level = helper.getLevel();
         BlockPos origin = helper.absolutePos(BlockPos.ZERO);
         ChunkPos site = new ChunkPos((origin.getX() >> 4) - chunksAway, (origin.getZ() >> 4) - chunksAway);
-        level.getChunkSource().addRegionTicket(SITE_TICKET, site, 2, site);
-        Runnable release = () -> level.getChunkSource().removeRegionTicket(SITE_TICKET, site, 2, site);
-        awaitSite(helper, new BlockPos(site.getMinBlockX() + 7, origin.getY(), site.getMinBlockZ() + 8),
-                release, StoneFreeBarrierGameTests.CHUNK_WAIT_TICKS, System.nanoTime(), body);
+        BlockPos column = new BlockPos(site.getMinBlockX() + 7, origin.getY(), site.getMinBlockZ() + 8);
+        // The centre and ticket margin cover only this chunk; the east chunk must stay outside entity ticking.
+        GameTestChunkTickets tickets = new GameTestChunkTickets(helper).cover(column);
+        awaitSite(helper, column, tickets::release, REMOTE_CHUNK_WAIT_TICKS, System.nanoTime(), body);
     }
 
     private static void awaitSite(GameTestHelper helper, BlockPos column, Runnable release, int ticksLeft,
@@ -1028,25 +1028,40 @@ public final class StoneFreeGrappleGameTests {
                 body.accept(column, release);
                 return;
             }
-            helper.assertTrue(!StoneFreeBarrierGameTests.chunkWaitSpent(ticksLeft, startNanos),
+            helper.assertTrue(!remoteChunkWaitSpent(ticksLeft, startNanos),
                     "The remote site at " + column + " did not tick entities within "
-                    + StoneFreeBarrierGameTests.chunkWaitBudget(startNanos) + ": its column ticks entities "
+                    + remoteChunkWaitBudget(startNanos) + ": its column ticks entities "
                     + level.isPositionEntityTicking(column) + ", the chunk 16 blocks east is loaded "
                     + level.isLoaded(column.east(16)));
         } catch (Throwable error) {
             release.run();
             throw error;
         }
-        StoneFreeBarrierGameTests.yieldToChunkWorkers();
+        yieldToChunkWorkers();
         helper.runAfterDelay(1, () -> awaitSite(helper, column, release, ticksLeft - 1, startNanos, body));
+    }
+
+    private static boolean remoteChunkWaitSpent(int ticksLeft, long startNanos) {
+        return ticksLeft <= 0 && System.nanoTime() - startNanos >= REMOTE_CHUNK_WAIT_NANOS;
+    }
+
+    private static String remoteChunkWaitBudget(long startNanos) {
+        return REMOTE_CHUNK_WAIT_TICKS + " ticks and " + (REMOTE_CHUNK_WAIT_NANOS / 1_000_000_000L)
+                + " s (waited " + (System.nanoTime() - startNanos) / 1_000_000L + " ms)";
+    }
+
+    private static void yieldToChunkWorkers() {
+        try {
+            Thread.sleep(1L);
+        }
+        catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static Fixture remoteFixture(GameTestHelper helper, LivingEntity owner, BlockPos column,
             Runnable afterwards) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, false, owner, column);
-        fixture.afterwards.add(afterwards);
-        helper.getLevel().setBlockAndUpdate(fixture.first, fixture.originalFirst);
-        helper.getLevel().setBlockAndUpdate(fixture.second, fixture.originalSecond);
+        Fixture fixture = StoneFreeActionFixture.remote(helper, owner, column, afterwards);
         owner.setYRot(-90.0F);
         owner.yRotO = -90.0F;
         owner.setYBodyRot(-90.0F);
@@ -1060,11 +1075,11 @@ public final class StoneFreeGrappleGameTests {
 
     // 1.16 SFUGrapplingStringEntity.moveToBlockAttached set the user's motion outright and never cleared it:
     // the string lets go within two blocks and the user flies on.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userGrappleLeavesItsPullSpeedOnTheUserWhenItLetsGo(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
         BlockPos anchor = anchorAbove(helper, fixture, 10.0D);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
             await(helper, fixture, Kind.USER_GRAPPLE, 16, StoneFreeStringEntity::isAttachedToBlock, string -> {
                 Vec3 pull = pullOnce(helper, fixture, string);
@@ -1074,17 +1089,17 @@ public final class StoneFreeGrappleGameTests {
                 helper.assertTrue(fixture.owner.getDeltaMovement().distanceTo(pull) < 1.0E-6D,
                         "The grapple stopped its user dead on arrival; 1.16 left the pull speed: motion="
                                 + fixture.owner.getDeltaMovement() + ", the pull was " + pull);
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
 
     // 1.16 never put the user in the string's 'dragged' set, whose motion is cleared when the string goes.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void takingTheGrappleBackLeavesTheUsersMotionAlone(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
         anchorAbove(helper, fixture, 10.0D);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
             await(helper, fixture, Kind.USER_GRAPPLE, 16, StoneFreeStringEntity::isAttachedToBlock, string -> {
                 Vec3 pull = pullOnce(helper, fixture, string);
@@ -1094,7 +1109,7 @@ public final class StoneFreeGrappleGameTests {
                 helper.assertTrue(fixture.owner.getDeltaMovement().distanceTo(pull) < 1.0E-6D,
                         "Taking the grapple string back stopped its user; 1.16 left the motion alone: motion="
                                 + fixture.owner.getDeltaMovement() + ", the pull was " + pull);
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
@@ -1108,10 +1123,10 @@ public final class StoneFreeGrappleGameTests {
         return pull;
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userBlockGrappleDoesNotStrikeWhatItPassesThrough(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PolarBear bystander = target(helper, fixture, fixture.owner.position().add(0.0D, 6.0D, 0.0D));
             click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
             watchPassage(helper, fixture, bystander, new StringBuilder(), 4);
@@ -1131,17 +1146,17 @@ public final class StoneFreeGrappleGameTests {
                             && string.getY() > bystander.getBoundingBox().maxY,
                     "The block grapple did not fly on past the bystander (top y "
                             + bystander.getBoundingBox().maxY + "): trace" + trace);
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchPassage(helper, fixture, bystander, trace, ticksLeft - 1));
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standGrappleDrawsBackFromABlockInsteadOfPassingThrough(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             Vec3 place = holdGrappleFromItsPlace(helper, fixture);
             BlockPos roof = BlockPos.containing(place.add(0.0D, 12.0D, 0.0D));
@@ -1172,19 +1187,19 @@ public final class StoneFreeGrappleGameTests {
                             + ", roof underside " + roof.getY());
             helper.assertTrue(string == null,
                     "The Stand's grapple did not draw back and end after hitting a block: age " + flight.lastAge);
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchRetraction(helper, fixture, roof, flight, ticksLeft - 1));
     }
 
     // 1.16 stone_free_grapple_entity: no stamina condition, and StandEntityTask paid its staminaCostTick(1) with
     // the result ignored, so the held grapple starts and keeps its catch on an empty bar.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standGrappleHoldsOnAnEmptyBar(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             emptyBar(helper, fixture);
             Vec3 place = holdGrappleFromItsPlace(helper, fixture);
@@ -1198,23 +1213,23 @@ public final class StoneFreeGrappleGameTests {
                                 "The held grapple stopped on an empty bar: " + action);
                         helper.assertTrue(fixture.power.getStamina() == 0.0F,
                                 "The paid tick cost must keep the bar at 0: " + fixture.power.getStamina());
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
     // 1.16 StandAction.onPerform paid stone_free_user_string_attack's 20 with the result ignored: the string flies
     // on an empty bar.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 60)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 60 + GameTestChunkTickets.WAIT_TICKS)
     public static void userStringAttackFiresOnAnEmptyBar(GameTestHelper helper) {
         Fixture fixture = upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             emptyBar(helper, fixture);
             click(helper, fixture, StoneFreeAddon.USER_STRING_ATTACK_NAME);
             await(helper, fixture, Kind.USER_STRING, 5, string -> true, string -> {
                 helper.assertTrue(fixture.power.getStamina() < 20.0F,
                         "The 20 was not paid down to an empty bar: " + fixture.power.getStamina());
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
@@ -1225,16 +1240,43 @@ public final class StoneFreeGrappleGameTests {
                 "Setup: the Stone Free user's stamina is not finite and empty");
     }
 
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review",
+            timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "rotp_sf_fixture_lifetime")
+    public static void closingOneSceneLeavesAnotherScenesLiveStringTicking(GameTestHelper helper) {
+        Fixture outgoing = upwardFixture(helper);
+        int side = (outgoing.column.getX() & 15) < 8 ? 4 : -4;
+        Fixture remaining = StoneFreeActionFixture.fixture(helper, true, outgoing.column.offset(side, 0, 0));
+        aimStraightUp(remaining);
+        StoneFreeActionFixture.later(helper, outgoing, 1, () -> {
+            int summonDelay = Math.max(outgoing.stand.summonLockTicks, remaining.stand.summonLockTicks) + 1;
+            StoneFreeActionFixture.later(helper, remaining, summonDelay, () -> {
+                click(helper, outgoing, StoneFreeAddon.USER_STRING_ATTACK_NAME);
+                click(helper, remaining, StoneFreeAddon.USER_STRING_ATTACK_NAME);
+                await(helper, outgoing, Kind.USER_STRING, 5, string -> string.tickCount > 0, first ->
+                        await(helper, remaining, Kind.USER_STRING, 5, string -> string.tickCount > 0, second -> {
+                            int age = second.tickCount;
+                            outgoing.close();
+                            helper.assertTrue(outgoing.owner.isRemoved() && first.isRemoved(),
+                                    "Closing a Stone Free scene left its own live string or owner behind");
+                            helper.assertTrue(remaining.owner.isAlive() && second.isAlive(),
+                                    "Closing one Stone Free scene removed a different owner's string or owner");
+                            StoneFreeActionFixture.later(helper, remaining, 2, () -> {
+                                helper.assertTrue(second.isAlive() && second.tickCount > age,
+                                        "The other scene's still-active string stopped ticking after cleanup");
+                                StoneFreeActionFixture.succeed(helper, remaining);
+                            });
+                        }));
+            });
+        });
+    }
+
     static Fixture upwardFixture(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, true);
-        aimStraightUp(helper, fixture);
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, true);
+        aimStraightUp(fixture);
         return fixture;
     }
 
-    private static void aimStraightUp(GameTestHelper helper, Fixture fixture) {
-        // The barrier fixture's anchor blocks stand beside the user; nothing may block the way up.
-        helper.getLevel().setBlockAndUpdate(fixture.first, fixture.originalFirst);
-        helper.getLevel().setBlockAndUpdate(fixture.second, fixture.originalSecond);
+    private static void aimStraightUp(Fixture fixture) {
         // The framework walls every test plot in barrier blocks up to the fixture's home height; a string
         // thrown for a block from inside one anchors on it at once.
         fixture.owner.setPos(fixture.home.add(0.0D, 3.0D, 0.0D));
@@ -1282,17 +1324,17 @@ public final class StoneFreeGrappleGameTests {
     // The donor's one press: the key is down and up again before the action first ticks.
     static void click(GameTestHelper helper, Fixture fixture, String abilityName) {
         press(helper, fixture, abilityName, InputMethod.CLICK);
-        AbilityInput.keyRelease(StoneFreeBarrierGameTests.GRAPPLE_KEY, fixture.owner);
+        AbilityInput.keyRelease(StoneFreeActionFixture.GRAPPLE_KEY, fixture.owner);
     }
 
     private static void press(GameTestHelper helper, Fixture fixture, String abilityName, InputMethod input) {
-        StoneFreeBarrierGameTests.assertTicksEntities(helper, fixture);
+        StoneFreeActionFixture.assertTicksEntities(helper, fixture);
         var ability = fixture.power.getAbility(abilityName);
         helper.assertTrue(ability instanceof StoneFreeStringAbility
                         && ability.checkConditions(fixture.power).isPositive(),
                 "Registered " + abilityName + " refused the fixture");
         BufferingState buffering = BufferingState.clickOnly();
-        AbilityInput.keyPress(StoneFreeBarrierGameTests.GRAPPLE_KEY, ability, fixture.owner, null,
+        AbilityInput.keyPress(StoneFreeActionFixture.GRAPPLE_KEY, ability, fixture.owner, null,
                 input, 0.0F, buffering, ability.abilityId);
         helper.assertTrue(buffering.isActionSuccess, "Public " + input + " of " + abilityName + " did not start");
     }
@@ -1335,7 +1377,7 @@ public final class StoneFreeGrappleGameTests {
                         + string.position() + ", attached entity " + string.getEntityAttachedTo()
                         + ", attached block " + string.isAttachedToBlock())
                 + ", user pitch " + fixture.owner.getXRot() + ", Stand pitch " + fixture.stand.getXRot());
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> await(helper, fixture, kind, ticksLeft - 1, ready, assertions));
     }
 

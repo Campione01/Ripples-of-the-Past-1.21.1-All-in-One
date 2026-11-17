@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-speedwagon`, mod id `rotp_sp`, version `1.0.0-port.10`.
+- Module: `rotp-speedwagon`, mod id `rotp_sp`, version `1.0.0-port.11`.
 - Original 1.16.5 add-on: `RotP-S-1.0.jar` (RotP S, mod id `rotp_sp`), by DanielGamer321, StandoByte; declared license: GNU GPL v3.0; SHA-256 `D1F9C3C4E50813F9707C727D00305D0B5916D75CE921858C8853265465BE21B0`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

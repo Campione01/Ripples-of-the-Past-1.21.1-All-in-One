@@ -1,9 +1,12 @@
 {
   "stand_type": "rotp_echoes:echoes_act0",
+  "authors": [
+    "Day_GeE"
+  ],
   "color": "#FFFFFF",
   "story_part": "jojo_ripples:p4",
   "scale": {
-    "width": 0.4,
-    "height": 1.0
+    "width": 0.65,
+    "height": 1.95
   }
 }

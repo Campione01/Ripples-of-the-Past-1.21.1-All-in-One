@@ -353,6 +353,7 @@ public final class AchtungBabyPerfectInvisibilityGameTests {
             LivingComponentAction.getComponent(player);
             LivingComponentAction.getAim(player).setTarget(new ActionTarget(wolf));
             player.setPose(Pose.CROUCHING);
+            player.setShiftKeyDown(true);
             EntityActionType perfect =
                     (EntityActionType) power.getAbility(AchtungBabyAddon.PERFECT_INVISIBILITY_NAME);
             EntityActionInstance action = perfect.createActionObj();

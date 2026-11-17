@@ -13,5 +13,6 @@
   "cmoon_rm.subtitle.unsummon": "新月解除",
   "cmoon_rm.subtitle.barrage": "新月发动攻击",
   "cmoon_rm.subtitle.gravity_shift": "重力方向改变",
+  "jojo_ripples.skill.cmoon.gravity_change.desc": "按下后重力转向你面对的方向。按住 %s 再按下可恢复正常重力。",
   "cmoon_rm.ability.manual_control": "手动控制"
 }

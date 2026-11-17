@@ -11,6 +11,7 @@ import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -56,6 +57,13 @@ public final class MandomEvents {
     @SubscribeEvent
     public static void onServerStopping(
             ServerStoppingEvent event) {
+        MandomRewindService.clear(event.getServer());
+    }
+
+    // Again after the levels are saved and closed, which can still unload entities and set blocks.
+    @SubscribeEvent
+    public static void onServerStopped(
+            ServerStoppedEvent event) {
         MandomRewindService.clear(event.getServer());
     }
 }

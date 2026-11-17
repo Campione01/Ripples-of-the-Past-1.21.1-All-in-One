@@ -2,7 +2,7 @@
   "schema": 2,
   "module": "rotp-diegos-the-world",
   "mod_id": "rotp_theworld",
-  "version": "1.2.1-mc1.21.1-phase12",
+  "version": "1.2.1-mc1.21.1-phase13",
   "donor_artifact": {
     "file": "RotP-The-World-Alternative-Universe-1.2.1.jar",
     "bytes": 1244424,
@@ -37,11 +37,11 @@
     "nearest_neighbor_scaling": false
   },
   "h1": {
-    "geometry_sha256": "B2B96017455F8EF5D05047E16D10D7FA951D058676E91B7DC51F860AA3D16667",
-    "animation_sha256": "4EA30BA8CA1F425816DB6DEB352827834C865BD05D0F5137ADAAE976E4E392F1",
-    "bones": 33,
-    "cubes": 71,
-    "clips": 22
+    "geometry_sha256": "B686F9DA4350FD0F2781DCFEBB48A3BBB9F87147588E4E2210023EA78AC17222",
+    "animation_sha256": "79B981C53490F28C9B44DEDB65FE1F9DE0AAE556FD5C63E9F19A0FFFD5D0A3AF",
+    "bones": 74,
+    "cubes": 82,
+    "clips": 28
   },
   "source_blocked_audio": [
     "rotp_theworld:the_world_muda",

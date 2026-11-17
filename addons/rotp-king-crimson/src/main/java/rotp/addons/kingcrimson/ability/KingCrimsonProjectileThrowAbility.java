@@ -36,6 +36,7 @@ import rotp.addons.kingcrimson.KingCrimsonPhase2Spec;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Arrow;
@@ -62,6 +63,7 @@ public class KingCrimsonProjectileThrowAbility
                     "kingcrimson_throw", false);
     // 1.16 threw the ghast fireball (FireballEntity, power 1).
     private static final int FIRE_CHARGE_EXPLOSION_POWER = 1;
+    private static final String STAND_THROWN = "rotp_kingcrimson_stand_thrown";
 
     private final int maxProjectiles;
 
@@ -197,6 +199,11 @@ public class KingCrimsonProjectileThrowAbility
                 || item == ModItems.MOLOTOV.get();
     }
 
+    /** Whether this is a fire charge King Crimson threw, also after the world was saved and loaded. */
+    public static boolean isStandThrownFireCharge(@Nullable Entity entity) {
+        return entity instanceof LargeFireball && entity.getPersistentData().getBoolean(STAND_THROWN);
+    }
+
     @Nullable
     private static Projectile createProjectile(
             ServerLevel level,
@@ -242,12 +249,15 @@ public class KingCrimsonProjectileThrowAbility
             return new ThrownExperienceBottle(level, player);
         }
         if (item == Items.FIRE_CHARGE) {
-            // Explodes on impact; griefing follows the mobGriefing event.
-            return new LargeFireball(
+            // Explodes on impact; griefing follows the mobGriefing event, and what a Stand's throw breaks follows
+            // its user's block switch and rule as well (KingCrimsonGameEvents.onThrownFireChargeDetonate).
+            LargeFireball fireball = new LargeFireball(
                     level,
                     player,
                     player.getLookAngle(),
                     FIRE_CHARGE_EXPLOSION_POWER);
+            fireball.getPersistentData().putBoolean(STAND_THROWN, true);
+            return fireball;
         }
         if (item == ModItems.KNIFE.get()) {
             return new KnifeEntity(level, player, stack);

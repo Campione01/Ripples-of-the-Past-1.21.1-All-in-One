@@ -283,6 +283,59 @@ public final class MobPressConditionGameTests {
         }
     }
 
+    // A player has one key for the four punches of a combo, and a mob's 1.16 Stand one light punch to pick and to wait on:
+    // the three later punches do not make a random pick land on a punch more often, or walk round its wait.
+    @GameTest(template = "empty", timeoutTicks = 20)
+    public static void aPunchComboCountsOnceInAMobsPicksAndWait(GameTestHelper helper) {
+        var level = helper.getLevel();
+        Mob mob = EntityType.HUSK.create(level);
+        Cow cow = EntityType.COW.create(level);
+        helper.assertTrue(mob != null && cow != null, "Missing mob fixtures");
+        StandPower power = null;
+        StandEntity stand = null;
+        try {
+            Vec3 pos = helper.absoluteVec(new Vec3(2.5D, 2.0D, 2.5D));
+            mob.moveTo(pos.x, pos.y, pos.z, 0.0F, 0.0F);
+            mob.setNoAi(true);
+            mob.setNoGravity(true);
+            standStill(cow, pos.add(0.0D, 0.0D, 1.5D));
+            level.addFreshEntity(mob);
+            level.addFreshEntity(cow);
+            helper.assertTrue(MobPowerUtil.isEligibleMob(mob)
+                            && MobPowerUtil.grantStand(mob, ModStands.CRAZY_DIAMOND.get(), true),
+                    "Could not give the husk Crazy Diamond.");
+            power = StandPower.get(mob);
+            power.setStamina(power.getMaxStamina());
+            helper.assertTrue(power.getPowerType().summon(mob, power),
+                    "Could not summon the husk's Crazy Diamond.");
+            stand = power.getSummonedStandEntity();
+            helper.assertTrue(stand != null, "Setup: the husk has no Stand.");
+            stand.summonLockTicks = 0;
+            Ability second = power.getAbility("punch2");
+            helper.assertTrue(second instanceof EntityActionAbility, "Setup: Crazy Diamond has no second punch.");
+            mob.setTarget(cow);
+            StandPowerMobGoal goal = new StandPowerMobGoal(mob);
+            Map<String, Ability> pool = goal.pool(power);
+            helper.assertTrue(pool.get("punch") == power.getAbility("punch")
+                            && pool.keySet().stream().noneMatch(name -> name.matches("punch\\d")),
+                    "The four punches are not one pick: " + pool.keySet());
+            helper.assertTrue(goal.performNamed(power, pool, "punch", null, cow), "Setup: the husk did not punch.");
+            LivingComponentAction.getComponent(stand).setAction(null, mob, SyncType.NO_SYNC);
+            helper.assertFalse(goal.isAvailable(power, second, null, cow),
+                    "The second punch walks round the wait of the first.");
+            helper.succeed();
+        } finally {
+            if (stand != null) {
+                LivingComponentAction.getComponent(stand).setAction(null, mob, SyncType.NO_SYNC);
+            }
+            if (power != null && power.isSummoned()) {
+                power.getPowerType().forceUnsummon(mob, power);
+            }
+            mob.discard();
+            cow.discard();
+        }
+    }
+
     // 1.16 050 StandAI.isActionAvailable (:190) also required action.getStaminaCost(power) <= power.getStamina() of every
     // combo step, a new combo's first step, the block action and every random candidate; a heavy attack cost 50, a light
     // one 10 (StandEntityHeavyAttack, StandEntityLightAttack).
@@ -413,9 +466,12 @@ public final class MobPressConditionGameTests {
                     return true;
                 },
                 () -> {
-                    helper.assertFalse(pool(power).containsKey("disfiguring_punch"),
-                            "1.16 offered the misshape modifiers only while the finisher was at a player"
-                                    + " (CrazyDiamondMisshapeBodyPart :36); a husk whose finisher is at a cow may take it.");
+                    // 1.16 CrazyDiamondMisshapeBodyPart :36 took a player only, mobs left a TODO; R772.1 opened it to
+                    // every living target but the user and its own Stand (core CrazyDMisshapingPunchInput.canMisshape)
+                    Ability atCow = pool(power).get("disfiguring_punch");
+                    helper.assertTrue(atCow != null && MobPowerUtil.isAttackFollowUp(atCow),
+                            "The misshape modifier is offered during a finisher at any living target since R772.1;"
+                                    + " a husk whose finisher is at a cow was not offered it.");
                     StandEntity stand = power.getSummonedStandEntity();
                     LivingComponentAction.getComponent(stand).setAction(null, mob, SyncType.NO_SYNC);
                     cow.discard();
@@ -448,7 +504,7 @@ public final class MobPressConditionGameTests {
                     helper.assertTrue(pressed && aim.getEntity() == stand && power.userStandEffects.getEffectOfType(
                                     ModStandAbilities.EFFECT_CD_PUNCH_MISSHAPING.get()).isEmpty(),
                             "1.16 AddonUtil.getActionTarget met the husk's own Stand before the player, which"
-                                    + " CrazyDiamondMisshapeBodyPart refused (its Stand user is no player); the press"
+                                    + " CrazyDiamondMisshapeBodyPart refused (it is the husk's own Stand); the press"
                                     + " aimed at " + describe(aim) + ".");
                     // and off the look line
                     stand.setPos(mob.getX() + 1.5D, stand.getY(), mob.getZ() + 1.0D);

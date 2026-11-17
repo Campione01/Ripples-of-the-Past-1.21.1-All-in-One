@@ -44,6 +44,7 @@ public final class DisguiseSelectionScreen extends Screen {
     private int gridWidth;
     private int buttonWidth;
     private long localExpiry;
+    private boolean standSelf;
 
     private DisguiseSelectionScreen(DisguiseMode mode) {
         super(Component.translatable(
@@ -129,7 +130,27 @@ public final class DisguiseSelectionScreen extends Screen {
             choiceButtons.add(button);
             choiceIndexes.add(-1);
         }
+        if (mode == DisguiseMode.STAND) {
+            addRenderableWidget(
+                    Button.builder(
+                                    standTargetLabel(),
+                                    button -> {
+                                        standSelf = !standSelf;
+                                        button.setMessage(
+                                                standTargetLabel());
+                                    })
+                            .pos((width - 200) / 2, height - 24)
+                            .size(200, 20)
+                            .build());
+        }
         refilter("");
+    }
+
+    private Component standTargetLabel() {
+        return Component.translatable(
+                standSelf
+                        ? "rotp_yellowtemperance.disguise.stand_target.self"
+                        : "rotp_yellowtemperance.disguise.stand_target.beside");
     }
 
     private void loadChoices() {
@@ -170,7 +191,7 @@ public final class DisguiseSelectionScreen extends Screen {
                                     readable(id), id.toString()));
                         }
                     });
-            case NONE -> {
+            case STAND_SELF, NONE -> {
             }
         }
         allChoices.sort(Comparator
@@ -237,13 +258,16 @@ public final class DisguiseSelectionScreen extends Screen {
         Choice choice = filteredChoices.get(choiceIndex);
         PacketDistributor.sendToServer(
                 new DisguiseSelectionPayload(
-                        mode.id(), choice.value()));
+                        (standSelf ? DisguiseMode.STAND_SELF : mode).id(),
+                        choice.value()));
         onClose();
     }
 
     @Override
     public void tick() {
         super.tick();
+        // A disguise already on is no reason to close: the Stand disguise goes on top of it,
+        // and the server has not yet taken the old one off when an entity or player screen opens.
         YellowTemperanceControllerEntity controller =
                 minecraft != null && minecraft.player != null
                         ? YellowTemperanceAddon.controller(
@@ -252,8 +276,7 @@ public final class DisguiseSelectionScreen extends Screen {
         if (minecraft == null
                 || minecraft.level == null
                 || minecraft.level.getGameTime() > localExpiry
-                || controller == null
-                || controller.isDisguised()) {
+                || controller == null) {
             onClose();
         }
     }

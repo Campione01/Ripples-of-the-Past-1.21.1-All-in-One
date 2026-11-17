@@ -66,8 +66,12 @@ public final class RevolverProtectionGameTests {
     }
 
     private static void realShotsRespectArmorAndProtectionWithoutLosingStandDamageBody(GameTestHelper helper) {
+        float standUserShot = 0.0F;
         for (ShotMode mode : ShotMode.values()) {
             float naked = shootCow(helper, mode, ArmorMode.NONE);
+            if (mode == ShotMode.STAND_USER) {
+                standUserShot = naked;
+            }
             float armor = shootCow(helper, mode, ArmorMode.DIAMOND);
             float protection = shootCow(helper, mode, ArmorMode.PROTECTION_IV);
             helper.assertTrue(naked > armor && armor > protection && protection > 0.0F,
@@ -75,7 +79,7 @@ public final class RevolverProtectionGameTests {
             helper.assertTrue(Math.abs(protection - armor * 0.84F) < 0.02F,
                     mode + " Protection IV did not reduce equal-armor damage by 16%: " + armor + " -> " + protection);
         }
-        shootStand(helper);
+        shootStand(helper, standUserShot);
         helper.succeed();
     }
 
@@ -179,7 +183,9 @@ public final class RevolverProtectionGameTests {
         }
     }
 
-    private static void shootStand(GameTestHelper helper) {
+    // standDamage() is also set by the bullet's own glance (a hit that lands under a fifth of the shot bounces off), so the
+    // shot is checked as ordinary before it flies, and any flag after the hit must be exactly that one glance.
+    private static void shootStand(GameTestHelper helper, float standUserShot) {
         ServerPlayer owner = player(helper, "prot-stand-shot", 2);
         ServerPlayer victim = player(helper, "prot-stand-user", 8);
         try {
@@ -197,12 +203,21 @@ public final class RevolverProtectionGameTests {
             RevolverBulletEntity bullet = fire(helper, owner);
             placeOnFlight(target, bullet, 4.0D);
             assertInOriginChunk(helper, target.position(), "The Stand target");
+            helper.assertTrue(!bullet.standDamage() && bullet.ricochetCount() == 0
+                            && bullet.specialShotType() == ShotType.NONE,
+                    "Stand-target control was redirected unexpectedly before the hit");
             float before = target.getHealth();
             tickUntilHit(helper, bullet, target, before);
             assertSource(helper, target.getLastDamageSource(), true);
-            helper.assertTrue(!bullet.standDamage(), "Stand-target control was redirected unexpectedly");
-            System.out.printf(Locale.ROOT, "REVOLVER_PROTECTION target=STAND damage=%.6f source=%s%n",
-                    before - target.getHealth(), target.getLastDamageSource().getMsgId());
+            float taken = before - target.getHealth();
+            boolean glanced = taken < standUserShot * 0.2F;
+            helper.assertTrue(standUserShot > 0.0F && bullet.specialShotType() == ShotType.NONE
+                            && bullet.ricochetCount() == (glanced ? 1 : 0)
+                            && bullet.standDamage() == glanced,
+                    "Stand-target control was redirected unexpectedly: taken=" + taken + " of " + standUserShot
+                            + ", ricochets=" + bullet.ricochetCount() + ", redirected=" + bullet.standDamage());
+            System.out.printf(Locale.ROOT, "REVOLVER_PROTECTION target=STAND damage=%.6f source=%s glanced=%s%n",
+                    taken, target.getLastDamageSource().getMsgId(), glanced);
         }
         finally {
             disconnect(victim);
@@ -242,11 +257,11 @@ public final class RevolverProtectionGameTests {
         ((RevolverItem) gun.getItem()).use(helper.getLevel(), owner, InteractionHand.MAIN_HAND);
         helper.assertTrue(owner.isUsingItem() && RevolverItem.state(gun).aiming(),
                 "Production revolver did not enter aiming state");
-        owner.releaseUsingItem();
+        ((RevolverItem) gun.getItem()).fire(helper.getLevel(), owner, gun);
         List<RevolverBulletEntity> bullets = helper.getLevel().getEntitiesOfClass(
                 RevolverBulletEntity.class, new AABB(owner.blockPosition()).inflate(8.0D),
                 bullet -> bullet.getOwner() == owner);
-        helper.assertTrue(bullets.size() == 1, "Actual release created " + bullets.size() + " bullets");
+        helper.assertTrue(bullets.size() == 1, "The attack key's shot created " + bullets.size() + " bullets");
         // The 0.1.13 gun crit (Lucky Gunner, 20%) is random; the armor ordering needs equal shots.
         bullets.getFirst().setFireCritical(false);
         return bullets.getFirst();

@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -18,6 +19,7 @@ import javax.imageio.ImageIO;
 import rotp.core.client.entityrender.parsemodel.ParseModEntityModel;
 import rotp.core.client.entityrender.parsemodel.ParseModEntityModel.ModelFormat;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -114,12 +116,19 @@ public final class GerStandRuntimeModelProbe {
                                 geometry, ModelFormat.GECKO));
         assertions++;
         long canonicalCubes = countCubes(canonicalRoot);
+        List<String> undrawn = GerStandModelValidator
+                .bonesWithUndrawnCubes(canonicalRoot);
+        check(undrawn.isEmpty(),
+                "GER cubes outside every subtree the core draws: "
+                        + undrawn);
         long fallbackCubes = validateCoreFallbackModel();
 
         validateAnimations(
                 json(resources.resolve(ANIMATION_JSON)),
                 parents.keySet());
         validateTexture(resources.resolve(TEXTURE));
+        validateSelectableSkin(resources, "ger_manga", 72, 256, 1024);
+        validateSelectableSkin(resources, "ger_pack", 75, 128, 512);
         validateRuntimeJar(jar, geometry);
 
         System.out.println(
@@ -139,8 +148,8 @@ public final class GerStandRuntimeModelProbe {
                 model.getAsJsonObject("description");
         check(description.get("texture_width").getAsInt() == 128
                         && description.get("texture_height").getAsInt()
-                                == 128,
-                "GER model UV atlas must remain 128x128.");
+                                == 256,
+                "GER model UV atlas must be 128x256 (a 512x1024 PNG).");
 
         Map<String, String> parents = new HashMap<>();
         Map<String, JsonArray> pivots = new HashMap<>();
@@ -178,11 +187,13 @@ public final class GerStandRuntimeModelProbe {
                 }
             }
         }
-        check(parents.size() == 35,
+        check(parents.size()
+                        == GerStandModelValidator
+                                .DEFAULT_SKIN_BONE_COUNT,
                 "GER source bone inventory changed.");
         check(cubes
                         == GerStandModelValidator
-                                .EXPECTED_CUBE_COUNT,
+                                .DEFAULT_SKIN_CUBE_COUNT,
                 "GER source cube inventory changed.");
         for (String bone
                 : GerStandModelValidator.REQUIRED_BONES) {
@@ -224,32 +235,29 @@ public final class GerStandRuntimeModelProbe {
                                 parents.get("left_leg_xrot")),
                 "GER leg anchors must remain under body.");
 
-        // Since 2026-09-12 the default skin is the model migrated from the 1.16.5
-        // source, so these are that model's own pivots: head, torso, upperPart ->
-        // torso_bend, torso_no_arms, torso_lower and both lower legs match the donor
-        // geometry exactly, and the core rig anchors sit on the matching
-        // GerStandModelValidator donor rig (body y=12, knee y=6). The previous
-        // 1.21.1 rig (head y=26, body y=14, knee y=7) is kept as the ger_classic skin.
+        // Rig 2 (since 2026-11-14, the new model): every bone above the hips 2 units
+        // higher than on the player's pack (ger_pack: body y 12, knee y 6), hips at
+        // y 14, knees at y 7, legs at x +-1.9 as the pack's.
         checkPivot(pivots, "stand_pos", 0.0F, 0.0F, 0.0F);
-        checkPivot(pivots, "head", 0.0F, 24.0F, 0.0F);
+        checkPivot(pivots, "head", 0.0F, 26.0F, 0.0F);
         checkPivot(pivots, "body_rot", 0.0F, 24.0F, 0.0F);
-        checkPivot(pivots, "body", 0.0F, 12.0F, 0.0F);
-        checkPivot(pivots, "torso", 0.0F, 12.0F, 0.0F);
-        checkPivot(pivots, "torso_bend", 0.0F, 18.0F, 0.0F);
-        checkPivot(pivots, "torso_no_arms", 0.0F, 18.0F, 0.0F);
-        checkPivot(pivots, "torso_lower", 0.0F, 18.0F, 0.0F);
+        checkPivot(pivots, "body", 0.0F, 14.0F, 0.0F);
+        checkPivot(pivots, "torso", 0.0F, 14.0F, 0.0F);
+        checkPivot(pivots, "torso_bend", 0.0F, 20.0F, 0.0F);
+        checkPivot(pivots, "torso_no_arms", 0.0F, 20.0F, 0.0F);
+        checkPivot(pivots, "torso_lower", 0.0F, 20.0F, 0.0F);
         checkPivot(
-                pivots, "right_arm_xrot", -6.0F, 22.0F, 0.0F);
+                pivots, "right_arm_xrot", -6.0F, 24.0F, 0.0F);
         checkPivot(
-                pivots, "left_arm_xrot", 6.0F, 22.0F, 0.0F);
+                pivots, "left_arm_xrot", 6.0F, 24.0F, 0.0F);
         checkPivot(
-                pivots, "right_leg_xrot", -2.0F, 12.0F, 0.0F);
+                pivots, "right_leg_xrot", -1.9F, 14.0F, 0.0F);
         checkPivot(
-                pivots, "left_leg_xrot", 2.0F, 12.0F, 0.0F);
+                pivots, "left_leg_xrot", 1.9F, 14.0F, 0.0F);
         checkPivot(
-                pivots, "right_leg_bend", -2.0F, 6.0F, 0.0F);
+                pivots, "right_leg_bend", -1.9F, 7.0F, 0.0F);
         checkPivot(
-                pivots, "left_leg_bend", 2.0F, 6.0F, 0.0F);
+                pivots, "left_leg_bend", 1.9F, 7.0F, 0.0F);
     }
 
     private static void checkPivot(
@@ -301,27 +309,51 @@ public final class GerStandRuntimeModelProbe {
         }
         JsonObject idle = animations.getAsJsonObject("idle");
         JsonObject idleBones = idle.getAsJsonObject("bones");
-        check(idleBones.has("body")
-                        && idleBones.has("body_rot")
+        // The pack's idle on the core chain: root's hover on body_rot, body -> body_rot,
+        // upperPart -> torso_bend and torso_lower, the look on head_rot over the numeric
+        // counter-rotation on head, in the first key of each track.
+        check(idleBones.has("body_rot")
+                        && idleBones.getAsJsonObject("body_rot").has("position")
                         && idleBones.has("torso_bend")
-                        && !idleBones.has("donor_root")
-                        && idleBones.has("the_thing")
+                        && idleBones.has("torso_lower")
+                        && idleBones.getAsJsonObject("torso_bend").equals(
+                                idleBones.getAsJsonObject("torso_lower"))
+                        && !idleBones.has("root")
+                        && !idleBones.has("upperPart")
                         && !idleBones.has("theThing"),
-                "GER idle does not target the current upright root "
-                        + "chain.");
+                "GER idle does not target the core root chain.");
+        checkRotation(idle, "body_rot", 0.0F, 52.5F, 0.0F);
+        checkRotation(idle, "torso_bend", 0.0F, 5.0F, 0.0F);
+        checkRotation(idle, "head", 0.0F, -57.5F, 0.0F);
+        JsonArray look = firstKey(idleBones.getAsJsonObject("head_rot")
+                .get("rotation"));
+        check("query.head_x_rotation".equals(look.get(0).getAsString())
+                        && "query.head_y_rotation".equals(
+                                look.get(1).getAsString()),
+                "GER idle lost the look on head_rot.");
         checkRotation(
-                idle, "right_leg", -5.5F, 0.0F, 8.0F);
+                idle, "right_leg", -37.60307F, 44.08314F, 12.38262F);
         checkRotation(
-                idle, "right_leg_bend", 15.0F, 0.0F, 0.0F);
+                idle, "right_leg_bend", 105.00415F, 0.0F, 0.0F);
         checkRotation(
-                idle, "left_leg", -5.5F, 0.0F, -8.0F);
+                idle, "left_leg", -0.02721F, -19.01729F, -1.25147F);
         checkRotation(
-                idle, "left_leg_bend", 15.0F, 0.0F, 0.0F);
+                idle, "left_leg_bend", 9.7095F, 0.0F, 0.0F);
         check(idle.equals(
                         animations.getAsJsonObject(
                                 "ger_return_to_zero")),
-                "GER Return to Zero no longer shares the upright idle "
+                "GER Return to Zero no longer shares the idle "
                         + "baseline.");
+        // scripts/verify-addon-suite-client-render-scene-queue.ps1 forbids it
+        for (String noPosition : List.of(
+                "barrage", "heavyPunch", "heavy_punch", "heavy_charged")) {
+            for (var track : animations.getAsJsonObject(noPosition)
+                    .getAsJsonObject("bones").entrySet()) {
+                check(!track.getValue().getAsJsonObject().has("position"),
+                        "GER pose animation translates a bone: "
+                                + noPosition + " " + track.getKey());
+            }
+        }
 
         JsonObject shoot = animations.getAsJsonObject("shoot");
         JsonObject shootBones = shoot.getAsJsonObject("bones");
@@ -388,16 +420,31 @@ public final class GerStandRuntimeModelProbe {
             float x,
             float y,
             float z) {
-        JsonArray vector = clip.getAsJsonObject("bones")
+        JsonArray vector = firstKey(clip.getAsJsonObject("bones")
                 .getAsJsonObject(bone)
-                .getAsJsonObject("rotation")
-                .getAsJsonArray("vector");
+                .get("rotation"));
         checkVector(
                 vector,
                 "rotation for " + bone,
                 x,
                 y,
                 z);
+    }
+
+    /** The forms ParseGeckoAnims reads: a vector, {"vector": ...}, or keys by time. */
+    private static JsonArray firstKey(JsonElement track) {
+        if (track.isJsonArray()) {
+            return track.getAsJsonArray();
+        }
+        JsonObject object = track.getAsJsonObject();
+        if (object.has("vector")) {
+            return object.getAsJsonArray("vector");
+        }
+        return firstKey(object.entrySet().stream()
+                .min(Comparator.comparingDouble(
+                        entry -> Double.parseDouble(entry.getKey())))
+                .orElseThrow()
+                .getValue());
     }
 
     private static void checkVector(
@@ -417,9 +464,9 @@ public final class GerStandRuntimeModelProbe {
             throws Exception {
         BufferedImage image = ImageIO.read(texture.toFile());
         check(image != null
-                        && image.getWidth() == 256
-                        && image.getHeight() == 256,
-                "GER entity texture must be a readable 256x256 PNG.");
+                        && image.getWidth() == 512
+                        && image.getHeight() == 1024,
+                "GER entity texture must be a readable 512x1024 PNG.");
         int opaquePixels = 0;
         for (int y = 0; y < image.getHeight(); y++) {
             for (int x = 0; x < image.getWidth(); x++) {
@@ -430,6 +477,59 @@ public final class GerStandRuntimeModelProbe {
         }
         check(opaquePixels > 0,
                 "GER entity texture is fully transparent.");
+    }
+
+    /** The other selectable skins: bound to the Stand, baked and validated, texture and names present. */
+    private static void validateSelectableSkin(
+            Path resources, String id, int expectedCubes,
+            int atlasHeight, int pngHeight) throws Exception {
+        String root = "assets/geraddon/stand_skins/" + id + "/";
+        check("geraddon:ger_stand".equals(json(resources.resolve(
+                                root + "skin.json"))
+                        .get("stand_type").getAsString()),
+                id + " is not bound to geraddon:ger_stand.");
+        JsonObject geometry = json(resources.resolve(
+                root + "assets/geraddon/geo/ger_stand.geo.json"));
+        JsonObject model = geometry.getAsJsonArray("minecraft:geometry")
+                .get(0).getAsJsonObject();
+        JsonObject description = model.getAsJsonObject("description");
+        check(description.get("texture_width").getAsInt() == 128
+                        && description.get("texture_height").getAsInt()
+                                == atlasHeight,
+                id + " UV atlas declaration changed.");
+        int cubes = 0;
+        for (var bone : model.getAsJsonArray("bones")) {
+            if (bone.getAsJsonObject().has("cubes")) {
+                cubes += bone.getAsJsonObject()
+                        .getAsJsonArray("cubes").size();
+            }
+        }
+        check(model.getAsJsonArray("bones").size()
+                        == GerStandModelValidator.DEFAULT_SKIN_BONE_COUNT
+                        && cubes == expectedCubes,
+                id + " bone or cube inventory changed: " + cubes);
+        ModelPart baked = GerStandModelValidator.bakeAndValidate(
+                ParseModEntityModel.parse(geometry, ModelFormat.GECKO));
+        assertions++;
+        List<String> undrawn =
+                GerStandModelValidator.bonesWithUndrawnCubes(baked);
+        check(undrawn.isEmpty(),
+                id + " cubes outside every subtree the core draws: "
+                        + undrawn);
+        BufferedImage image = ImageIO.read(resources.resolve(
+                root + "assets/geraddon/textures/entity/stand/"
+                        + "ger_stand.png").toFile());
+        check(image != null && image.getWidth() == 512
+                        && image.getHeight() == pngHeight,
+                id + " texture must be a readable 512x" + pngHeight
+                        + " PNG.");
+        for (String language : List.of("en_us", "ru_ru", "zh_cn", "zh_tw")) {
+            JsonObject lang = json(resources.resolve(
+                    root + "assets/geraddon/lang/" + language + ".json"));
+            check(lang.has("stand.geraddon.ger_stand")
+                            && lang.has("entity.geraddon.ger_stand"),
+                    id + " has no name in " + language);
+        }
     }
 
     private static long validateCoreFallbackModel()
@@ -485,6 +585,8 @@ public final class GerStandRuntimeModelProbe {
                 "GER runtime JAR is missing: " + jar);
         try (ZipFile zip = new ZipFile(jar.toFile())) {
             for (String entry : List.of(
+                    "assets/geraddon/stand_skins/ger_manga/skin.json",
+                    "assets/geraddon/stand_skins/ger_pack/skin.json",
                     SKIN_JSON,
                     MODEL_JSON,
                     ANIMATION_JSON,

@@ -9,6 +9,7 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.subsystems.target.ActionTarget;
@@ -16,6 +17,7 @@ import rotp.core.subsystems.target.HitResultUtil;
 import rotp.core.subsystems.target.AimingEntity;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 
+import rotp.addons.kiss.KissAddon;
 import rotp.addons.kiss.service.KissService;
 import rotp.addons.kiss.service.KissTokenService;
 import net.minecraft.server.level.ServerPlayer;
@@ -30,6 +32,16 @@ public final class KissSpecialAbility extends StandEntityAbility {
     }
 
     private final Mode mode;
+
+    // R772.1 OQ-C04: stickers and bombs go on with Kiss recalled, so their slots stay lit while one of them is out
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        return switch (mode) {
+            case ATTACH, LAUNCH -> KissService.hasMarkerNear(user, false);
+            case BOMB -> KissService.hasMarkerNear(user, true);
+            case PULL -> false;
+        };
+    }
 
     public KissSpecialAbility(
             AbilityType<?> abilityType, AbilityId abilityId, Mode mode) {
@@ -118,6 +130,12 @@ public final class KissSpecialAbility extends StandEntityAbility {
                 return;
             }
             performStarted = true;
+            // 1.16 getSounds of the sticker actions: at the Stand, on the perform, whatever the sticker then finds
+            switch (mode) {
+                case ATTACH, LAUNCH -> StandUtil.playStandEntitySound(stand, KissAddon.STICKER_SOUND, 1.0F, 1.0F);
+                case PULL -> StandUtil.playStandEntitySound(stand, KissAddon.PULL_SOUND, 1.0F, 1.0F);
+                case BOMB -> { }
+            }
             switch (mode) {
                 case ATTACH -> {
                     ActionTarget target = stickerTarget(user);

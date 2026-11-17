@@ -54,8 +54,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(CatchTheRainbowAddon.MOD_ID)
 public final class CatchTheRainbowAddon {
@@ -108,6 +110,12 @@ public final class CatchTheRainbowAddon {
             DeferredRegister.create(Registries.MOB_EFFECT, MOD_ID);
     public static final DeferredRegister<SoundEvent> SOUND_EVENTS =
             DeferredRegister.create(Registries.SOUND_EVENT, MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
+            DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<CatchTheRainbowEntity.Recalled>> RECALLED_STAND =
+            ATTACHMENT_TYPES.register(
+                    "recalled_stand",
+                    () -> AttachmentType.builder(() -> new CatchTheRainbowEntity.Recalled()).build());
     public static final DeferredRegister<StandType> STAND_TYPES =
             DeferredRegister.create(
                     JojoRegistries.DEFAULT_STANDS_REG, MOD_ID);
@@ -308,6 +316,7 @@ public final class CatchTheRainbowAddon {
         MOB_EFFECTS.register(modEventBus);
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
         ResolveCounter.addAttackerResolveMultTier(
                 id("catch_the_rainbow"), ATTACKER_RESOLVE_MULT_TIER);
         modEventBus.addListener(

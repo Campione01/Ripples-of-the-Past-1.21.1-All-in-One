@@ -11,8 +11,8 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandEntity;
-import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 
 import net.minecraft.server.level.ServerLevel;
@@ -23,8 +23,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+// 1.16 ae.java :40 named a pose, "knifethhh", that no clip of the donor or the
+// core has: LegacyStandAnimator :86 drew the idle loop in its place
 public final class CircleKnivesAbility
-        extends StandEntityAbility {
+        extends NoPoseStandEntityAbility {
     public static final int KNIFE_COUNT = 60;
     public static final float SPHERE_RADIUS = 6.0F;
     public static final float STAMINA_COST = 1500.0F;

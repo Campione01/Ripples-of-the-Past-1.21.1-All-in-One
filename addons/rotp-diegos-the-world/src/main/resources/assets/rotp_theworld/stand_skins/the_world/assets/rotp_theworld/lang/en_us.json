@@ -48,5 +48,6 @@
   "rotp_theworld.stand_skins.the_world": "Diego",
   "rotp_theworld.stand_skins.skin_a": "Skin A",
   "rotp_theworld.stand_skins.skin_b": "Skin B",
-  "rotp_theworld.stand_skins.skin_c": "Skin C"
+  "rotp_theworld.stand_skins.skin_c": "Skin C",
+  "jojo_ripples.skill.time_stop.desc": "The World stops the flow of time for a brief moment, allowing only you to act freely while time is frozen.\nHold to charge: let go before half the charge and nothing happens. In an emergency, press twice quickly to stop time at once, for only a moment."
 }

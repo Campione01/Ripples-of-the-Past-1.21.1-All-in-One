@@ -10,8 +10,10 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -54,6 +56,16 @@ public final class D4CLoveTrainHoldGameTests {
                 .whenTicking(() -> {}, h -> holdBody(h, true));
     }
 
+    // a copy of the core's GameTestChunkSending.markSentAround, which is package-private
+    private static void markSentAround(ServerPlayer viewer) {
+        ChunkPos center = viewer.chunkPosition();
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                viewer.connection.chunkSender.dropChunk(viewer, new ChunkPos(center.x + dx, center.z + dz));
+            }
+        }
+    }
+
     private static void holdBody(GameTestHelper helper, boolean releaseEarly) {
         D4CRecordingServerPlayer recording = new D4CRecordingServerPlayer(helper,
                 releaseEarly ? "d4c-lt-release" : "d4c-lt-hold",
@@ -62,10 +74,11 @@ public final class D4CLoveTrainHoldGameTests {
         List<String> trace = new ArrayList<>();
         try {
             player.setGameMode(GameType.CREATIVE);
-            // the player's view follows it to the test area and its chunk counts as sent, so it tracks its Stand and
-            // hears the Stand's action packets as a client does
+            // the player's view follows it to the test area and the 3x3 chunks around it count as sent (the Stand is
+            // summoned beside it, in the next chunk at a border), so it tracks its Stand and hears the Stand's action
+            // packets as a client does
             helper.getLevel().getChunkSource().move(player);
-            player.connection.chunkSender.dropChunk(player, player.chunkPosition());
+            markSentAround(player);
             StandPower power = StandPower.get(player);
             helper.assertTrue(power != null, "fixture: no Stand power");
             power.setStand(D4CAddon.D4C.get());
@@ -73,6 +86,10 @@ public final class D4CLoveTrainHoldGameTests {
             helper.assertTrue(D4CAddon.D4C.get().summon(player, power), "fixture: D4C could not be summoned");
             StandEntity stand = power.getSummonedStandEntity();
             helper.assertTrue(stand != null, "fixture: no summoned D4C");
+            ChunkMap.TrackedEntity tracked = helper.getLevel().getChunkSource().chunkMap.entityMap.get(stand.getId());
+            helper.assertTrue(tracked != null && tracked.seenBy.contains(player.connection),
+                    "fixture: the player does not track its Stand at " + stand.position() + " (the player at "
+                            + player.position() + "), so none of its packets can reach it");
             stand.summonLockTicks = 0;
             player.getInventory().setItem(0, new ItemStack(D4CAddon.COMPLETE_SAINT_CORPSE.get()));
             CuriosApi.getCuriosInventory(player).ifPresent(handler -> handler.setEquippedCurio(

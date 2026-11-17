@@ -35,8 +35,8 @@ public final class SurvivorAddon {
 
     public static final float STAND_WIDTH = 0.7F;
     public static final float STAND_HEIGHT = 2.1F;
-    public static final double EFFECTIVE_RANGE = 100.0D;
-    public static final double MAX_RANGE = 100.0D;
+    public static final double EFFECTIVE_RANGE = 2.0D;
+    public static final double MAX_RANGE = 3.0D;
 
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES =
             DeferredRegister.create(Registries.ENTITY_TYPE, MOD_ID);

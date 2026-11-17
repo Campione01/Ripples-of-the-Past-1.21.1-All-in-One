@@ -19,6 +19,7 @@ import rotp.addons.cmoon.CMoonAddon;
 import rotp.addons.cmoon.entity.CMoonStandEntity;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 
 public final class GravityShiftAbility
         extends StandEntityAbility {
@@ -58,9 +59,14 @@ public final class GravityShiftAbility
     public ConditionCheck checkSpecificConditions(
             Power<?> context) {
         ConditionCheck base = super.checkSpecificConditions(context);
-        return !base.isPositive()
-                ? base
-                : checkStamina(context);
+        if (!base.isPositive()) {
+            return base;
+        }
+        // A Stand-bearing mob does not turn its own gravity: the shift is a player's.
+        if (!(context.getUser() instanceof Player)) {
+            return ConditionCheck.NEGATIVE;
+        }
+        return checkStamina(context);
     }
 
     private static ConditionCheck checkStamina(Power<?> context) {

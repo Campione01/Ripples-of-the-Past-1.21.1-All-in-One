@@ -108,11 +108,8 @@
       "bones": {
         "body_rot": {
           "rotation": {
-            "vector": [
-              0,
-              0,
-              0
-            ]
+            "0.75": {"vector": [0, 30, 0], "easing": "linear"},
+            "1.0": {"vector": [0, 0, 0], "easing": "linear"}
           }
         },
         "head": {
@@ -129,66 +126,6 @@
               "vector": [
                 "query.head_x_rotation",
                 "query.head_y_rotation",
-                0
-              ],
-              "easing": "linear"
-            }
-          }
-        },
-        "torso_no_arms": {
-          "rotation": {
-            "0.75": {
-              "vector": [
-                0,
-                30,
-                0
-              ],
-              "easing": "linear"
-            },
-            "1.0": {
-              "vector": [
-                0,
-                0,
-                0
-              ],
-              "easing": "linear"
-            }
-          }
-        },
-        "left_arm": {
-          "rotation": {
-            "0.75": {
-              "vector": [
-                45,
-                0,
-                -70
-              ],
-              "easing": "linear"
-            },
-            "1.0": {
-              "vector": [
-                0,
-                0,
-                0
-              ],
-              "easing": "linear"
-            }
-          }
-        },
-        "right_arm": {
-          "rotation": {
-            "0.75": {
-              "vector": [
-                0,
-                0,
-                105
-              ],
-              "easing": "linear"
-            },
-            "1.0": {
-              "vector": [
-                0,
-                0,
                 0
               ],
               "easing": "linear"

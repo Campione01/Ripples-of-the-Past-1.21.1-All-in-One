@@ -23,6 +23,10 @@ public final class HermitPurplePlayerAnimations {
             HermitPurpleAddon.id("hermit_purple");
     private static final Map<EntityActionInstance, Playback>
             PLAYBACK = new WeakHashMap<>();
+    // 1.16 KosmxVineHandler.stopAnim: the vine pose fades out over 10 ticks.
+    private static final float VINE_FADE_TICKS = 10.0F;
+    private static final float VINE_RAISE_TICKS = 5.0F;
+    private static final Map<Player, Float> VINE_FADE = new WeakHashMap<>();
 
     public static void register() {
         AddonPlayerAnimations.register(
@@ -40,7 +44,7 @@ public final class HermitPurplePlayerAnimations {
                 stand != null ? stand.getCurStandAction() : null;
         if (action == null
                 || action.ability.getAbilityId() == null) {
-            return null;
+            return vineFade(player, partialTick);
         }
 
         String abilityName =
@@ -54,10 +58,15 @@ public final class HermitPurplePlayerAnimations {
                                     action.getAnimPhaseTick(partialTick)))
                     : null;
         }
-        AnimationSpec animation = animationFor(
-                abilityName, player);
+        AnimationSpec animation = animationFor(abilityName);
         if (animation == null || action.getPhase() == null) {
-            return null;
+            return vineFade(player, partialTick);
+        }
+        if ("vine".equals(animation.name())) {
+            VINE_FADE.put(player, Float.NaN);
+        }
+        else {
+            VINE_FADE.remove(player);
         }
 
         float worldTime = player.tickCount + partialTick;
@@ -76,19 +85,42 @@ public final class HermitPurplePlayerAnimations {
     }
 
     @Nullable
-    private static AnimationSpec animationFor(
-            String abilityName, Player player) {
+    private static PlayerAnimationState vineFade(
+            Player player, float partialTick) {
+        Float started = VINE_FADE.get(player);
+        if (started == null) {
+            return null;
+        }
+        float worldTime = player.tickCount + partialTick;
+        if (started.isNaN()) {
+            started = worldTime;
+            VINE_FADE.put(player, started);
+        }
+        float elapsed = worldTime - started;
+        if (elapsed >= VINE_FADE_TICKS || elapsed < 0.0F) {
+            VINE_FADE.remove(player);
+            return null;
+        }
+        return new PlayerAnimationState(
+                ANIMATION_SET,
+                player.getMainArm() == HumanoidArm.LEFT
+                        ? "vine_end_left"
+                        : "vine_end_right",
+                elapsed);
+    }
+
+    @Nullable
+    private static AnimationSpec animationFor(String abilityName) {
         return switch (abilityName) {
             case HermitPurpleAddon.HP_VINE_ATTACK_NAME,
                     HermitPurpleAddon.HP_VINE_SHIFT_NAME ->
                     new AnimationSpec("vine", 5.0F);
             case HermitPurpleAddon.HP_GRAB_NAME ->
                     new AnimationSpec("grab", 20.0F);
-            case HermitPurpleAddon.HP_VINE_NAME,
-                    HermitPurpleAddon.HP_VINE_ENTITY_NAME ->
-                    player.isShiftKeyDown()
-                            ? new AnimationSpec("grab", 20.0F)
-                            : new AnimationSpec("grapple", 10.0F);
+            case HermitPurpleAddon.HP_VINE_ENTITY_NAME ->
+                    new AnimationSpec("grab", 20.0F);
+            case HermitPurpleAddon.HP_VINE_NAME ->
+                    new AnimationSpec("grapple", 10.0F);
             case HermitPurpleAddon.HP_DOXX_NAME,
                     HermitPurpleAddon.HP_CAMERA_NAME ->
                     new AnimationSpec("doxx_left", 20.0F);
@@ -98,8 +130,13 @@ public final class HermitPurplePlayerAnimations {
 
     // 1.16 hp_grab, hp_vine and hp_vine_entity are hold-only: they have no
     // windup phase, so the raise pose runs from the first frame of the action.
+    // The lash ran at its file's own speed up to the return tick
+    // (KosmxVineHandler.windupStopsAt), through and past its 3-tick wind-up.
     private static float raiseTicks(String abilityName) {
         return switch (abilityName) {
+            case HermitPurpleAddon.HP_VINE_ATTACK_NAME,
+                    HermitPurpleAddon.HP_VINE_SHIFT_NAME ->
+                    VINE_RAISE_TICKS;
             case HermitPurpleAddon.HP_GRAB_NAME ->
                     HermitPurpleSpec.GRAB_WINDUP_TICKS;
             case HermitPurpleAddon.HP_VINE_NAME,

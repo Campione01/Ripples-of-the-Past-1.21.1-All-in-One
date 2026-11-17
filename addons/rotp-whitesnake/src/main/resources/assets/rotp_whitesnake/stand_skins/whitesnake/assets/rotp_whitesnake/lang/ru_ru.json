@@ -63,6 +63,7 @@
     "rotp_whitesnake.disguise.empty":  "Совместимые формы не найдены.",
     "effect.rotp_whitesnake.melt_heart_effect":  "Расплавленное сердце",
     "rotp_whitesnake.glint_config":  "Показывать блеск Whitesnake",
+    "rotp_whitesnake.glint_config.tooltip":  "Рисует на теле Whitesnake блеск, как у зачарованных предметов. Только визуальный эффект; скорость блеска берётся из настроек видео игры.",
     "rotp_whitesnake.subtitle.whitesnake_barrage":  "Whitesnake наносит серию ударов",
     "rotp_whitesnake.subtitle.whitesnake_ost":  "Играет тема Whitesnake",
     "rotp_whitesnake.configuration.title":  "Настройки Whitesnake",

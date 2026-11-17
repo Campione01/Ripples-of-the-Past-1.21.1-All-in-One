@@ -19,6 +19,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.killerqueen.KillerQueenAddon;
 import rotp.addons.killerqueen.KillerQueenPhase1Spec;
@@ -148,14 +149,14 @@ public final class BitesTheDustAbility
                 if (state.hasBitesTheDustVictim()) {
                     yield KillerQueenAddon.QUIT_DUST_NAME;
                 }
-                if (player.isShiftKeyDown()) {
+                if (StandManualInput.isShiftHeld(player)) {
                     yield aimsAtLiving(player)
                             ? KillerQueenAddon.PUT_DUST_NAME
                             : KillerQueenAddon.REMOVE_MARK_NAME;
                 }
                 yield KillerQueenAddon.RESET_DAY_NAME;
             }
-            case RESET_DAY -> player.isShiftKeyDown()
+            case RESET_DAY -> StandManualInput.isShiftHeld(player)
                     ? aimsAtLiving(player)
                             ? KillerQueenAddon.PUT_DUST_NAME
                             : KillerQueenAddon.REMOVE_MARK_NAME

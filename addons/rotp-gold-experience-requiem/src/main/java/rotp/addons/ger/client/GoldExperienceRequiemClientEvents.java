@@ -62,6 +62,7 @@ public final class GoldExperienceRequiemClientEvents {
     public static void registerShaders(
             RegisterShadersEvent event) {
         GerRtzCosmicSkyRenderer.onRegisterShaders(event);
+        GerRtzVoidShell.onRegisterShaders(event);
     }
 
     @SubscribeEvent
@@ -81,9 +82,11 @@ public final class GoldExperienceRequiemClientEvents {
         AbilitySelectionVisualPolicies.register(
                 GoldExperienceRequiemAddon.id("life_shot_selection"),
                 GoldExperienceRequiemAddon::lifeShotSelectionTint);
+        // The one background that outranks King Crimson's erase: the owner's rule.
         ClientSkyRenderers.register(
                 GoldExperienceRequiemAddon.id(
                         "rtz_cosmic_sky"),
+                ClientSkyRenderers.HIGHEST_PRIORITY,
                 query -> GerRtzClientState.activeMode()
                                 == Mode.TIME_ERASE
                         ? RTZ_COSMIC_SKY

@@ -1,0 +1,22 @@
+{
+  "vertex": "rotp_kingcrimson:time_erase_outline",
+  "fragment": "rotp_kingcrimson:time_erase_outline",
+  "attributes": ["Position", "Color"],
+  "samplers": [{"name": "Sampler0"}, {"name": "Sampler1"}],
+  "uniforms": [
+    {"name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]},
+    {"name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]},
+    {"name": "ViewSize", "type": "float", "count": 2, "values": [1.0, 1.0]},
+    {"name": "ViewScale", "type": "float", "count": 1, "values": [1.0]},
+    {"name": "Origin", "type": "float", "count": 3, "values": [0.0, 0.0, 0.0]},
+    {"name": "Feet", "type": "float", "count": 3, "values": [0.0, 0.0, 0.0]},
+    {"name": "FeetLevel", "type": "float", "count": 1, "values": [0.0]},
+    {"name": "Reach", "type": "float", "count": 3, "values": [32.0, 8.0, 8.0]},
+    {"name": "Fade", "type": "float", "count": 1, "values": [1.0]},
+    {"name": "UseDepth", "type": "int", "count": 1, "values": [0]},
+    {"name": "DepthExtent", "type": "float", "count": 2, "values": [1.0, 1.0]},
+    {"name": "ProjZ", "type": "float", "count": 2, "values": [-1.0, -0.1]},
+    {"name": "ShellDepth", "type": "float", "count": 1, "values": [0.0]},
+    {"name": "Mode", "type": "int", "count": 1, "values": [0]}
+  ]
+}

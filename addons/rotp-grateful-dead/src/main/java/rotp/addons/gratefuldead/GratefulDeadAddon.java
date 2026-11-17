@@ -416,7 +416,7 @@ public final class GratefulDeadAddon {
 
     private static void registerPayloads(
             RegisterPayloadHandlersEvent event) {
-        event.registrar("2").playToClient(
+        event.registrar("3").playToClient(
                 BlockAgingPayload.TYPE,
                 BlockAgingPayload.STREAM_CODEC,
                 BlockAgingPayload::handle);
@@ -426,6 +426,8 @@ public final class GratefulDeadAddon {
             ResourceLocation id) {
         MovesetBuilder moveset = new MovesetBuilder()
                 .addHumanoidStandStuff()
+                // legless on very long arms, with 0.1.13's own jab: a boxer's combo does not fit that body
+                .noPunchCombo()
                 .addAbility(PUNCH, ModStandAbilities.PUNCH)
                 .addAbility(BARRAGE, ModStandAbilities.BARRAGE)
                 .addAbility(HEAVY_PUNCH, HEAVY_PUNCH_TYPE)
@@ -586,7 +588,7 @@ public final class GratefulDeadAddon {
         return new EntityStandType(
                 new StandStats.Builder()
                         .power(10.0D)
-                        .speed(8.0D)
+                        .speed(4.0D)
                         .range(2.0D, 10.0D)
                         .durability(20.0D)
                         .precision(4.0D)

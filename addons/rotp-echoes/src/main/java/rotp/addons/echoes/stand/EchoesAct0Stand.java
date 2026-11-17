@@ -37,7 +37,7 @@ public final class EchoesAct0Stand {
                 .standControlType(StandControlType.AUTOMATIC)
                 .manualControl(false)
                 .distanceStrengthDecay(false)
-                .standDimensions(0.4F, 1.0F)
+                .standDimensions(0.65F, 1.95F)
                 .summonSound(() -> EchoesSounds.ECHOES_SUMMON_BGM_COMMON)
                 .unsummonSound(() -> EchoesSounds.ECHOES_RECALL_BGM);
     }

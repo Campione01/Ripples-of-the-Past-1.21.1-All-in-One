@@ -606,6 +606,11 @@ public final class KillerQueenLionAddon {
                             PRIMARY_BOMB_NAME,
                             0,
                             InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            PRIMARY_BOMB_CLEAR_NAME,
+                            PRIMARY_BOMB_NAME,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     // 1.16 PunchBomb.replaceAction: detonation takes the
                     // plant's own slot once a bomb is in range
                     .addHotbarSlotVariation(
@@ -614,37 +619,41 @@ public final class KillerQueenLionAddon {
                             null,
                             InputMethod.HOLD)
                     .addToHotbar(
-                            PRIMARY_BOMB_CLEAR_NAME,
-                            0,
-                            InputMethod.CLICK)
-                    .addToHotbar(
                             ITEM_BOMB_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             ITEM_BOMB_DETONATE_NAME,
-                            0,
+                            ITEM_BOMB_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.HOLD)
                     .addToHotbar(
                             BLOCK_BOMB_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             BLOCK_BOMB_CLEAR_NAME,
-                            0,
+                            BLOCK_BOMB_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             SHEER_HEART_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             SHEER_HEART_RECALL_NAME,
-                            0,
+                            SHEER_HEART_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.HOLD)
                     .addToHotbar(
                             SNOW_BOMB_NAME,
                             0,
                             InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            PROJECTILE_DETONATE_NAME,
+                            SNOW_BOMB_NAME,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.HOLD)
                     .addToHotbar(
                             BUBBLE_BOMB_NAME,
                             0,
@@ -653,14 +662,11 @@ public final class KillerQueenLionAddon {
                             BUBBLE_MARK_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             BUBBLE_BLOCK_DETONATE_NAME,
-                            0,
+                            BUBBLE_MARK_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
-                    .addToHotbar(
-                            PROJECTILE_DETONATE_NAME,
-                            0,
-                            InputMethod.HOLD)
                     .addToHotbar(
                             TIME_MARK_NAME,
                             0,

@@ -5,6 +5,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 import com.mojang.authlib.GameProfile;
+import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.ability.Ability;
@@ -1481,15 +1482,24 @@ public final class TheHandGameTests {
         });
     }
 
+    /*
+     * 2.5 blocks to the side of The Hand where it stands. The strikes here run within one tick, so The Hand never moves
+     * to its Erase offset first. Since the core summons a Stand at its place behind its user (placeForFreshSummon), not
+     * inside him, a cow 2.5 blocks to the user's side lies 3.5 blocks from its eyes, past its 2.5-block reach.
+     */
     private static Cow sideCow(GameTestHelper helper, TestContext context) {
         Cow cow = EntityType.COW.create(helper.getLevel());
-        Vec3 at = context.owner().position().add(2.5D, 0.0D, 0.0D);
+        Vec3 at = new Vec3(context.stand().getX() + 2.5D, context.owner().getY(), context.stand().getZ());
         cow.setNoAi(true);
         cow.setNoGravity(true);
         cow.setPersistenceRequired();
         cow.moveTo(at.x, at.y, at.z, 0.0F, 0.0F);
         GameTestChunkTickets.forTest(helper).cover(at);
         helper.getLevel().addFreshEntity(cow);
+        helper.assertTrue(
+                !StandEntityPunchAbility.validatePunchTarget(context.stand(), new ActionTarget(cow))
+                        .isEmpty(helper.getLevel()),
+                "Fixture: the side cow at " + at + " is past The Hand's reach from " + context.stand().position());
         return cow;
     }
 

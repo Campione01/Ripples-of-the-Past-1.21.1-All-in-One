@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-neo-stand`, mod id `neojojostand`, version `0.2-A-port.18`.
+- Module: `rotp-neo-stand`, mod id `neojojostand`, version `0.2-A-port.19`.
 - Original 1.16.5 add-on: `RotP-neostand-0.2-A.jar` (NEOJOJOSTAND, mod id `neojojostand`), by 浪浪; declared license: GNU GPL v3.0; SHA-256 `6068721A09009AF8AE490DCD8F68F440A80BA94430F02ECB320F553ECDE7C965`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -31,6 +31,10 @@ paired cancel, donor-style countdown GUI layer, and an owner-keyed core
 regional policy for timer, particle-motion, and sound-pitch dilation. The core
 hooks replace the donor reflection with narrow typed access and retain no
 global timer or renderer ownership.
+
+The donor's Finger Sweep draws no finger. At a player's request (2026-11-05)
+this module draws one, client side only, with the core's Star Finger texture
+and sound; the hits stay the donor's fan.
 
 Three archived `jojo` animation JSON files are byte-identical to the pinned
 1.16.5 core payloads, and the two `.bbmodel` files are Blockbench authoring

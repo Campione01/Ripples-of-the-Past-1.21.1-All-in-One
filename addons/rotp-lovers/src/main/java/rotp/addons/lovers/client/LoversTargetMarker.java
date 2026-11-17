@@ -4,12 +4,12 @@ import java.util.List;
 import java.util.UUID;
 
 import rotp.core.client.ClientGlobals;
-import rotp.core.client.entityrender.stand.StandVisualContext;
+import rotp.core.client.entityrender.stand.StandOpacityPolicy;
 import rotp.core.client.ui.hud_power.PowerHud;
 import rotp.core.client.ui.marker.MarkerRenderer;
+import rotp.core.powersystem.standpower.StandPower;
 
 import rotp.addons.lovers.LoversAddon;
-import rotp.addons.lovers.entity.LoversStandEntity;
 import rotp.addons.lovers.state.LoversLinkState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.LivingEntity;
@@ -26,12 +26,9 @@ public final class LoversTargetMarker extends MarkerRenderer {
 
     @Override
     protected boolean shouldRender() {
-        LoversStandEntity stand = mc.player != null
-                ? LoversAddon.activeStand(mc.player)
-                : null;
         if (mc.level == null
+                || mc.player == null
                 || !ClientGlobals.canSeeStands
-                || stand == null
                 || PowerHud.abilityHUDInstance == null) {
             return false;
         }
@@ -43,13 +40,13 @@ public final class LoversTargetMarker extends MarkerRenderer {
             return false;
         }
 
-        float lifecycleAlpha = stand.clientStuff != null
-                ? stand.clientStuff.getAlpha(stand, 1.0F)
-                : 1.0F;
-        StandVisualContext visualContext =
-                StandVisualContext.world(stand, lifecycleAlpha);
-        return visualContext.effectiveAlpha() > 0.0F
-                && (PowerHud.abilityHUDInstance
+        // The link outlives the Stand, so its marker takes nothing from the Stand's fade,
+        // and with the Stand recalled no bar is up to select the skill on.
+        StandPower power = StandPower.get(mc.player);
+        boolean standOut = power != null && power.getSummonedStandEntity() != null;
+        return StandOpacityPolicy.apply(1.0F, mc.player) > 0.0F
+                && (!standOut
+                    || PowerHud.abilityHUDInstance
                         .isAbilitySelected(
                                 LoversAddon.INTO_ENTITY_NAME)
                     || PowerHud.abilityHUDInstance

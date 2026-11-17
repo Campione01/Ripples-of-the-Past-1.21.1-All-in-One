@@ -38,15 +38,15 @@ public final class SpeedKingStandType extends EntityStandType {
         enforceControlPolicy();
     }
 
-    // 1.16 kept the heat trap on the Stand entity, so any unsummon
-    // (plain, wrong level, power lost, replaced) dropped the trap too.
+    // 1.16 kept the heat trap on the Stand entity, so any unsummon dropped it. The owner's rule of 2026-11-05: a recall
+    // stops only what the Stand's body does.
     @Override
     public void forceUnsummon(LivingEntity user, StandPower power) {
-        SpeedKingService.onStandCleared(user);
+        SpeedKingService.onStandRecalled(user);
         super.forceUnsummon(user, power);
     }
 
-    // Removing the Stand (stand remove) drops the heat trap as well.
+    // Removing the Stand (stand remove) drops the heat trap.
     @Override
     public StandTypePersistentData newDataInstance() {
         return new SpeedKingStandData(this);

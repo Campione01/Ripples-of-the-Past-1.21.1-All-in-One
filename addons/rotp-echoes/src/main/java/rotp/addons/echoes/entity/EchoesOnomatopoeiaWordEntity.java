@@ -71,7 +71,7 @@ public final class EchoesOnomatopoeiaWordEntity extends Entity {
         }
         for (LivingEntity entity : level().getEntitiesOfClass(LivingEntity.class,
                 getBoundingBox().inflate(TRIGGER_RANGE), LivingEntity::isAlive)) {
-            EchoesOnomatopoeiaService.apply(word, entity);
+            EchoesOnomatopoeiaService.applyBy(owner, word, entity);
         }
     }
 

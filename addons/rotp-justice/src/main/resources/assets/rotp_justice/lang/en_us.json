@@ -1,0 +1,13 @@
+{
+  "entity.rotp_justice.justice": "Justice",
+  "stand.rotp_justice.justice": "Justice",
+  "action.rotp_justice.fog": "Fog",
+  "action.rotp_justice.puppet": "Puppet",
+  "action.rotp_justice.illusion": "Illusion",
+  "action.rotp_justice.disguise": "Disguise",
+  "rotp_justice.ability.fog": "Fog",
+  "rotp_justice.ability.puppet": "Puppet",
+  "rotp_justice.ability.illusion": "Illusion",
+  "rotp_justice.ability.disguise": "Disguise",
+  "rotp_justice.ability.manual_control": "Manual control"
+}

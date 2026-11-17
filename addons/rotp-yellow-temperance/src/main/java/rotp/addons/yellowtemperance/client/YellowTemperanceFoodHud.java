@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 
 import rotp.addons.yellowtemperance.YellowTemperanceAddon;
 import rotp.addons.yellowtemperance.YellowTemperanceConfig;
+import rotp.addons.yellowtemperance.disguise.YellowTemperanceDisguiseState;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -92,7 +93,9 @@ public final class YellowTemperanceFoodHud
                 && player != null
                 && !player.isCreative()
                 && !player.isSpectator()
-                && YellowTemperanceAddon.controller(player) != null;
+                && (YellowTemperanceAddon.controller(player) != null
+                        || YellowTemperanceDisguiseState.of(player)
+                                .protection());
     }
 
     // the host game's Gui.getVehicleMaxHearts: a ridden entity that shows its own hearts takes the food row's place

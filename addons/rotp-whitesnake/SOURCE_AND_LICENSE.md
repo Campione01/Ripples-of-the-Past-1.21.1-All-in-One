@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-whitesnake`, mod id `rotp_whitesnake`, version `1.1.1-alpha.24-mc1.21.1`.
+- Module: `rotp-whitesnake`, mod id `rotp_whitesnake`, version `1.1.1-alpha.25-mc1.21.1`.
 - Original 1.16.5 add-on: `RotP-Whitesnake-BETA-1.1.1.jar` (RotP Whitesnake, mod id `rotp_whitesnake`), by StandoByte, silentevermore, TheDoGGyS; declared license: GNU GPL v3.0; SHA-256 `B37D7EC539B06315859EC78D762A01E8198B6DA97EA20225EFB7968645CEE41D`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

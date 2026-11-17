@@ -2,8 +2,14 @@ package rotp.addons.hermitpurple.entity;
 
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import rotp.core.powersystem.standpower.StandPower;
+
+import net.minecraft.world.entity.LivingEntity;
 
 import javax.annotation.Nullable;
 
@@ -55,6 +61,10 @@ public final class HermitPurpleStandEntity extends StandEntity {
                     HermitPurpleStandEntity.class,
                     EntityDataSerializers.INT);
 
+    // The owner's rule of 2026-11-05: placed barriers stay through a recall, as Hierophant Green's do; the next summon takes
+    // them over, for its count and cap.
+    private static final Map<UUID, Set<UUID>> RECALLED_BARRIERS =
+            new ConcurrentHashMap<>();
     private final Set<UUID> activeLashes = new LinkedHashSet<>();
     private final Set<UUID> placedBarriers = new LinkedHashSet<>();
     private UUID activeHeldVine;
@@ -74,6 +84,26 @@ public final class HermitPurpleStandEntity extends StandEntity {
                 .grabOffset(offsetFromUser.grabIdleOffset);
         noPhysics = true;
         setInvisible(true);
+    }
+
+    @Override
+    public void setUserAndPower(LivingEntity user, StandPower power) {
+        super.setUserAndPower(user, power);
+        if (user == null || !(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        Set<UUID> recalled = RECALLED_BARRIERS.remove(user.getUUID());
+        if (recalled != null) {
+            for (UUID id : recalled) {
+                if (serverLevel.getEntity(id)
+                        instanceof HermitBarrierVineEntity barrier
+                        && barrier.isAlive()) {
+                    barrier.setOwner(this);
+                    placedBarriers.add(id);
+                }
+            }
+            syncBarrierCount();
+        }
     }
 
     @Override
@@ -429,6 +459,19 @@ public final class HermitPurpleStandEntity extends StandEntity {
 
     @Override
     public void remove(RemovalReason reason) {
+        LivingEntity user = getUser();
+        if (level() instanceof ServerLevel
+                && user != null
+                && user.isAlive()
+                && !user.isRemoved()
+                && HermitPurpleAddon.isHermitPurpleUser(user)) {
+            if (!placedBarriers.isEmpty()) {
+                RECALLED_BARRIERS.put(
+                        user.getUUID(), new LinkedHashSet<>(placedBarriers));
+            }
+            // the vines still in its hands are its body; the barrier it was stretching too
+            placedBarriers.clear();
+        }
         discardActiveVines();
         super.remove(reason);
     }

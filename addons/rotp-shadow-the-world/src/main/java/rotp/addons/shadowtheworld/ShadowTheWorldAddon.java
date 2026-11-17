@@ -24,12 +24,10 @@ import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
-import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.standpower.StandStats;
 import rotp.core.powersystem.standpower.StandUnlockableSkill;
 import rotp.core.powersystem.standpower.entity.EntityStandType;
 import rotp.core.powersystem.standpower.entity.StandControlType;
-import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.util.sound.OstSoundList;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
@@ -53,8 +51,6 @@ import rotp.addons.shadowtheworld.state.ShadowEvolutionState;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -124,19 +120,8 @@ public final class ShadowTheWorldAddon {
             AbilityType<?>, AbilityType<StandEntityPunchAbility>>
             PUNCH_ABILITY = ability(
                     PUNCH, (type, id) -> new StandEntityPunchAbility(type, id) {
-                        @Override
-                        public ActionAnimIdentifier getEntityAnim(
-                                EntityActionInstance action) {
-                            HumanoidArm side = action != null
-                                    && action.getPerformer() instanceof StandEntity stand
-                                    ? stand.getMainArm() : HumanoidArm.RIGHT;
-                            if (action instanceof StandEntityPunch punch
-                                    && punch.getPunchingHand() == InteractionHand.OFF_HAND) {
-                                side = side.getOpposite();
-                            }
-                            return ActionAnimIdentifier.getOrCreate(
-                                    side == HumanoidArm.LEFT ? "punch2" : "punch",
-                                    false);
+                        {
+                            anim = ActionAnimIdentifier.getOrCreate("punch", false);
                         }
                     });
     public static final DeferredHolder<
@@ -353,6 +338,15 @@ public final class ShadowTheWorldAddon {
                 public TimeStopAudioDecision audio(
                         TimeStopAudioContext context) {
                     return switch (context.cue()) {
+                        // 1.16 .shout(SDDIO_SHADOW_WORLD) and
+                        // voiceLineWithStandSummoned(SDDIO_TIME_STOP): the
+                        // core says it for a charge, under the sneak rule and
+                        // not in stopped time, and cuts it off if the charge
+                        // comes to nothing.
+                        case START_VOICE -> TimeStopAudioDecision.sound(
+                                context.standAlreadySummoned()
+                                        ? SDDIO_TIME_STOP
+                                        : SDDIO_SHADOW_WORLD);
                         case START_SOUND ->
                                 TimeStopAudioDecision.silent();
                         case RESUME_SOUND -> TimeStopAudioDecision.sound(
@@ -589,30 +583,39 @@ public final class ShadowTheWorldAddon {
                     .makeHotbar(0, USE_SPECIAL, SWITCH_SPECIAL)
                     .addToHotbar(
                             SINGLE_KNIFE, 0, InputMethod.CLICK)
-                    .addToHotbar(
-                            MULTIPLE_KNIVES, 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            MULTIPLE_KNIVES,
+                            SINGLE_KNIFE,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             CIRCLE_KNIVES, 0, InputMethod.CLICK)
                     .addToHotbar(
                             SUPER_HEAVY, 0, InputMethod.CLICK)
-                    .addToHotbar(
-                            STUN_COMBO, 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            STUN_COMBO,
+                            SUPER_HEAVY,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     // 1.16 holdType(): held while the key is down
                     .addToHotbar(
                             COUNTER, 0, InputMethod.HOLD)
-                    // The 1.16 blink (shadow_world_time_resume's SHIFT
-                    // variation) is its own slot after the time stop,
-                    // which stays a time stop, short taps included.
                     .addToHotbar(
                             TIME_STOP, 0, InputMethod.HOLD)
-                    .addToHotbar(
-                            TIME_STOP_BLINK, 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            TIME_STOP_BLINK,
+                            TIME_STOP,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             EVOLUTION, 0, InputMethod.HOLD)
                     .addToHotbar(
                             STABLE, 0, InputMethod.CLICK)
-                    .addToHotbar(
-                            UNSTABLE, 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            UNSTABLE,
+                            STABLE,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             QUICK_EVOLUTION,
                             0,

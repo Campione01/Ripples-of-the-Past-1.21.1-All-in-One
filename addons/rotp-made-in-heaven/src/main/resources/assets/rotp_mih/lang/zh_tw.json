@@ -10,6 +10,7 @@
   "rotp_mih.config.client.enableNewTSIcons.tooltip": "時間系統的「增加」與「清除」使用新版時鐘圖示。",
   "rotp_mih.configuration.section.rotp.mih.server.toml": "伺服器設定",
   "rotp_mih.configuration.section.rotp.mih.server.toml.title": "天堂製造伺服器設定",
+  "rotp_mih.configuration.timeAcceleration": "時間加速",
   "rotp_mih.config.server.timeAcceleration": "時間加速",
   "rotp_mih.config.server.timeAcceleration.tooltip": "天堂製造的時間加速在本伺服器上的方式。",
   "rotp_mih.config.server.accelerationMode": "加速模式",

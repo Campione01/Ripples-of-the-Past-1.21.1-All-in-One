@@ -2,33 +2,32 @@ package rotp.addons.shadowtheworld.ability;
 
 import java.util.Locale;
 
-import rotp.core.init.ModDataAttachmentTypes;
+import rotp.core.JojoModConfig;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
-import rotp.core.powersystem.ability.controls.InputMethod;
-import rotp.core.powersystem.ability.input.ActionInputBuffer.BufferingState;
 import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
-import rotp.core.powersystem.entityaction.HeldInput;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.subsystems.timestop.TimeStopLearning;
 import rotp.core.impl.stands.theworld.TimeStopAbility;
 
-import rotp.addons.shadowtheworld.ShadowTheWorldAddon;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 
 public final class ShadowTimeStopAbility extends TimeStopAbility {
-    // 1.16 SHADOW_WORLD_TIME_STOP holdToFire(40). SHADOWWORLDTimeStop's
-    // 20-tick Resolve 4 helper (shortedHoldDuration) was private and never
-    // called, so the charge never shortened with Resolve.
-    private static final int LEGACY_CHARGE_TICKS = 40;
+    // 1.16 SHADOW_WORLD_TIME_STOP charged holdToFire(40) times the user's
+    // health share. The owner's rule for every time stop puts the core's
+    // charge setting in place of the 40, and nothing charges for less than
+    // that setting's least. To the player it is The World, so from Resolve 4
+    // it keeps two thirds of the charge as The World's does (the
+    // coordinator's ruling of R772.1); 1.16's own 20-tick helper for that,
+    // shortedHoldDuration, was private and never called.
+    private static final int LEAST_CHARGE_TICKS = Math.round(
+            (float) (JojoModConfig.TIME_STOP_CHARGE_SECONDS_MIN * 20.0D));
 
     public ShadowTimeStopAbility(
             AbilityType<?> abilityType, AbilityId abilityId) {
@@ -57,66 +56,31 @@ public final class ShadowTimeStopAbility extends TimeStopAbility {
                 action, level, powerUser, performer);
         // 1.16 getHoldDurationToFire: TimeStop's charge is 0 in stopped
         // time, and the health ratio keeps it 0.
-        if (action.phasesLength.getFloat(
-                ActionPhase.BUTTON_CHARGE) <= 0.0F) {
+        float charge = action.phasesLength.getFloat(
+                ActionPhase.BUTTON_CHARGE);
+        if (charge <= 0.0F) {
             return;
         }
         StandPower power = powerUser != null
                 ? PowerClass.STAND.get(powerUser)
                 : null;
-        int chargeTicks = LEGACY_CHARGE_TICKS;
+        int chargeTicks = Mth.ceil(charge);
         if (powerUser != null
                 && powerUser.getMaxHealth() > 0.0F
                 && (power == null || !power.isUserCreative())) {
             chargeTicks = Mth.ceil(
-                    LEGACY_CHARGE_TICKS
+                    charge
                             * powerUser.getHealth()
                             / powerUser.getMaxHealth());
         }
         action.phasesLength.put(
                 ActionPhase.BUTTON_CHARGE,
-                Math.max(chargeTicks, 1));
+                Math.max(chargeTicks, LEAST_CHARGE_TICKS));
     }
 
     @Override
-    public HeldInput onKeyPress(
-            Level level,
-            LivingEntity user,
-            FriendlyByteBuf extraClientInput,
-            InputMethod inputMethod,
-            float clickHoldResolveTime,
-            BufferingState bufferingState) {
-        StandPower power = !level.isClientSide()
-                ? PowerClass.STAND.get(user)
-                : null;
-        boolean standAlreadySummoned =
-                power != null
-                        && power.getSummonedStandEntity() != null;
-        // 1.16 TimeStop#getShout: no line inside stopped time.
-        boolean inStoppedTime = level instanceof ServerLevel serverLevel
-                && serverLevel.getData(
-                        ModDataAttachmentTypes.TIME_STOP.get())
-                        .isTimeStopped(user);
-        HeldInput heldInput = super.onKeyPress(
-                level,
-                user,
-                extraClientInput,
-                inputMethod,
-                clickHoldResolveTime,
-                bufferingState);
-        if (!level.isClientSide()
-                && bufferingState.isActionSuccess
-                && heldInput != null
-                && power != null
-                && !inStoppedTime) {
-            // 1.16 Action#playVoiceLine: no line while sneaking.
-            sayShout(
-                    user,
-                    standAlreadySummoned
-                            ? ShadowTheWorldAddon.SDDIO_TIME_STOP
-                            : ShadowTheWorldAddon.SDDIO_SHADOW_WORLD);
-        }
-        return heldInput;
+    protected boolean shortensChargeAtResolveFour(StandPower power) {
+        return true;
     }
 
     @Override

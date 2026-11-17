@@ -76,6 +76,42 @@ public final class MetallicaIdleGameTests {
         helper.succeed();
     }
 
+    // The owner's rule of 2026-11-05 (13.png), against the port's check for a Stand out: Invisibility goes on through a
+    // recall, at the same stamina, and ends when its user loses the Stand.
+    @GameTest(template = "empty", batch = "metallica_recall", timeoutTicks = 20)
+    public static void invisibilityGoesOnThroughARecall(GameTestHelper helper) {
+        ServerPlayer owner = net.neoforged.neoforge.common.util.FakePlayerFactory.get(helper.getLevel(),
+                new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "metallica-recall"));
+        StandPower power = PowerClass.STAND.attachGet(owner);
+        try {
+            power.setStand(MetallicaAddon.METALLICA.get());
+            power.skipProgression();
+            power.setStamina(power.getMaxStamina());
+            helper.assertTrue(MetallicaAddon.METALLICA.get().summon(owner, power), "Fixture: the summon failed");
+            var state = MetallicaAddon.invisibility(owner);
+            helper.assertTrue(state.activate(owner) && state.active(), "Fixture: Invisibility did not start");
+
+            MetallicaAddon.METALLICA.get().forceUnsummon(owner, power);
+            helper.assertTrue(MetallicaAddon.controller(owner) == null, "Fixture: the Stand is still out");
+            state.tickServer(owner);
+            helper.assertTrue(state.active() && owner.hasEffect(net.minecraft.world.effect.MobEffects.INVISIBILITY),
+                    "Invisibility ended with the recall: " + state.lastClearReason());
+
+            power.setStand(null);
+            state.tickServer(owner);
+            helper.assertTrue(!state.active(), "Invisibility must end when its user loses the Stand");
+            LOGGER.info("R772_METALLICA_RECALL_PASS invisibility");
+            helper.succeed();
+        }
+        finally {
+            if (power.hasPower() && power.isSummoned()) {
+                power.getPowerType().forceUnsummon(owner, power);
+            }
+            owner.removeEffect(net.minecraft.world.effect.MobEffects.INVISIBILITY);
+            owner.discard();
+        }
+    }
+
     private static Vec3 idleAt(GameTestHelper helper, ServerPlayer owner, MetallicaStandEntity stand,
             double dx, double dy, double dz, String when) {
         stand.updatePosition(owner);

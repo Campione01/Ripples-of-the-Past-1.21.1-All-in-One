@@ -64,6 +64,17 @@ public final class BubbleMarkAbility extends StandEntityAbility {
         return user;
     }
 
+    // a mark launched with the Stand out goes on through a recall: the HUD lights the slot while one of the user's is
+    // in flight in the range the detonation reaches
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        return !user.level().getEntitiesOfClass(
+                BubbleMarkEntity.class,
+                user.getBoundingBox().inflate(
+                        DetonateBombProjectilesAbility.LEGACY_RANGE),
+                mark -> mark.isOwnedBy(user.getUUID())).isEmpty();
+    }
+
     public static final class BubbleMarkAction extends EntityActionInstance {
         public BubbleMarkAction(EntityActionType ability) {
             super(ability);

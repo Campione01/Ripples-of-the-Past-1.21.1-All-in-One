@@ -1,24 +1,33 @@
 package rotp.addons.echoes.gametest;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import rotp.addons.echoes.init.EchoesEntities;
 import rotp.addons.echoes.init.EchoesStands;
 import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.entity.EntityStandType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.type.StandType;
 
@@ -26,6 +35,8 @@ import rotp.core.powersystem.standpower.type.StandType;
 @PrefixGameTestTemplate(false)
 public final class EchoesIdlePlacementGameTests {
     private static final double EPS = 1.0E-4D;
+    private static final double SKIN_WIDTH = 0.65D;
+    private static final double SKIN_HEIGHT = 1.95D;
 
     private EchoesIdlePlacementGameTests() {}
 
@@ -41,6 +52,38 @@ public final class EchoesIdlePlacementGameTests {
             checkAct(helper, type);
         }
         helper.succeed();
+    }
+
+    /** R772.1 E12b: every act has the size of the author's 1.21.1 skins, on the screen and as an entity. */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40)
+    public static void everyActHasTheSizeOfTheAuthorsSkins(GameTestHelper helper) {
+        checkSize(helper, "echoes_act0", EchoesStands.ECHOES_ACT0.get(), EchoesEntities.ACT0.get());
+        checkSize(helper, "echoes_act1", EchoesStands.ECHOES_ACT1.get(), EchoesEntities.ACT1.get());
+        checkSize(helper, "echoes_act2", EchoesStands.ECHOES_ACT2.get(), EchoesEntities.ACT2.get());
+        checkSize(helper, "echoes_act3", EchoesStands.ECHOES_ACT3.get(), EchoesEntities.ACT3.get());
+        helper.succeed();
+    }
+
+    private static void checkSize(GameTestHelper helper, String act, EntityStandType type, EntityType<?> entity) {
+        String path = "/assets/rotp_echoes/stand_skins/" + act + "/skin.json";
+        JsonObject scale;
+        try (InputStream in = EchoesIdlePlacementGameTests.class.getResourceAsStream(path)) {
+            helper.assertTrue(in != null, "Missing asset " + path);
+            scale = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject()
+                    .getAsJsonObject("scale");
+        }
+        catch (IOException e) {
+            throw new IllegalStateException("Could not read " + path, e);
+        }
+        helper.assertTrue(Math.abs(scale.get("width").getAsDouble() - SKIN_WIDTH) < EPS
+                        && Math.abs(scale.get("height").getAsDouble() - SKIN_HEIGHT) < EPS,
+                act + " skin scale must be the author's 0.65 x 1.95, is " + scale);
+        helper.assertTrue(Math.abs(type.standDimensions.width() - SKIN_WIDTH) < EPS
+                        && Math.abs(type.standDimensions.height() - SKIN_HEIGHT) < EPS,
+                act + " Stand dimensions must equal its skin scale, are " + type.standDimensions);
+        helper.assertTrue(Math.abs(entity.getWidth() - SKIN_WIDTH) < EPS
+                        && Math.abs(entity.getHeight() - SKIN_HEIGHT) < EPS,
+                act + " entity type must be sized as its skin, is " + entity.getWidth() + " x " + entity.getHeight());
     }
 
     private static void checkAct(GameTestHelper helper, StandType type) {

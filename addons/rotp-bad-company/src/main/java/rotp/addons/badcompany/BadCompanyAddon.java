@@ -9,6 +9,7 @@ import rotp.core.init.ModSoundEvents;
 import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.ability.AbilityType;
+import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.standpower.StandStats;
 import rotp.core.powersystem.standpower.StandUnlockableSkill;
@@ -38,8 +39,10 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(BadCompanyAddon.MOD_ID)
 public final class BadCompanyAddon {
@@ -58,6 +61,12 @@ public final class BadCompanyAddon {
             DeferredRegister.create(Registries.MOB_EFFECT, MOD_ID);
     public static final DeferredRegister<SoundEvent> SOUND_EVENTS =
             DeferredRegister.create(Registries.SOUND_EVENT, MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
+            DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<BadCompanyStandEntity.RecalledMines>> RECALLED_MINES =
+            ATTACHMENT_TYPES.register(
+                    "recalled_mines",
+                    () -> AttachmentType.builder(() -> new BadCompanyStandEntity.RecalledMines()).build());
     public static final DeferredRegister<StandType> STAND_TYPES =
             DeferredRegister.create(
                     JojoRegistries.DEFAULT_STANDS_REG, MOD_ID);
@@ -250,6 +259,7 @@ public final class BadCompanyAddon {
         MOB_EFFECTS.register(modEventBus);
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
         modEventBus.addListener(BadCompanySelectionPayloads::register);
     }
 
@@ -317,13 +327,20 @@ public final class BadCompanyAddon {
         var controls = moveset.makeControlScheme("hotbar")
                 .makeHotbar(0, USE_SPECIAL, SWITCH_SPECIAL);
         for (String name : commandWheelOrder()) {
-            controls.addToHotbar(
-                    name,
-                    0,
-                    TO_ME_NAME.equals(name)
-                            ? InputMethod.HOLD
-                            : InputMethod.CLICK);
+            if (!"explode_mines".equals(name)) {
+                controls.addToHotbar(
+                        name,
+                        0,
+                        TO_ME_NAME.equals(name)
+                                ? InputMethod.HOLD
+                                : InputMethod.CLICK);
+            }
         }
+        controls.addHotbarSlotVariation(
+                "explode_mines",
+                "put_mines",
+                InputKey.Modifier.SHIFT,
+                InputMethod.CLICK);
         controls.finalizeControlScheme();
         for (String name : commandWheelOrder()) {
             moveset.addSkill(

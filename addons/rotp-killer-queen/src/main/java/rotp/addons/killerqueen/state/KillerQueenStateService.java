@@ -312,20 +312,20 @@ public final class KillerQueenStateService {
 
     // 1.16 KQStandEntity.tick (020 :38-47): the Stand held the block bomb and dropped it beyond 50 blocks of the
     // Stand, measured to the block's integer corner, or once the block was air, water or lava; a waterlogged block
-    // kept it
+    // kept it. A bomb stays through a recall (owner's rule of 2026-11-05): with no Stand out the range runs from its user.
     @Nullable
     public static BlockPos blockBombPos(Player owner) {
         KillerQueenState state = KillerQueenAddon.state(owner);
         StandEntity stand = KillerQueenAuthority.currentStand(owner);
+        Entity holder = stand != null ? stand : owner;
         BlockPos position = state.blockBombPos();
         ResourceLocation dimension =
                 state.blockBombDimension();
-        if (stand == null
-                || position == null
+        if (position == null
                 || dimension == null
                 || !dimension.equals(
                         owner.level().dimension().location())
-                || stand.distanceToSqr(
+                || holder.distanceToSqr(
                                 position.getX(),
                                 position.getY(),
                                 position.getZ())

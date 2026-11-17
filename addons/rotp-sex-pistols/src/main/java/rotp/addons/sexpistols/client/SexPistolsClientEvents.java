@@ -3,6 +3,7 @@ package rotp.addons.sexpistols.client;
 import java.util.Set;
 
 import rotp.core.api.client.render.FirstPersonStandRenderPolicies;
+import rotp.core.api.client.render.HeldItemButtonClaims;
 import rotp.core.api.client.render.PlayerArmPoseProvider;
 import rotp.core.api.client.render.PlayerArmPoseProviders;
 import rotp.core.api.client.render.PlayerArmPoseQuery;
@@ -12,6 +13,7 @@ import rotp.core.client.ui.marker.MarkerRenderer;
 
 import rotp.addons.sexpistols.SexPistolsIds;
 import rotp.addons.sexpistols.config.SexPistolsConfig;
+import rotp.addons.sexpistols.content.revolver.item.RevolverButtonClaim;
 import rotp.addons.sexpistols.content.revolver.item.RevolverItem;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsEntity;
 import rotp.addons.sexpistols.network.RevolverVisualPayloads;
@@ -31,6 +33,7 @@ import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
@@ -100,6 +103,9 @@ public final class SexPistolsClientEvents {
                     RevolverVisualClientHandler::spawnKickFlash,
                     RevolverVisualClientHandler::spawnBulletHole);
         });
+        event.enqueueWork(() -> HeldItemButtonClaims.register(
+                SexPistolsIds.id("revolver"),
+                RevolverButtonClaim::claims));
     }
 
     @SubscribeEvent
@@ -206,6 +212,12 @@ public final class SexPistolsClientEvents {
         event.registerReloadListener(
                 (ResourceManagerReloadListener)
                         RevolverRenderer::reload);
+    }
+
+    @SubscribeEvent
+    public static void registerKeyMappings(
+            RegisterKeyMappingsEvent event) {
+        event.register(RevolverKeyMappings.RELOAD);
     }
 
     @SubscribeEvent

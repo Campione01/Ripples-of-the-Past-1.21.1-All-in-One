@@ -5,6 +5,7 @@ import rotp.addons.nextalbum.state.PesciInheritedWill;
 import rotp.addons.nextalbum.state.PesciMammoni;
 import rotp.addons.nextalbum.state.ProsciuttoShadow;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Mob;
@@ -59,15 +60,18 @@ public final class CharacterSuitGameEvents {
         }
     }
 
+    // A player's own sounds come on the server thread; the entity lists are
+    // not safe from any other, and a sound played from one has no one to muffle.
     @SubscribeEvent
     public static void onSoundAtPosition(
             PlayLevelSoundEvent.AtPosition event) {
         if (event.getSource() != SoundSource.PLAYERS
-                || event.getLevel().isClientSide()) {
+                || !(event.getLevel() instanceof ServerLevel level)
+                || !level.getServer().isSameThread()) {
             return;
         }
         Vec3 position = event.getPosition();
-        for (Player player : event.getLevel().getEntitiesOfClass(
+        for (Player player : level.getEntitiesOfClass(
                 Player.class, new AABB(position, position).inflate(0.01D))) {
             if (muffle(event, player)) {
                 return;

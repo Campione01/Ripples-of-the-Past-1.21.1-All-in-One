@@ -3,7 +3,10 @@ package rotp.addons.diverdown.entity;
 import java.util.Optional;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import rotp.core.customobjects.entity_projectile.ModdedProjectileEntity;
+import rotp.core.powersystem.standpower.StandPower;
 
 import rotp.addons.diverdown.DiverDownAddon;
 import rotp.addons.diverdown.state.DiverDownAuthority;
@@ -51,7 +54,7 @@ public final class BoneShardEntity extends ModdedProjectileEntity {
     public BoneShardEntity(
             LivingEntity origin,
             LivingEntity controller,
-            DiverDownStandEntity stand,
+            @Nullable DiverDownStandEntity stand,
             Level level) {
         super(DiverDownAddon.BONE_SHARD_ENTITY.get(), origin, level);
         bind(controller, stand);
@@ -76,12 +79,9 @@ public final class BoneShardEntity extends ModdedProjectileEntity {
 
     public void bind(
             LivingEntity controller,
-            DiverDownStandEntity stand) {
+            @Nullable DiverDownStandEntity stand) {
         if (!(level() instanceof ServerLevel level)
-                || !DiverDownAuthority.validController(
-                        controller,
-                        stand,
-                        DiverDownAddon.BONE_SHARD_BOMB_NAME)) {
+                || !authorized(controller)) {
             discard();
             return;
         }
@@ -91,7 +91,7 @@ public final class BoneShardEntity extends ModdedProjectileEntity {
                 true);
         entityData.set(
                 STAND_UUID,
-                Optional.of(stand.getUUID()),
+                Optional.ofNullable(stand != null ? stand.getUUID() : null),
                 true);
         entityData.set(
                 EXPIRES_AT,
@@ -196,9 +196,7 @@ public final class BoneShardEntity extends ModdedProjectileEntity {
 
     private boolean isAuthorized(ServerLevel level) {
         UUID controllerUuid = getControllerUuid();
-        UUID standUuid = getStandUuid();
         if (controllerUuid == null
-                || standUuid == null
                 || level.getGameTime()
                         >= entityData.get(EXPIRES_AT)
                 || !level.dimension().location().toString().equals(
@@ -207,13 +205,16 @@ public final class BoneShardEntity extends ModdedProjectileEntity {
         }
         Entity controllerEntity =
                 level.getEntity(controllerUuid);
-        Entity standEntity = level.getEntity(standUuid);
         return controllerEntity instanceof LivingEntity controller
-                && standEntity
-                        instanceof DiverDownStandEntity stand
-                && DiverDownAuthority.validController(
+                && authorized(controller);
+    }
+
+    // A shard goes on through a recall (owner's rule of 2026-11-05): it answers to its controller, the Stand may be away.
+    private static boolean authorized(@Nullable LivingEntity controller) {
+        return controller != null
+                && DiverDownAuthority.validUser(
                         controller,
-                        stand,
+                        StandPower.get(controller),
                         DiverDownAddon.BONE_SHARD_BOMB_NAME);
     }
 }

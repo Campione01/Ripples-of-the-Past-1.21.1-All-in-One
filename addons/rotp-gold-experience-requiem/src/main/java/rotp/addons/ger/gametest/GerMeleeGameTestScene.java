@@ -120,6 +120,11 @@ final class GerMeleeGameTestScene implements GameTestListener, AutoCloseable {
     private boolean prepared;
     private boolean closed;
 
+    /** A player who just joined takes no damage for its first 60 ticks (ServerPlayer.spawnInvulnerableTime). */
+    static boolean pastSpawnGrace(ServerPlayer player) {
+        return player.tickCount > 60;
+    }
+
     record Actor(
             ServerPlayer user,
             StandPower power,

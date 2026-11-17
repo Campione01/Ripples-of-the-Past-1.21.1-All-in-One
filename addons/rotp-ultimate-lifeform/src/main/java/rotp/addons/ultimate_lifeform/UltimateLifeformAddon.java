@@ -532,30 +532,26 @@ public final class UltimateLifeformAddon {
                         InputMethod.CLICK,
                         InputKey.LMB)
                 .bind(
-                        UltimateLifeformSpec.HAMON_OVERDRIVE.id,
-                        InputMethod.CLICK,
-                        InputKey.LMB.withModifier(
-                                InputKey.Modifier.SHIFT))
-                .bind(
                         UltimateLifeformSpec.HAMON_OVERDRIVE_BEAT.id,
                         InputMethod.CLICK,
                         InputKey.LMB.withModifier(
-                                InputKey.Modifier.CONTROL))
+                                InputKey.Modifier.SHIFT))
                 .bind(
                         UltimateLifeformSpec.ULTIMATE_BARRAGE.id,
                         InputMethod.HOLD,
                         InputKey.RMB)
                 .bind(
-                        UltimateLifeformSpec
-                                .ULTIMATE_HAMON_BARRAGE.id,
-                        InputMethod.HOLD,
-                        InputKey.RMB.withModifier(
-                                InputKey.Modifier.SHIFT))
-                .bind(
                         UltimateLifeformSpec.ULTIMATE_HAMON_KICK.id,
                         InputMethod.CLICK,
                         InputKey.RMB.withModifier(
-                                InputKey.Modifier.CONTROL))
+                                InputKey.Modifier.SHIFT))
+                // 1.16 NonStandPowerType quick access: the breath on the
+                // middle button, as the core's Hamon has it
+                .bind(
+                        UltimateLifeformSpec.HAMON_BREATH.id,
+                        InputMethod.HOLD,
+                        new InputUseVanillaMapping(
+                                "jojo_ripples.key.hamon_breath"))
                 .bind(
                         UltimateLifeformSpec.STONE_FORM.id,
                         InputMethod.HOLD,
@@ -572,10 +568,6 @@ public final class UltimateLifeformAddon {
                         UltimateLifeformSpec.ULTIMATE_AGILITY.id,
                         InputMethod.HOLD,
                         skillKey(UltimateLifeformSpec.ULTIMATE_AGILITY))
-                .bind(
-                        UltimateLifeformSpec.TENTACLES.id,
-                        InputMethod.CLICK,
-                        InputKey.MMB)
                 .bind(
                         UltimateLifeformSpec.HORN_ATTACK.id,
                         InputMethod.CLICK,
@@ -622,12 +614,26 @@ public final class UltimateLifeformAddon {
             int hotbar,
             UltimateLifeformSpec... specs) {
         for (UltimateLifeformSpec spec : specs) {
-            controls.addToHotbar(
-                    spec.id,
-                    hotbar,
-                    spec.held
-                            ? InputMethod.HOLD
-                            : InputMethod.CLICK);
+            if (spec.hasOwnSlot()) {
+                controls.addToHotbar(
+                        spec.id,
+                        hotbar,
+                        spec.held
+                                ? InputMethod.HOLD
+                                : InputMethod.CLICK);
+            }
+        }
+        for (UltimateLifeformSpec spec : specs) {
+            UltimateLifeformSpec base = spec.slotVariationOf();
+            if (base != null) {
+                controls.addHotbarSlotVariation(
+                        spec.id,
+                        base.id,
+                        InputKey.Modifier.SHIFT,
+                        spec.held
+                                ? InputMethod.HOLD
+                                : InputMethod.CLICK);
+            }
         }
     }
 

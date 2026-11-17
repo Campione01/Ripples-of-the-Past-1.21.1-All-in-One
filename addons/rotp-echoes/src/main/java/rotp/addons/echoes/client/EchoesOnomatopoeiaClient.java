@@ -27,9 +27,11 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLivingEvent;
 
 /**
- * R772 F11: draws the word ACT2's tail left on a living entity (the master's OnomatopoeiaAttachedEntity and
- * OnomatopoeiaAttachedRenderer): the author's onomatopoeia_attached model at the front of the target's chest, turned
- * with it, 1.0 / 0.5 / 0.3 of its size by the target's size; only Stand users see it, as in the master.
+ * R772 F11: draws the word ACT2's tail left on a living entity, the red ball of the tail tip with its letter (the
+ * master's OnomatopoeiaAttachedEntity and OnomatopoeiaAttachedRenderer): the author's onomatopoeia_attached model,
+ * 1.0 / 0.5 / 0.3 of its size by the target's size; only Stand users see it, as in the master. R772.1 E12e: placed as the
+ * master places it. Its letter stays on the target's front: the master's GeckoLib projectile renderer turned the model
+ * by yaw - 90, which turns the other way round as a living target turns.
  */
 public final class EchoesOnomatopoeiaClient {
     private static final ResourceLocation MODEL = RotpEchoes.id("geo/onomatopoeia_attached.geo.json");
@@ -47,6 +49,11 @@ public final class EchoesOnomatopoeiaClient {
         else {
             MARKS.put(mark.entityId(), mark);
         }
+    }
+
+    // an entity gone from this client takes its word along; the server tells again if it comes back with one
+    public static void forget(int entityId) {
+        MARKS.remove(entityId);
     }
 
     public static void clear() {
@@ -71,15 +78,18 @@ public final class EchoesOnomatopoeiaClient {
         }
         float partialTick = event.getPartialTick();
         float yaw = Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
-        Vec3 look = Vec3.directionFromRotation(0.0F, yaw);
+        // master snapToTarget: 0.3 along the target's view, its height - 0.8
+        Vec3 look = entity.getViewVector(partialTick);
         float size = Math.max(entity.getBbHeight(), entity.getBbWidth());
         float scale = size >= 2.5F ? 1.0F : size >= 0.8F ? 0.5F : 0.3F;
         PoseStack poseStack = event.getPoseStack();
         poseStack.pushPose();
         poseStack.translate(look.x * 0.3D, entity.getBbHeight() - 0.8D, look.z * 0.3D);
-        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - yaw));
         poseStack.scale(scale, scale, scale);
-        // the geo model is built Y-down like an entity model; turned upright as the core's other geo props are
+        // the core's bake, turned upright, is GeckoLib's model half a turn round and 1.5 blocks down, the 1.5 inside
+        // the master's scale: the ball's centre is 18 model pixels above this point, not 6 below
+        poseStack.translate(0.0D, 1.5D, 0.0D);
+        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - yaw));
         part.xRot = (float) Math.PI;
         part.render(poseStack, event.getMultiBufferSource().getBuffer(RenderType.entityTranslucent(TEXTURE)),
                 event.getPackedLight(), OverlayTexture.NO_OVERLAY);

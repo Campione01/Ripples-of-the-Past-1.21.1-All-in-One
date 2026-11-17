@@ -7200,6 +7200,98 @@
           "mirror.default = RIGHT"
         ]
       }
+    },
+    "vine_end": {
+      "animation_length": 0.55,
+      "bones": {
+        "torso_bend": {
+          "rotation": {
+            "0": {
+              "vector": [4.23989, 0.0, 0.0],
+              "easing": "linear"
+            },
+            "0.5": {
+              "vector": [0.0, 0.0, 0.0],
+              "easing": "easeOutCubic"
+            }
+          }
+        },
+        "right_arm": {
+          "position": {
+            "0": {
+              "vector": [0.0, 0.0, 0.0],
+              "easing": "linear"
+            },
+            "0.5": {
+              "vector": [0.0, 0.0, 0.0],
+              "easing": "easeOutCubic"
+            }
+          },
+          "rotation": {
+            "0": {
+              "vector": [-90.47004, -3.38045, 0.0],
+              "easing": "linear"
+            },
+            "0.5": {
+              "vector": [0.0, 0.0, 0.0],
+              "easing": "easeOutCubic"
+            }
+          }
+        },
+        "right_arm_bend": {
+          "rotation": {
+            "0": {
+              "vector": [0.0, 0.0, 0.0],
+              "easing": "linear"
+            },
+            "0.5": {
+              "vector": [0.0, 0.0, 0.0],
+              "easing": "easeOutCubic"
+            }
+          }
+        },
+        "left_arm": {
+          "position": {
+            "0": {
+              "vector": [0.0, 0.0, 0.0],
+              "easing": "linear"
+            },
+            "0.5": {
+              "vector": [0.0, 0.0, 0.0],
+              "easing": "easeOutCubic"
+            }
+          },
+          "rotation": {
+            "0": {
+              "vector": [24.23611, 1.43239, -16.78766],
+              "easing": "linear"
+            },
+            "0.5": {
+              "vector": [0.0, 0.0, 0.0],
+              "easing": "easeOutCubic"
+            }
+          }
+        },
+        "left_arm_bend": {
+          "rotation": {
+            "0": {
+              "vector": [-26.06958, 0.0, 0.0],
+              "easing": "linear"
+            },
+            "0.5": {
+              "vector": [0.0, 0.0, 0.0],
+              "easing": "easeOutCubic"
+            }
+          }
+        }
+      },
+      "loop": true,
+      "timeline": {
+        "0": [
+          "loopBack = 0.5",
+          "mirror.default = RIGHT"
+        ]
+      }
     }
   }
 }

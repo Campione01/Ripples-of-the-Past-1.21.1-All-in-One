@@ -53,6 +53,7 @@ import rotp.addons.d4c.ability.D4CPhase2BAbility.Mode;
 import rotp.addons.d4c.block.D4CPortalBlock;
 import rotp.addons.d4c.entity.D4CMarkerEntity;
 import rotp.addons.d4c.travel.D4CDimensionTargets;
+import rotp.addons.d4c.travel.D4CDimensionUnlocks;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.ability.input.AbilityInput;
@@ -203,6 +204,7 @@ public final class D4CPullInParityGameTests {
         f.watch(marker -> {
             if (marker.ageTicks() == 15) {
                 f.owner.getPersistentData().putString(SELECTED, D4CDimensionTargets.END.toString());
+                D4CDimensionUnlocks.record(f.owner, D4CDimensionTargets.END);
             }
             f.assertArmBoundary(marker, target.blockPosition(), D4CDimensionTargets.END);
             if (marker.ageTicks() == 16) {
@@ -438,6 +440,7 @@ public final class D4CPullInParityGameTests {
             entities.add(owner);
             level.addNewPlayer(owner);
             owner.getPersistentData().putString(SELECTED, D4CDimensionTargets.NETHER.toString());
+            D4CDimensionUnlocks.record(owner, D4CDimensionTargets.NETHER);
             helper.assertTrue(level.getServer().getLevel(Level.NETHER) != null, "No Nether fixture level.");
             soundListener = event -> {
                 if (event.getLevel() == level && event.getSound() != null

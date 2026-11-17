@@ -29,6 +29,7 @@ public final class GoldExperienceRequiemClientGameEvents {
         }
         GerRtzClientState.tick();
         GerReturnToZeroPostEffect.tick();
+        GerAnswerClientState.tick();
     }
 
     @SubscribeEvent
@@ -46,11 +47,19 @@ public final class GoldExperienceRequiemClientGameEvents {
         GerDisablerPostEffect.captureScreenTarget(event);
     }
 
+    // Before the core's post chains, which run at AFTER_LEVEL too and take the painted image.
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void renderRtzVoidShell(
+            RenderLevelStageEvent event) {
+        GerRtzVoidShell.onRenderLevelStage(event);
+    }
+
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void renderLateRtzGeometry(
             RenderLevelStageEvent event) {
         GerRtzNormalRenderer.render(event);
         GerRtzGhostTrailRenderer.render(event);
+        GerAnswerClientState.render(event);
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
@@ -69,7 +78,9 @@ public final class GoldExperienceRequiemClientGameEvents {
     public static void onLogout(
             ClientPlayerNetworkEvent.LoggingOut event) {
         GerRtzClientState.reset();
+        GerRtzVoidShell.close();
         GerDisablerClientState.clear();
+        GerAnswerClientState.reset();
     }
 
     @SubscribeEvent

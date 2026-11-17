@@ -20,6 +20,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
 import rotp.core.subsystems.entity_puppetcontrol.EntityComponentController;
 import rotp.core.subsystems.target.ActionTarget;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.badcompany.BadCompanyAddon;
 import rotp.addons.badcompany.ability.BadCompanyCommandAbility.Command;
@@ -121,6 +122,11 @@ public final class BadCompanyStandEntity extends StandEntity {
             new LinkedHashMap<>();
     private final Map<UnitKey, BlockPos> memberLastPositions =
             new HashMap<>();
+    // On the user with no serializer: logout, death and a reload leave no entry, and so no way back for a mine.
+    public static final class RecalledMines {
+        final Map<UUID, BlockPos> mines = new HashMap<>();
+    }
+
     private final Map<UUID, BlockPos> mineUuids =
             new LinkedHashMap<>();
     private final Set<UUID> transientUuids = new HashSet<>();
@@ -175,6 +181,19 @@ public final class BadCompanyStandEntity extends StandEntity {
         if (!level().isClientSide() && user != null) {
             entityData.set(
                     OWNER_UUID, Optional.of(user.getUUID()));
+            if (user.hasData(BadCompanyAddon.RECALLED_MINES)
+                    && level() instanceof ServerLevel serverLevel) {
+                Map<UUID, BlockPos> recalledMines =
+                        user.getData(BadCompanyAddon.RECALLED_MINES).mines;
+                recalledMines.forEach((uuid, pos) -> {
+                    if (serverLevel.getEntity(uuid)
+                            instanceof BadCompanyMineEntity mine) {
+                        mine.rebindCoordinator(getUUID());
+                        mineUuids.put(uuid, pos);
+                    }
+                });
+                recalledMines.clear();
+            }
         }
     }
 
@@ -521,7 +540,7 @@ public final class BadCompanyStandEntity extends StandEntity {
         int current = entityData.get(SUMMON_MASK);
         int updated;
         if (selected == BadCompanyUnitType.ALL) {
-            updated = owner.isShiftKeyDown()
+            updated = StandManualInput.isShiftHeld(owner)
                     ? 0
                     : ALL_UNIT_MASK;
         } else {
@@ -953,11 +972,10 @@ public final class BadCompanyStandEntity extends StandEntity {
                 entity.discard();
             }
         }
-        for (UUID uuid : List.copyOf(mineUuids.keySet())) {
-            Entity entity = level.getEntity(uuid);
-            if (entity != null) {
-                entity.discard();
-            }
+        // Landed mines stay, by the owner's rule of 2026-11-05; the next summon takes them over, for its cap and Detonate.
+        LivingEntity user = getUser();
+        if (user != null && !mineUuids.isEmpty()) {
+            user.getData(BadCompanyAddon.RECALLED_MINES).mines.putAll(mineUuids);
         }
         for (UUID uuid : List.copyOf(transientUuids)) {
             Entity entity = level.getEntity(uuid);
@@ -975,6 +993,17 @@ public final class BadCompanyStandEntity extends StandEntity {
         mineUuids.clear();
         transientUuids.clear();
         deathSuppressedSlots.clear();
+    }
+
+    static boolean isRecalledMine(LivingEntity owner, UUID mine) {
+        return owner.hasData(BadCompanyAddon.RECALLED_MINES)
+                && owner.getData(BadCompanyAddon.RECALLED_MINES).mines.containsKey(mine);
+    }
+
+    public static void forgetRecalledMines(LivingEntity owner) {
+        if (owner.hasData(BadCompanyAddon.RECALLED_MINES)) {
+            owner.getData(BadCompanyAddon.RECALLED_MINES).mines.clear();
+        }
     }
 
     public static void cleanupOwnerDependents(

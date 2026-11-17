@@ -1,64 +1,87 @@
 package rotp.addons.kingcrimson;
 
+import java.util.List;
+
 /**
- * Epitaph's foresight. In the manga Epitaph shows its user the coming seconds (about ten of them), and what it shows
- * is certain to happen: only King Crimson erasing that time lets its user escape it. The 1.16 addon only kept the
- * reaction to a foreseen attack. While Epitaph is armed the port also shows the vision itself: where nearby creatures
- * will be and where incoming projectiles will fly.
- *
- * <p>A creature's foreseen future is a fate: once Epitaph has shown where it will go, it goes there and cannot change
- * its mind on the way. The fate ends when the foreseen moment arrives, when something physically throws the creature
- * off its course, or when the Epitaph user erases the time it belonged to.</p>
+ * Epitaph's foresight (the owner's design of R772.1, EV1105AC sections 1 to 4): how far a user sees ahead at each
+ * Resolve level and how long the phantoms take to show it, as data; what a prediction is held to; the numbers of the
+ * chase.
  */
 public final class KingCrimsonEpitaphForesightSpec {
+    /** The longest foresight, at the top Resolve level, in seconds; a setting. */
+    public static final int MAX_FORESIGHT_SECONDS = 5;
+    /** Tenths of the longest foresight a user sees at each Resolve level (index = level): 0.1, 0.1, 0.3, 0.6, 1.0. */
+    private static final int[] FORESIGHT_TENTHS = {1, 1, 3, 6, 10};
+    /** The phantom phase at each Resolve level, in ticks: 0.5 s, 0.5 s, 1 s, 2 s, 3 s. Not scaled by the setting. */
+    private static final int[] PHASE_TICKS = {10, 10, 20, 40, 60};
+    /** With one player online, the bodies live a quarter of a tick per server tick during the phantom phase. */
+    public static final double SOLO_BODY_RATE = 0.25D;
+    /** With several players online nobody slows: the phantoms live the whole foresight in this share of the phase. */
+    public static final double MULTIPLAYER_PHASE_SCALE = 0.25D;
+    /** Creatures hunting the user are predicted within this many blocks of him, and the crosshair reaches as far. */
+    public static final double TARGET_RADIUS = 50.0D;
+    public static final String DENIED_ENTITIES = "minecraft:ender_dragon,minecraft:command_block_minecart";
     /**
-     * How far ahead the vision reaches at each resolve level (index = level). Epitaph unlocks at level 1 with a glimpse
-     * of one second; at the top level it reaches the manga's ten seconds.
+     * What a phantom may press, by the name the ability has in its moveset (EPITAPH-ARCH 2.4): the punch, the barrage, the
+     * heavy punch and the guard of any Stand, and the chop and the impale of King Crimson. Never on it: Epitaph, Time
+     * Erase and its step, Time Skip, a stop of time, a rewind, an acceleration, Bites the Dust, or anything else that
+     * reaches a whole level.
      */
-    private static final int[] FORESIGHT_TICKS_BY_RESOLVE = {20, 20, 60, 120, 200};
-    /** Epitaph stays armed at least this much longer than its vision reaches, so a foreseen fate can play out. */
-    public static final int WINDOW_MARGIN_TICKS = 40;
-    public static final int REFRESH_TICKS = 2;
-    public static final double RADIUS = 24.0D;
-    /** A fated creature stays bound while it is this close to the Epitaph user, even outside the vision radius. */
-    public static final double FATE_KEEP_RADIUS = 40.0D;
-    public static final int MAX_CREATURES = 12;
-    public static final int MAX_PROJECTILES = 12;
-    /** Creatures whose foreseen position is closer than this to where they stand are not shown. */
-    public static final double MIN_VISIBLE_SHIFT = 0.5D;
-    public static final int PATH_POINT_INTERVAL_TICKS = 2;
-    /** Most points traced for one foreseen flight; long visions trace sparser points. */
-    public static final int MAX_FLIGHT_POINTS = 48;
-    /** A fate that has not arrived this long after its foreseen moment is over. */
-    public static final int FATE_GRACE_TICKS = 20;
-    /** A creature thrown this far off its fated course is released and foreseen anew. */
-    public static final double FATE_BREAK_DISTANCE = 6.0D;
+    public static final List<String> PHANTOM_ABILITIES =
+            List.of("punch", "barrage", "heavy_punch", "guard", "kingcrimson_chop", "kingcrimson_impale");
     /**
-     * A creature released from its fate (fulfilled, broken, or its time erased) gets this long to decide anew before
-     * Epitaph foresees it again, so the next vision shows its new intent rather than the course it was bound to.
+     * Pairs of a Stand type and an ability of the table that the audit before delivery found to reach past a room
+     * (EPITAPH-ARCH, ruling R13): written as the id of the type, a slash, and the name of the ability in its moveset, as
+     * in jojo_ripples:star_platinum/barrage. A phantom of that type neither presses that ability nor takes it over.
      */
-    public static final int REDECIDE_TICKS = 10;
-    /** Creatures moving without a navigation path are only bound for this long: their course is plain momentum. */
-    public static final int UNGUIDED_FATE_TICKS = 20;
-    /** A client vision image that is not refreshed for this long has left the foreseen future. */
-    public static final int VISION_STALE_TICKS = 6;
-    /** Opacity of a vision image, so the creature it foresees stays visible behind it. */
-    public static final float VISION_ALPHA = 0.55F;
-    /** A vision image closer to the camera than this is not drawn (a creature foreseen to reach the user). */
-    public static final double VISION_CAMERA_CLEAR_DISTANCE = 0.3D;
-    /** Over this much further distance a vision image fades back in. */
-    public static final double VISION_CAMERA_FADE_DISTANCE = 1.5D;
+    public static final List<String> PHANTOM_ABILITY_EXCLUSIONS = List.of();
+    /**
+     * The three caps. Measured on the game test server with this add-on and the core alone: a tick of one phantom
+     * costs about 25 microseconds, so a room of 24 creatures and what they shoot lives a tick in about half a
+     * millisecond and the hundred ticks of the longest foresight in about 60; the press costs about 2 ms, most of it
+     * the copy of the player. With several players online the room must live 7 ticks a server tick, which 24 creatures
+     * do in half the budget. Measured again in stage G with creatures that bear a Stand, each of which is two phantoms: 24
+     * of them and the user with his Stand are 50 phantoms, the press costs about 10 ms and a tick of the room about 1.4 ms
+     * (29 microseconds a phantom), the hundred ticks about 140; 7 ticks a server tick are about 10 ms, just over the
+     * budget, so that with 24 Stand bearers and several players online the room falls behind the phantom phase and the
+     * window or the phase stretches, as section 6 has it. The walk itself is cheaper than the creatures it carries: the
+     * server tick went from 2.4 ms with the 24 bearers thinking to 0.9 ms with them on their tracks.
+     */
+    /**
+     * What a press costs when the entity under the crosshair is a player, and how long Epitaph then cools down (the owner,
+     * 2026-11-11: 25 seconds, and a cost balanced against the whole of a use). The press is not all a use takes: the walked
+     * user pays what his phantom did in its fight, action by action. Measured over the 100 ticks of the longest foresight,
+     * against the phantom of a player with a Stand: 177 to 421 stamina, 283 on average, while a base bar of 1000 fills by
+     * 150 with the Stand out. With this press a use takes 327 to 571 of that bar in all, 433 on average: about 40 to 50
+     * percent, and under 60 in the dearest run. In the 25 seconds of the cooldown the bar fills by 750 with the Stand out
+     * and by 1500 with it away.
+     */
+    public static final int PLAYER_STAMINA = 300;
+    public static final int PLAYER_COOLDOWN_SECONDS = 25;
+    public static final int SIM_BUDGET_MILLIS = 8;
+    public static final int MAX_TARGETS = 24;
+    public static final int MAX_CHILDREN = 64;
+    /** The chase: a body off its track comes back by this much a tick at least, by this share of its distance at most. */
+    public static final double CHASE_RETURN_MIN = 0.15D;
+    public static final double CHASE_RETURN_SHARE = 0.35D;
+    /** Further off its track than this, a body takes the short cut in time. */
+    public static final double CHASE_MAX_OFFSET = 6.0D;
 
     private KingCrimsonEpitaphForesightSpec() {}
 
-    public static int foresightTicks(int resolveLevel) {
-        int level = Math.max(0, Math.min(resolveLevel, FORESIGHT_TICKS_BY_RESOLVE.length - 1));
-        return FORESIGHT_TICKS_BY_RESOLVE[level];
+    /** How far ahead a user at this Resolve level foresees, in ticks, for a longest foresight in seconds. */
+    public static int foresightTicks(int maxSeconds, int resolveLevel) {
+        int level = Math.max(0, Math.min(resolveLevel, FORESIGHT_TENTHS.length - 1));
+        return Math.max(1, (maxSeconds * 20 * FORESIGHT_TENTHS[level] + 9) / 10);
     }
 
-    /** How long one activation of Epitaph stays armed at a resolve level. */
-    public static int windowTicks(int resolveLevel) {
-        // floor: 1.16 KCConfig epitaphDuration (default EPITAPH_WINDOW_TICKS)
-        return Math.max(KingCrimsonConfig.epitaphDurationTicks(), foresightTicks(resolveLevel) + WINDOW_MARGIN_TICKS);
+    /** The phantom phase at this Resolve level, in ticks, as single player has it. */
+    public static int phaseTicks(int resolveLevel) {
+        return PHASE_TICKS[Math.max(0, Math.min(resolveLevel, PHASE_TICKS.length - 1))];
+    }
+
+    /** The phantom phase with several players online: the share of the table's that the setting gives. */
+    public static int multiplayerPhaseTicks(int resolveLevel, double scale) {
+        return Math.max(1, (int) Math.round(phaseTicks(resolveLevel) * scale));
     }
 }

@@ -43,7 +43,7 @@ public final class YellowTemperanceDollHud
                         player,
                         deltaTracker.getGameTimeDeltaPartialTick(false));
         if (state == null
-                || !state.controller().isDollEnabled()) {
+                || !state.disguise().doll()) {
             return;
         }
         Quaternionf pose = new Quaternionf()

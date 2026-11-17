@@ -11,7 +11,7 @@ import rotp.addons.d4c.D4CSelectionPredicates;
 import rotp.addons.d4c.entity.D4CMinionEntity;
 import rotp.addons.d4c.item.D4CColtItem;
 import rotp.addons.d4c.network.D4CPayloads;
-import rotp.addons.d4c.travel.D4CDimensionTargets;
+import rotp.addons.d4c.travel.D4CParallelLevels;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -45,7 +45,7 @@ public final class D4CClientEvents {
     public static void tintParallelWorldFog(
             ViewportEvent.ComputeFogColor event) {
         ClientLevel level = Minecraft.getInstance().level;
-        if (level != null && D4CDimensionTargets.PARALLEL_WORLD.equals(
+        if (level != null && D4CParallelLevels.isParallel(
                 level.dimension().location())) {
             event.setRed(PARALLEL_FOG_RED);
             event.setGreen(PARALLEL_FOG_GREEN);

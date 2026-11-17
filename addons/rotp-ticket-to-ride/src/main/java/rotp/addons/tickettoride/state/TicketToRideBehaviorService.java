@@ -11,6 +11,7 @@ import javax.annotation.Nullable;
 
 import rotp.addons.tickettoride.TicketToRideAddon;
 import rotp.addons.tickettoride.TicketToRideEvents;
+import rotp.core.powersystem.standpower.StandDamageContext;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -261,7 +262,9 @@ public final class TicketToRideBehaviorService {
             float damage = 0.0F;
             if (target.isAlive()) {
                 damage = target.getMaxHealth() * 0.3F + 6.0F;
-                target.hurt(target.damageSources().magic(), damage);
+                try (var running = StandDamageContext.enter(TearsHazardService.markersStand(target))) {
+                    target.hurt(target.damageSources().magic(), damage);
+                }
             }
             if (target.isAlive()) {
                 Vec3 push = new Vec3(target.getX() - horse.getX(), 0.5D,

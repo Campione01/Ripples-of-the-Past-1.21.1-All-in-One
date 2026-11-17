@@ -13,6 +13,7 @@ import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 import com.mojang.authlib.GameProfile;
+import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -20,8 +21,13 @@ import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
@@ -61,7 +67,9 @@ import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.neoforged.neoforge.network.registration.NetworkRegistry;
 import rotp.addons.stickyfingers.StickyFingersAddon;
+import rotp.addons.stickyfingers.StickyFingersGameEvents;
 import rotp.addons.stickyfingers.StickyFingersPhase1Spec;
 import rotp.addons.stickyfingers.ability.StickyFingersClimbZipperAbility;
 import rotp.addons.stickyfingers.ability.StickyFingersHideInMobAbility;
@@ -666,6 +674,98 @@ public final class ZipperPhasingGameTests {
         finally {
             close(player);
         }
+    }
+
+    // The owner's rule of 2026-11-05 (13.png): a zipper on a block and an unzipped part go on through a recall, and end
+    // with the loss of the Stand. Both ask the player list for their owner, so this user is on it.
+    @GameTest(template = "empty", timeoutTicks = STAND_SCENE_TIMEOUT_TICKS)
+    public static void zippersAndPartsGoOnThroughARecall(GameTestHelper helper) {
+        whenUnzipSceneTicks(helper, () -> {
+            ServerLevel level = helper.getLevel();
+            GameProfile profile = new GameProfile(UUID.randomUUID(), "sticky-recall");
+            CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
+            ServerPlayer player = new ServerPlayer(level.getServer(), level, profile, cookie.clientInformation());
+            Connection connection = new Connection(PacketFlow.SERVERBOUND);
+            new EmbeddedChannel(connection);
+            NetworkRegistry.configureMockConnection(connection);
+            level.getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+            player.setGameMode(GameType.SURVIVAL);
+            Mob husk = EntityType.HUSK.create(level);
+            try {
+                BlockState stone = Blocks.STONE.defaultBlockState();
+                BlockPos pos = pillar(helper, stone);
+                Vec3 at = helper.absoluteVec(new Vec3(2.5D, 3.0D, 0.5D));
+                player.teleportTo(at.x, at.y, at.z);
+                StandPower power = PowerClass.STAND.attachGet(player);
+                helper.assertTrue(StandPowerTransitions.insert(power,
+                                new StandInstance(StickyFingersAddon.STICKY_FINGERS.get())).status()
+                                == StandPowerTransitions.Status.APPLIED,
+                        "Could not grant the registered Sticky Fingers Stand");
+                power.skipProgression();
+                helper.assertTrue(StickyFingersAddon.STICKY_FINGERS.get().summon(player, power),
+                        "Could not summon Sticky Fingers");
+
+                ZipperLeaseData leases = ZipperLeaseData.get(level);
+                Vec3 face = Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(Direction.NORTH.getNormal()).scale(0.5D));
+                helper.assertTrue(leases.use(player, new BlockHitResult(face, Direction.NORTH, pos, false))
+                                == ZipperLeaseData.UseResult.CREATED,
+                        "Fixture: could not place a zipper");
+                ZipperCombatData parts = ZipperCombatData.get(level);
+                helper.assertTrue(husk != null, "Could not create the husk");
+                husk.moveTo(at.x, at.y, at.z + 2.5D, 180.0F, 0.0F);
+                husk.setNoAi(true);
+                husk.setNoGravity(true);
+                helper.assertTrue(level.addFreshEntity(husk), "Could not add the husk");
+                DetachedBodyPartEntity arm = new DetachedBodyPartEntity(StickyFingersAddon.PLAYER_ARM.get(), level);
+                helper.assertTrue(parts.registerDetachedPart(level, player, husk, DetachedPartType.LEFT_ARM, arm),
+                        "Fixture: could not take off an arm");
+
+                // R772.1 OQ-C04: the HUD marks these skills' slots while their work goes on with the Stand recalled
+                Ability zipperSlot = power.getAbility(StickyFingersAddon.ZIPPER_NAME);
+                Ability unzipSlot = power.getAbility(StickyFingersAddon.UNZIP_PUNCH_NAME);
+                helper.assertTrue(zipperSlot != null && unzipSlot != null, "Fixture: Sticky Fingers lacks a skill");
+                power.getPowerType().forceUnsummon(player, power);
+                helper.assertTrue(!StickyFingersAddon.isStickyFingersActive(player), "Fixture: the Stand is still out");
+                tickZippersAndParts(level, player);
+                helper.assertTrue(leases.getAt(pos) != null && !level.getBlockState(pos).equals(stone),
+                        "The zipper on the block ended with the recall: " + level.getBlockState(pos));
+                helper.assertTrue(parts.partsFor(husk.getUUID()).contains(DetachedPartType.LEFT_ARM),
+                        "The unzipped arm went back with the recall");
+                helper.assertTrue(zipperSlot.cl_runsWithStandRecalled(player) && unzipSlot.cl_runsWithStandRecalled(player),
+                        "The slots of the zipper and the unzip punch are not marked while their work goes on");
+                // each slot follows its own work: with the arm back on, only the zipper's slot stays marked
+                parts.closeTargeted(level, husk.getUUID(), ZipperCombatCloseReason.ORPHAN_RECOVERY);
+                tickZippersAndParts(level, player);
+                helper.assertTrue(zipperSlot.cl_runsWithStandRecalled(player) && !unzipSlot.cl_runsWithStandRecalled(player),
+                        "The unzip punch's slot is marked with no part off, or the zipper's with its zipper on");
+
+                power.setStand(null);
+                tickZippersAndParts(level, player);
+                helper.assertTrue(!zipperSlot.cl_runsWithStandRecalled(player) && !unzipSlot.cl_runsWithStandRecalled(player),
+                        "A slot is still marked after the loss of the Stand ended the work");
+                helper.assertTrue(level.getBlockState(pos).equals(stone),
+                        "The zipper must end with the loss of the Stand: " + level.getBlockState(pos));
+                helper.assertTrue(parts.partsFor(husk.getUUID()).isEmpty(),
+                        "The unzipped arm must go back with the loss of the Stand");
+                helper.succeed();
+            }
+            finally {
+                if (husk != null) {
+                    ZipperCombatData.get(level).closeTargeted(level, husk.getUUID(),
+                            ZipperCombatCloseReason.ORPHAN_RECOVERY);
+                    husk.discard();
+                }
+                player.connection.disconnect(Component.literal("Sticky Fingers recall GameTest complete"));
+            }
+        });
+    }
+
+    // Both ways an owner's state is judged: the data's own tick, and the player tick's check once a second.
+    private static void tickZippersAndParts(ServerLevel level, ServerPlayer player) {
+        player.tickCount = 20;
+        StickyFingersGameEvents.onPlayerTick(new PlayerTickEvent.Post(player));
+        ZipperLeaseData.get(level).tick(level);
+        ZipperCombatData.get(level).tick(level);
     }
 
     @GameTest(template = "empty", timeoutTicks = 20)

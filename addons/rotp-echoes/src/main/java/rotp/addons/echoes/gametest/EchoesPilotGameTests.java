@@ -1,10 +1,18 @@
 package rotp.addons.echoes.gametest;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
@@ -13,14 +21,21 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.GameTestInfo;
+import net.minecraft.gametest.framework.GameTestListener;
+import net.minecraft.gametest.framework.GameTestRunner;
 import net.minecraft.gametest.framework.GameTestSequence;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -31,18 +46,23 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.damagesource.DamageContainer;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.event.EventHooks;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -58,8 +78,11 @@ import rotp.addons.echoes.entity.EchoesTailNeedleEntity;
 import rotp.addons.echoes.init.EchoesBlocks;
 import rotp.addons.echoes.init.EchoesDataComponents;
 import rotp.addons.echoes.init.EchoesMobEffects;
+import rotp.addons.echoes.init.EchoesSounds;
 import rotp.addons.echoes.init.EchoesStands;
+import rotp.addons.echoes.network.EchoesOnomatopoeiaPayloads;
 import rotp.addons.echoes.stand.EchoesStandEntity;
+import rotp.addons.echoes.state.EchoesChatService;
 import rotp.addons.echoes.state.EchoesFreezeState;
 import rotp.addons.echoes.state.EchoesForms;
 import rotp.addons.echoes.state.EchoesGravityService;
@@ -67,17 +90,33 @@ import rotp.addons.echoes.state.EchoesOnomatopoeia;
 import rotp.addons.echoes.state.EchoesOnomatopoeiaService;
 import rotp.addons.echoes.state.EchoesSoundService;
 import rotp.addons.echoes.state.EchoesUserState;
+import rotp.addons.echoes.state.GravityInfusion;
 import rotp.addons.echoes.state.GravityMarkSavedData;
+import rotp.core.api.leap.LeapAccessPolicies;
+import rotp.core.api.leap.LeapSource;
+import rotp.core.client.entityanim.AnimationSet;
+import rotp.core.config.client.PlayerClientBroadcastedSettings;
+import rotp.core.init.ModDataAttachmentTypes;
+import rotp.core.init.ModGamerules;
+import rotp.core.impl.stands._entitybase.StandBearingShotAbility;
+import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.init.power.ModStands;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
+import rotp.core.powersystem.ability.EntityActionAbility;
 import rotp.core.powersystem.ability.condition.AvailableAbilities;
+import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.ability.input.AbilityInput;
 import rotp.core.powersystem.ability.input.ActionInputBuffer.BufferingState;
+import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
+import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandTuning;
+import rotp.core.powersystem.standpower.entity.EntityStandType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 
@@ -86,6 +125,14 @@ import rotp.core.subsystems.target.ActionTarget;
 public final class EchoesPilotGameTests {
     private static final Vec3 MOTION = new Vec3(0.2D, 0.4D, -0.2D);
     private static final short SHORT_BAR_KEY = 171;
+    // a 1 in 1000 chance a tick: e^-20 to miss a line this many ticks
+    private static final int PASSIVE_TRIES = 20_000;
+    // 016's strike and counter come at 35% and 40% a try: 0.65^200 to miss them all
+    private static final int AUTO_TRIES = 200;
+    // more than one 20-tick pressure period
+    private static final int PRESSURE_TICKS = 25;
+    // a press is handled and the Stand has synced its tail within these
+    private static final int SETTLE_TICKS = 3;
 
     private EchoesPilotGameTests() {}
 
@@ -119,7 +166,9 @@ public final class EchoesPilotGameTests {
                     near.setDeltaMovement(MOTION);
                     far.setDeltaMovement(MOTION);
                     EchoesGameEvents.onPlayerTick(new PlayerTickEvent.Post(player));
-                    motion(helper, player.getDeltaMovement(), MOTION.scale(factors[i]), "carrier drag");
+                    // the author's drag leaves the fall alone, and presses a carrier in the air by 0.08
+                    motion(helper, player.getDeltaMovement(),
+                            new Vec3(MOTION.x * factors[i], MOTION.y - 0.08D, MOTION.z * factors[i]), "carrier drag");
                     motion(helper, near.getDeltaMovement(), new Vec3(0.06D, -0.1D, -0.06D), "near field");
                     motion(helper, far.getDeltaMovement(), MOTION, "outside field");
                 }
@@ -193,10 +242,8 @@ public final class EchoesPilotGameTests {
             EchoesGravityService.onAct3FinisherHit(player);
             helper.assertTrue(state.activeSkill() == EchoesUserState.ActiveSkill.NONE
                             && marks.mark(mark, helper.getLevel().getGameTime()) == null
-                            && !EchoesGravityService.isInfused(player.getInventory().getItem(0),
-                                    helper.getLevel().getGameTime(), false)
-                            && !EchoesGravityService.isInfused(player.getInventory().getItem(1),
-                                    helper.getLevel().getGameTime(), false),
+                            && !EchoesGravityService.isInfused(player.getInventory().getItem(0))
+                            && !EchoesGravityService.isInfused(player.getInventory().getItem(1)),
                     "The finisher left infused inventory or its owned block mark");
             GravityMarkSavedData.Mark kept = marks.mark(otherMark, helper.getLevel().getGameTime());
             helper.assertTrue(kept != null && otherOwner.equals(kept.owner()),
@@ -293,9 +340,10 @@ public final class EchoesPilotGameTests {
     }
 
     /**
-     * 092 GravityFreezeAction and HandFreezeAction call DisablerTagHandler.disable: Slowness, Mining Fatigue, Weakness,
-     * Jump and Hunger at 255, no Resistance and no Blindness, and DisablerTagHandler.enable removes those five. The
-     * frozen target cannot walk, jump, mine or deal melee damage, its food bar drains, and it can still be hurt.
+     * The master's and the author's 1.21.1 DisablerTagHandler.disable: Slowness, Mining Fatigue and Weakness at 255, no
+     * jump, no Hunger (092's), no Resistance and no Blindness; DisablerTagHandler.enable removes them. The frozen target
+     * cannot walk, jump, mine or deal melee damage, and it can still be hurt. A hand freeze (master HandFreezeHandler) has
+     * Slowness IV, so its target still shuffles along.
      */
     private static void freezeScene(GameTestHelper helper, EchoesGravityAbility.Mode mode) {
         ServerPlayer user = freezer(helper, "EchoesFreezer");
@@ -335,24 +383,26 @@ public final class EchoesPilotGameTests {
             for (MobEffectInstance effect : target.getActiveEffects()) {
                 effects.append(' ').append(effect);
             }
-            for (var effect : List.of(MobEffects.MOVEMENT_SLOWDOWN, MobEffects.DIG_SLOWDOWN, MobEffects.WEAKNESS,
-                    MobEffects.HUNGER)) {
+            boolean handFreeze = mode == EchoesGravityAbility.Mode.HAND_FREEZE;
+            for (var effect : List.of(MobEffects.MOVEMENT_SLOWDOWN, MobEffects.DIG_SLOWDOWN, MobEffects.WEAKNESS)) {
                 MobEffectInstance active = target.getEffect(effect);
-                helper.assertTrue(active != null && active.getAmplifier() == 255,
-                        "1.16 " + mode + " gives Slowness, Mining Fatigue, Weakness, Jump and Hunger at 255 and no"
-                                + " Blindness or Resistance; the port gave" + effects);
+                int expected = handFreeze && effect == MobEffects.MOVEMENT_SLOWDOWN ? 3 : 255;
+                helper.assertTrue(active != null && active.getAmplifier() == expected,
+                        mode + " gives Slowness at " + (handFreeze ? 3 : 255) + ", Mining Fatigue and Weakness at 255"
+                                + " and no Hunger, Blindness or Resistance; the port gave" + effects);
             }
             MobEffectInstance resistance = target.getEffect(MobEffects.DAMAGE_RESISTANCE);
             helper.assertTrue(resistance != null && resistance.getAmplifier() == 0
-                            && !target.hasEffect(MobEffects.BLINDNESS) && !target.hasEffect(MobEffects.JUMP),
-                    "1.16 " + mode + " adds no Resistance, Blindness or Jump Boost; the port gave" + effects);
+                            && !target.hasEffect(MobEffects.BLINDNESS) && !target.hasEffect(MobEffects.JUMP)
+                            && !target.hasEffect(MobEffects.HUNGER),
+                    mode + " adds no Resistance, Blindness, Jump Boost or Hunger; the port gave" + effects);
             float health = target.getHealth();
             target.hurt(target.damageSources().generic(), 4.0F);
             helper.assertTrue(target.getHealth() < health,
                     "1.16: a target frozen by " + mode + " can be hurt; the port's took no damage");
             float rise = jumpRise(target);
-            helper.assertTrue(target.getAttributeValue(Attributes.MOVEMENT_SPEED) == 0.0D && rise == 0.0F,
-                    "1.16: a target frozen by " + mode + " cannot walk or jump; speed "
+            helper.assertTrue((target.getAttributeValue(Attributes.MOVEMENT_SPEED) > 0.0D) == handFreeze && rise == 0.0F,
+                    "A target frozen by " + mode + " cannot jump, and only a hand freeze lets it shuffle; speed "
                             + target.getAttributeValue(Attributes.MOVEMENT_SPEED) + ", jump " + rise);
             float frozenDigSpeed = target.getDestroySpeed(Blocks.STONE.defaultBlockState());
             helper.assertTrue(frozenDigSpeed < digSpeed * 0.001F
@@ -360,17 +410,19 @@ public final class EchoesPilotGameTests {
                     "1.16: a target frozen by " + mode + " cannot mine or deal melee damage; dig speed "
                             + frozenDigSpeed + " of " + digSpeed + ", attack damage "
                             + target.getAttributeValue(Attributes.ATTACK_DAMAGE));
-            float exhaustion = target.getFoodData().getExhaustionLevel();
-            target.getEffect(MobEffects.HUNGER).tick(target, () -> {});
-            float drained = target.getFoodData().getExhaustionLevel() - exhaustion;
-            helper.assertTrue(drained > 1.0F,
-                    "1.16 Hunger 255 drains the frozen target's food bar by 1.28 a tick; the port drained " + drained);
 
-            EchoesGravityService.perform(user, mode);
+            // The owner's rule of 2026-11-05 (13.png), against 1.16's clearTargetEffects: the freeze goes on through a recall.
+            EchoesStands.ECHOES_ACT3.get().forceUnsummon(user, power);
+            EchoesGravityService.tickUser(user);
+            helper.assertTrue(frozen.active() && RotpEchoes.userState(user).frozenTarget() != null,
+                    mode + " ended with the recall");
+            helper.assertTrue(EchoesStands.ECHOES_ACT3.get().summon(user, power), "Setup: the next summon was refused");
+
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_CANCEL);
             resistance = target.getEffect(MobEffects.DAMAGE_RESISTANCE);
             helper.assertTrue(!frozen.active() && !target.hasEffect(MobEffects.MOVEMENT_SLOWDOWN)
                             && !target.hasEffect(MobEffects.DIG_SLOWDOWN) && !target.hasEffect(MobEffects.WEAKNESS)
-                            && !target.hasEffect(MobEffects.HUNGER) && jumpRise(target) > 0.0F
+                            && jumpRise(target) > 0.0F
                             && resistance != null && resistance.getAmplifier() == 0,
                     "1.16 DisablerTagHandler.enable removes exactly the freeze's effects when " + mode
                             + " ends; the target kept" + activeEffects(target) + ", jump " + jumpRise(target));
@@ -483,11 +535,11 @@ public final class EchoesPilotGameTests {
         helper.succeed();
     }
 
-    // 092 GravityProjectileAction has no gravity-item condition: pressed with no gravity item it throws nothing, and
-    // StandEntityTask still pays its staminaCost(100) after the perform.
+    // master GravityProjectileAction and GravityInfuseAction, the author's 1.21.1 conditions: a press with nothing to do
+    // is refused, says why and costs nothing (092 ran it and paid). What he holds opens the keys.
     @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 60,
             batch = "rotpEchoesEmptyThrow")
-    public static void gravityThrowWithNoItemStillRunsAndPaysItsHundred(GameTestHelper helper) {
+    public static void gravityKeysWithNothingToDoRefuseAndSayWhy(GameTestHelper helper) {
         ServerPlayer user = freezer(helper, "EchoesEmptyThrow");
         StandPower power = PowerClass.STAND.attachGet(user);
         try {
@@ -497,52 +549,628 @@ public final class EchoesPilotGameTests {
             helper.assertTrue(stand != null, "Setup: no summoned ACT3");
             stand.summonLockTicks = 0;
             stand.setNoGravity(true);
-            helper.assertTrue(!power.isStaminaInfinite() && power.getMaxStamina() >= 250.0F,
-                    "Setup: the user needs a finite stamina bar of at least 250");
-            // 092 unlocks the gravity throw at Resolve level 4.
+            user.setYRot(0.0F);
+            user.setXRot(0.0F);
             power.setResolveLevel(4);
             user.getInventory().clearContent();
             power.setStamina(250.0F);
             Ability projectile = power.getAbility("gravity_projectile");
-            helper.assertTrue(projectile instanceof EchoesGravityAbility,
-                    "Setup: ACT3 has no gravity projectile: " + projectile);
+            refuses(helper, projectile, power, "rotp_echoes.message.need_gravity_item");
             var selected = power.updateAvailableMoves().getContextVariationContainer(projectile);
-            helper.assertTrue(selected != null && AbilityInput.withConditionCheck(selected, user, InputMethod.CLICK),
-                    "1.16 runs the gravity throw with no gravity item; the port refused the press ("
-                            + (selected != null ? selected.conditionCheck.getWarning() : "not available") + ")");
-            BufferingState buffer = BufferingState.clickOnly();
-            AbilityInput.keyPress(SHORT_BAR_KEY, selected.ability, user, null, InputMethod.CLICK, 0.0F, buffer,
-                    projectile.getAbilityId());
-            helper.assertTrue(buffer.isActionSuccess,
-                    "1.16 runs the gravity throw with no gravity item; the port's key press started nothing");
-        } catch (RuntimeException | Error failure) {
-            cleanupShortBar(helper, user, power);
-            throw failure;
+            helper.assertTrue(selected == null || !AbilityInput.withConditionCheck(selected, user, InputMethod.CLICK),
+                    "The throw's press must be refused with no gravity item");
+            refuses(helper, power.getAbility("gravity_infuse"), power, "rotp_echoes.message.need_held_item");
+            refuses(helper, power.getAbility("gravity_infuse_cancel"), power,
+                    "rotp_echoes.message.need_own_gravity_item");
+            refuses(helper, power.getAbility("freeze"), power, "rotp_echoes.message.need_freeze_target");
+            refuses(helper, power.getAbility("hand_freeze"), power, "rotp_echoes.message.need_freeze_target");
+
+            user.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.COBBLESTONE));
+            helper.assertTrue(power.getAbility("gravity_infuse").checkSpecificConditions(power).isPositive(),
+                    "An item in the off hand must open Gravity Infuse");
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.INFUSE);
+            helper.assertTrue(EchoesGravityService.isInfused(user.getOffhandItem())
+                            && projectile.checkSpecificConditions(power).isPositive()
+                            && power.getAbility("gravity_infuse_cancel").checkSpecificConditions(power).isPositive(),
+                    "A gravity item in the off hand must open the throw and the cancel");
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.PROJECTILE);
+            helper.assertTrue(user.getOffhandItem().isEmpty(),
+                    "The throw must take the gravity item from the off hand, which the author's check passed and his throw"
+                            + " left there");
+        } finally {
+            discardThrownItems(helper, user);
+            if (power.isSummoned()) {
+                EchoesStands.ECHOES_ACT3.get().forceUnsummon(user, power);
+            }
+            remove(helper, user);
         }
-        int[] waited = {0};
-        boolean[] closed = {false};
-        helper.onEachTick(() -> {
-            if (closed[0]) {
-                return;
+        helper.succeed();
+    }
+
+    /**
+     * The master's and the author's GravityItemHelper have no timer (092's lasted 5 seconds): gravity stays on an item
+     * until it is cancelled. One item at a time, so a second press moves it. On the ground it ends when its owner is more
+     * than 5 blocks away or gone, and in the pocket when he has left ACT3.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 160,
+            batch = "rotpEchoesGravityItems")
+    public static void gravityStaysOnAnItemUntilItsOwnerGoesOrCancelsIt(GameTestHelper helper) {
+        ServerPlayer user = freezer(helper, "EchoesItemOwner");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        power.setStand(EchoesStands.ECHOES_ACT3.get());
+        ItemStack first = new ItemStack(Items.COBBLESTONE);
+        user.setItemInHand(InteractionHand.MAIN_HAND, first);
+        EchoesGravityService.perform(user, EchoesGravityAbility.Mode.INFUSE);
+        helper.assertTrue(user.getMainHandItem() == first && EchoesGravityService.isInfused(first),
+                "A single held item must take the gravity and stay in the hand");
+        helper.runAfterDelay(110, () -> {
+            try {
+                EchoesGravityService.tickInventoryGravity(user);
+                helper.assertTrue(EchoesGravityService.isInfused(first), "Gravity must not run out after 5 seconds");
+
+                ItemStack second = new ItemStack(Items.DIRT);
+                user.setItemInHand(InteractionHand.OFF_HAND, second);
+                EchoesGravityService.perform(user, EchoesGravityAbility.Mode.INFUSE);
+                helper.assertTrue(EchoesGravityService.isInfused(second) && !EchoesGravityService.isInfused(first),
+                        "A second press must move the gravity to the other item");
+                EchoesGravityService.perform(user, EchoesGravityAbility.Mode.INFUSE_CANCEL);
+                helper.assertTrue(!EchoesGravityService.isInfused(second), "The cancel must lift the held item's gravity");
+
+                ItemEntity near = lyingGravityItem(helper, user, user.getUUID(), 4.0D);
+                EchoesGravityService.tickInfusedItem(near);
+                helper.assertTrue(EchoesGravityService.isInfused(near.getItem()) && near.hasPickUpDelay(),
+                        "An item on the ground near its owner keeps its gravity and cannot be picked up");
+                ItemEntity far = lyingGravityItem(helper, user, user.getUUID(), 6.0D);
+                EchoesGravityService.tickInfusedItem(far);
+                helper.assertTrue(!EchoesGravityService.isInfused(far.getItem()),
+                        "An item on the ground more than 5 blocks from its owner loses its gravity");
+                ItemEntity orphan = lyingGravityItem(helper, user, UUID.randomUUID(), 1.0D);
+                EchoesGravityService.tickInfusedItem(orphan);
+                helper.assertTrue(!EchoesGravityService.isInfused(orphan.getItem()),
+                        "An item whose owner is gone loses its gravity, or nobody could ever pick it up");
+
+                ItemStack own = new ItemStack(Items.STONE);
+                EchoesGravityService.infuse(own, user.getUUID());
+                ItemStack others = new ItemStack(Items.GRANITE);
+                EchoesGravityService.infuse(others, UUID.randomUUID());
+                user.getInventory().setItem(9, own);
+                user.getInventory().setItem(10, others);
+                power.setStand(EchoesStands.ECHOES_ACT2.get());
+                EchoesGravityService.tickInventoryGravity(user);
+                helper.assertTrue(!EchoesGravityService.isInfused(own) && EchoesGravityService.isInfused(others),
+                        "A user who left ACT3 loses the gravity on his own items, not on another's");
+            } finally {
+                remove(helper, user);
             }
-            if (power.getStamina() == 250.0F) {
-                if (++waited[0] > 40) {
-                    closed[0] = true;
-                    cleanupShortBar(helper, user, power);
-                    helper.fail("1.16 pays an empty gravity throw's 100 when it performs; the port's bar never moved");
-                }
-                return;
-            }
-            closed[0] = true;
-            float stamina = power.getStamina();
-            int thrown = helper.getLevel().getEntitiesOfClass(
-                    ItemEntity.class, user.getBoundingBox().inflate(16.0D)).size();
-            cleanupShortBar(helper, user, power);
-            helper.assertTrue(stamina == 150.0F && thrown == 0,
-                    "1.16 pays an empty gravity throw's 100 and throws nothing; the bar went from 250 to " + stamina
-                            + ", " + thrown + " item(s) thrown");
             helper.succeed();
         });
+    }
+
+    private static ItemEntity lyingGravityItem(GameTestHelper helper, ServerPlayer user, UUID owner, double blocks) {
+        ItemStack stack = new ItemStack(Items.COBBLESTONE);
+        EchoesGravityService.infuse(stack, owner);
+        return new ItemEntity(helper.getLevel(), user.getX() + blocks, user.getY(), user.getZ(), stack);
+    }
+
+    /**
+     * The master's GravityItemEvents and MCUtilMixin: with a gravity item in the hands there is no jump and no leap, and
+     * a fall hurts 9 more (Jump -10). From the pocket it is the count's lower jump only.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesCarrierAttributes")
+    public static void aGravityItemInTheHandsKeepsItsCarrierDown(GameTestHelper helper) {
+        FallingCarrier player = carrier(helper, "EchoesHoldingCarrier");
+        try {
+            float plain = jumpRise(player);
+            int plainFall = player.fallDamage(10.0F);
+            inventory(player, 1);
+            EchoesGravityService.tickInventoryGravity(player);
+            helper.assertTrue(jumpRise(player) == 0.0F && player.fallDamage(10.0F) == plainFall + 9,
+                    "A gravity item in the hand stops the jump and makes a fall hurt 9 more; jump " + jumpRise(player)
+                            + ", a 10-block fall hurts " + player.fallDamage(10.0F));
+            helper.assertTrue(!LeapAccessPolicies.allowsHud(player, LeapSource.STAND)
+                            && !LeapAccessPolicies.allowsHud(player, LeapSource.PLAYER_POWER),
+                    "A gravity item in the hand stops the leap");
+            player.getInventory().selected = 8;
+            EchoesGravityService.tickInventoryGravity(player);
+            helper.assertTrue(Math.abs(jumpRise(player) - plain) < 1.0E-4F && player.fallDamage(10.0F) == plainFall
+                            && LeapAccessPolicies.allowsHud(player, LeapSource.STAND),
+                    "Out of the hand one gravity item leaves the jump, the fall and the leap as they were; jump "
+                            + jumpRise(player) + " of " + plain);
+        } finally {
+            EchoesGravityService.cleanupUser(player, true);
+            remove(helper, player);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The author's GravityProjectileAction and GravityItemEvents.onItemEntityTick: a throw is a flight, so nothing is hurt
+     * at the press, and the first living thing in its way takes it, not the one the user aims at behind it. It lands
+     * with its gravity on.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot",
+            timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "rotpEchoesGravityThrow")
+    public static void aThrownGravityItemFliesAndHitsWhatIsInItsWay(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> gravityThrowBody(h));
+    }
+
+    private static void gravityThrowBody(GameTestHelper helper) {
+        ServerPlayer user = freezer(helper, "EchoesItemThrower");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        power.setStand(EchoesStands.ECHOES_ACT3.get());
+        helper.assertTrue(EchoesStands.ECHOES_ACT3.get().summon(user, power), "Setup: could not summon ACT3");
+        StandEntity stand = power.getSummonedStandEntity();
+        stand.setNoGravity(true);
+        Zombie near = standingZombie(helper, user, 4.0D);
+        Zombie behind = standingZombie(helper, user, 8.0D);
+        user.setYRot(0.0F);
+        user.setXRot(0.0F);
+        ItemStack stack = new ItemStack(Items.COBBLESTONE);
+        EchoesGravityService.infuse(stack, user.getUUID());
+        user.setItemInHand(InteractionHand.MAIN_HAND, stack);
+        EchoesGravityService.perform(user, EchoesGravityAbility.Mode.PROJECTILE);
+        helper.assertTrue(near.getHealth() == near.getMaxHealth() && behind.getHealth() == behind.getMaxHealth(),
+                "A throw is a flight: nothing is hurt at the press");
+        ItemEntity thrown = helper.getLevel().getEntitiesOfClass(ItemEntity.class,
+                user.getBoundingBox().inflate(4.0D)).get(0);
+        helper.assertTrue(thrown.getOwner() == user, "The thrown item must know its thrower");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(near.getHealth() < near.getMaxHealth(),
+                        "The item must hit the zombie in its way"))
+                .thenExecute(() -> {
+                    GravityInfusion infusion = thrown.getItem().get(EchoesDataComponents.GRAVITY_INFUSION);
+                    helper.assertTrue(behind.getHealth() == behind.getMaxHealth() && infusion != null
+                                    && !infusion.thrown() && user.getHealth() == user.getMaxHealth(),
+                            "It hits once and no one behind, and keeps its gravity; zombie behind " + behind.getHealth()
+                                    + ", item " + infusion + ", user " + user.getHealth());
+                    thrown.discard();
+                    near.discard();
+                    behind.discard();
+                    EchoesStands.ECHOES_ACT3.get().forceUnsummon(user, power);
+                    remove(helper, user);
+                })
+                .thenSucceed();
+    }
+
+    // its middle at the user's eyes, straight ahead of a user who looks along yaw 0
+    private static Zombie standingZombie(GameTestHelper helper, ServerPlayer user, double blocks) {
+        Zombie zombie = new Zombie(EntityType.ZOMBIE, helper.getLevel());
+        zombie.setNoAi(true);
+        zombie.setNoGravity(true);
+        // a zombie burns in daylight, which would pass for the hit
+        zombie.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 1000));
+        zombie.moveTo(user.getX(), user.getEyeY() - zombie.getBbHeight() / 2.0D, user.getZ() + blocks, 180.0F, 0.0F);
+        helper.assertTrue(helper.getLevel().addFreshEntity(zombie), "Setup: the zombie was not added");
+        return zombie;
+    }
+
+    /**
+     * The master's DisablerTagHandler.onFrozenAttackerHurt and the author's, with his onLivingKnockBack: what is frozen or
+     * self-frozen deals no damage and takes no knockback, and both come back when it is lifted.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesFrozenAttacker")
+    public static void whatIsFrozenDealsNoDamageAndTakesNoKnockback(GameTestHelper helper) {
+        ServerPlayer user = freezer(helper, "EchoesFrozenAttacker");
+        PowerClass.STAND.attachGet(user).setStand(EchoesStands.ECHOES_ACT3.get());
+        Zombie zombie = standingZombie(helper, user, 3.0D);
+        Pig victim = pig(helper, user.position().add(-2.0D, 0.0D, 0.0D));
+        try {
+            user.lookAt(EntityAnchorArgument.Anchor.EYES, zombie.getBoundingBox().getCenter());
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_TARGET);
+            helper.assertTrue(RotpEchoes.freezeState(zombie).active(), "Setup: the zombie is not frozen");
+            float health = victim.getHealth();
+            victim.hurt(zombie.damageSources().mobAttack(zombie), 4.0F);
+            helper.assertTrue(victim.getHealth() == health, "A frozen mob must deal no damage");
+            zombie.setDeltaMovement(Vec3.ZERO);
+            zombie.knockback(1.0D, 1.0D, 0.0D);
+            helper.assertTrue(zombie.getDeltaMovement().lengthSqr() == 0.0D, "A frozen mob must take no knockback");
+
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_SELF);
+            helper.assertTrue(!RotpEchoes.freezeState(zombie).active(), "Setup: the self freeze keeps the zombie frozen");
+            victim.hurt(user.damageSources().playerAttack(user), 4.0F);
+            helper.assertTrue(victim.getHealth() == health, "A self-frozen user must deal no damage");
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_SELF);
+
+            victim.hurt(zombie.damageSources().mobAttack(zombie), 4.0F);
+            helper.assertTrue(victim.getHealth() < health, "A mob let go deals damage again");
+            zombie.knockback(1.0D, 1.0D, 0.0D);
+            helper.assertTrue(zombie.getDeltaMovement().lengthSqr() > 0.0D, "A mob let go takes knockback again");
+        } finally {
+            zombie.discard();
+            victim.discard();
+            EchoesGravityService.cleanupUser(user, true);
+            remove(helper, user);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * What the master's lockMovement and the author's updateFreeze do to a player, whose motion his client owns: the server
+     * leaves his gravity on, where the port's noGravity left a flier hanging in the air, and his client takes him down at
+     * 4.5 blocks a tick. His held moves stop (the master's interruptHeldActions) and he cannot leap (its mixins).
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesFrozenPlayer")
+    public static void aFrozenPlayerFallsOnHisClientAndLetsGoOfHeldMoves(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesPlayerFreezer");
+        StandPower userPower = PowerClass.STAND.attachGet(user);
+        userPower.setStand(EchoesStands.ECHOES_ACT3.get());
+        ServerPlayer target = freezer(helper, "EchoesFrozenFlier");
+        StandPower targetPower = PowerClass.STAND.attachGet(target);
+        try {
+            target.setNoGravity(false);
+            target.setPos(user.getX(), user.getY(), user.getZ() + 3.0D);
+            targetPower.setStand(EchoesStands.ECHOES_ACT3.get());
+            helper.assertTrue(EchoesStands.ECHOES_ACT3.get().summon(target, targetPower),
+                    "Setup: could not summon the target's ACT3");
+            StandEntity targetStand = targetPower.getSummonedStandEntity();
+            targetStand.summonLockTicks = 0;
+            targetStand.gradualSummonWeaknessTicks = 0;
+            targetStand.setNoGravity(true);
+            Ability guard = targetPower.getAbility("guard");
+            BufferingState pressed = BufferingState.clickOnly();
+            AbilityInput.keyPress(SHORT_BAR_KEY, guard, target, null, InputMethod.HOLD, 0.0F, pressed, guard.getAbilityId());
+            helper.assertTrue(pressed.isActionSuccess && AbilityInput.hasHeldInput(target, PowerClass.STAND),
+                    "Setup: the target does not hold its guard");
+            // out of the ray, which takes another's Stand as the first living thing in the aim
+            targetStand.moveTo(target.getX() + 3.0D, target.getY(), target.getZ());
+            user.lookAt(EntityAnchorArgument.Anchor.EYES, target.getBoundingBox().getCenter());
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_TARGET);
+            helper.assertTrue(RotpEchoes.freezeState(target).active(), "Setup: the target is not frozen");
+
+            Vec3 place = target.position();
+            EchoesGravityService.tickFrozenTarget(target);
+            helper.assertTrue(!target.isNoGravity() && target.position().equals(place),
+                    "The server must leave a frozen player's gravity and place to his client; no gravity "
+                            + target.isNoGravity() + ", moved to " + target.position());
+            helper.assertTrue(!AbilityInput.hasHeldInput(target, PowerClass.STAND),
+                    "A frozen player must let go of his held moves");
+            helper.assertTrue(!LeapAccessPolicies.allowsHud(target, LeapSource.STAND), "A frozen player cannot leap");
+            target.setOnGround(false);
+            target.setDeltaMovement(0.1D, 0.4D, 0.1D);
+            EchoesGravityService.tickLocalFreeze(target);
+            motion(helper, target.getDeltaMovement(), new Vec3(0.0D, -4.5D, 0.0D), "frozen player in the air");
+            target.setOnGround(true);
+            target.setDeltaMovement(0.1D, 0.0D, 0.1D);
+            EchoesGravityService.tickLocalFreeze(target);
+            motion(helper, target.getDeltaMovement(), Vec3.ZERO, "frozen player on the ground");
+
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_CANCEL);
+            target.setDeltaMovement(0.1D, 0.4D, 0.1D);
+            EchoesGravityService.tickLocalFreeze(target);
+            motion(helper, target.getDeltaMovement(), new Vec3(0.1D, 0.4D, 0.1D), "player let go");
+            helper.assertTrue(LeapAccessPolicies.allowsHud(target, LeapSource.STAND), "A player let go can leap");
+        } finally {
+            EchoesGravityService.releaseFrozenTarget(target);
+            if (targetPower.isSummoned()) {
+                EchoesStands.ECHOES_ACT3.get().forceUnsummon(target, targetPower);
+            }
+            remove(helper, target);
+            disconnect(user);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The author's and the master's freezes take whoever is in the aim, so a press with a freeze on moves it there, and
+     * either cancel key lifts it, without aim. A user another has frozen cannot freeze. A freeze ends beyond 5 blocks from its
+     * user, Stand out or not: both measure from him.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesFreezeMoves")
+    public static void aFreezeMovesToWhoIsInTheAimAndEndsOutOfRange(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesFreezeMover");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        power.setStand(EchoesStands.ECHOES_ACT3.get());
+        Zombie first = standingZombie(helper, user, 3.0D);
+        Zombie second = standingZombie(helper, user, -3.0D);
+        try {
+            helper.assertTrue(EchoesStands.ECHOES_ACT3.get().summon(user, power), "Setup: could not summon ACT3");
+            power.getSummonedStandEntity().setNoGravity(true);
+            user.lookAt(EntityAnchorArgument.Anchor.EYES, first.getBoundingBox().getCenter());
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_TARGET);
+            helper.assertTrue(RotpEchoes.freezeState(first).active(), "Setup: the first zombie is not frozen");
+            user.lookAt(EntityAnchorArgument.Anchor.EYES, second.getBoundingBox().getCenter());
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_TARGET);
+            helper.assertTrue(!RotpEchoes.freezeState(first).active() && RotpEchoes.freezeState(second).active(),
+                    "A second press must move the freeze to the zombie in the aim");
+            user.setYRot(90.0F);
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.HAND_FREEZE_CANCEL);
+            helper.assertTrue(!RotpEchoes.freezeState(second).active(),
+                    "Either cancel key must lift a target freeze, with no aim");
+
+            user.lookAt(EntityAnchorArgument.Anchor.EYES, second.getBoundingBox().getCenter());
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.HAND_FREEZE);
+            helper.assertTrue(RotpEchoes.freezeState(second).active(), "Setup: the hand freeze did not start");
+            EchoesStands.ECHOES_ACT3.get().forceUnsummon(user, power);
+            EchoesGravityService.tickFrozenTarget(second);
+            helper.assertTrue(RotpEchoes.freezeState(second).active(), "Within its range a freeze outlives the recall");
+            second.moveTo(user.getX(), second.getY(), user.getZ() - 7.0D);
+            EchoesGravityService.tickFrozenTarget(second);
+            helper.assertTrue(!RotpEchoes.freezeState(second).active(),
+                    "With the Stand recalled a freeze still ends once its user is out of its range");
+
+            user.lookAt(EntityAnchorArgument.Anchor.EYES, first.getBoundingBox().getCenter());
+            RotpEchoes.freezeState(user).activate(user, UUID.randomUUID(), 0, EchoesFreezeState.Kind.TARGET,
+                    helper.getLevel().getGameTime() + 100L);
+            helper.assertTrue(!power.getAbility("freeze").checkSpecificConditions(power).isPositive(),
+                    "A user another has frozen cannot freeze");
+            EchoesGravityService.releaseFrozenTarget(user);
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_SELF);
+            helper.assertTrue(power.getAbility("freeze").checkSpecificConditions(power).isPositive(),
+                    "His own self freeze only gives way to a new freeze, as in the master");
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.HAND_FREEZE_SELF_CANCEL);
+            helper.assertTrue(RotpEchoes.userState(user).activeSkill() == EchoesUserState.ActiveSkill.NONE
+                            && !user.hasEffect(MobEffects.MOVEMENT_SLOWDOWN),
+                    "Either cancel key must lift a self freeze");
+        } finally {
+            first.discard();
+            second.discard();
+            EchoesGravityService.cleanupUser(user, true);
+            if (power.isSummoned()) {
+                EchoesStands.ECHOES_ACT3.get().forceUnsummon(user, power);
+            }
+            disconnect(user);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The master's tickSelfFreeze, the owner's choice over the author's fixed 30 seconds: a self freeze is a toggle that
+     * drains the stamina and ends when it runs out. It takes the mining as both do, and presses its user down as the
+     * author's does; the self hand freeze only stops him going up. And his FreezeSoundHelper has no wait between voices.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesSelfFreezeTime")
+    public static void aSelfFreezeRunsUntilTheStaminaDoesAndCriesOutEveryPress(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesSelfTimer");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        power.setStand(EchoesStands.ECHOES_ACT3.get());
+        EchoesUserState state = RotpEchoes.userState(user);
+        try {
+            soundsSent(user, EchoesSounds.FREEZE_VOICE.get());
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_SELF);
+            helper.assertTrue(user.getEffect(MobEffects.DIG_SLOWDOWN) != null
+                            && user.getEffect(MobEffects.DIG_SLOWDOWN).getAmplifier() == 255,
+                    "A self freeze takes the mining");
+            helper.assertTrue(!power.isStaminaInfinite(), "Setup: the user needs a finite stamina bar");
+            power.setStamina(10.0F);
+            for (user.tickCount = 18; user.tickCount <= 21; user.tickCount++) {
+                EchoesGravityService.tickUser(user);
+            }
+            helper.assertTrue(Math.abs(power.getStamina() - 9.95F) < 1.0E-4F
+                            && state.activeSkill() == EchoesUserState.ActiveSkill.FREEZE_SELF,
+                    "A self freeze drains 0.05 of the stamina a second; the bar went from 10 to " + power.getStamina());
+            user.setOnGround(false);
+            user.setDeltaMovement(0.1D, 0.4D, 0.1D);
+            EchoesGravityService.tickLocalFreeze(user);
+            motion(helper, user.getDeltaMovement(), new Vec3(0.0D, -4.5D, 0.0D), "self-frozen user in the air");
+            power.setStamina(0.03F);
+            user.tickCount = 40;
+            EchoesGravityService.tickUser(user);
+            helper.assertTrue(state.activeSkill() == EchoesUserState.ActiveSkill.NONE
+                            && !user.hasEffect(MobEffects.MOVEMENT_SLOWDOWN) && !user.hasEffect(MobEffects.DIG_SLOWDOWN),
+                    "A self freeze must end when the stamina runs out, with its effects");
+
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.HAND_FREEZE_SELF);
+            helper.assertTrue(soundsSent(user, EchoesSounds.FREEZE_VOICE.get()) == 2,
+                    "Each press has its voice, with no 30 seconds between them");
+            user.setDeltaMovement(0.1D, 0.4D, 0.1D);
+            EchoesGravityService.tickLocalFreeze(user);
+            motion(helper, user.getDeltaMovement(), Vec3.ZERO, "self hand freeze going up");
+            user.setDeltaMovement(0.1D, -0.3D, 0.1D);
+            EchoesGravityService.tickLocalFreeze(user);
+            motion(helper, user.getDeltaMovement(), new Vec3(0.0D, -0.3D, 0.0D), "self hand freeze falling");
+        } finally {
+            EchoesGravityService.cleanupUser(user, true);
+            disconnect(user);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * R772.1 (EV-STANDCFG item4): the self freeze's upkeep is a stamina cost, so it is paid in the Stands page's stamina
+     * share and weighed in it: at 50 % the bar loses 0.025 a second, where the direct set took the whole 0.05, and a bar
+     * of 0.03 still pays it.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesSelfFreezeShare")
+    public static void aSelfFreezesUpkeepIsPaidInTheStaminaShare(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesSelfShare");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        power.setStand(EchoesStands.ECHOES_ACT3.get());
+        EchoesUserState state = RotpEchoes.userState(user);
+        StandTuning tuning = EchoesStands.ECHOES_ACT3.get().getTuning();
+        JsonObject half = new JsonObject();
+        half.addProperty("staminaCosts", 50);
+        try {
+            tuning.applyConfig(half);
+            helper.assertTrue(Math.abs(power.getStaminaCostShare(EchoesGravityService.SELF_STAMINA_DRAIN) - 0.025F) < 1.0E-6F,
+                    "Setup: the 50% stamina share is not on");
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_SELF);
+            helper.assertTrue(!power.isStaminaInfinite() && state.activeSkill() == EchoesUserState.ActiveSkill.FREEZE_SELF,
+                    "Setup: no self freeze on a finite stamina bar");
+            power.setStamina(10.0F);
+            for (user.tickCount = 18; user.tickCount <= 21; user.tickCount++) {
+                EchoesGravityService.tickUser(user);
+            }
+            helper.assertTrue(Math.abs(power.getStamina() - 9.975F) < 1.0E-4F,
+                    "At a 50% stamina share the self freeze's upkeep is 0.025 a second; the bar went from 10 to "
+                            + power.getStamina());
+            power.setStamina(0.03F);
+            user.tickCount = 40;
+            EchoesGravityService.tickUser(user);
+            helper.assertTrue(state.activeSkill() == EchoesUserState.ActiveSkill.FREEZE_SELF
+                            && Math.abs(power.getStamina() - 0.005F) < 1.0E-4F,
+                    "A bar of 0.03 pays the halved upkeep of 0.025 and the freeze goes on; it is "
+                            + state.activeSkill() + " at " + power.getStamina());
+        } finally {
+            tuning.restoreDefaults();
+            EchoesGravityService.cleanupUser(user, true);
+            disconnect(user);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * R772.1 EV-STANDCFG item3: a word's damage is dealt by whichever tick delivers it (a marked entity's, a block's, a
+     * thing on a block), none of them the Stand's own code, so it is applied in its owner's name: at a damage share of
+     * 50 % to mobs Jian's 0.25 is 0.125, at the default share the whole 0.25.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesWordShare")
+    public static void aWordsDamageIsPaidInTheStandsDamageShare(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesWordShare");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        power.setStand(EchoesStands.ECHOES_ACT3.get());
+        Zombie zombie = standingZombie(helper, user, 3.0D);
+        StandTuning tuning = EchoesStands.ECHOES_ACT3.get().getTuning();
+        try {
+            float whole = wordDamage(user, zombie);
+            helper.assertTrue(Math.abs(whole - 0.25F) < 1.0E-5F,
+                    "At the default share Jian pricks for 0.25; the zombie took " + whole);
+            JsonObject half = new JsonObject();
+            half.addProperty("damageVsMobs", 50);
+            tuning.applyConfig(half);
+            float halved = wordDamage(user, zombie);
+            helper.assertTrue(Math.abs(halved - 0.125F) < 1.0E-5F,
+                    "At 50 % damage to mobs Jian pricks for 0.125; the zombie took " + halved);
+        } finally {
+            tuning.restoreDefaults();
+            zombie.discard();
+            disconnect(user);
+        }
+        helper.succeed();
+    }
+
+    // Jian applied in the user's name; what the zombie lost
+    private static float wordDamage(ServerPlayer user, Zombie zombie) {
+        zombie.setHealth(zombie.getMaxHealth());
+        zombie.invulnerableTime = 0;
+        float before = zombie.getHealth();
+        EchoesOnomatopoeiaService.applyBy(user.getUUID(), EchoesOnomatopoeia.JIAN, zombie);
+        return before - zombie.getHealth();
+    }
+
+    /**
+     * The author's AddonStands and EchoesHeavyChargedAbility: ACT3 has the core's bearing shot, shown under the core's
+     * name, and cries out as the charged heavy starts.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesAct3Author")
+    public static void act3HasTheBearingShotAndCriesAtTheChargeStart(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesChargeCry");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        try {
+            power.setStand(EchoesStands.ECHOES_ACT3.get());
+            helper.assertTrue(EchoesStands.ECHOES_ACT3.get().summon(user, power), "Setup: could not summon ACT3");
+            StandEntity stand = power.getSummonedStandEntity();
+            stand.setNoGravity(true);
+            Ability bearing = power.getAbility("bearing_shot");
+            helper.assertTrue(bearing instanceof StandBearingShotAbility
+                            && bearing.getTranslationKey().startsWith("jojo_ripples."),
+                    "ACT3 must have the core's bearing shot under the core's name: " + bearing);
+            stand.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_NUGGET));
+            helper.assertTrue(bearing.isAbilityAvailable(power), "A nugget in ACT3's hand must open the bearing shot");
+            stand.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+
+            soundsSent(user, EchoesSounds.HEAVY_ATTACK.get());
+            ((EntityActionAbility) power.getAbility("heavy_charged"))
+                    .initActionOnAbilityUse(helper.getLevel(), user, stand, null);
+            helper.assertTrue(soundsSent(user, EchoesSounds.HEAVY_ATTACK.get()) == 1,
+                    "ACT3 must cry out once as the charged heavy starts");
+        } finally {
+            if (power.isSummoned()) {
+                EchoesStands.ECHOES_ACT3.get().forceUnsummon(user, power);
+            }
+            disconnect(user);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The master's SheerHeartAttackCompat: while a Sheer Heart Attack is frozen its owner's hands are, wherever he is, with
+     * no press and no range; it ends with the car's freeze. The real car is in the Killer Queen add-ons, which this test
+     * server does not load, so a zombie of the name the master also goes by stands in for it, with its getter.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesSheerHeart")
+    public static void aFrozenSheerHeartAttackFreezesItsOwnersHands(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesCarFreezer");
+        PowerClass.STAND.attachGet(user).setStand(EchoesStands.ECHOES_ACT3.get());
+        ServerPlayer owner = freezer(helper, "EchoesCarOwner");
+        SheerHeart car = new SheerHeart(helper.getLevel(), owner);
+        try {
+            car.setNoAi(true);
+            car.setNoGravity(true);
+            car.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 1000));
+            car.moveTo(user.getX(), user.getEyeY() - car.getBbHeight() / 2.0D, user.getZ() + 3.0D, 180.0F, 0.0F);
+            helper.assertTrue(helper.getLevel().addFreshEntity(car), "Setup: the car was not added");
+            owner.setPos(user.getX() + 40.0D, user.getY(), user.getZ());
+            owner.getAbilities().mayfly = true;
+            user.lookAt(EntityAnchorArgument.Anchor.EYES, car.getBoundingBox().getCenter());
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_TARGET);
+            helper.assertTrue(RotpEchoes.freezeState(car).active(), "Setup: the car is not frozen");
+            helper.assertTrue(!EchoesGravityService.isHandFrozen(owner), "Setup: the owner's hands are free before its tick");
+
+            EchoesGravityService.tickFrozenTarget(car);
+            MobEffectInstance slowness = owner.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
+            helper.assertTrue(EchoesGravityService.isHandFrozen(owner) && EchoesGravityService.isFrozen(owner)
+                            && slowness != null && slowness.getAmplifier() == EchoesGravityService.HAND_FREEZE_SLOWNESS
+                            && owner.hasEffect(MobEffects.DIG_SLOWDOWN) && !owner.getAbilities().mayfly,
+                    "A frozen Sheer Heart Attack must freeze its owner's hands; the owner has" + activeEffects(owner));
+            helper.assertTrue(jumpRise(owner) == 0.0F && !LeapAccessPolicies.allowsHud(owner, LeapSource.STAND),
+                    "The owner of a frozen car cannot jump or leap; jump " + jumpRise(owner));
+
+            EchoesGravityService.tickFrozenTarget(owner);
+            helper.assertTrue(EchoesGravityService.isHandFrozen(owner), "It has no range: the owner is 40 blocks away");
+            owner.setDeltaMovement(0.1D, 0.4D, 0.1D);
+            EchoesGravityService.tickLocalFreeze(owner);
+            motion(helper, owner.getDeltaMovement(), new Vec3(0.1D, 0.4D, 0.1D), "the owner's own motion");
+
+            EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_CANCEL);
+            EchoesGravityService.tickFrozenTarget(owner);
+            helper.assertTrue(!EchoesGravityService.isHandFrozen(owner) && !owner.hasEffect(MobEffects.DIG_SLOWDOWN)
+                            && owner.getAbilities().mayfly && jumpRise(owner) > 0.0F,
+                    "The owner's hands must come free with the car; effects" + activeEffects(owner) + ", mayfly "
+                            + owner.getAbilities().mayfly + ", jump " + jumpRise(owner));
+        } finally {
+            EchoesGravityService.releaseFrozenTarget(owner);
+            EchoesGravityService.releaseFrozenTarget(car);
+            car.discard();
+            remove(helper, owner);
+            disconnect(user);
+        }
+        helper.succeed();
+    }
+
+    public static final class SheerHeart extends Zombie {
+        private final LivingEntity owner;
+
+        private SheerHeart(Level level, LivingEntity owner) {
+            super(EntityType.ZOMBIE, level);
+            this.owner = owner;
+        }
+
+        public LivingEntity getKillerQueenOwner() {
+            return owner;
+        }
+    }
+
+    // how many of this sound were sent to this player since the last call
+    private static int soundsSent(ServerPlayer player, SoundEvent sound) {
+        EmbeddedChannel channel = (EmbeddedChannel) player.connection.getConnection().channel();
+        channel.flushOutbound();
+        int count = 0;
+        for (Object sent = channel.readOutbound(); sent != null; sent = channel.readOutbound()) {
+            if (sent instanceof ClientboundSoundPacket packet && packet.getSound().value() == sound) {
+                count++;
+            }
+        }
+        return count;
     }
 
     // 092 GravityItemEvents gives a carrier Jump -min(count, 5), which 1.16 adds to the jump as 0.1 * (1 - level):
@@ -552,6 +1180,8 @@ public final class EchoesPilotGameTests {
     public static void carriedGravityItemsLowerTheJumpFromTwoUp(GameTestHelper helper) {
         ServerPlayer player = freezer(helper, "EchoesHeavyCarrier");
         try {
+            // out of the hands, which stop the jump: aGravityItemInTheHandsKeepsItsCarrierDown
+            player.getInventory().selected = 8;
             float plain = jumpRise(player);
             helper.assertTrue(plain > 0.4F, "Setup: the carrier's own jump is " + plain);
             for (int count : new int[] {1, 2, 3, 5, 6, 0}) {
@@ -586,6 +1216,7 @@ public final class EchoesPilotGameTests {
     public static void carriedGravityItemsMakeFallsHurtMoreFromTwoUp(GameTestHelper helper) {
         FallingCarrier player = carrier(helper, "EchoesFallingCarrier");
         try {
+            player.getInventory().selected = 8;
             int plain = player.fallDamage(10.0F);
             helper.assertTrue(plain == 7, "Setup: a 10-block fall hurts the carrier " + plain);
             for (int count : new int[] {1, 2, 3, 5, 6, 0}) {
@@ -613,6 +1244,7 @@ public final class EchoesPilotGameTests {
     public static void carrierJumpAndFallAreSentOnlyWhenTheyChange(GameTestHelper helper) {
         ServerPlayer player = freezer(helper, "EchoesSteadyCarrier");
         try {
+            player.getInventory().selected = 8;
             AttributeInstance jump = player.getAttribute(Attributes.JUMP_STRENGTH);
             AttributeInstance fall = player.getAttribute(Attributes.SAFE_FALL_DISTANCE);
             Set<AttributeInstance> toSync = player.getAttributes().getAttributesToSync();
@@ -711,7 +1343,7 @@ public final class EchoesPilotGameTests {
                                 + ", input " + target.xxa + "/" + target.zza + ", flying "
                                 + target.getAbilities().flying + ", mayfly " + target.getAbilities().mayfly);
 
-                EchoesGravityService.perform(user, mode);
+                EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_CANCEL);
                 helper.assertTrue(!frozen.active() && target.getAbilities().mayfly == flier
                                 && !target.getAbilities().flying,
                         "When " + mode + " ends, the player keeps the flight it had before the freeze (mayfly "
@@ -738,7 +1370,7 @@ public final class EchoesPilotGameTests {
                 helper.assertTrue((zombie.getTarget() == null) == handFreeze,
                         "1.16 HandFreezeHandler takes a hand-frozen mob's target, and only the hand freeze does;"
                                 + " after " + mode + " the zombie's target is " + zombie.getTarget());
-                EchoesGravityService.perform(user, mode);
+                EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_CANCEL);
             }
         } finally {
             if (target != null) {
@@ -834,7 +1466,7 @@ public final class EchoesPilotGameTests {
                         "1.16: a player frozen by " + mode + " lowers a bow it has drawn for "
                                 + "20 ticks and shoots nothing; the port's archer is using it " + target.isUsingItem()
                                 + ", " + arrows.size() + " arrow(s) flew, " + left + " of 64 arrows left");
-                EchoesGravityService.perform(user, mode);
+                EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_CANCEL);
                 helper.assertTrue(!RotpEchoes.freezeState(target).active(),
                         "Setup: " + mode + " did not release the archer");
                 step[0]++;
@@ -855,8 +1487,8 @@ public final class EchoesPilotGameTests {
 
     /**
      * 092 HandFreezeHandler.tickFreeze, every tick of a hand freeze: the frozen player stops using its item and swings
-     * both hands, and in the last 20 of the 600 ticks Slowness, Mining Fatigue and Weakness come off (Hunger and the
-     * held jump stay). The target freeze does neither.
+     * both hands, and in the last 20 of the 600 ticks Slowness, Mining Fatigue and Weakness come off (the held jump
+     * stays). The target freeze does neither.
      */
     @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 80,
             batch = "rotpEchoesHandFreezeTicks")
@@ -952,11 +1584,10 @@ public final class EchoesPilotGameTests {
                     helper.assertTrue(!target.hasEffect(MobEffects.MOVEMENT_SLOWDOWN)
                                     && !target.hasEffect(MobEffects.DIG_SLOWDOWN)
                                     && !target.hasEffect(MobEffects.WEAKNESS)
-                                    && target.hasEffect(MobEffects.HUNGER) && jumpRise(target) == 0.0F,
+                                    && jumpRise(target) == 0.0F,
                             "1.16 HandFreezeHandler takes Slowness, Mining Fatigue and Weakness off a hand freeze in"
-                                    + " its last 20 ticks, and Hunger and the held jump stay; with 9 ticks left the"
+                                    + " its last 20 ticks, and the held jump stays; with 9 ticks left the"
                                     + " port's target has" + activeEffects(target) + ", jump " + jumpRise(target));
-                    EchoesGravityService.perform(user, EchoesGravityAbility.Mode.HAND_FREEZE);
                     EchoesGravityService.perform(user, EchoesGravityAbility.Mode.FREEZE_TARGET);
                     helper.assertTrue(frozen.active() && frozen.kind() == EchoesFreezeState.Kind.TARGET,
                             "Setup: FREEZE_TARGET did not freeze the target");
@@ -1100,7 +1731,54 @@ public final class EchoesPilotGameTests {
         player.setPos(SectionPos.sectionToBlockCoord(SectionPos.blockToSectionCoord(origin.getX())) + 8.5D,
                 origin.getY() + 5.0D,
                 SectionPos.sectionToBlockCoord(SectionPos.blockToSectionCoord(origin.getZ())) + 8.5D);
+        helper.testInfo.addListener(new Leaver(player));
         return player;
+    }
+
+    // A test that fails before its own disconnect would leave its Echoes user beside the next tests' scenes.
+    private record Leaver(ServerPlayer player) implements GameTestListener {
+        @Override
+        public void testStructureLoaded(GameTestInfo test) {}
+
+        @Override
+        public void testPassed(GameTestInfo test, GameTestRunner runner) {}
+
+        @Override
+        public void testFailed(GameTestInfo test, GameTestRunner runner) {
+            leave();
+        }
+
+        @Override
+        public void testAddedForRerun(GameTestInfo oldTest, GameTestInfo newTest, GameTestRunner runner) {
+            leave();
+        }
+
+        private void leave() {
+            if (!player.hasDisconnected()) {
+                disconnect(player);
+            }
+        }
+    }
+
+    /** R772.1: a connected Echoes user leaves the world when his test fails, whichever step it fails at. */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 20)
+    public static void aFailedTestTakesItsConnectedUserOut(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesLeaver");
+        UUID id = user.getUUID();
+        Leaver leaver = helper.testInfo.getListeners()
+                .filter(Leaver.class::isInstance)
+                .map(Leaver.class::cast)
+                .filter(listener -> listener.player() == user)
+                .findFirst()
+                .orElse(null);
+        if (leaver == null) {
+            disconnect(user);
+            helper.fail("A connected test user has nothing that takes him out when his test fails");
+        }
+        leaver.testFailed(helper.testInfo, null);
+        helper.assertTrue(helper.getLevel().getServer().getPlayerList().getPlayer(id) == null,
+                "A failed test must take its connected Echoes user out of the world");
+        helper.succeed();
     }
 
     private static void disconnect(ServerPlayer player) {
@@ -1206,8 +1884,9 @@ public final class EchoesPilotGameTests {
     /**
      * R772 F11 (master EchoesOnomatopoeiaAttachAction, OnomatopoeiaAttachHandler, OnomatopoeiaEffect): ACT2 puts the
      * chosen word on the first living target in the user's aim within 5 blocks and its tail stays out; a word acts
-     * only while ACT2 is out; Don hits once for 0.25 and knocks the target back and up; taking the words back frees the
-     * target and returns the tail.
+     * while its user has ACT2, Stand out or not (the owner's rule of 2026-11-05 over the master, which asked for it out);
+     * Don hits once for 0.25 and knocks the target back and up; taking the words back frees the target and returns the
+     * tail. A word acts for nobody who has lost ACT2, and it ends with its user's logout, death or change of level.
      */
     // A connected user stays at its chunk centre until its disconnect is handled, after the test has returned, where a
     // default-batch freeze ray that starts inside it takes it (see the short-bar test); these tests run in batches of
@@ -1239,15 +1918,19 @@ public final class EchoesPilotGameTests {
                     "A second word needs the tail back first");
 
             float health = target.getHealth();
+            power.setStand(EchoesStands.ECHOES_ACT3.get());
             EchoesOnomatopoeiaService.tickMarked(target);
             helper.assertTrue(target.getHealth() == health,
-                    "A word acts only while ACT2 is out; the unsummoned ACT2's word hurt the zombie");
+                    "A word acts only for a user who has ACT2; another form's user hurt the zombie");
+            power.setStand(EchoesStands.ECHOES_ACT2.get());
             helper.assertTrue(EchoesStands.ECHOES_ACT2.get().summon(user, power), "Setup: could not summon ACT2");
             power.getSummonedStandEntity().setNoGravity(true);
+            EchoesStands.ECHOES_ACT2.get().forceUnsummon(user, power);
             EchoesOnomatopoeiaService.tickMarked(target);
             float afterOnce = target.getHealth();
             helper.assertTrue(afterOnce < health && target.getDeltaMovement().y > 0.3D,
-                    "Don hits once and throws the target up and back; health " + health + " -> " + afterOnce
+                    "With ACT2 recalled the word goes on: Don hits once and throws the target up and back; health "
+                            + health + " -> " + afterOnce
                             + ", motion " + target.getDeltaMovement());
             target.setDeltaMovement(Vec3.ZERO);
             EchoesOnomatopoeiaService.tickMarked(target);
@@ -1256,6 +1939,14 @@ public final class EchoesPilotGameTests {
             EchoesOnomatopoeiaService.takeBackMarks(user);
             helper.assertTrue(EchoesOnomatopoeiaService.markOf(target) == null && !RotpEchoes.userState(user).tailOut(),
                     "Taking the words back must free the zombie and return the tail");
+
+            helper.assertTrue(EchoesOnomatopoeiaService.attachInAim(user)
+                            && EchoesOnomatopoeiaService.markOf(target) != null,
+                    "Setup: a second word did not land");
+            EchoesOnomatopoeiaService.endWordsOnOthers(user);
+            helper.assertTrue(EchoesOnomatopoeiaService.markOf(target) == null,
+                    "A word must end with its user's logout, death or change of level");
+            EchoesOnomatopoeiaService.takeBackMarks(user);
 
             // master EchoesTailNeedleAction / EchoesTailNeedleRecallAction: one tail at a time, recalled in flight
             helper.assertTrue(EchoesOnomatopoeiaService.shootNeedle(user) && RotpEchoes.userState(user).tailOut()
@@ -1280,6 +1971,424 @@ public final class EchoesPilotGameTests {
             disconnect(user);
         }
         helper.succeed();
+    }
+
+    /**
+     * R772.1 (master OnomatopoeiaAttachedEntity.tick and remove): a word on a player ends with his death, logout, change
+     * of level and the loss of his Stand, taking its state along, and his client is told each time; so it is at the
+     * respawn, whose new player keeps the old entity id a client draws the word by. Another ACT only puts it to sleep.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesWordEnds")
+    public static void aWordOnThePlayerEndsAndHisClientIsTold(GameTestHelper helper) {
+        ServerPlayer first = connectedFreezer(helper, "EchoesSelfWord");
+        ServerPlayer last = first;
+        try {
+            StandPower power = PowerClass.STAND.attachGet(first);
+            power.setStand(EchoesStands.ECHOES_ACT2.get());
+            EchoesOnomatopoeiaService.select(first, EchoesOnomatopoeia.RERE);
+
+            selfWord(helper, first);
+            power.setStand(EchoesStands.ECHOES_ACT3.get());
+            EchoesOnomatopoeiaService.tickMarked(first);
+            helper.assertTrue(EchoesOnomatopoeiaService.markOf(first) != null, "Another ACT only puts the word to sleep");
+            power.setStand(ModStands.STAR_PLATINUM.get());
+            EchoesOnomatopoeiaService.tickMarked(first);
+            wordOver(helper, first, "the loss of the Stand");
+            power.setStand(EchoesStands.ECHOES_ACT2.get());
+
+            selfWord(helper, first);
+            EchoesGameEvents.onPlayerChangedDimension(
+                    new PlayerEvent.PlayerChangedDimensionEvent(first, Level.OVERWORLD, Level.NETHER));
+            wordOver(helper, first, "a change of level");
+
+            selfWord(helper, first);
+            EchoesGameEvents.onPlayerLogout(new PlayerEvent.PlayerLoggedOutEvent(first));
+            wordOver(helper, first, "a logout");
+
+            selfWord(helper, first);
+            first.kill();
+            wordOver(helper, first, "death");
+
+            last = helper.getLevel().getServer().getPlayerList().respawn(first, false, Entity.RemovalReason.KILLED);
+            helper.assertTrue(last != first && last.getId() == first.getId(),
+                    "Setup: the respawned player must keep the entity id a client draws the word by");
+            EchoesOnomatopoeiaPayloads.Mark told = lastMarkSent(last);
+            helper.assertTrue(EchoesOnomatopoeiaService.markOf(last) == null && told != null && told.word().isEmpty(),
+                    "The respawn must tell the client there is no word; it told " + told);
+        } finally {
+            disconnect(last);
+        }
+        helper.succeed();
+    }
+
+    private static void selfWord(GameTestHelper helper, ServerPlayer user) {
+        helper.assertTrue(EchoesOnomatopoeiaService.attachToSelf(user), "Setup: the self word did not land");
+        EchoesOnomatopoeia word = EchoesOnomatopoeiaService.markOf(user).word();
+        EchoesOnomatopoeiaService.apply(word, user);
+        EchoesOnomatopoeiaPayloads.Mark told = lastMarkSent(user);
+        helper.assertTrue(told != null && word.id().equals(told.word()) && user.hasEffect(EchoesMobEffects.HOT),
+                "Setup: the client was not told of the word, or it gave no state; told " + told);
+    }
+
+    private static void wordOver(GameTestHelper helper, ServerPlayer user, String why) {
+        EchoesOnomatopoeiaPayloads.Mark told = lastMarkSent(user);
+        helper.assertTrue(EchoesOnomatopoeiaService.markOf(user) == null, "The word must end with " + why);
+        helper.assertTrue(told != null && told.word().isEmpty(),
+                "The client must be told the word ended with " + why + "; it was told " + told);
+        helper.assertTrue(!user.hasEffect(EchoesMobEffects.HOT), "The word's state must end with " + why);
+    }
+
+    // what the server last told this player's client about the word on himself, of all sent since the last call
+    @Nullable
+    private static EchoesOnomatopoeiaPayloads.Mark lastMarkSent(ServerPlayer player) {
+        EmbeddedChannel channel = (EmbeddedChannel) player.connection.getConnection().channel();
+        channel.flushOutbound();
+        EchoesOnomatopoeiaPayloads.Mark last = null;
+        for (Object sent = channel.readOutbound(); sent != null; sent = channel.readOutbound()) {
+            if (sent instanceof ClientboundCustomPayloadPacket packet
+                    && packet.payload() instanceof EchoesOnomatopoeiaPayloads.Mark mark
+                    && mark.entityId() == player.getId()) {
+                last = mark;
+            }
+        }
+        return last;
+    }
+
+    /**
+     * R772.1 REVIEWFIX#8 (master EchoesTailNeedleAction, EchoesOnomatopoeiaAttachAction): through the press, as a player
+     * does it. With no word, or with the tail out, the keys refuse and say why, which ours did silently; a needle at a
+     * husk hits for 2 and leaves the word, whose state the husk then has; taken back, it ends at once. The attach lands
+     * too, the word ends with the husk's death, and the tail stays out until it is called back.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot",
+            timeoutTicks = 300 + GameTestChunkTickets.WAIT_TICKS, batch = "rotpEchoesWordPress")
+    public static void act2KeysPutAWordOnAHuskAndARefusedPressSaysWhy(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> wordKeysBody(h));
+    }
+
+    private static void wordKeysBody(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesWordKeys");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        power.setStand(EchoesStands.ECHOES_ACT2.get());
+        helper.assertTrue(EchoesStands.ECHOES_ACT2.get().summon(user, power), "Setup: could not summon ACT2");
+        StandEntity stand = power.getSummonedStandEntity();
+        stand.setNoGravity(true);
+        stand.summonLockTicks = 0;
+        stand.gradualSummonWeaknessTicks = 0;
+        Husk husk = new Husk(EntityType.HUSK, helper.getLevel());
+        husk.setNoAi(true);
+        husk.setNoGravity(true);
+        husk.moveTo(user.getX(), user.getY(), user.getZ() + 3.0D, 180.0F, 0.0F);
+        helper.assertTrue(helper.getLevel().addFreshEntity(husk), "Setup: the husk was not added");
+        user.lookAt(EntityAnchorArgument.Anchor.EYES, husk.getBoundingBox().getCenter());
+        Ability needle = power.getAbility("tail_needle");
+        Ability attach = power.getAbility("onomatopoeia_attach");
+        Ability self = power.getAbility("onomatopoeia_self");
+        float health = husk.getHealth();
+
+        refuses(helper, needle, power, "rotp_echoes.message.need_onomatopoeia");
+        refuses(helper, attach, power, "rotp_echoes.message.need_onomatopoeia");
+        refuses(helper, self, power, "rotp_echoes.message.need_onomatopoeia");
+        EchoesOnomatopoeiaService.select(user, EchoesOnomatopoeia.RERE);
+        press(helper, user, needle);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(EchoesOnomatopoeiaService.markOf(husk) != null
+                                && EchoesOnomatopoeiaService.markOf(husk).word() == EchoesOnomatopoeia.RERE
+                                && husk.getHealth() <= health - 2.0F && RotpEchoes.userState(user).tailOut(),
+                        "The needle must hit the husk for 2 and leave the word; health " + health + " -> "
+                                + husk.getHealth()))
+                .thenWaitUntil(() -> helper.assertTrue(husk.hasEffect(EchoesMobEffects.HOT),
+                        "Hot on the husk must give it the hot state within half a second"))
+                .thenWaitUntil(() -> helper.assertTrue(LivingComponentAction.getCurEntityAction(stand) == null,
+                        "The needle's action has not ended"))
+                .thenExecute(() -> {
+                    refuses(helper, needle, power, "rotp_echoes.message.needle_already_fired");
+                    refuses(helper, attach, power, "rotp_echoes.message.needle_already_fired");
+                    refuses(helper, self, power, "rotp_echoes.message.needle_already_fired");
+                    EchoesOnomatopoeiaService.takeBackMarks(user);
+                    helper.assertTrue(EchoesOnomatopoeiaService.markOf(husk) == null
+                                    && !husk.hasEffect(EchoesMobEffects.HOT)
+                                    && attach.checkSpecificConditions(power).isPositive(),
+                            "Taken back, the word and its state must end and the keys work again");
+                    press(helper, user, attach);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(EchoesOnomatopoeiaService.markOf(husk) != null
+                                && RotpEchoes.userState(user).tailOut(),
+                        "The attach key must leave the word on the husk in the aim"))
+                .thenWaitUntil(() -> helper.assertTrue(LivingComponentAction.getCurEntityAction(stand) == null,
+                        "The attach's action has not ended"))
+                .thenExecute(() -> {
+                    husk.kill();
+                    helper.assertTrue(EchoesOnomatopoeiaService.markOf(husk) == null,
+                            "The word must end with the husk's death");
+                    refuses(helper, attach, power, "rotp_echoes.message.needle_already_fired");
+                    EchoesOnomatopoeiaService.recall(user);
+                    helper.assertTrue(attach.checkSpecificConditions(power).isPositive(),
+                            "Called back, the tail must be free again");
+                    husk.discard();
+                    EchoesStands.ECHOES_ACT2.get().forceUnsummon(user, power);
+                    disconnect(user);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * R772.1 OQ-E02 (master EchoesOnomatopoeiaSelfAction, SelfCancelAction, TailNeedleRecallAction, EchoesEntity.tick):
+     * through the press, the self word counts as the tail fired. ACT2's tail tip is hidden; needle, attach and a second
+     * self word refuse with the master's message; the self cancel, or the recall, takes the word off and frees the tail.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot",
+            timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS, batch = "rotpEchoesSelfWordTail")
+    public static void theSelfWordHoldsTheTailUntilItIsTakenBack(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> selfWordTailBody(h));
+    }
+
+    private static void selfWordTailBody(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesSelfTail");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        power.setStand(EchoesStands.ECHOES_ACT2.get());
+        helper.assertTrue(EchoesStands.ECHOES_ACT2.get().summon(user, power), "Setup: could not summon ACT2");
+        EchoesStandEntity stand = (EchoesStandEntity) power.getSummonedStandEntity();
+        stand.setNoGravity(true);
+        stand.summonLockTicks = 0;
+        stand.gradualSummonWeaknessTicks = 0;
+        Ability needle = power.getAbility("tail_needle");
+        Ability attach = power.getAbility("onomatopoeia_attach");
+        Ability self = power.getAbility("onomatopoeia_self");
+        Ability selfCancel = power.getAbility("onomatopoeia_self_cancel");
+        Ability recall = power.getAbility("tail_needle_recall");
+        EchoesUserState state = RotpEchoes.userState(user);
+        EchoesOnomatopoeiaService.select(user, EchoesOnomatopoeia.RERE);
+        Runnable leave = () -> {
+            if (power.isSummoned()) {
+                EchoesStands.ECHOES_ACT2.get().forceUnsummon(user, power);
+            }
+            disconnect(user);
+        };
+        // fixed delays, not waits: a wait would end on the wrapper's deadline and hide which step failed
+        stepOrLeave(leave, () -> press(helper, user, self));
+        helper.startSequence()
+                .thenExecuteAfter(SETTLE_TICKS, () -> stepOrLeave(leave, () -> {
+                    helper.assertTrue(EchoesOnomatopoeiaService.hasSelfMark(user) && state.tailOut()
+                                    && stand.isTailOut(),
+                            "The self word must count as the tail fired and hide ACT2's tail tip; word "
+                                    + EchoesOnomatopoeiaService.hasSelfMark(user) + ", tail out " + state.tailOut()
+                                    + ", tip hidden " + stand.isTailOut());
+                    refuses(helper, needle, power, "rotp_echoes.message.needle_already_fired");
+                    refuses(helper, attach, power, "rotp_echoes.message.needle_already_fired");
+                    refuses(helper, self, power, "rotp_echoes.message.needle_already_fired");
+                    press(helper, user, selfCancel);
+                }))
+                .thenExecuteAfter(SETTLE_TICKS, () -> stepOrLeave(leave, () -> {
+                    helper.assertTrue(!EchoesOnomatopoeiaService.hasSelfMark(user) && !state.tailOut()
+                                    && !stand.isTailOut() && needle.checkSpecificConditions(power).isPositive(),
+                            "Taken off, the self word must free the tail; word "
+                                    + EchoesOnomatopoeiaService.hasSelfMark(user) + ", tail out " + state.tailOut());
+                    press(helper, user, self);
+                }))
+                .thenExecuteAfter(SETTLE_TICKS, () -> stepOrLeave(leave, () -> {
+                    helper.assertTrue(EchoesOnomatopoeiaService.hasSelfMark(user) && state.tailOut(),
+                            "Setup: the second self word did not land");
+                    press(helper, user, recall);
+                }))
+                .thenExecuteAfter(SETTLE_TICKS, () -> stepOrLeave(leave, () -> helper.assertTrue(
+                        !EchoesOnomatopoeiaService.hasSelfMark(user) && !state.tailOut()
+                                && attach.checkSpecificConditions(power).isPositive(),
+                        "The recall must take the self word back and free the tail; word "
+                                + EchoesOnomatopoeiaService.hasSelfMark(user) + ", tail out " + state.tailOut())))
+                .thenExecute(leave)
+                .thenSucceed();
+    }
+
+    // a failed step takes its connected player out, or he would stay an Echoes user beside the next tests
+    private static void stepOrLeave(Runnable leave, Runnable step) {
+        try {
+            step.run();
+        } catch (RuntimeException failure) {
+            leave.run();
+            throw failure;
+        }
+    }
+
+    private static void refuses(GameTestHelper helper, Ability ability, StandPower power, String key) {
+        ConditionCheck check = ability.checkSpecificConditions(power);
+        helper.assertTrue(!check.isPositive() && check.getWarning() != null
+                        && check.getWarning().getContents() instanceof TranslatableContents text
+                        && key.equals(text.getKey()),
+                ability.name() + " must refuse and say " + key + ", says " + check.getWarning());
+    }
+
+    private static void press(GameTestHelper helper, ServerPlayer user, Ability ability) {
+        BufferingState state = BufferingState.clickCanBuffer();
+        AbilityInput.keyPress(SHORT_BAR_KEY, ability, user, null, InputMethod.CLICK, 0.0F, state, ability.getAbilityId());
+        helper.assertTrue(state.isActionSuccess, ability.name() + " was not started");
+    }
+
+    /**
+     * R772.1: the idle and counter lines are signed ACT3 (016's one Stand, EchoAutoActionHandler and EchoAIHandler), so
+     * they come from ACT3 alone, not from ACT2 though it also strikes back.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40)
+    public static void act3sLinesComeOnlyFromAct3(GameTestHelper helper) {
+        ListeningPlayer user = new ListeningPlayer(helper.getLevel(), new GameProfile(UUID.randomUUID(), "EchoesLines"));
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        user.setPos(origin.getX() + 0.5D, origin.getY() + 2.0D, origin.getZ() + 0.5D);
+        user.setNoGravity(true);
+        helper.getLevel().addNewPlayer(user);
+        user.setGameMode(GameType.SURVIVAL);
+        StandPower power = PowerClass.STAND.attachGet(user);
+        try {
+            power.setStand(EchoesStands.ECHOES_ACT2.get());
+            EchoesChatService.showCounterLine(user);
+            for (int tick = 0; tick < PASSIVE_TRIES; tick++) {
+                EchoesChatService.tickPassive(user);
+            }
+            helper.assertTrue(user.lines.isEmpty(), "ACT2 must not speak ACT3's lines: " + user.lines);
+
+            power.setStand(EchoesStands.ECHOES_ACT3.get());
+            EchoesChatService.showCounterLine(user);
+            helper.assertTrue(user.lines.size() == 1, "ACT3 keeps its counter line: " + user.lines);
+            for (int tick = 0; tick < PASSIVE_TRIES && user.lines.size() == 1; tick++) {
+                EchoesChatService.tickPassive(user);
+            }
+            helper.assertTrue(user.lines.size() == 2, "ACT3 keeps its idle lines: " + user.lines);
+        } finally {
+            remove(helper, user);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * R772.1 OQ-E01 (016 EchoAutoActionHandler, whose one Stand is ACT3): the strike at a monster within 4 blocks and the
+     * counter on a blow are ACT3's. ACT2 does neither and is not summoned for them, so a recalled ACT2 stays recalled.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40,
+            batch = "rotpEchoesAutoAttack")
+    public static void onlyAct3StrikesAndCountersByItself(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesAutoAttack");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        Zombie zombie = standingZombie(helper, user, 2.0D);
+        try {
+            power.setStand(EchoesStands.ECHOES_ACT2.get());
+            float health = zombie.getHealth();
+            for (int tries = 0; tries < AUTO_TRIES; tries++) {
+                user.tickCount = tries * 10;
+                EchoesGameEvents.onPlayerTick(new PlayerTickEvent.Post(user));
+                EchoesGameEvents.onIncomingDamage(blowFrom(user, zombie));
+            }
+            helper.assertTrue(zombie.getHealth() == health && !power.isSummoned(),
+                    "ACT2 must neither strike, counter nor come out by itself; zombie " + health + " -> "
+                            + zombie.getHealth() + ", summoned " + power.isSummoned());
+
+            power.setStand(EchoesStands.ECHOES_ACT3.get());
+            for (int tries = 0; tries < AUTO_TRIES && zombie.getHealth() == health; tries++) {
+                user.tickCount = tries * 10;
+                EchoesGameEvents.onPlayerTick(new PlayerTickEvent.Post(user));
+            }
+            helper.assertTrue(zombie.getHealth() < health && power.isSummoned(),
+                    "ACT3 keeps 016's strike at a near monster, summoning itself; zombie " + health + " -> "
+                            + zombie.getHealth() + ", summoned " + power.isSummoned());
+
+            long now = helper.getLevel().getGameTime();
+            RotpEchoes.userState(user).resetAutoActionCooldown(now - 100L);
+            zombie.invulnerableTime = 0;
+            float struck = zombie.getHealth();
+            for (int tries = 0; tries < AUTO_TRIES && zombie.getHealth() == struck; tries++) {
+                EchoesGameEvents.onIncomingDamage(blowFrom(user, zombie));
+            }
+            helper.assertTrue(zombie.getHealth() < struck,
+                    "ACT3 keeps 016's counter on a blow; zombie " + struck + " -> " + zombie.getHealth());
+        } finally {
+            zombie.discard();
+            if (power.isSummoned()) {
+                power.getPowerType().forceUnsummon(user, power);
+            }
+            disconnect(user);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * R772.1 OQ-B01 (092 GravityItemEvents' pressure, which asked no rule): the block under an entity frozen near a
+     * gravity carrier breaks only when the Echoes user who makes the pressure may break blocks, by the game rule
+     * jojoAbilitiesBreakBlocks and his Stand's toggle (the core's breakingBlocksEnabled with him as the breaker). The
+     * rule is set only around each tick's press, so no other test sees it changed.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 120,
+            batch = "rotpEchoesPressureRule")
+    public static void gravityPressureBreaksOnlyWhereTheBlockRuleAndToggleAllow(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        boolean ruleBefore = level.getGameRules().getBoolean(ModGamerules.BREAK_BLOCKS);
+        ServerPlayer carrier = freezer(helper, "EchoesPressCarrier");
+        // over the section's middle where other tests stand their Echoes users, beyond the 3-block pressure
+        carrier.setPos(carrier.getX(), carrier.getY() + 7.0D, carrier.getZ());
+        inventory(carrier, 1);
+        ServerPlayer presser = freezer(helper, "EchoesPresser");
+        PowerClass.STAND.attachGet(presser).setStand(EchoesStands.ECHOES_ACT1.get());
+        presser.setPos(carrier.getX() + 1.0D, carrier.getY(), carrier.getZ());
+        BlockPos floor = BlockPos.containing(carrier.getX() - 1.5D, carrier.getY() - 1.0D, carrier.getZ());
+        level.setBlock(floor, Blocks.STONE.defaultBlockState(), 3);
+        Pig frozen = pig(helper, Vec3.atBottomCenterOf(floor.above()));
+        PlayerClientBroadcastedSettings toggles = presser.getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get());
+        helper.startSequence()
+                .thenExecuteFor(PRESSURE_TICKS, () -> pressUnderRule(level, false, ruleBefore, frozen, presser, carrier))
+                .thenExecute(() -> {
+                    helper.assertTrue(level.getBlockState(floor).is(Blocks.STONE),
+                            "The pressure broke a block with jojoAbilitiesBreakBlocks off");
+                    toggles.standBreaksBlocks = false;
+                })
+                .thenExecuteFor(PRESSURE_TICKS, () -> pressUnderRule(level, true, ruleBefore, frozen, presser, carrier))
+                .thenExecute(() -> {
+                    helper.assertTrue(level.getBlockState(floor).is(Blocks.STONE),
+                            "The pressure broke a block with its Echoes user's Stand toggle off");
+                    toggles.standBreaksBlocks = true;
+                })
+                .thenWaitUntil(() -> {
+                    pressUnderRule(level, true, ruleBefore, frozen, presser, carrier);
+                    helper.assertTrue(level.getBlockState(floor).isAir(),
+                            "With the rule and the toggle on, the pressure must still break the block under the frozen");
+                })
+                .thenExecute(() -> {
+                    frozen.discard();
+                    discardThrownItems(helper, carrier);
+                    remove(helper, carrier);
+                    remove(helper, presser);
+                })
+                .thenSucceed();
+    }
+
+    // one carrier tick under the rule given, the entity kept frozen though its owner is not in the player list
+    private static void pressUnderRule(ServerLevel level, boolean rule, boolean ruleBefore, LivingEntity frozen,
+            ServerPlayer presser, ServerPlayer carrier) {
+        level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS).set(rule, level.getServer());
+        try {
+            if (!RotpEchoes.freezeState(frozen).active()) {
+                RotpEchoes.freezeState(frozen).activate(frozen, presser.getUUID(), 0);
+            }
+            EchoesGravityService.tickInventoryGravity(carrier);
+        } finally {
+            level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS).set(ruleBefore, level.getServer());
+        }
+    }
+
+    private static LivingIncomingDamageEvent blowFrom(ServerPlayer user, LivingEntity attacker) {
+        return new LivingIncomingDamageEvent(user, new DamageContainer(user.damageSources().mobAttack(attacker), 2.0F));
+    }
+
+    private static final class ListeningPlayer extends FakePlayer {
+        private final List<Component> lines = new ArrayList<>();
+
+        private ListeningPlayer(ServerLevel level, GameProfile profile) {
+            super(level, profile);
+        }
+
+        @Override
+        public void displayClientMessage(Component line, boolean actionBar) {
+            lines.add(line);
+        }
     }
 
     /**
@@ -1559,7 +2668,9 @@ public final class EchoesPilotGameTests {
         double[] zBefore = new double[1];
         GameTestSequence sequence = helper.startSequence().thenIdle(20);
         for (int jab = 0; jab < 8; jab++) {
-            sequence.thenExecute(() -> scene.press("punch", "punch")).thenIdle(14);
+            // each jab comes in the last one's recovery, so the key takes the next of the author's four punches
+            String expected = comboPunch("punch", jab);
+            sequence.thenExecute(() -> scene.press("punch", expected)).thenIdle(14);
         }
         sequence.thenExecute(() -> {
                     healthBefore[0] = scene.zombie.getHealth();
@@ -1600,6 +2711,138 @@ public final class EchoesPilotGameTests {
                 })
                 .thenExecute(scene::close)
                 .thenSucceed();
+    }
+
+    /**
+     * R772.1 E12: the author's 1.21.1 AddonStands declares four punches and his clips punch to punch4 play them. Pressed
+     * in the last punch's recovery the key takes the next of the four on every ACT, each plays its own clip of his in
+     * his order, none plays the hand mirror of a Stand with one punch, and after the fourth the combo starts over.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot",
+            timeoutTicks = 600 + GameTestChunkTickets.WAIT_TICKS, batch = "rotpEchoesPunchCombo")
+    public static void everyActPlaysItsFourPunchesInTheAuthorsOrder(GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> fourPunchesBody(h));
+    }
+
+    private static void fourPunchesBody(GameTestHelper helper) {
+        ServerPlayer user = connectedFreezer(helper, "EchoesPunches");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        GameTestSequence sequence = helper.startSequence();
+        fourPunches(helper, sequence, user, power, EchoesStands.ECHOES_ACT1.get(), "echoes_act1", "punch");
+        fourPunches(helper, sequence, user, power, EchoesStands.ECHOES_ACT2.get(), "echoes_act2", "act2_punch");
+        fourPunches(helper, sequence, user, power, EchoesStands.ECHOES_ACT3.get(), "echoes_act3", "punch");
+        sequence.thenExecute(() -> disconnect(user)).thenSucceed();
+    }
+
+    private static void fourPunches(GameTestHelper helper, GameTestSequence sequence, ServerPlayer user,
+            StandPower power, EntityStandType type, String act, String base) {
+        JsonObject clips = skinClips(helper, act);
+        sequence.thenExecute(() -> {
+            power.setStand(type);
+            helper.assertTrue(type.summon(user, power), "Setup: could not summon " + act);
+            StandEntity stand = power.getSummonedStandEntity();
+            stand.summonLockTicks = 0;
+            stand.gradualSummonWeaknessTicks = 0;
+        });
+        for (int press = 0; press < 5; press++) {
+            int nth = press;
+            sequence.thenExecute(() -> pressComboPunch(helper, user, power, clips, act, base, nth))
+                    .thenWaitUntil(() -> {
+                        EntityActionInstance action =
+                                LivingComponentAction.getCurEntityAction(power.getSummonedStandEntity());
+                        helper.assertTrue(action != null && action.getPhase() == ActionPhase.RECOVERY,
+                                act + " punch " + nth + " has not reached its recovery");
+                    });
+        }
+        sequence.thenExecute(() -> type.forceUnsummon(user, power));
+    }
+
+    private static void pressComboPunch(GameTestHelper helper, ServerPlayer user, StandPower power, JsonObject clips,
+            String act, String base, int nth) {
+        String expected = comboPunch(base, nth);
+        // resolved afresh, as heavyKey: the power caches its resolved keys for the tick
+        AvailableAbilities moves = new AvailableAbilities();
+        moves.update(power, power.getMoveset());
+        var selected = moves.getContextVariationContainer(base);
+        helper.assertTrue(selected != null && expected.equals(selected.ability.name())
+                        && AbilityInput.withConditionCheck(selected, user, InputMethod.CLICK),
+                act + " press " + nth + " must take " + expected + ", took "
+                        + (selected != null ? selected.ability.name() : null));
+        BufferingState state = BufferingState.clickCanBuffer();
+        AbilityInput.keyPress(SHORT_BAR_KEY, selected.ability, user, null, InputMethod.CLICK, 0.0F, state,
+                selected.ability.getAbilityId());
+        helper.assertTrue(state.isActionSuccess, act + " " + expected + " was not started");
+        EntityActionInstance action = LivingComponentAction.getCurEntityAction(power.getSummonedStandEntity());
+        helper.assertTrue(action != null && expected.equals(((Ability) action.ability).name())
+                        && action instanceof StandEntityPunchAbility.StandEntityPunch punch
+                        && !punch.usesHandedAnimation(),
+                act + " " + expected + " must run as a combo punch, not a mirrored single punch");
+        ActionAnimIdentifier anim = ((EntityActionAbility) action.ability).getEntityAnim(action);
+        String clip = comboClip(anim.index(), "punch");
+        String played = clips.has(anim.name()) ? comboClip(anim.index(), anim.name())
+                : comboClip(anim.index(), AnimationSet.portedActionClipName(anim.name(), act, "stand_punch", false,
+                        name -> clips.has(comboClip(anim.index(), name))));
+        helper.assertTrue(clip.equals(comboClip(nth % 4, "punch")) && clip.equals(played) && clips.has(played),
+                act + " " + expected + " must play the author's " + comboClip(nth % 4, "punch") + ", plays " + played);
+    }
+
+    /*
+     * R772.1: ACT2's guard goes back to the idle through a recovery of its own, which its clip plays
+     * (install_master_clips own_guard), and it guards only until the button is let go. ACT3's ends at once, as the core's.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_echoes_pilot", timeoutTicks = 40)
+    public static void act2GuardGoesBackToTheIdleThroughARecovery(GameTestHelper helper) {
+        ServerPlayer user = freezer(helper, "EchoesGuard");
+        StandPower power = PowerClass.STAND.attachGet(user);
+        try {
+            guardLetGo(helper, user, power, EchoesStands.ECHOES_ACT3.get(), "guard", 0.0F);
+            guardLetGo(helper, user, power, EchoesStands.ECHOES_ACT2.get(), "act2_guard", 3.0F);
+        } finally {
+            remove(helper, user);
+        }
+        helper.succeed();
+    }
+
+    private static void guardLetGo(GameTestHelper helper, ServerPlayer user, StandPower power, EntityStandType type,
+            String name, float recovery) {
+        power.setStand(type);
+        helper.assertTrue(type.summon(user, power), "Setup: could not summon for " + name);
+        StandEntity stand = power.getSummonedStandEntity();
+        stand.setNoGravity(true);
+        EntityActionInstance action = ((EntityActionAbility) power.getAbility(name))
+                .initActionOnAbilityUse(helper.getLevel(), user, stand, null);
+        helper.assertTrue(action.phasesLength.getFloat(ActionPhase.RECOVERY) == recovery,
+                name + " must have a recovery of " + recovery + " ticks, has "
+                        + action.phasesLength.getFloat(ActionPhase.RECOVERY));
+        LivingComponentAction.getComponent(stand).setAction(action, user, SyncType.NO_SYNC);
+        helper.assertTrue(stand.isStandBlocking(), name + " must guard while held");
+        action.onButtonStopHold();
+        helper.assertTrue(!stand.isStandBlocking(), name + " must stop guarding when the button is let go");
+        LivingComponentAction.getComponent(stand).setAction(null, SyncType.NO_SYNC);
+        type.forceUnsummon(user, power);
+    }
+
+    // the moveset's name of the nth press: punch, punch2, punch3, punch4, punch...
+    private static String comboPunch(String base, int nth) {
+        return comboClip(nth % 4, base);
+    }
+
+    private static String comboClip(int index, String name) {
+        return index > 0 ? name + (index + 1) : name;
+    }
+
+    private static JsonObject skinClips(GameTestHelper helper, String act) {
+        String path = "/assets/rotp_echoes/stand_skins/" + act + "/assets/rotp_echoes/animations/" + act
+                + ".animation.json";
+        try (InputStream in = EchoesPilotGameTests.class.getResourceAsStream(path)) {
+            helper.assertTrue(in != null, "Missing asset " + path);
+            return JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject()
+                    .getAsJsonObject("animations");
+        }
+        catch (IOException e) {
+            throw new IllegalStateException("Could not read " + path, e);
+        }
     }
 
     private static final class FinisherScene {
@@ -1739,7 +2982,8 @@ public final class EchoesPilotGameTests {
         player.getInventory().clearContent();
         for (int slot = 0; slot < count; slot++) {
             ItemStack stack = new ItemStack(Items.COBBLESTONE);
-            EchoesGravityService.infuse(stack, player.level().getGameTime());
+            // another's, as these carriers have no ACT3 to hold up their own
+            EchoesGravityService.infuse(stack, UUID.randomUUID());
             player.getInventory().setItem(slot, stack);
         }
     }

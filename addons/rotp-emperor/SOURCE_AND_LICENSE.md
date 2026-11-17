@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-emperor`, mod id `rotp_zemperor`, version `1.3-port.16`.
+- Module: `rotp-emperor`, mod id `rotp_zemperor`, version `1.3-port.17`.
 - Original 1.16.5 add-on: `RotP-皇帝-1.2.0.jar` (RotP The Emperor, mod id `rotp_zemperor`), by Makuta Zeml, StandoByte; declared license: GNU GPL v3.0; SHA-256 `1304F3619295043672FD17C4A8AE6C6A737FB3000E1D1DBA7826EBEF950CDEC1`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-29); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

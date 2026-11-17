@@ -509,9 +509,17 @@ public final class BitesTheDustService {
             scheduleTrigger(owner, victim, player);
             return;
         }
-        // owner Q3: a summoned Gold Experience Requiem returns it to zero; the blow stays stopped
-        if (!BitesTheDustDetonateEvent.post(owner, attacker, attacker)) {
-            return;
+        // owner Q3: held, the blow stays stopped and the bomb stays; defused (a summoned Gold Experience Requiem),
+        // the bomb is gone for good and nothing else happens
+        switch (BitesTheDustDetonateEvent.postOutcome(owner, attacker, attacker)) {
+            case HELD -> {
+                return;
+            }
+            case DEFUSED -> {
+                removeTimeMarker(owner);
+                return;
+            }
+            case DETONATE -> {}
         }
         spawnDetonationParticles(attacker);
         attacker.hurt(
@@ -585,11 +593,18 @@ public final class BitesTheDustService {
                         1.0F);
             }
             if (age >= TRIGGER_DELAY_TICKS) {
-                if (!BitesTheDustDetonateEvent.post(
-                        owner, attacker, attacker)) {
+                BitesTheDustDetonateEvent.Outcome outcome =
+                        BitesTheDustDetonateEvent.postOutcome(
+                                owner, attacker, attacker);
+                if (outcome
+                        != BitesTheDustDetonateEvent.Outcome.DETONATE) {
                     pending.remove(trigger.attackerUuid());
                     clearTriggerPresentation(
                             server, trigger.attackerUuid());
+                    if (outcome
+                            == BitesTheDustDetonateEvent.Outcome.DEFUSED) {
+                        removeTimeMarker(owner);
+                    }
                     continue;
                 }
                 spawnDetonationParticles(attacker);

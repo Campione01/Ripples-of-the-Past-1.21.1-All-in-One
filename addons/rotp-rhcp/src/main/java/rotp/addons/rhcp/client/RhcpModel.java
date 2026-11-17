@@ -433,9 +433,10 @@ public final class RhcpModel extends StandEntityModel<
     private static final float RECHARGE_LOOP_TICKS = 30.0F;
 
     // The inherited 1.16 HumanoidStandModel two-handed barrage (StandTwoHandedBarrageAnimation).
+    // The owner's rule on the barrage's lower body: the sway goes through the hips, the chest keeps its turn of 30.
     private static final Frame BARRAGE_IMPACT = frame()
-            .body(0.0F, 0.0F, 0.0F)
-            .torso(0.0F, -30.0F, 0.0F)
+            .body(0.0F, -15.0F, 0.0F)
+            .torso(0.0F, -15.0F, 0.0F)
             .leftArm(22.5F, 0.0F, -60.0F)
             .leftForearm(-135.0F, 0.0F, 0.0F)
             .rightArm(-90.0F, 0.0F, 90.0F)

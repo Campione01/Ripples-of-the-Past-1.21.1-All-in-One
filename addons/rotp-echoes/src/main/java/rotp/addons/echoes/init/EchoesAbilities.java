@@ -6,6 +6,7 @@ import rotp.core.powersystem.ability.AbilityType;
 import rotp.addons.echoes.RotpEchoes;
 import rotp.addons.echoes.ability.EchoesAct1FinisherAbility;
 import rotp.addons.echoes.ability.EchoesAct3BarrageAbility;
+import rotp.addons.echoes.ability.EchoesAct3HeavyChargedAbility;
 import rotp.addons.echoes.ability.EchoesGravityAbility;
 import rotp.addons.echoes.ability.EchoesGravityCancelAbility;
 import rotp.addons.echoes.ability.EchoesGravityAbility.Mode;
@@ -92,6 +93,13 @@ public final class EchoesAbilities {
                     "act3_barrage",
                     key -> new AbilityType<>(
                             key, EchoesAct3BarrageAbility::new));
+    // the author's EchoesHeavyChargedAbility
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<EchoesAct3HeavyChargedAbility>>
+            ACT3_HEAVY_CHARGED = ABILITY_TYPES.register(
+                    "act3_heavy_charged",
+                    key -> new AbilityType<>(
+                            key, EchoesAct3HeavyChargedAbility::new));
     // R772 E1: the master's ACT selector replaces the evolve and degrade steps
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<EchoesSelectActAbility>>

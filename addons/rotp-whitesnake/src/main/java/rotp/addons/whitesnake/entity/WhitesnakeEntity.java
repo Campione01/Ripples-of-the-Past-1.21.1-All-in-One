@@ -4,10 +4,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 import rotp.core.init.ModEntityDataSerializers;
+import rotp.core.init.ModSpecialActions;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
 import rotp.addons.whitesnake.WhitesnakeAddon;
+import rotp.addons.whitesnake.disguise.WhitesnakeDisguiseState;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -20,6 +23,8 @@ import net.minecraft.world.level.Level;
 public final class WhitesnakeEntity extends StandEntity {
     public static final long DISGUISE_SELECTION_WINDOW_TICKS = 600L;
     public static final long DISGUISE_REQUEST_INTERVAL_TICKS = 5L;
+    // Past the renderer's transform: a Stand taking over a disguise already on does not grow it in again.
+    private static final int DISGUISE_ALREADY_SHOWN_TICK = -100;
 
     private static final EntityDataAccessor<Optional<ResourceLocation>>
             DISGUISE_TYPE = SynchedEntityData.defineId(
@@ -57,6 +62,27 @@ public final class WhitesnakeEntity extends StandEntity {
 
     public boolean isDisguised() {
         return getDisguiseType().isPresent();
+    }
+
+    public boolean isUnsummoning() {
+        EntityActionInstance action = getCurStandAction();
+        return action != null
+                && action.ability == ModSpecialActions.STAND_UNSUMMON.get();
+    }
+
+    // The next summon takes over a disguise that went on with the Stand recalled, so its key ends it.
+    @Override
+    public void setUserAndPower(LivingEntity user, StandPower power) {
+        super.setUserAndPower(user, power);
+        if (user != null && !level().isClientSide()) {
+            WhitesnakeDisguiseState.of(user).type().ifPresent(type -> {
+                entityData.set(DISGUISE_TYPE, Optional.of(type), true);
+                entityData.set(
+                        DISGUISE_CHANGED_TICK,
+                        DISGUISE_ALREADY_SHOWN_TICK,
+                        true);
+            });
+        }
     }
 
     public SelectionSession beginDisguiseSelection(LivingEntity user) {
@@ -128,12 +154,14 @@ public final class WhitesnakeEntity extends StandEntity {
                 Optional.of(entityTypeId),
                 true);
         entityData.set(DISGUISE_CHANGED_TICK, tickCount, true);
+        WhitesnakeDisguiseState.put(getUser(), entityTypeId);
         cancelDisguiseSelection();
         return true;
     }
 
     public void clearDisguiseState() {
         if (!level().isClientSide()) {
+            WhitesnakeDisguiseState.clear(getUser());
             if (isDisguised()) {
                 entityData.set(
                         DISGUISE_TYPE, Optional.empty(), true);
@@ -155,12 +183,13 @@ public final class WhitesnakeEntity extends StandEntity {
         }
 
         LivingEntity user = getUser();
-        if (!WhitesnakeAddon.isActiveWhitesnakeUser(
-                        user, "disguise")
-                || rotp.core.powersystem
-                                .standpower.StandPower.get(user)
-                        .getSummonedStandEntity() != this) {
+        if (!WhitesnakeAddon.holdsWhitesnakeSkill(
+                user, "disguise")) {
             clearDisguiseState();
+            return;
+        }
+        if (StandPower.get(user).getSummonedStandEntity() != this) {
+            cancelDisguiseSelection();
             return;
         }
 
@@ -176,9 +205,10 @@ public final class WhitesnakeEntity extends StandEntity {
         }
     }
 
+    // The owner's rule of 2026-11-06, over 1.16's: the disguise goes on with the Stand recalled, from its user's state.
     @Override
     public void remove(Entity.RemovalReason reason) {
-        clearDisguiseState();
+        cancelDisguiseSelection();
         super.remove(reason);
     }
 

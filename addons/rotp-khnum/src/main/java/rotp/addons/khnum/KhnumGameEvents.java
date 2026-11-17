@@ -4,6 +4,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 
 import rotp.addons.khnum.disguise.DisguiseRetaliationService;
 import rotp.addons.khnum.disguise.DisguiseScaleService;
+import rotp.addons.khnum.disguise.KhnumDisguiseState;
 import rotp.addons.khnum.entity.KhnumControllerEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -18,6 +19,7 @@ import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
 @EventBusSubscriber(modid = KhnumAddon.MOD_ID)
 public final class KhnumGameEvents {
@@ -38,15 +40,12 @@ public final class KhnumGameEvents {
         }
         LivingEntity attacker = resolveLiving(
                 event.getSource().getEntity());
-        if (attacker instanceof Player player) {
-            KhnumControllerEntity controller =
-                    KhnumAddon.controller(player);
-            if (controller != null && controller.isDisguised()) {
-                DisguiseRetaliationService.mark(
-                        mob,
-                        player,
-                        mob.level().getGameTime());
-            }
+        if (attacker instanceof Player player
+                && KhnumDisguiseState.of(player).isDisguised()) {
+            DisguiseRetaliationService.mark(
+                    mob,
+                    player,
+                    mob.level().getGameTime());
         }
     }
 
@@ -58,15 +57,24 @@ public final class KhnumGameEvents {
                         instanceof Player player)) {
             return;
         }
-        KhnumControllerEntity controller =
-                KhnumAddon.controller(player);
-        if (controller != null
-                && controller.isDisguised()
+        if (KhnumDisguiseState.of(player).isDisguised()
                 && !DisguiseRetaliationService.canRetaliate(
                         mob,
                         player,
                         mob.level().getGameTime())) {
             event.setCanceled(true);
+        }
+    }
+
+    // A recall took the Stand's own tick away: losing the Stand is seen from the user's.
+    @SubscribeEvent
+    public static void onEntityTick(EntityTickEvent.Post event) {
+        if (event.getEntity() instanceof LivingEntity living
+                && !living.level().isClientSide()
+                && living.hasData(KhnumAddon.DISGUISE_STATE)
+                && (!living.isAlive()
+                        || !KhnumAddon.isKhnumUser(living))) {
+            clearForLifecycle(living);
         }
     }
 
@@ -90,6 +98,12 @@ public final class KhnumGameEvents {
     }
 
     @SubscribeEvent
+    public static void onChangedDimension(
+            PlayerEvent.PlayerChangedDimensionEvent event) {
+        clearForLifecycle(event.getEntity());
+    }
+
+    @SubscribeEvent
     public static void onPlayerClone(PlayerEvent.Clone event) {
         clearForLifecycle(event.getOriginal());
         clearForLifecycle(event.getEntity());
@@ -104,6 +118,7 @@ public final class KhnumGameEvents {
         if (controller != null) {
             controller.clearForLifecycle();
         }
+        KhnumDisguiseState.clear(living);
         DisguiseScaleService.reset(living);
         if (living instanceof Player player) {
             DisguiseRetaliationService.clear(player);

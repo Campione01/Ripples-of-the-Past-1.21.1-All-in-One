@@ -11,7 +11,7 @@
   "ability.rotp_ab.ghost_mode": "Ghost Mode",
   "ability.rotp_ab.ghost_mode.desc": "Hold to enter a noclip spectator state.",
   "ability.rotp_ab.perfect_invisibility": "Perfect Invisibility",
-  "ability.rotp_ab.perfect_invisibility.desc": "Hide completely, or crouch to hide a nearby target.",
+  "ability.rotp_ab.perfect_invisibility.desc": "Hide completely, or hold the variation key to hide a nearby target.",
   "ability.rotp_ab.grant_invisibility": "Grant Invisibility",
   "ability.rotp_ab.grant_invisibility.desc": "Launch a rune that grants invisibility and beneficial effects.",
   "rotp_ab.message.no_item": "Hold an item first.",

@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "geraddon:requiem_attack",
+    "geraddon:requiem_explosion",
+    "geraddon:requiem_true",
+    "geraddon:death_loop"
+  ]
+}

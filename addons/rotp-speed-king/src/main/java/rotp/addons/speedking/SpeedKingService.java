@@ -3,6 +3,8 @@ package rotp.addons.speedking;
 import java.util.List;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import rotp.core.init.ModDamageTypes;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
@@ -404,7 +406,7 @@ public final class SpeedKingService {
     }
 
     private static boolean triggerHeatTrap(
-            ServerPlayer player, SpeedKingEntity stand) {
+            ServerPlayer player, @Nullable SpeedKingEntity stand) {
         SpeedKingState state = SpeedKingAddon.state(player);
         if (!state.hasHeatTrap()
                 || !sameTrapDimension(player, state)) {
@@ -423,7 +425,7 @@ public final class SpeedKingService {
                     DamageUtil.make(
                             level,
                             ModDamageTypes.STAND_EXPLOSION_FIRE,
-                            stand,
+                            stand != null ? stand : player,
                             player),
                     8.0F);
             target.igniteForSeconds(5);
@@ -454,13 +456,13 @@ public final class SpeedKingService {
     }
 
     public static void tickHeatTrap(
-            ServerPlayer player, SpeedKingEntity stand) {
+            ServerPlayer player, @Nullable SpeedKingEntity stand) {
         SpeedKingState state = SpeedKingAddon.state(player);
         if (!state.hasHeatTrap() || !sameTrapDimension(player, state)) {
             return;
         }
         BlockPos pos = state.heatTrapPos();
-        if (stand.tickCount % 10 == 0) {
+        if (player.tickCount % 10 == 0) {
             Vec3 center = Vec3.atCenterOf(pos);
             player.serverLevel().sendParticles(
                     ParticleTypes.FLAME,
@@ -497,8 +499,16 @@ public final class SpeedKingService {
         }
     }
 
-    // 1.16 kept the heat trap on the Stand entity, so unsummoning, removing
-    // or replacing the Stand dropped it.
+    // The grab and the guard are the Stand's body; the heat trap and the heat vision go on.
+    public static void onStandRecalled(LivingEntity user) {
+        if (user instanceof ServerPlayer player
+                && !player.level().isClientSide()
+                && SpeedKingAddon.state(player).clearBodyMoves()) {
+            sync(player);
+        }
+    }
+
+    // Removing or replacing the Stand drops the heat trap.
     public static void onStandCleared(LivingEntity user) {
         if (!(user instanceof ServerPlayer player)
                 || player.level().isClientSide()) {
@@ -717,8 +727,7 @@ public final class SpeedKingService {
                 .getPlayer(lease.ownerUuid());
         if (owner == null
                 || owner.level() != target.level()
-                || !SpeedKingAddon.isUser(owner)
-                || activeStand(owner) == null) {
+                || !SpeedKingAddon.isUser(owner)) {
             return false;
         }
         SpeedKingState ownerState = SpeedKingAddon.state(owner);

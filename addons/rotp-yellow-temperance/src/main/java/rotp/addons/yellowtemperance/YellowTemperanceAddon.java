@@ -3,9 +3,12 @@ package rotp.addons.yellowtemperance;
 import static rotp.core.init.power.ModStands.SWITCH_SPECIAL;
 import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
+import java.util.function.Supplier;
+
 import rotp.core.api.RotpAddonApi;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.ModSoundEvents;
+import rotp.core.init.ModStatusEffects;
 import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.controls.InputKey;
@@ -25,6 +28,7 @@ import rotp.addons.yellowtemperance.ability.YellowTemperanceDisguiseDisableAbili
 import rotp.addons.yellowtemperance.ability.YellowTemperancePunchAbility;
 import rotp.addons.yellowtemperance.ability.YellowTemperanceToggleDollAbility;
 import rotp.addons.yellowtemperance.disguise.DisguiseMode;
+import rotp.addons.yellowtemperance.disguise.YellowTemperanceDisguiseState;
 import rotp.addons.yellowtemperance.disguise.YellowTemperanceScaleTypes;
 import rotp.addons.yellowtemperance.effect.YellowTemperanceEffect;
 import rotp.addons.yellowtemperance.entity.YellowTemperanceControllerEntity;
@@ -42,8 +46,11 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(YellowTemperanceAddon.MOD_ID)
 public final class YellowTemperanceAddon {
@@ -76,6 +83,9 @@ public final class YellowTemperanceAddon {
     public static final DeferredRegister<AbilityType<?>>
             ABILITY_TYPES = DeferredRegister.create(
                     JojoRegistries.ABILITY_TYPES_REG, MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>>
+            ATTACHMENT_TYPES = DeferredRegister.create(
+                    NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
     public static final DeferredRegister<EntityType<?>>
             ENTITY_TYPES = DeferredRegister.create(
                     Registries.ENTITY_TYPE, MOD_ID);
@@ -125,7 +135,7 @@ public final class YellowTemperanceAddon {
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<YellowTemperanceDisguiseDisableAbility>>
             DISGUISE_DISABLE = disable(
-                    DISGUISE_DISABLE_NAME, 2);
+                    DISGUISE_DISABLE_NAME, 2, false);
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<YellowTemperanceDisguiseAbility>>
             DISGUISE_PLAYER = disguise(
@@ -136,7 +146,7 @@ public final class YellowTemperanceAddon {
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<YellowTemperanceDisguiseDisableAbility>>
             DISGUISE_PLAYER_DISABLE = disable(
-                    DISGUISE_PLAYER_DISABLE_NAME, 3);
+                    DISGUISE_PLAYER_DISABLE_NAME, 3, false);
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<YellowTemperanceDisguiseAbility>>
             DISGUISE_STAND = disguise(
@@ -147,7 +157,7 @@ public final class YellowTemperanceAddon {
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<YellowTemperanceDisguiseDisableAbility>>
             DISGUISE_STAND_DISABLE = disable(
-                    DISGUISE_STAND_DISABLE_NAME, 3);
+                    DISGUISE_STAND_DISABLE_NAME, 3, true);
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<YellowTemperanceToggleDollAbility>>
             TOGGLE_DOLL = ABILITY_TYPES.register(
@@ -174,6 +184,15 @@ public final class YellowTemperanceAddon {
                             .clientTrackingRange(32)
                             .updateInterval(2)
                             .build(key.toString()));
+
+    public static final Supplier<
+            AttachmentType<YellowTemperanceDisguiseState>>
+            DISGUISE_STATE = ATTACHMENT_TYPES.register(
+                    "disguise_state",
+                    () -> AttachmentType
+                            .builder(() -> YellowTemperanceDisguiseState.NONE)
+                            .sync(YellowTemperanceDisguiseState.SYNC)
+                            .build());
 
     public static final DeferredHolder<MobEffect, MobEffect>
             PROTECTION = MOB_EFFECTS.register(
@@ -241,6 +260,7 @@ public final class YellowTemperanceAddon {
         }
         YellowTemperanceScaleTypes.initialize();
         ABILITY_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
         ENTITY_TYPES.register(modEventBus);
         MOB_EFFECTS.register(modEventBus);
         SOUND_EVENTS.register(modEventBus);
@@ -248,9 +268,16 @@ public final class YellowTemperanceAddon {
         modEventBus.addListener(
                 YellowTemperanceGameEvents::registerAttributes);
         modEventBus.addListener(YellowTemperancePayloads::register);
+        modEventBus.addListener(YellowTemperanceAddon::commonSetup);
         modContainer.registerConfig(
                 ModConfig.Type.COMMON,
                 YellowTemperanceConfig.SPEC);
+    }
+
+    // 1.16 InitStatusEffect: clients see the erosion on every entity, which its layer draws.
+    private static void commonSetup(FMLCommonSetupEvent event) {
+        event.enqueueWork(() ->
+                ModStatusEffects.TRACKED_EFFECTS.add(EROSION));
     }
 
     public static ResourceLocation id(String path) {
@@ -263,6 +290,14 @@ public final class YellowTemperanceAddon {
         StandPower power = StandPower.get(user);
         return power != null
                 && power.getPowerType() == YELLOW_TEMPERANCE.get();
+    }
+
+    /** Whether what goes on with the Stand recalled can still go on: he has lost neither the Stand nor its use. */
+    public static boolean holdsYellowTemperance(LivingEntity user) {
+        StandPower power = StandPower.get(user);
+        return power != null
+                && power.getPowerType() == YELLOW_TEMPERANCE.get()
+                && power.canUsePower();
     }
 
     public static YellowTemperanceControllerEntity controller(
@@ -305,14 +340,20 @@ public final class YellowTemperanceAddon {
     private static DeferredHolder<
             AbilityType<?>,
             AbilityType<YellowTemperanceDisguiseDisableAbility>>
-            disable(String name, int resolveLevel) {
+            disable(
+                    String name,
+                    int resolveLevel,
+                    boolean standDisguise) {
         return ABILITY_TYPES.register(
                 name,
                 key -> new AbilityType<>(
                         key,
                         (type, id) ->
                                 new YellowTemperanceDisguiseDisableAbility(
-                                        type, id, resolveLevel)));
+                                        type,
+                                        id,
+                                        resolveLevel,
+                                        standDisguise)));
     }
 
     private static DeferredHolder<SoundEvent, SoundEvent> sound(
@@ -357,8 +398,12 @@ public final class YellowTemperanceAddon {
                     .makeHotbar(0, USE_SPECIAL, SWITCH_SPECIAL)
                     .addToHotbar(
                             ABSORPTION_NAME, 0, InputMethod.HOLD)
-                    .addToHotbar(
-                            CLEAR_NAME, 0, InputMethod.HOLD)
+                    // 1.16 clear_debuffs: shiftVariationOf(absorption)
+                    .addHotbarSlotVariation(
+                            CLEAR_NAME,
+                            ABSORPTION_NAME,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.HOLD)
                     .addToHotbar(
                             DISGUISE_NAME, 0, InputMethod.CLICK)
                     .addToHotbar(

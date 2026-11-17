@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
+import com.google.gson.JsonObject;
 import com.mojang.authlib.GameProfile;
 import com.mojang.logging.LogUtils;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -135,6 +136,7 @@ import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.init.ModDataAttachmentTypes;
+import rotp.core.init.ModGamerules;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.powersystem.Power;
@@ -154,6 +156,7 @@ import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandTuning;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
@@ -1906,6 +1909,38 @@ public final class TicketToRideExplodGameTests {
     // breaks blocks (as TNT) whatever mobGriefing says, and bleeds the marked within 6; hitting a wall on the move
     // (Deadphotomemtor.tick, after it) makes a 6 blast that breaks blocks only with mobGriefing. The blasts are caught
     // at their start and cancelled, so the test area stays whole.
+    // The owner's rule of 2026-11-05 (13.png): a memento on its way keeps homing through a recall, to its own lifetime, and
+    // with the user's loss of the Stand it is an orphan again, gone after its 100 ticks of grace.
+    @GameTest(template = "empty", batch = "ttr_meteor_recall", timeoutTicks = 100)
+    public static void mementoGoesOnThroughARecall(GameTestHelper helper) {
+        try (Fixture f = new Fixture(helper, "TtrMeteorRecall", false)) {
+            Vec3 feet = f.user.position();
+            f.clearArea(BlockPos.containing(feet).offset(1, 0, -6), BlockPos.containing(feet).offset(12, 9, 6));
+            Zombie marked = f.target(feet.add(6.0D, 0.0D, 0.0D));
+            Vec3 start = feet.add(9.0D, 6.0D, 0.0D);
+            DeadPhotoMementoEntity memento = f.memento(start);
+
+            f.power.getPowerType().forceUnsummon(f.user, f.power);
+            helper.assertTrue(!f.power.isSummoned(), "Setup: the Stand is still out");
+            for (int tick = 0; tick < 101; tick++) {
+                memento.moveTo(start.x, start.y, start.z);
+                memento.tick();
+            }
+            helper.assertTrue(!memento.isRemoved(), "The memento ended within 5 s of the recall");
+            helper.assertTrue(!memento.position().equals(start), "The memento stopped homing with the recall");
+            helper.assertTrue(marked.isAlive(), "Setup: the target is gone");
+
+            f.power.setStand(null);
+            for (int tick = 0; tick < 101 && !memento.isRemoved(); tick++) {
+                memento.moveTo(start.x, start.y, start.z);
+                memento.tick();
+            }
+            helper.assertTrue(memento.isRemoved(), "The memento must end after its user loses the Stand");
+            LOGGER.info("R764_TTR_EXPLOD_PASS meteor_recall kept=101 gone=101");
+        }
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", batch = "ttr_meteor_flight", timeoutTicks = 100)
     public static void mementoFliesAndExplodesAsIn116(GameTestHelper helper) {
         List<String> blasts = new ArrayList<>();
@@ -2131,6 +2166,102 @@ public final class TicketToRideExplodGameTests {
             LOGGER.info("R764_TTR_EXPLOD_PASS tears_hazards {}", seen);
         }
         helper.succeed();
+    }
+
+    // R772.1 OQ-B01: a marked entity's lit TNT and disturbed beehive are blocks the marker's Stand breaks: they happen
+    // only with jojoAbilitiesBreakBlocks on and the marker's "breaks blocks" Stand switch on.
+    @GameTest(template = "empty", batch = "ttr_tears_block_rule", timeoutTicks = 100)
+    public static void tearsHazardsBreakBlocksOnlyWhereTheRuleAndTheMarkersSwitchAllow(GameTestHelper helper) {
+        try (Fixture f = new Fixture(helper, "TtrTearsBlockRule", false)) {
+            PlayerClientBroadcastedSettings switches =
+                    f.user.getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get());
+            boolean ruleBefore = f.level.getGameRules().getBoolean(ModGamerules.BREAK_BLOCKS);
+            Vec3 feet = f.user.position();
+            BlockPos base = BlockPos.containing(feet);
+            f.clearArea(base.offset(2, -1, -6), base.offset(13, 4, 6));
+            Zombie lighter = f.target(feet.add(8.0D, 0.0D, -3.0D));
+            BlockPos tnt = BlockPos.containing(lighter.position()).offset(2, 0, 0);
+            f.setBlock(tnt, Blocks.TNT.defaultBlockState());
+            Zombie keeper = f.target(feet.add(10.0D, 0.0D, 3.0D));
+            BlockPos hive = BlockPos.containing(keeper.position()).offset(0, 0, 3);
+            f.setBlock(hive, Blocks.BEEHIVE.defaultBlockState());
+            long hiveSeed = seedWhere(r -> r.nextDouble() < 0.045D);
+            lighter.tickCount = 7;
+            keeper.tickCount = 7;
+            try {
+                // the game rule off
+                f.level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS).set(false, f.level.getServer());
+                hazardsTick(f, lighter, keeper, hiveSeed);
+                helper.assertTrue(f.level.getBlockState(tnt).is(Blocks.TNT) && f.level.getBlockState(hive).is(Blocks.BEEHIVE),
+                        "A marked entity's hazards broke blocks with jojoAbilitiesBreakBlocks off");
+                // the marker's Stand switch off
+                f.level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS).set(true, f.level.getServer());
+                switches.standBreaksBlocks = false;
+                hazardsTick(f, lighter, keeper, hiveSeed);
+                helper.assertTrue(f.level.getBlockState(tnt).is(Blocks.TNT) && f.level.getBlockState(hive).is(Blocks.BEEHIVE),
+                        "A marked entity's hazards broke blocks with its marker's Stand switch off");
+                helper.assertTrue(f.level.getEntitiesOfClass(PrimedTnt.class, new AABB(tnt).inflate(1.0D)).isEmpty(),
+                        "TNT was lit with the marker's Stand switch off");
+                // both on: the hazards still happen
+                switches.standBreaksBlocks = true;
+                hazardsTick(f, lighter, keeper, hiveSeed);
+                helper.assertTrue(f.level.getBlockState(tnt).isAir() && f.level.getBlockState(hive).isAir(),
+                        "With the rule and the switch on the TNT must be lit and the beehive disturbed: "
+                                + f.level.getBlockState(tnt) + " / " + f.level.getBlockState(hive));
+                LOGGER.info("R764_TTR_EXPLOD_PASS tears_block_rule {}", "rule off, switch off, both on");
+            }
+            finally {
+                switches.standBreaksBlocks = true;
+                f.level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS).set(ruleBefore, f.level.getServer());
+                f.level.getEntitiesOfClass(PrimedTnt.class, new AABB(tnt).inflate(1.0D)).forEach(Entity::discard);
+                f.level.getEntitiesOfClass(Bee.class, new AABB(hive).inflate(8.0D)).forEach(Entity::discard);
+            }
+            helper.succeed();
+        }
+    }
+
+    // R772.1 EV-STANDCFG item3: a marked entity's bad landing is the marker's Stand work, dealt from an event handler, so
+    // it takes the Stands page's damage share: 7.5 for a fall of 8 at the default share, half of it at 50 % to mobs.
+    @GameTest(template = "empty", batch = "ttr_tears_damage_share", timeoutTicks = 60)
+    public static void aMarkedEntitysBadLandingTakesTheMarkersDamageShare(GameTestHelper helper) {
+        StandTuning tuning = TicketToRideAddon.TICKET_TO_RIDE.get().getTuning();
+        try (Fixture f = new Fixture(helper, "TtrTearsShare", false)) {
+            Zombie marked = f.target(f.user.position().add(4.0D, 0.0D, 0.0D));
+            long landing = seedWhere(r -> r.nextFloat() < 0.5F);
+            try {
+                float whole = badLanding(marked, landing);
+                helper.assertTrue(Math.abs(whole - 7.5F) < 1.0E-4F,
+                        "At the default share a bad landing from 8 blocks deals 5 + (8 - 3) * 0.5 = 7.5; it dealt " + whole);
+                JsonObject half = new JsonObject();
+                half.addProperty("damageVsMobs", 50);
+                tuning.applyConfig(half);
+                float halved = badLanding(marked, landing);
+                helper.assertTrue(Math.abs(halved - 3.75F) < 1.0E-4F,
+                        "At 50 % damage to mobs a bad landing deals half of 7.5; it dealt " + halved);
+                LOGGER.info("R764_TTR_EXPLOD_PASS tears_damage_share {}", "default 7.5, half 3.75");
+            }
+            finally {
+                tuning.restoreDefaults();
+            }
+            helper.succeed();
+        }
+    }
+
+    // what a bad landing from 8 blocks took from the marked entity, the landing's chance rolled in
+    private static float badLanding(Zombie marked, long landing) {
+        marked.setHealth(marked.getMaxHealth());
+        marked.invulnerableTime = 0;
+        marked.getRandom().setSeed(landing);
+        float before = marked.getHealth();
+        TearsHazardService.onFall(marked, 8.0F);
+        return before - marked.getHealth();
+    }
+
+    private static void hazardsTick(Fixture f, Zombie lighter, Zombie keeper, long hiveSeed) {
+        lighter.getRandom().setSeed(hiveSeed);
+        keeper.getRandom().setSeed(hiveSeed);
+        TearsHazardService.tick(lighter);
+        TearsHazardService.tick(keeper);
     }
 
     // 1.16 InitStands standSound, ExplodAction (:30-53), GameplayHandler.onPlayerTick (:35-66), TearsBlade (no Ammo tag:

@@ -47,7 +47,7 @@ public final class ScaryMonstersTailLayer
         StandPower power = StandPower.get(player);
         if (power == null
                 || power.getPowerType() != ScaryMonstersAddon.SCARY_MONSTERS.get()
-                || !power.isSummoned()) {
+                || !power.isSummoned() && !ScaryMonstersAddon.state(player).dragonForm()) {
             return;
         }
         tailModel.setupAnim(ageInTicks);

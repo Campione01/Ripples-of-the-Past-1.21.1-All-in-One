@@ -24,6 +24,8 @@ import rotp.core.impl.stands.goldexperience.GETransformationEntity;
 import rotp.core.impl.stands.goldexperience.GoldExperienceCreateLifeformAbility;
 
 import rotp.addons.ger.GoldExperienceRequiemAddon;
+import rotp.addons.ger.damage.GerDamageTypes;
+import rotp.addons.ger.damage.GerUnavoidableDamage;
 import rotp.addons.ger.entity.GerBeamEntity;
 import rotp.addons.ger.entity.GerStandEntity;
 import net.minecraft.core.BlockPos;
@@ -304,11 +306,17 @@ public final class GerLifeShotAbility extends StandEntityAbility {
                 if (primary == null) {
                     primary = hit.target();
                 }
-                // 1.16 LifeShot.onHit: a plain hurt with
+                // 1.16 LifeShot.onHit hurt with
                 // DamageSource.indirectMagic(stand, user), so armour, the
                 // Stand damage multiplier and Stand-only rules never applied.
-                hit.target().hurt(
-                        level.damageSources().indirectMagic(stand, owner),
+                // Requiem's type keeps those rules and cannot be avoided.
+                GerUnavoidableDamage.deal(
+                        hit.target(),
+                        GerDamageTypes.source(
+                                level,
+                                GerDamageTypes.REQUIEM_LIFE_SHOT,
+                                stand,
+                                owner),
                         (float) stand.getAttackDamage());
             }
 

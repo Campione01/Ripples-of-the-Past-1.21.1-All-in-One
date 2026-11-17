@@ -2,6 +2,9 @@
   "stand.rotp_echoes.echoes_act3": "回音·三式",
   "stand.rotp_echoes.echoes_act2": "回音·二式",
   "rotp_echoes.ability.punch": "拳擊",
+  "rotp_echoes.ability.punch2": "拳擊",
+  "rotp_echoes.ability.punch3": "拳擊",
+  "rotp_echoes.ability.punch4": "拳擊",
   "rotp_echoes.ability.barrage": "連打",
   "rotp_echoes.ability.heavy_punch": "重拳",
   "rotp_echoes.ability.finisher": "Freeze重擊",
@@ -13,6 +16,9 @@
   "rotp_echoes.ability.gravity_infuse": "重力附靈",
   "rotp_echoes.ability.gravity_projectile": "重力投射",
   "rotp_echoes.ability.act2_punch": "輕擊",
+  "rotp_echoes.ability.act2_punch2": "輕擊",
+  "rotp_echoes.ability.act2_punch3": "輕擊",
+  "rotp_echoes.ability.act2_punch4": "輕擊",
   "rotp_echoes.ability.act2_heavy_punch": "重擊",
   "rotp_echoes.ability.act2_finisher": "終技",
   "rotp_echoes.ability.act2_guard": "防禦",
@@ -116,5 +122,10 @@
   "rotp_echoes.chat.skill.9": "S.H.I.T. 去也！",
   "rotp_echoes.chat.skill.10": "S.H.I.T. 上！",
   "rotp_echoes.chat.skill.11": "S.H.I.T. 動之！",
-  "rotp_echoes.chat.skill.12": "S.H.I.T. 勿動！"
+  "rotp_echoes.chat.skill.12": "S.H.I.T. 勿動！",
+  "rotp_echoes.message.need_onomatopoeia": "請先擇擬聲",
+  "rotp_echoes.message.needle_already_fired": "尾針已發，需先收之",
+  "rotp_echoes.message.need_held_item": "需持物於主手或副手",
+  "rotp_echoes.message.need_gravity_item": "需持重力之物於主手或副手",
+  "rotp_echoes.message.need_own_gravity_item": "需持己之重力附魔物於主手或副手"
 }

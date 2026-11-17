@@ -21,6 +21,7 @@ import rotp.core.subsystems.target.AimingEntity;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.thehand.TheHandAddon;
 import net.minecraft.core.BlockPos;
@@ -194,7 +195,7 @@ public final class TheHandEraseAbility extends StandEntityAbility {
                 return super.getSpriteName(context) + "_alt";
             }
             LivingEntity user = standPower.getUser();
-            if (user != null && user.isShiftKeyDown()) {
+            if (StandManualInput.isShiftHeld(user)) {
                 return super.getSpriteName(context) + "_alt";
             }
         }
@@ -278,7 +279,7 @@ public final class TheHandEraseAbility extends StandEntityAbility {
         public void onActionSet(EntityActionInstance previousAction) {
             super.onActionSet(previousAction);
             LivingEntity user = getPowerUser();
-            attract = user != null && user.isShiftKeyDown();
+            attract = StandManualInput.isShiftHeld(user);
             if (!(getPerformer() instanceof StandEntity stand)) {
                 return;
             }

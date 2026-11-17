@@ -10,6 +10,8 @@
     "rotp_cm.ability.center_of_gravity":  "Центр ваги",
     "rotp_cm.ability.gravity_shift":  "Гравітаційний зсув",
     "rotp_cm.ability.gravity_shift.param":  "Гравітаційний зсув: Активовано",
+    "rotp_cm.ability.gravity_field":  "Гравітаційне поле",
+    "rotp_cm.ability.gravity_field.param":  "Гравітаційне поле: Активовано",
     "rotp_cm.ability.destroy":  "Знищити",
     "effect.rotp_cm.cm_inversion":  "Інверсія поверхні",
     "effect.rotp_cm.cm_shift":  "Гравітаційний зсув",

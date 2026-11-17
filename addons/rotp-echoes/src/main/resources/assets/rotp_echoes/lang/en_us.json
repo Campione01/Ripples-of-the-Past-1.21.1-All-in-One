@@ -1,6 +1,9 @@
 {
   "stand.rotp_echoes.echoes_act3": "Echoes ACT3",
   "rotp_echoes.ability.punch": "Punch",
+  "rotp_echoes.ability.punch2": "Punch",
+  "rotp_echoes.ability.punch3": "Punch",
+  "rotp_echoes.ability.punch4": "Punch",
   "rotp_echoes.ability.barrage": "Barrage",
   "rotp_echoes.ability.heavy_punch": "Heavy Punch",
   "rotp_echoes.ability.heavy_charged": "Charged Heavy Punch",
@@ -24,6 +27,9 @@
   "rotp_echoes.ability.degrade_to_act2": "Degrade",
   "rotp_echoes.ability.hand_freeze": "Hand Freeze",
   "rotp_echoes.ability.act2_punch": "Light Attack",
+  "rotp_echoes.ability.act2_punch2": "Light Attack",
+  "rotp_echoes.ability.act2_punch3": "Light Attack",
+  "rotp_echoes.ability.act2_punch4": "Light Attack",
   "rotp_echoes.ability.act2_heavy_punch": "Heavy Attack",
   "rotp_echoes.ability.act2_finisher": "Finisher",
   "rotp_echoes.ability.act1_finisher": "Sound Give Punch",
@@ -231,5 +237,11 @@
   "rotp_echoes.chat.skill.9": "S.H.I.T. Off you go!",
   "rotp_echoes.chat.skill.10": "S.H.I.T. Go!",
   "rotp_echoes.chat.skill.11": "S.H.I.T. Get moving!",
-  "rotp_echoes.chat.skill.12": "S.H.I.T. Don't move!"
+  "rotp_echoes.chat.skill.12": "S.H.I.T. Don't move!",
+  "rotp_echoes.message.need_onomatopoeia": "Select an onomatopoeia first",
+  "rotp_echoes.message.needle_already_fired": "Needle already fired, recall it first",
+  "rotp_echoes.message.need_held_item": "You need to hold an item in your main or off hand",
+  "rotp_echoes.message.need_gravity_item": "You need to hold a gravity item in your main or off hand",
+  "rotp_echoes.message.need_own_gravity_item": "You need to hold a gravity-infused item you own in your main or off hand",
+  "rotp_echoes.message.need_freeze_target": "Please target an entity!"
 }

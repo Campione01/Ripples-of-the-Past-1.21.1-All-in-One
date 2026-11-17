@@ -1,5 +1,9 @@
 package rotp.addons.kiss;
 
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
 import rotp.addons.kiss.service.KissService;
 import rotp.addons.kiss.service.KissTokenService;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
@@ -13,10 +17,14 @@ import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 @EventBusSubscriber(modid = KissAddon.MOD_ID)
 public final class KissEvents {
+    // the players last seen with Kiss, on the server thread
+    private static final Set<UUID> KISS_USERS = new HashSet<>();
+
     private KissEvents() {}
 
     public static void registerAttributes(EntityAttributeCreationEvent event) {
@@ -28,16 +36,25 @@ public final class KissEvents {
 
     @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post event) {
-        if (event.getEntity() instanceof ServerPlayer player
-                && player.tickCount % 10 == 0
-                && (!KissAddon.isKissUser(player)
-                        || rotp.core.powersystem.standpower
-                                .StandPower.get(player) == null
-                        || !rotp.core.powersystem.standpower
-                                .StandPower.get(player).isSummoned())) {
-            KissService.cleanupOwner(player.getServer(), player.getUUID());
-            KissTokenService.clearTokens(player);
+        // Stickers and bombs go on through a recall (owner's rule of 2026-11-05): only the loss of the Stand ends them here.
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.tickCount % 10 != 0) {
+            return;
         }
+        if (KissAddon.isKissUser(player)) {
+            KISS_USERS.add(player.getUUID());
+            return;
+        }
+        // The walk over every entity of every level is made once, when the Stand is lost; a marker of an owner without
+        // Kiss also ends itself on its own tick (KissService.validOwner).
+        if (KISS_USERS.remove(player.getUUID())) {
+            KissService.cleanupOwner(player.getServer(), player.getUUID());
+        }
+        KissTokenService.clearTokens(player);
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        KISS_USERS.clear();
     }
 
     @SubscribeEvent
@@ -100,6 +117,7 @@ public final class KissEvents {
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         Player player = event.getEntity();
+        KISS_USERS.remove(player.getUUID());
         if (player.getServer() != null) {
             KissService.cleanupOwner(player.getServer(), player.getUUID());
         }

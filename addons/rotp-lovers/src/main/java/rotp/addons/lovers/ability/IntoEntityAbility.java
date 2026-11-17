@@ -54,6 +54,13 @@ public final class IntoEntityAbility
         return pressed.target() != null ? check : pressed.check();
     }
 
+    // the link goes on with the Stand recalled: the HUD lights the slot of the move that made it
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        return user.hasData(LoversAddon.LINK_STATE)
+                && LoversAddon.linkState(user).isActive();
+    }
+
     // 1.16 IntoEntity.getTargetRequirement: ENTITY
     @Override
     protected boolean keepsTaskTargetType(

@@ -1,16 +1,14 @@
 package rotp.addons.ultimate_lifeform.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import net.minecraft.client.KeyMapping;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
-import net.neoforged.neoforge.client.settings.KeyConflictContext;
-import net.neoforged.neoforge.client.settings.KeyModifier;
 import org.lwjgl.glfw.GLFW;
 import rotp.addons.ultimate_lifeform.UltimateLifeformAddon;
 import rotp.addons.ultimate_lifeform.power.UltimateLifeformSpec;
+import rotp.core.api.client.input.PowerKeyConflictContexts;
 
 @EventBusSubscriber(modid = UltimateLifeformAddon.MOD_ID, value = Dist.CLIENT,
         bus = EventBusSubscriber.Bus.MOD)
@@ -33,8 +31,8 @@ public final class UltimateLifeformKeyMappings {
     }
 
     private static void register(RegisterKeyMappingsEvent event, UltimateLifeformSpec spec) {
-        event.register(new KeyMapping(UltimateLifeformAddon.skillKeyName(spec),
-                KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM,
+        event.register(PowerKeyConflictContexts.nonStandPowerKey(UltimateLifeformAddon.skillKeyName(spec),
+                UltimateLifeformAddon.ULTIMATE_LIFEFORM.getId(), InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_UNKNOWN, "key.categories.rotp_ul"));
     }
 }

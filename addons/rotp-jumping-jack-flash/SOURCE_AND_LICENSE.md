@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-jumping-jack-flash`, mod id `jumping_jack_flash`, version `1.0.3a-port.15`.
+- Module: `rotp-jumping-jack-flash`, mod id `jumping_jack_flash`, version `1.0.3a-port.16`.
 - Original 1.16.5 add-on: `rotp-jumping_jack_flash-1.0.3a.jar` (Rotp-Jumping Jack Flash, mod id `jumping_jack_flash`), by jiutoh; declared license: GNU GPL v3.0; SHA-256 `CB4CA8BCFB04FFD6039B5AD7F05524D6C51122A50D505EFCB78C3574F54DFCCE`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

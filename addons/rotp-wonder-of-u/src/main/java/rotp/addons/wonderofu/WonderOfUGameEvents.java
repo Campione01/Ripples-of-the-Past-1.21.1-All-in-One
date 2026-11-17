@@ -265,7 +265,7 @@ public final class WonderOfUGameEvents {
         if (!event.getLevel().isClientSide()
                 && event.getEntity()
                         instanceof WonderOfUStandEntity stand) {
-            stand.clearOwnedState(CarRemovalReason.STAND_REMOVED);
+            stand.onLeftTheLevel();
         }
     }
 
@@ -306,53 +306,25 @@ public final class WonderOfUGameEvents {
 
     private static WonderOfUStandEntity passiveStand(
             LivingEntity victim) {
-        StandPower power = StandPower.get(victim);
-        if (power == null
-                || power.getPowerType() != WonderOfUAddon.WONDER_OF_YOU.get()
-                || !(power.getSummonedStandEntity()
-                        instanceof WonderOfUStandEntity stand)
-                || stand.getUser() != victim
-                || !stand.isAlive()
-                || stand.isRemoved()
-                || !stand.isPassiveEnabled()) {
-            return null;
-        }
-        return stand;
+        WonderOfUStandEntity stand = WonderOfUStandEntity.current(victim);
+        return stand != null && stand.isPassiveEnabled() ? stand : null;
     }
 
     private static WonderOfUStandEntity activeCalamityStand(
             LivingEntity user) {
-        StandPower power = StandPower.get(user);
-        if (power == null
-                || power.getPowerType() != WonderOfUAddon.WONDER_OF_YOU.get()
-                || !(power.getSummonedStandEntity()
-                        instanceof WonderOfUStandEntity stand)
-                || stand.getUser() != user
-                || !stand.isAlive()
-                || stand.isRemoved()
-                || !stand.isActiveEnabled()) {
-            return null;
-        }
-        return stand;
+        WonderOfUStandEntity stand = WonderOfUStandEntity.current(user);
+        return stand != null && stand.isActiveEnabled() ? stand : null;
     }
 
     private static WonderOfUStandEntity carCalamityStand(
             LivingEntity victim) {
         LivingEntity user = resolveLiving(victim);
-        StandPower power = user != null ? StandPower.get(user) : null;
-        if (power == null
-                || power.getPowerType()
-                        != WonderOfUAddon.WONDER_OF_YOU.get()
-                || !(power.getSummonedStandEntity()
-                        instanceof WonderOfUStandEntity stand)
-                || stand.getUser() != user
-                || (victim != user && victim != stand)
-                || !stand.isAlive()
-                || stand.isRemoved()
-                || !stand.isCarEnabled()) {
-            return null;
-        }
-        return stand;
+        WonderOfUStandEntity stand = WonderOfUStandEntity.current(user);
+        return stand != null
+                && (victim == user || victim == stand)
+                && stand.isCarEnabled()
+                ? stand
+                : null;
     }
 
     private static LivingEntity resolveLivingAttacker(
@@ -502,11 +474,8 @@ public final class WonderOfUGameEvents {
         if (user == null || user.level().isClientSide()) {
             return;
         }
-        StandPower power = StandPower.get(user);
-        if (power != null
-                && power.getSummonedStandEntity()
-                        instanceof WonderOfUStandEntity stand
-                && stand.getUser() == user) {
+        WonderOfUStandEntity stand = WonderOfUStandEntity.current(user);
+        if (stand != null) {
             stand.clearOwnedState(reason);
         }
     }

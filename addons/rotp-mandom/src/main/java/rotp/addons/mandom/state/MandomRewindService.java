@@ -124,7 +124,6 @@ public final class MandomRewindService {
     }
 
     public record BlockPreimage(
-            ServerLevel level,
             long tick,
             BlockPos position,
             CompoundTag state,
@@ -132,7 +131,6 @@ public final class MandomRewindService {
             boolean restorable) {
         private BlockPreimage copy() {
             return new BlockPreimage(
-                    level,
                     tick,
                     position.immutable(),
                     state.copy(),
@@ -143,9 +141,26 @@ public final class MandomRewindService {
 
     public static void tick(MinecraftServer server) {
         ServerHistory serverHistory = history(server);
+        if (serverHistory == null) {
+            return;
+        }
         for (ServerLevel level : server.getAllLevels()) {
-            LevelHistory levelHistory = serverHistory.level(level);
             long now = level.getGameTime();
+            LevelHistory levelHistory;
+            if (now % SAMPLE_INTERVAL_TICKS == 0L) {
+                // Only a level with a Mandom user keeps a history and a block journal, both opened at a base sample.
+                if (!hasMandomUser(level)) {
+                    serverHistory.close(level);
+                    continue;
+                }
+                levelHistory = serverHistory.open(level);
+            }
+            else {
+                levelHistory = serverHistory.levels.get(level.dimension());
+                if (levelHistory == null) {
+                    continue;
+                }
+            }
             float worldRate = worldTimeRate(level);
             levelHistory.prune(now, worldRate);
             if (now % SAMPLE_INTERVAL_TICKS == 0L) {
@@ -208,9 +223,29 @@ public final class MandomRewindService {
         return users;
     }
 
+    private static boolean hasMandomUser(ServerLevel level) {
+        for (ServerPlayer player : level.players()) {
+            if (player.isAlive() && MandomAddon.isMandomUser(player)) {
+                return true;
+            }
+        }
+        for (Entity entity : level.getAllEntities()) {
+            if (entity instanceof LivingEntity living
+                    && living.isAlive()
+                    && MandomAddon.isMandomUser(living)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void clear(MinecraftServer server) {
+        ServerHistory removed;
         synchronized (HISTORIES) {
-            HISTORIES.remove(server);
+            removed = HISTORIES.remove(server);
+        }
+        if (removed != null) {
+            removed.closeAll();
         }
     }
 
@@ -223,8 +258,10 @@ public final class MandomRewindService {
         if (reason == null) {
             return;
         }
-        LevelHistory history =
-                history(serverLevel.getServer()).level(serverLevel);
+        LevelHistory history = journal(serverLevel);
+        if (history == null) {
+            return;
+        }
         if (reason.shouldDestroy()) {
             history.markDestroyed(
                     entity.getUUID(), serverLevel.getGameTime());
@@ -237,6 +274,7 @@ public final class MandomRewindService {
     public static BlockPreimage captureBlockPreimage(
             Level level, BlockPos position) {
         if (!(level instanceof ServerLevel serverLevel)
+                || journal(serverLevel) == null
                 || isApplying()) {
             return null;
         }
@@ -256,7 +294,6 @@ public final class MandomRewindService {
             }
         }
         return new BlockPreimage(
-                serverLevel,
                 serverLevel.getGameTime(),
                 position.immutable(),
                 NbtUtils.writeBlockState(state),
@@ -265,18 +302,50 @@ public final class MandomRewindService {
     }
 
     public static void recordBlockMutation(
-            BlockPreimage preimage) {
+            Level level, BlockPreimage preimage) {
         if (preimage == null || isApplying()) {
             return;
         }
-        history(preimage.level().getServer())
-                .level(preimage.level())
-                .recordBlock(preimage.copy());
+        LevelHistory history = journal(level);
+        if (history != null) {
+            history.recordBlock(preimage.copy());
+        }
     }
 
     public static void recordBlockInteraction(
             ServerLevel level, BlockPos position) {
-        recordBlockMutation(captureBlockPreimage(level, position));
+        recordBlockMutation(
+                level, captureBlockPreimage(level, position));
+    }
+
+    /** The level's open history while a Mandom user is in it, else null. */
+    private static LevelHistory journal(Level level) {
+        return ((MandomJournalHolder) level).rotpMandom$journal()
+                        instanceof LevelHistory history
+                        && !history.closed
+                ? history
+                : null;
+    }
+
+    static boolean hasHistory(MinecraftServer server) {
+        synchronized (HISTORIES) {
+            return HISTORIES.containsKey(server);
+        }
+    }
+
+    /** What tick does for a level with a Mandom user at a base sample; false when the server is stopped. */
+    static boolean openJournal(ServerLevel level) {
+        ServerHistory serverHistory = history(level.getServer());
+        if (serverHistory == null) {
+            return false;
+        }
+        serverHistory.open(level);
+        return true;
+    }
+
+    static int blockRecordCount(Level level) {
+        LevelHistory history = journal(level);
+        return history != null ? history.blockCount() : -1;
     }
 
     public static boolean isApplying() {
@@ -291,8 +360,10 @@ public final class MandomRewindService {
             return Result.WRONG_DIMENSION;
         }
 
-        LevelHistory history =
-                history(level.getServer()).level(level);
+        LevelHistory history = journal(level);
+        if (history == null) {
+            return Result.HISTORY_NOT_READY;
+        }
         long now = level.getGameTime();
         // MIH-FRAME: during an acceleration the world goes back 6 / m seconds and its day time stays with it (G3).
         float worldRate = worldTimeRate(level);
@@ -1297,9 +1368,15 @@ public final class MandomRewindService {
         }
     }
 
+    // isStopped turns true after the server's last tick and its ServerStoppingEvent, before its levels are saved and
+    // closed; isRunning is already false while a requested stop finishes its tick, which keeps its history.
     private static ServerHistory history(
             MinecraftServer server) {
         synchronized (HISTORIES) {
+            if (server.isStopped()) {
+                HISTORIES.remove(server);
+                return null;
+            }
             return HISTORIES.computeIfAbsent(
                     server, ignored -> new ServerHistory());
         }
@@ -1580,6 +1657,7 @@ public final class MandomRewindService {
         private final List<BlockPreimage> blocks =
                 new ArrayList<>();
         private long lastCapture = Long.MIN_VALUE;
+        private volatile boolean closed;
 
         private LevelHistory(ResourceKey<Level> dimension) {
             this.dimension = dimension;
@@ -1644,7 +1722,20 @@ public final class MandomRewindService {
 
         private synchronized void recordBlock(
                 BlockPreimage preimage) {
-            blocks.add(preimage);
+            if (!closed) {
+                blocks.add(preimage);
+            }
+        }
+
+        private synchronized int blockCount() {
+            return blocks.size();
+        }
+
+        private synchronized void close() {
+            closed = true;
+            blocks.clear();
+            worlds.clear();
+            entities.clear();
         }
 
         private synchronized List<BlockPreimage> blockRecords(
@@ -1725,9 +1816,33 @@ public final class MandomRewindService {
         private final Map<ResourceKey<Level>, LevelHistory> levels =
                 new HashMap<>();
 
-        private LevelHistory level(ServerLevel level) {
-            return levels.computeIfAbsent(
-                    level.dimension(), LevelHistory::new);
+        private LevelHistory open(ServerLevel level) {
+            LevelHistory history = levels.get(level.dimension());
+            if (history == null) {
+                history = new LevelHistory(level.dimension());
+                levels.put(level.dimension(), history);
+            }
+            MandomJournalHolder holder = (MandomJournalHolder) level;
+            if (holder.rotpMandom$journal() != history) {
+                holder.rotpMandom$setJournal(history);
+            }
+            return history;
+        }
+
+        private void close(ServerLevel level) {
+            LevelHistory history = levels.remove(level.dimension());
+            if (history != null) {
+                history.close();
+            }
+            MandomJournalHolder holder = (MandomJournalHolder) level;
+            if (holder.rotpMandom$journal() != null) {
+                holder.rotpMandom$setJournal(null);
+            }
+        }
+
+        private void closeAll() {
+            levels.values().forEach(LevelHistory::close);
+            levels.clear();
         }
     }
 

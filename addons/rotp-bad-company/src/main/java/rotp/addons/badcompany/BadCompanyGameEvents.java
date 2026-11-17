@@ -36,6 +36,7 @@ public final class BadCompanyGameEvents {
     public static void onPlayerChangedDimension(
             PlayerEvent.PlayerChangedDimensionEvent event) {
         cleanupPlayer(event.getEntity());
+        BadCompanyStandEntity.forgetRecalledMines(event.getEntity());
     }
 
     private static void cleanupPlayer(Player owner) {

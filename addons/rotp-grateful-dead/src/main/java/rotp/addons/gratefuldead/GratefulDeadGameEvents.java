@@ -18,11 +18,11 @@ import rotp.addons.gratefuldead.service.GrabStrength;
 import rotp.addons.gratefuldead.state.AgingRateState;
 import net.minecraft.world.food.FoodProperties;
 import net.neoforged.neoforge.event.entity.living.LivingEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import rotp.addons.gratefuldead.service.AgingText;
 import rotp.addons.gratefuldead.state.BlockAgingData;
 import rotp.addons.gratefuldead.state.ItemAgingState;
 import rotp.addons.gratefuldead.state.LivingAgingState;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundSetHealthPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -67,6 +67,12 @@ public final class GratefulDeadGameEvents {
             new HashSet<>();
 
     private GratefulDeadGameEvents() {}
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        GrabStrength.forgetSession();
+        AgingInjectAbility.forgetSession();
+    }
 
     @SubscribeEvent
     public static void onEntityTick(
@@ -130,6 +136,9 @@ public final class GratefulDeadGameEvents {
                 trackOwnerPower(level, player);
                 AgingService.tickPlayerInventory(player);
                 tickAgingRate(player);
+                // 0.1.11 AgingBlockServerEvents.onPlayerTick: players only.
+                BlockAgingData.get(level)
+                        .crumbleOnContact(level, player.getBoundingBox());
             }
         }
         else if (event.getEntity()
@@ -148,11 +157,6 @@ public final class GratefulDeadGameEvents {
                 }
             }
         }
-
-        BlockPos contact =
-                event.getEntity().blockPosition().below();
-        BlockAgingData.get(level)
-                .crumbleOnContact(level, contact);
     }
 
     @SubscribeEvent

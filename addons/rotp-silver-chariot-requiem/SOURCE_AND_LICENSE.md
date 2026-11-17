@@ -2,10 +2,10 @@
 
 ## Public release
 
-- Module: `rotp-silver-chariot-requiem`, mod id `rotp_silver_chariot_requiem`, version `0.1.11-1.2.1-port.12`.
+- Module: `rotp-silver-chariot-requiem`, mod id `rotp_silver_chariot_requiem`, version `0.1.11-1.2.1-port.13`.
 - Original 1.16.5 add-on: `RotP-Next-Album-0.1.11.jar` (RotP:NextAlbum, mod id `rotp_nextalbum`), by Babelmoth; declared license: GNU GPL v3.0; SHA-256 `749AF3B9F710490534BDA502BCE4A2A734921FF2A1C84CB1007EF892EF2FB19D`.
 - Original 1.16.5 add-on: `RotP-银色战车镇魂曲-1.2.1.jar` (Chariot Requiem RoTP Addon, mod id `rotp_cr`), by TheDoGGy; declared license: GNU GPL v3.0; SHA-256 `6E0386AE943331FCD2E3DDC9BFD579EC53CA67914DEE465412047512DFCF4395`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

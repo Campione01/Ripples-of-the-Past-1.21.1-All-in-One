@@ -7,18 +7,22 @@ import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.init.ModParticles;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.StandUtil;
+import rotp.core.util.functions.JojoModUtil;
 
+import rotp.addons.kingcrimson.ability.KingCrimsonProjectileThrowAbility;
 import rotp.addons.kingcrimson.effect.KingCrimsonGapingWoundEffect;
-import rotp.addons.kingcrimson.state.EpitaphForesightService;
-import rotp.addons.kingcrimson.state.EpitaphStateService;
+import rotp.addons.kingcrimson.epitaph.human.PhantomBrain;
+import rotp.addons.kingcrimson.state.KingCrimsonTemporalState;
 import rotp.addons.kingcrimson.state.KingCrimsonTemporalStateService;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.EventPriority;
@@ -34,7 +38,8 @@ import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
-import net.neoforged.neoforge.event.tick.EntityTickEvent;
+import net.neoforged.neoforge.event.level.ExplosionEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -54,6 +59,8 @@ public final class KingCrimsonGameEvents {
                         .add(Attributes.MOVEMENT_SPEED, 0.0D)
                         .add(Attributes.FOLLOW_RANGE, 16.0D)
                         .build());
+        event.put(KingCrimsonAddon.PHANTOM_BRAIN_ENTITY.get(), PhantomBrain.createAttributes().build());
+        event.put(KingCrimsonAddon.TIME_ERASE_DRIFT_BODY_ENTITY.get(), LivingEntity.createLivingAttributes().build());
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -72,13 +79,6 @@ public final class KingCrimsonGameEvents {
 
         if (event.getEntity() instanceof ServerPlayer player
                 && KingCrimsonTemporalStateService.blocksDamage(
-                        player, event.getSource())) {
-            event.setCanceled(true);
-            return;
-        }
-
-        if (event.getEntity() instanceof ServerPlayer player
-                && EpitaphStateService.tryDodge(
                         player, event.getSource())) {
             event.setCanceled(true);
             return;
@@ -144,6 +144,20 @@ public final class KingCrimsonGameEvents {
                         KingCrimsonAddon.MANGLED_BODY)) {
             applyInventoryCooldowns(
                     player, Math.max(effect.getDuration(), 1));
+        }
+    }
+
+    // Owner (OFFB): what a Stand breaks follows its user's "breaks blocks" switch and the jojoAbilitiesBreakBlocks
+    // rule. A fire charge King Crimson throws is a ghast's fireball, which asks mobGriefing alone: where the
+    // Stand may not break blocks its explosion takes none, and so lights no fire; it hurts as before.
+    @SubscribeEvent
+    public static void onThrownFireChargeDetonate(ExplosionEvent.Detonate event) {
+        Entity fireball = event.getExplosion().getDirectSourceEntity();
+        if (KingCrimsonProjectileThrowAbility.isStandThrownFireCharge(fireball)
+                && !JojoModUtil.breakingBlocksEnabled(event.getLevel(),
+                        fireball instanceof Projectile thrown && thrown.getOwner() instanceof LivingEntity thrower
+                                ? thrower : null)) {
+            event.getExplosion().clearToBlow();
         }
     }
 
@@ -216,23 +230,15 @@ public final class KingCrimsonGameEvents {
     }
 
     @SubscribeEvent
-    public static void onEntityTick(EntityTickEvent.Post event) {
-        EpitaphForesightService.enforce(event.getEntity());
-    }
-
-    @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         if (event.getEntity() instanceof ServerPlayer player) {
-            if (player.hasData(KingCrimsonAddon.EPITAPH_STATE)) {
-                EpitaphStateService.tick(player);
-            }
             if (player.hasData(KingCrimsonAddon.TEMPORAL_STATE)) {
                 KingCrimsonTemporalStateService.tick(player);
             }
         }
     }
 
-    // A user frozen in a time stop gets no PlayerTickEvent, so the erase's and Epitaph's pauses are counted here.
+    // A user frozen in a time stop gets no PlayerTickEvent, so the pause of his erase is counted here.
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
         for (ServerPlayer player
@@ -240,10 +246,12 @@ public final class KingCrimsonGameEvents {
             if (player.hasData(KingCrimsonAddon.TEMPORAL_STATE)) {
                 KingCrimsonTemporalStateService.tickTimeStopPause(player);
             }
-            if (player.hasData(KingCrimsonAddon.EPITAPH_STATE)) {
-                EpitaphStateService.tickTimeStopPause(player);
-            }
         }
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        KingCrimsonTemporalState.resetEraseCount();
     }
 
     @SubscribeEvent
@@ -314,10 +322,6 @@ public final class KingCrimsonGameEvents {
             net.neoforged.neoforge.event.entity.living.LivingDeathEvent
                     event) {
         if (event.getEntity() instanceof ServerPlayer player
-                && player.hasData(KingCrimsonAddon.EPITAPH_STATE)) {
-            EpitaphStateService.terminate(player);
-        }
-        if (event.getEntity() instanceof ServerPlayer player
                 && player.hasData(KingCrimsonAddon.TEMPORAL_STATE)) {
             KingCrimsonTemporalStateService.terminate(player);
         }
@@ -327,14 +331,6 @@ public final class KingCrimsonGameEvents {
     public static void onPlayerClone(PlayerEvent.Clone event) {
         Player original = event.getOriginal();
         Player player = event.getEntity();
-        if (original instanceof ServerPlayer serverOriginal
-                && original.hasData(KingCrimsonAddon.EPITAPH_STATE)) {
-            EpitaphStateService.terminate(serverOriginal);
-        }
-        if (player instanceof ServerPlayer serverPlayer
-                && player.hasData(KingCrimsonAddon.EPITAPH_STATE)) {
-            EpitaphStateService.terminate(serverPlayer);
-        }
         if (original instanceof ServerPlayer serverOriginal
                 && original.hasData(
                         KingCrimsonAddon.TEMPORAL_STATE)) {
@@ -352,11 +348,6 @@ public final class KingCrimsonGameEvents {
     public static void onPlayerLogin(
             PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player
-                && player.hasData(KingCrimsonAddon.EPITAPH_STATE)) {
-            EpitaphStateService.terminate(player);
-            KingCrimsonAddon.syncEpitaphState(player);
-        }
-        if (event.getEntity() instanceof ServerPlayer player
                 && player.hasData(KingCrimsonAddon.TEMPORAL_STATE)) {
             KingCrimsonTemporalStateService.terminate(player);
             KingCrimsonAddon.syncTemporalState(player);
@@ -367,10 +358,6 @@ public final class KingCrimsonGameEvents {
     public static void onPlayerChangedDimension(
             PlayerEvent.PlayerChangedDimensionEvent event) {
         if (event.getEntity() instanceof ServerPlayer player
-                && player.hasData(KingCrimsonAddon.EPITAPH_STATE)) {
-            EpitaphStateService.terminate(player);
-        }
-        if (event.getEntity() instanceof ServerPlayer player
                 && player.hasData(KingCrimsonAddon.TEMPORAL_STATE)) {
             KingCrimsonTemporalStateService.terminate(player);
         }
@@ -380,10 +367,6 @@ public final class KingCrimsonGameEvents {
     public static void onPlayerLogout(
             PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player
-                && player.hasData(KingCrimsonAddon.EPITAPH_STATE)) {
-            EpitaphStateService.terminate(player);
-        }
-        if (event.getEntity() instanceof ServerPlayer player
                 && player.hasData(KingCrimsonAddon.TEMPORAL_STATE)) {
             KingCrimsonTemporalStateService.terminate(player);
         }
@@ -392,12 +375,6 @@ public final class KingCrimsonGameEvents {
     @SubscribeEvent
     public static void onStartTracking(
             PlayerEvent.StartTracking event) {
-        if (event.getEntity() instanceof ServerPlayer observer
-                && event.getTarget() instanceof Player target
-                && target.hasData(KingCrimsonAddon.EPITAPH_STATE)) {
-            KingCrimsonAddon.syncEpitaphState(
-                    observer, target);
-        }
         if (event.getEntity() instanceof ServerPlayer observer
                 && event.getTarget() instanceof Player target
                 && target.hasData(KingCrimsonAddon.TEMPORAL_STATE)) {

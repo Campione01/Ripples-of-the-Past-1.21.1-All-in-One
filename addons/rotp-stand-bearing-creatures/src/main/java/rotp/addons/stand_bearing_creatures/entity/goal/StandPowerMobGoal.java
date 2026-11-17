@@ -1,5 +1,7 @@
 package rotp.addons.stand_bearing_creatures.entity.goal;
 
+import java.util.Map;
+
 import javax.annotation.Nullable;
 
 import rotp.core.powersystem.ability.Ability;
@@ -15,8 +17,30 @@ import rotp.addons.stand_bearing_creatures.util.MobPowerUtil;
 public final class StandPowerMobGoal
         extends AbstractPowerMobGoal<StandPower> {
 
+    final TimeEraseTactic timeErase;
+
     public StandPowerMobGoal(Mob mob) {
         super(mob, MobPowerUtil.STAND_HELD_KEY_TAG);
+        timeErase = new TimeEraseTactic(mob);
+    }
+
+    // King Crimson's Time Erase is pressed by its own rule (the owner, 2026-11-11), before the goal picks a move.
+    @Override
+    public void tick() {
+        timeErase.tick(power());
+        super.tick();
+    }
+
+    @Override
+    public void stop() {
+        timeErase.stop();
+        super.stop();
+    }
+
+    // While the creature waits for its Time Erase (TimeEraseTactic.holdsBackPicks), it picks no other move.
+    @Override
+    Map<String, Ability> pool(StandPower power) {
+        return timeErase.holdsBackPicks() ? Map.of() : super.pool(power);
     }
 
     @Override

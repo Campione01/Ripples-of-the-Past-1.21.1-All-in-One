@@ -13,7 +13,7 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
-import rotp.core.powersystem.standpower.entity.StandEntityAbility;
+import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 
 import rotp.addons.neo_stand.NeoStandAddon;
@@ -31,7 +31,9 @@ import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 
-public final class DevolutionAbility extends StandEntityAbility {
+// 1.16 af.java built it with StandAction's default pose, StandPose.IDLE: the
+// idle loop ran on through it
+public final class DevolutionAbility extends NoPoseStandEntityAbility {
     public static final float STAMINA_COST = 2000.0F;
 
     public DevolutionAbility(

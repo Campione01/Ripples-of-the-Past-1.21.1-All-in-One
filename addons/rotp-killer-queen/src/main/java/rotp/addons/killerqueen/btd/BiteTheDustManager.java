@@ -249,15 +249,22 @@ public final class BiteTheDustManager {
                 case ACTIVE -> {
                     ServerPlayer loopCarrier = dead.server.getPlayerList()
                             .getPlayer(asOwner.carrier);
-                    // owner Q3: asked before the loop starts; a summoned Requiem on the carrier returns it
-                    // to zero, nothing loops or detonates, and the instance stays active
-                    if (loopCarrier != null
-                            && !BitesTheDustDetonateEvent.post(
+                    // owner Q3: asked before the loop starts. Held, nothing loops or detonates and the instance
+                    // stays active; defused (a summoned Requiem on the carrier), it ends for good and the death
+                    // stands
+                    BitesTheDustDetonateEvent.Outcome outcome = loopCarrier != null
+                            ? BitesTheDustDetonateEvent.postOutcome(
                                     dead, loopCarrier,
-                                    event.getSource().getEntity())) {
+                                    event.getSource().getEntity())
+                            : BitesTheDustDetonateEvent.Outcome.DETONATE;
+                    if (outcome == BitesTheDustDetonateEvent.Outcome.HELD) {
                         if (isKilledBy(event.getSource(), asOwner.carrier)) {
                             cancelDeath(event, dead);
                         }
+                        return;
+                    }
+                    if (outcome == BitesTheDustDetonateEvent.Outcome.DEFUSED) {
+                        finish(data, asOwner, BtdState.CANCELLED, dead, loopCarrier);
                         return;
                     }
                     asOwner.state = BtdState.TIME_LOOP;
@@ -358,7 +365,8 @@ public final class BiteTheDustManager {
         }
     }
 
-    // owner Q3: a summoned Gold Experience Requiem returns the blast on its user to zero (no blast, he lives)
+    // owner Q3: a summoned Gold Experience Requiem returns the blast on its user to zero (no blast, he lives); held
+    // or defused, the instance is already gone, so both end here
     private static void detonate(
             MinecraftServer server,
             @Nullable ServerPlayer owner,

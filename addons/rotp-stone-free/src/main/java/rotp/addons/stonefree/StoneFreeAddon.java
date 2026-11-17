@@ -669,7 +669,7 @@ public final class StoneFreeAddon {
                     .addHotbarSlotVariation(
                             USER_RECOVER_STRING_NAME,
                             USER_GRAPPLE_NAME,
-                            InputKey.Modifier.CONTROL,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.HOLD)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")

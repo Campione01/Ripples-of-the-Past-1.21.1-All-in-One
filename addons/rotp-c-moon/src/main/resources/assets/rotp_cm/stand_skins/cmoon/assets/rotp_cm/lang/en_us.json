@@ -11,6 +11,8 @@
     "rotp_cm.ability.center_of_gravity":  "Center of Gravity",
     "rotp_cm.ability.gravity_shift":  "Gravitational Shift",
     "rotp_cm.ability.gravity_shift.param":  "Disable Gravitational Shift",
+    "rotp_cm.ability.gravity_field":  "Gravity Field",
+    "rotp_cm.ability.gravity_field.param":  "Gravity Field: Activated",
     "rotp_cm.ability.destroy":  "Destroy",
     "jojo.message.action_condition.cant_attack_self":  "Can't attack yourself",
     "jojo.message.action_condition.cant_attack_stand":  "Can't attack a Stand",

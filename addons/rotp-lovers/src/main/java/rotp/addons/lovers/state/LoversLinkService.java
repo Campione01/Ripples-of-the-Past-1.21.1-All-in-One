@@ -66,11 +66,12 @@ public final class LoversLinkService {
                 || !owner.getUUID().equals(state.ownerUuid())
                 || !level.dimension().location().equals(
                         state.dimension())
-                || stand == null
-                || !stand.getUUID().equals(state.standUuid())
-                || !stand.matchesLink(
-                        state.targetUuid(),
-                        state.generationUuid())) {
+                || !LoversAddon.isLoversUser(owner)
+                || stand != null
+                        && (!stand.getUUID().equals(state.standUuid())
+                                || !stand.matchesLink(
+                                        state.targetUuid(),
+                                        state.generationUuid()))) {
             clearOwner(owner);
             return null;
         }
@@ -125,20 +126,24 @@ public final class LoversLinkService {
         }
     }
 
-    public static void clearByStand(
-            LoversStandEntity stand) {
-        MinecraftServer server = stand.getServer();
-        if (server != null) {
-            for (ServerPlayer player
-                    : server.getPlayerList().getPlayers()) {
-                if (player.hasData(LoversAddon.LINK_STATE)
-                        && LoversAddon.linkState(player)
-                                .matchesStand(stand.getUUID())) {
-                    clearOwner(player);
-                }
-            }
+    // The owner's rule of 2026-11-06: the link goes on with the Stand recalled, and the next summon takes it over, so
+    // that its keys end it.
+    public static void takeOver(
+            ServerPlayer owner, LoversStandEntity stand) {
+        if (!owner.hasData(LoversAddon.LINK_STATE)) {
+            return;
         }
-        stand.clearLinkData();
+        LoversLinkState state = LoversAddon.linkState(owner);
+        if (state.isActive()) {
+            UUID generation = stand.beginLink(state.targetUuid());
+            state.link(
+                    state.ownerUuid(),
+                    state.targetUuid(),
+                    stand.getUUID(),
+                    generation,
+                    state.dimension());
+            owner.syncData(LoversAddon.LINK_STATE);
+        }
     }
 
     private static boolean isAttachCandidate(

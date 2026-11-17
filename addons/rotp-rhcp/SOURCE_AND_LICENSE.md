@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-rhcp`, mod id `rotp_rhcp`, version `1.0.30`.
+- Module: `rotp-rhcp`, mod id `rotp_rhcp`, version `1.0.31`.
 - Original 1.16.5 add-on: `RotP-RHCP-Beta1.jar` (RotP Red Hot Chili Pepper Stand, mod id `rotp_rhcp`), by DanielGamer321, StandoByte; declared license: GNU GPL v3.0; SHA-256 `D4B871C68349C071AB20A5CFEB4604A6325EC727D4EC5A2C3E22665D0A3FA7BD`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-15); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

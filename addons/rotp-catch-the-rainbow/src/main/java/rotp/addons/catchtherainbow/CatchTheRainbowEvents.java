@@ -36,6 +36,9 @@ public final class CatchTheRainbowEvents {
         }
         CatchTheRainbowEntity controller =
                 CatchTheRainbowAddon.controller(player);
+        if (controller == null) {
+            controller = CatchTheRainbowEntity.recalled(player);
+        }
         // Merge now stays on through dry weather, so the block keeps to
         // the rain it was written for.
         if (controller != null
@@ -72,7 +75,14 @@ public final class CatchTheRainbowEvents {
         CatchTheRainbowEntity controller =
                 CatchTheRainbowAddon.controller(player);
         if (controller == null) {
-            CatchTheRainbowCleanup.onControllerMissing(player);
+            CatchTheRainbowEntity recalled =
+                    CatchTheRainbowEntity.recalled(player);
+            if (recalled != null) {
+                recalled.tickRecalled(player);
+            }
+            else {
+                CatchTheRainbowCleanup.onControllerMissing(player);
+            }
             return;
         }
         TempHealthAbility.adoptStandlessCut(player, controller);
@@ -90,6 +100,7 @@ public final class CatchTheRainbowEvents {
         if (event.getEntity() instanceof Player player) {
             CatchTheRainbowEntity controller =
                     CatchTheRainbowAddon.controller(player);
+            CatchTheRainbowEntity.forgetRecalled(player);
             CatchTheRainbowCleanup.clearTransientState(
                     player, controller);
         }
@@ -108,6 +119,7 @@ public final class CatchTheRainbowEvents {
         CatchTheRainbowEntity controller =
                 CatchTheRainbowAddon.controller(
                         event.getEntity());
+        CatchTheRainbowEntity.forgetRecalled(event.getEntity());
         CatchTheRainbowCleanup.onLogout(
                 event.getEntity(), controller);
     }
@@ -117,6 +129,7 @@ public final class CatchTheRainbowEvents {
         CatchTheRainbowEntity controller =
                 CatchTheRainbowAddon.controller(
                         event.getOriginal());
+        CatchTheRainbowEntity.forgetRecalled(event.getOriginal());
         CatchTheRainbowCleanup.clearTransientState(
                 event.getOriginal(), controller);
         CatchTheRainbowCleanup.clearTransientState(

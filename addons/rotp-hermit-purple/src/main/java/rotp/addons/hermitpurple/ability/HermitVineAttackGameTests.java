@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import com.google.gson.Gson;
@@ -26,11 +27,14 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundBundlePacket;
+import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.HumanoidArm;
@@ -41,6 +45,7 @@ import net.minecraft.world.entity.animal.Chicken;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RedstoneLampBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -61,6 +66,8 @@ import rotp.addons.hermitpurple.HermitPurpleSpec;
 import rotp.addons.hermitpurple.entity.HermitPurpleStandEntity;
 import rotp.addons.hermitpurple.entity.HermitVineProjectileEntity;
 import rotp.core.JojoModConfig;
+import rotp.core.api.time.EntityTimeRates;
+import rotp.core.init.ModStatusEffects;
 import rotp.core.network.s2c.StandEntitySoundPacket;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.controls.InputMethod;
@@ -79,6 +86,9 @@ public final class HermitVineAttackGameTests {
     private static final Gson JSON = new Gson();
     private static final double EPS = 1.0E-4D;
     private static final float WEAK_HIT = 1.0F;
+    private static final String OWNER_TIME_SLOW = "rotp_hp_lash_owner_time_slow";
+    private static final String OWNER_TIME_FAST = "rotp_hp_lash_owner_time_fast";
+    private static final AtomicBoolean OWNER_TIME_REGISTERED = new AtomicBoolean();
 
     private HermitVineAttackGameTests() {}
 
@@ -157,6 +167,137 @@ public final class HermitVineAttackGameTests {
         begin(helper, Case.ATTACK_SOUND);
     }
 
+    @GameTest(template = "empty", templateNamespace = "rotp_hp_lash", timeoutTicks = 40)
+    public static void lashAndBindingFollowTheirUsersClock(GameTestHelper helper) {
+        if (OWNER_TIME_REGISTERED.compareAndSet(false, true)) {
+            EntityTimeRates.register(HermitPurpleAddon.id("gametest_lash_owner_time"), (entity, channel) -> {
+                if (channel == EntityTimeRates.Channel.STAND_ACTIONS && entity instanceof FakePlayer) {
+                    if (entity.getTags().contains(OWNER_TIME_SLOW)) return 0.5F;
+                    if (entity.getTags().contains(OWNER_TIME_FAST)) return 3.0F;
+                }
+                if (channel == EntityTimeRates.Channel.ENTITY_TICK && entity instanceof HermitVineProjectileEntity
+                        && entity.getTags().contains(OWNER_TIME_FAST)) return 3.0F;
+                return EntityTimeRates.NO_RATE;
+            });
+        }
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        FakePlayer user = new FakePlayer(level, new GameProfile(UUID.randomUUID(), "HPLashClock"));
+        user.moveTo((origin.getX() & ~15) + 7.5D, origin.getY() + 212.0D,
+                (origin.getZ() & ~15) + 3.5D, 0.0F, 0.0F);
+        user.setNoGravity(true);
+        level.addNewPlayer(user);
+        StandPower power = PowerClass.STAND.attachGet(user);
+        try {
+            var type = HermitPurpleAddon.HERMIT_PURPLE.get();
+            power.setStand(type);
+            power.getStandInstance().orElseThrow().addPart(StandPart.ARMS);
+            helper.assertTrue(type.summon(user, power), "owner-time fixture could not summon Hermit Purple");
+            HermitPurpleStandEntity stand = HermitPurpleAddon.controller(user);
+            helper.assertTrue(stand != null && stand.getUser() == user, "owner-time fixture lost its controller");
+
+            ClockTrace normal = traceLashClock(helper, stand, user, null, false);
+            ClockTrace slow = traceLashClock(helper, stand, user, OWNER_TIME_SLOW, false);
+            ClockTrace fast = traceLashClock(helper, stand, user, OWNER_TIME_FAST, false);
+            helper.assertTrue(Math.abs(normal.distances().getFirst() - 0.8D) < EPS,
+                    "rate-1 lash did not take its donor step");
+            helper.assertTrue(Math.abs(slow.distances().getFirst() - 0.4D) < EPS,
+                    "owner_time_fractional_distance: a half-rate owner must advance the lash 0.4, got "
+                            + slow.distances().getFirst());
+            helper.assertTrue(normal.turn() == 5 && slow.turn() == 10 && fast.turn() == 2,
+                    "lashes did not turn at age five in owner time: " + normal.turn() + "/" + slow.turn() + "/" + fast.turn());
+            helper.assertTrue(Math.abs(slow.distances().get(9) - normal.distances().get(4)) < EPS,
+                    "half-rate lash did not reach the donor's full extension");
+            helper.assertTrue(fast.firstEntityTicks() == 3
+                            && Math.abs(fast.distances().getFirst() - normal.distances().get(2)) < EPS
+                            && Math.abs(fast.distances().get(1) - normal.distances().get(5)) < EPS,
+                    "Mode B must tick the lash three times but must not apply the owner's rate again: " + fast);
+            helper.assertTrue(normal.removal() == 11 && slow.removal() == 21 && fast.removal() == 4,
+                    "ordinary lash outlived its owner-time return: " + normal + "/" + slow + "/" + fast);
+
+            ClockTrace normalBind = traceLashClock(helper, stand, user, null, true);
+            ClockTrace slowBind = traceLashClock(helper, stand, user, OWNER_TIME_SLOW, true);
+            ClockTrace fastBind = traceLashClock(helper, stand, user, OWNER_TIME_FAST, true);
+            int attachedLifespan = HermitPurpleSpec.VINE_ATTACK_LIFETIME_TICKS
+                    + HermitPurpleSpec.VINE_BIND_EXTRA_LIFETIME_TICKS;
+            helper.assertTrue(normalBind.stun() == attachedLifespan - normalBind.attached()
+                            && slowBind.stun() == 2 * attachedLifespan - slowBind.attached()
+                            && fastBind.stun() >= attachedLifespan / 3 - fastBind.attached()
+                            && fastBind.stun() <= attachedLifespan / 3 - fastBind.attached() + 1,
+                    "binding STUN must use the remaining owner lifespan in server ticks: "
+                            + normalBind + "/" + slowBind + "/" + fastBind);
+            helper.assertTrue(normalBind.removal() == 16 && slowBind.removal() == 31 && fastBind.removal() == 6,
+                    "attached lash did not last 15 owner ticks: " + normalBind + "/" + slowBind + "/" + fastBind);
+            LogUtils.getLogger().info("R772_HP_OWNER_TIME_TRACE air={}/{}/{} bind={}/{}/{} stun={}/{}/{}",
+                    normal.removal(), slow.removal(), fast.removal(), normalBind.removal(), slowBind.removal(),
+                    fastBind.removal(), normalBind.stun(), slowBind.stun(), fastBind.stun());
+        }
+        finally {
+            try {
+                if (power.isSummoned()) power.getPowerType().forceUnsummon(user, power);
+            }
+            finally {
+                level.removePlayerImmediately(user, Entity.RemovalReason.DISCARDED);
+            }
+        }
+        LogUtils.getLogger().info("R650_HP_LASH_PASS owner_time");
+        helper.succeed();
+    }
+
+    private record ClockTrace(List<Double> distances, int firstEntityTicks, int turn, int attached, int stun, int removal) {}
+
+    private static ClockTrace traceLashClock(GameTestHelper helper, HermitPurpleStandEntity stand, FakePlayer user,
+            String rateTag, boolean binding) {
+        ServerLevel level = helper.getLevel();
+        HermitVineProjectileEntity vine = new HermitVineProjectileEntity(stand, level);
+        Villager target = null;
+        try {
+            if (rateTag != null) {
+                user.addTag(rateTag);
+                vine.addTag(rateTag);
+            }
+            vine.setBinding(binding);
+            vine.setShootingPosOf(user);
+            vine.shootFromRotation(user, HermitPurpleSpec.VINE_ATTACK_VELOCITY, 0.0F);
+            vine.initializeLashFrame(0.0F, 0.0F);
+            Vec3 muzzle = vine.position();
+            if (binding) {
+                target = EntityType.VILLAGER.create(level);
+                helper.assertTrue(target != null, "owner-time fixture could not create a binding target");
+                target.moveTo(muzzle.x, user.getY(), muzzle.z + 3.0D, 0.0F, 0.0F);
+                // The fixture never ticks this target; NoAI would make it immune to STUN.
+                target.setNoGravity(true);
+                helper.assertTrue(level.addFreshEntity(target), "owner-time fixture could not add the binding target");
+            }
+            helper.assertTrue(level.addFreshEntity(vine), "owner-time fixture could not add the lash");
+            List<Double> distances = new ArrayList<>();
+            int turn = 0, firstEntityTicks = 0, attached = 0, stun = 0;
+            for (int tick = 1; tick <= 36; ++tick) {
+                level.tickNonPassenger(vine);
+                if (tick == 1) firstEntityTicks = vine.tickCount;
+                if (vine.isRemoved()) {
+                    helper.assertTrue(!binding || attached > 0 && target.getHealth() < target.getMaxHealth(),
+                            "binding lash expired without catching and hurting its target at " + rateTag);
+                    return new ClockTrace(distances, firstEntityTicks, turn, attached, stun, tick);
+                }
+                distances.add(vine.getZ() - muzzle.z);
+                if (turn == 0 && vine.isRetracting()) turn = tick;
+                if (target != null && vine.getEntityAttachedTo() == target && attached == 0) {
+                    attached = tick;
+                    MobEffectInstance effect = target.getEffect(ModStatusEffects.STUN);
+                    helper.assertTrue(effect != null, "binding lash attached without applying STUN at " + rateTag);
+                    stun = effect.getDuration();
+                }
+            }
+            throw new IllegalStateException("owner-time lash did not expire at " + rateTag);
+        }
+        finally {
+            if (!vine.isRemoved()) vine.discard();
+            if (target != null && !target.isRemoved()) target.discard();
+            if (rateTag != null) user.removeTag(rateTag);
+        }
+    }
+
     private enum Case {
         STATIONARY("stationary", 12.0D, false, false),
         OWNER_MOTION("owner_motion", 22.0D, false, true),
@@ -217,6 +358,20 @@ public final class HermitVineAttackGameTests {
 
     // StandUtil.playStandEntitySound fires no server event: it only sends a packet to the players tracking the
     // Stand. The fake user reads the packets sent to it.
+    private static void markSentAround(SentPackets packets, ServerPlayer viewer) {
+        ChunkPos center = viewer.chunkPosition();
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                packets.chunkSender.dropChunk(viewer, new ChunkPos(center.x + dx, center.z + dz));
+            }
+        }
+    }
+
+    private static boolean tracks(ServerPlayer viewer, Entity entity) {
+        ChunkMap.TrackedEntity tracked = ((ServerLevel) entity.level()).getChunkSource().chunkMap.entityMap.get(entity.getId());
+        return tracked != null && tracked.seenBy.contains(viewer.connection);
+    }
+
     private static final class SentPackets extends ServerGamePacketListenerImpl {
         final Fixture fixture;
 
@@ -319,8 +474,9 @@ public final class HermitVineAttackGameTests {
             facePlayer(0.0F);
             if (kind.readsSounds()) sentPackets = new SentPackets(this, player);
             level.addNewPlayer(player);
-            // the user's own chunk counts as sent, so the user tracks the Stand summoned into it
-            if (sentPackets != null) sentPackets.chunkSender.dropChunk(player, player.chunkPosition());
+            // the 3x3 chunks around the user count as sent: the Stand is summoned beside him, in the next chunk when he
+            // stands within a block of a border (the same marking as the core's GameTestChunkSending, which is package-private)
+            if (sentPackets != null) markSentAround(sentPackets, player);
             helper.assertTrue(level.isPositionEntityTicking(player.blockPosition()),
                     "Lash owner is outside an entity-ticking chunk");
             power = PowerClass.STAND.attachGet(player);
@@ -332,6 +488,9 @@ public final class HermitVineAttackGameTests {
                     "Normal Hermit summon failed");
             stand = HermitPurpleAddon.controller(player);
             helper.assertTrue(stand != null, "Normal summon produced no Hermit controller");
+            helper.assertTrue(sentPackets == null || tracks(player, stand),
+                    "Fixture: " + player.getGameProfile().getName() + " does not track the Stand at " + stand.position()
+                            + ", the user at " + player.position() + ", so none of its packets can reach him");
             helper.assertTrue(sentPackets == null || spawnsSent.contains(stand.getId()),
                     "Fixture: the fake user does not track its Stand, so the Stand's sounds cannot be read");
             later(stand.summonLockTicks + 2, this::click);
@@ -356,9 +515,14 @@ public final class HermitVineAttackGameTests {
             NeoForge.EVENT_BUS.addListener(damageListener);
             firedAt = level.getGameTime();
             finisherBefore = stand.getFinisherMeter();
+            helper.assertTrue(!player.swinging, "Fixture: the user swings before the press");
             BufferingState buffering = BufferingState.clickOnly();
             ability.onKeyPress(level, player, null, InputMethod.CLICK, 0.0F, buffering);
             helper.assertTrue(buffering.isActionSuccess, "Registered server CLICK was not accepted");
+            // Donor InitStands: both vine attacks swingHand(), no hold (InputHandler.actionSwingsHand).
+            helper.assertTrue(player.swinging && player.swingingArm == InteractionHand.MAIN_HAND,
+                    "1.16 swung the user's main arm on the press that went off; swinging=" + player.swinging
+                            + " arm=" + player.swingingArm);
             LogUtils.getLogger().info("R650_HP_LASH_INPUT case={} world={} player={} controller={}",
                     name, firedAt, player.getUUID(), stand.getUUID());
             later(1, this::monitor);

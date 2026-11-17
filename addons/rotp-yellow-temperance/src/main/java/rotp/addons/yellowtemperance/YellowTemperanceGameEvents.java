@@ -10,6 +10,7 @@ import rotp.addons.yellowtemperance.ability.YellowTemperanceBlockAbility;
 import rotp.addons.yellowtemperance.disguise.DisguiseMode;
 import rotp.addons.yellowtemperance.disguise.DisguiseRetaliationService;
 import rotp.addons.yellowtemperance.disguise.DisguiseScaleService;
+import rotp.addons.yellowtemperance.disguise.YellowTemperanceDisguiseState;
 import rotp.addons.yellowtemperance.effect.ErosionService;
 import rotp.addons.yellowtemperance.entity.YellowTemperanceControllerEntity;
 import net.minecraft.core.UUIDUtil;
@@ -61,17 +62,23 @@ public final class YellowTemperanceGameEvents {
             ErosionService.tick(living);
         }
         // 1.16 YellowTemperanceEntity.tick :39-48 added it while the Stand
-        // was out, the guard too: the higher level won; during the unsummon
-        // the controller's own tick takes it off (:44-46)
+        // was out, the guard too: the higher level won. The owner's rule of
+        // 2026-11-06 keeps it on with the Stand recalled.
         YellowTemperanceControllerEntity controller =
                 YellowTemperanceAddon.controller(living);
-        if (controller == null) {
+        boolean standOut = controller != null
+                && controller.level() == living.level();
+        YellowTemperanceDisguiseState state =
+                YellowTemperanceDisguiseState.of(living);
+        if (!standOut && state.isEmpty()) {
             return;
         }
-        if (controller.isUnsummoning()) {
+        if (!living.isAlive()
+                || !YellowTemperanceAddon.holdsYellowTemperance(living)) {
+            YellowTemperanceDisguiseState.end(living);
             return;
         }
-        if (living.tickCount % 2 != 0) {
+        if (!standOut && !state.protection()) {
             return;
         }
         int amplifier = 2;
@@ -84,6 +91,17 @@ public final class YellowTemperanceGameEvents {
                             : food > 5
                                     ? 1
                                     : food > 0 ? 0 : -1;
+        }
+        if (state.protection() != amplifier >= 0) {
+            YellowTemperanceDisguiseState.put(
+                    living, state.withProtection(amplifier >= 0));
+            // Its own rule: with no food the Protection is gone, and only a Stand out brings it back.
+            if (amplifier < 0) {
+                living.removeEffect(YellowTemperanceAddon.PROTECTION);
+            }
+        }
+        if (living.tickCount % 2 != 0) {
+            return;
         }
         if (amplifier >= 0) {
             living.addEffect(
@@ -116,7 +134,9 @@ public final class YellowTemperanceGameEvents {
     public static void onIncomingDamage(
             LivingIncomingDamageEvent event) {
         LivingEntity target = event.getEntity();
-        if (YellowTemperanceAddon.controller(target) != null
+        if ((YellowTemperanceAddon.controller(target) != null
+                        || YellowTemperanceDisguiseState.of(target)
+                                .protection())
                 && event.getSource().is(
                         ModDamageTypes.ULTRAVIOLET)) {
             event.setCanceled(true);
@@ -143,15 +163,13 @@ public final class YellowTemperanceGameEvents {
         }
         LivingEntity attacker = resolveLiving(
                 event.getSource().getEntity());
-        if (attacker instanceof Player player) {
-            YellowTemperanceControllerEntity controller =
-                    YellowTemperanceAddon.controller(player);
-            if (controller != null && controller.isDisguised()) {
-                DisguiseRetaliationService.mark(
-                        mob,
-                        player,
-                        target.level().getGameTime());
-            }
+        if (attacker instanceof Player player
+                && YellowTemperanceDisguiseState.of(player)
+                        .isDisguised()) {
+            DisguiseRetaliationService.mark(
+                    mob,
+                    player,
+                    target.level().getGameTime());
         }
     }
 
@@ -163,10 +181,7 @@ public final class YellowTemperanceGameEvents {
                         instanceof Player player)) {
             return;
         }
-        YellowTemperanceControllerEntity controller =
-                YellowTemperanceAddon.controller(player);
-        if (controller != null
-                && controller.isDisguised()
+        if (YellowTemperanceDisguiseState.of(player).isDisguised()
                 && !DisguiseRetaliationService.canRetaliate(
                         mob,
                         player,
@@ -197,10 +212,7 @@ public final class YellowTemperanceGameEvents {
         if (living.hasEffect(YellowTemperanceAddon.EROSION)) {
             ErosionService.remove(living);
         }
-        DisguiseScaleService.reset(living);
-        if (living instanceof Player player) {
-            DisguiseRetaliationService.clear(player);
-        }
+        YellowTemperanceDisguiseState.end(living);
     }
 
     @SubscribeEvent
@@ -216,9 +228,19 @@ public final class YellowTemperanceGameEvents {
             PlayerEvent.PlayerLoggedOutEvent event) {
         Player player = event.getEntity();
         ErosionService.clearOwned(player);
-        DisguiseScaleService.reset(player);
-        DisguiseRetaliationService.clear(player);
-        player.removeEffect(YellowTemperanceAddon.PROTECTION);
+        YellowTemperanceDisguiseState.end(player);
+    }
+
+    @SubscribeEvent
+    public static void onChangedDimension(
+            PlayerEvent.PlayerChangedDimensionEvent event) {
+        YellowTemperanceDisguiseState.end(event.getEntity());
+    }
+
+    @SubscribeEvent
+    public static void onPlayerClone(PlayerEvent.Clone event) {
+        YellowTemperanceDisguiseState.end(event.getOriginal());
+        YellowTemperanceDisguiseState.end(event.getEntity());
     }
 
     // 1.16 ChatEventHandler: a player disguise sends chat under the impersonated name.
@@ -228,17 +250,16 @@ public final class YellowTemperanceGameEvents {
         if (player.level().isClientSide()) {
             return;
         }
-        YellowTemperanceControllerEntity controller =
-                YellowTemperanceAddon.controller(player);
-        if (controller == null
-                || controller.getDisguiseMode() != DisguiseMode.PLAYER) {
+        YellowTemperanceDisguiseState state =
+                YellowTemperanceDisguiseState.of(player);
+        if (state.mode() != DisguiseMode.PLAYER) {
             return;
         }
-        String name = controller.getDisguisePlayerName();
+        String name = state.playerName();
         if (name == null || name.isBlank()) {
             return;
         }
-        event.setDisplayname(disguiseDisplayName(name, controller.getDisguisePlayer()));
+        event.setDisplayname(disguiseDisplayName(name, state.playerId()));
     }
 
     // Same click, hover and insertion the impersonated player's own name carries,

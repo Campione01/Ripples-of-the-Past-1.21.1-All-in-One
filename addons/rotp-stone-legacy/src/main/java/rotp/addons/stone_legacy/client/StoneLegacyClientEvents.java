@@ -1,5 +1,6 @@
 package rotp.addons.stone_legacy.client;
 
+import rotp.core.client.render.armor.StoneMaskArmorClientExtensions;
 import rotp.core.item.StoneMaskItem;
 
 import rotp.addons.stone_legacy.StoneLegacyAddon;
@@ -12,6 +13,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 
 @EventBusSubscriber(
         modid = StoneLegacyAddon.MOD_ID,
@@ -19,6 +21,17 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
         bus = EventBusSubscriber.Bus.MOD)
 public final class StoneLegacyClientEvents {
     private StoneLegacyClientEvents() {}
+
+    // Without it the mask's texture is drawn on the vanilla helmet model, as a thin strip beside the head.
+    @SubscribeEvent
+    public static void registerClientExtensions(
+            RegisterClientExtensionsEvent event) {
+        event.registerItem(
+                new StoneMaskArmorClientExtensions(),
+                StoneLegacyAddon.PREDICTED_HEAT_MASK,
+                StoneLegacyAddon.PREDICTED_LIGHT_MASK,
+                StoneLegacyAddon.PREDICTED_WIND_MASK);
+    }
 
     @SubscribeEvent
     public static void clientSetup(

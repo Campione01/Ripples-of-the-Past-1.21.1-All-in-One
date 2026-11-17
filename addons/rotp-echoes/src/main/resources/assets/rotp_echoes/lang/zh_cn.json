@@ -1,6 +1,9 @@
 {
   "stand.rotp_echoes.echoes_act3": "回音ACT3",
   "rotp_echoes.ability.punch": "拳击",
+  "rotp_echoes.ability.punch2": "拳击",
+  "rotp_echoes.ability.punch3": "拳击",
+  "rotp_echoes.ability.punch4": "拳击",
   "rotp_echoes.ability.barrage": "连打",
   "rotp_echoes.ability.heavy_punch": "重拳",
   "rotp_echoes.ability.heavy_charged": "蓄力重拳",
@@ -24,6 +27,9 @@
   "rotp_echoes.ability.degrade_to_act2": "退化",
   "rotp_echoes.ability.hand_freeze": "手部Freeze",
   "rotp_echoes.ability.act2_punch": "轻击",
+  "rotp_echoes.ability.act2_punch2": "轻击",
+  "rotp_echoes.ability.act2_punch3": "轻击",
+  "rotp_echoes.ability.act2_punch4": "轻击",
   "rotp_echoes.ability.act2_heavy_punch": "重击",
   "rotp_echoes.ability.act2_finisher": "终结技",
   "rotp_echoes.ability.act1_finisher": "音效赋予拳",
@@ -38,7 +44,7 @@
   "rotp_echoes.tooltip.gravity_infused": "被重力附体",
   "rotp_echoes.tooltip.gravity_infused.desc": "拿着它会被重力压制",
   "stand.rotp_echoes.echoes_act0": "回音ACT0",
-  "entity.rotp_echoes.echoes_act0": "『回音ACT0』",
+  "entity.rotp_echoes.echoes_act0": "回音ACT0",
   "rotp_echoes.ability.select_act": "切换形态",
   "rotp_echoes.gui.act1": "ACT1",
   "rotp_echoes.gui.act2": "ACT2",
@@ -231,5 +237,11 @@
   "rotp_echoes.chat.skill.9": "S.H.I.T. 走你！",
   "rotp_echoes.chat.skill.10": "S.H.I.T. 上！",
   "rotp_echoes.chat.skill.11": "S.H.I.T. 给我动！",
-  "rotp_echoes.chat.skill.12": "S.H.I.T. 别动！"
+  "rotp_echoes.chat.skill.12": "S.H.I.T. 别动！",
+  "rotp_echoes.message.need_onomatopoeia": "请先选择拟声词",
+  "rotp_echoes.message.needle_already_fired": "尾针已发射，需先收回",
+  "rotp_echoes.message.need_held_item": "你需要主手或副手持有物品",
+  "rotp_echoes.message.need_gravity_item": "你需要主手或副手持有重力物品",
+  "rotp_echoes.message.need_own_gravity_item": "你需要在主手或副手上持有一个被自己重力附魔了的物品",
+  "rotp_echoes.message.need_freeze_target": "请瞄准一个实体！"
 }

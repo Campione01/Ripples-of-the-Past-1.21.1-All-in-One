@@ -2,10 +2,13 @@ package rotp.addons.highwaystar.ability;
 
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
+import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
@@ -27,11 +30,22 @@ import net.minecraft.world.phys.Vec3;
 public final class HighwayStarSeizeAbility extends StandEntityHeavyPunchAbility {
     public static final float STAMINA_COST = 20.0F;
     private static final double RANGE = 5.0;
+    // Fitted to the Stand's own clip, whose lunge is at full stretch at 0.29 s of its 0.33. A heavy punch's lengths at this
+    // Stand's speed, 17 and 12 ticks, left the clip's last frame standing for over a second (a player's report).
+    public static final int WINDUP_TICKS = 5;
+    public static final int RECOVERY_TICKS = 4;
 
     public HighwayStarSeizeAbility(AbilityType<?> abilityType, AbilityId abilityId) {
         super(abilityType, abilityId);
         // 1.16 .cooldown(60, 0): technical only
         cooldown(60, 0);
+    }
+
+    @Override
+    public void initActionFromConfig(EntityActionInstance action, Level level, LivingEntity powerUser, LivingEntity performer) {
+        super.initActionFromConfig(action, level, powerUser, performer);
+        action.phasesLength.put(ActionPhase.WINDUP, WINDUP_TICKS);
+        action.phasesLength.put(ActionPhase.RECOVERY, RECOVERY_TICKS);
     }
 
     @Override
@@ -42,6 +56,13 @@ public final class HighwayStarSeizeAbility extends StandEntityHeavyPunchAbility 
     public static final class SeizeAction extends StandEntityHeavyPunch {
         public SeizeAction(EntityActionType ability) {
             super(ability);
+        }
+
+        // The heavy punch sets its recovery again here, from the finisher it takes.
+        @Override
+        public void onActionSet(@Nullable EntityActionInstance prevAction) {
+            super.onActionSet(prevAction);
+            phasesLength.put(ActionPhase.RECOVERY, RECOVERY_TICKS);
         }
 
         @Override

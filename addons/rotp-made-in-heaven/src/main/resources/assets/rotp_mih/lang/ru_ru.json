@@ -24,6 +24,7 @@
   "rotp_mih.config.client.enableNewTSIcons.tooltip": "Использовать новые значки часов для «Ускорить» и «Очистить» системы времени.",
   "rotp_mih.configuration.section.rotp.mih.server.toml": "Настройки сервера",
   "rotp_mih.configuration.section.rotp.mih.server.toml.title": "Настройки сервера Made in Heaven",
+  "rotp_mih.configuration.timeAcceleration": "Ускорение времени",
   "rotp_mih.config.server.timeAcceleration": "Ускорение времени",
   "rotp_mih.config.server.timeAcceleration.tooltip": "Как работает ускорение времени Made in Heaven на этом сервере.",
   "rotp_mih.config.server.accelerationMode": "Режим ускорения",

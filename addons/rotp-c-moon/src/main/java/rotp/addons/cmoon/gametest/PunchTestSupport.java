@@ -729,7 +729,7 @@ final class PunchTestSupport {
             suite.check(recovery != null && near(recovery.length, initialR), "charged original RECOVERY cache retained");
             suite.check(initialR == 12, "charged default recovery12, not light formula");
             suite.check(hurtCalls == 1 && hurtResult, "charged one delegated real hurttrue");
-            suite.check(near(passedAmount, StandStatFormulas.getChargedHeavyAttackDamage(caster.stand.getAttackDamage())), "charged SDK source strength0 damage1.5 retained");
+            suite.check(near(passedAmount, StandStatFormulas.getChargedHeavyAttackDamage(caster.stand.getAttackDamage(), caster.stand.getAttackSpeed(), caster.stand.getPrecision())), "charged SDK source strength0, over a second of barrage");
             suite.check(near(sourceAdd, 2.5) && near(sourceMultiply, 1), "charged native source metadata retained");
             suite.check(nativePulses.size() == 1 && pulses.size() == 1, "charged native-only push, no CM counter tail");
             suite.check(near(initialStamina - caster.power.getStamina(), 100), "charged actual natural100 debit retained");

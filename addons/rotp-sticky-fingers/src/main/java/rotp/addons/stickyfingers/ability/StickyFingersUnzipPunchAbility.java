@@ -17,6 +17,7 @@ import rotp.addons.stickyfingers.StickyFingersAddon;
 import rotp.addons.stickyfingers.StickyFingersPhase1Spec;
 import rotp.addons.stickyfingers.state.DetachedPartTargeting;
 import rotp.addons.stickyfingers.state.DetachedPartType;
+import rotp.addons.stickyfingers.state.RecallSign;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -49,6 +50,12 @@ public final class StickyFingersUnzipPunchAbility
         if (!level.isClientSide() && standUser != null) {
             sayShout(standUser, StickyFingersAddon.BRUNO_FINISHER);
         }
+    }
+
+    // the parts it took off go on with the Stand recalled: the HUD lights the slot while the user has some off
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        return RecallSign.has(user, RecallSign.PARTS);
     }
 
     public static final class UnzipPunchAction

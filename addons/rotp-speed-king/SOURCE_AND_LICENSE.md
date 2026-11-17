@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-speed-king`, mod id `speedking`, version `1.0-port.20`.
+- Module: `rotp-speed-king`, mod id `speedking`, version `1.0-port.21`.
 - Original 1.16.5 add-on: `RotP-speedking-1.0.jar` (速度之王, mod id `speedking`), by 1adolf1(B站超级气球真理部_official); declared license: GNU GPL v3.0; SHA-256 `2C7926A44071483156186E73E1C35C512BEAFB2FAD955618490348273A42F229`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -61,7 +61,13 @@ The idle loop, the three summon poses and the guard are clips converted from
 the donor `ExampleStandModel` (`initIdlePose`, `initIdlePose2Loop`,
 `initSummonPoseRotations`) and the 1.16 `HumanoidStandModel` guard pose, and
 the melee clips end on the donor idle and keep its legs, as 1.16 laid the idle
-under every move and returned to it. As in 1.16 the idle loop also eases the
-look itself, so the head nods to twice the look every 4 s. The heat moves and
-the pickaxe throw keep their Java arm poses (`SpeedKingModel`), which also gives
-this rig, whose bones keep the 1.16 names, the 1.16 motion tilt.
+under every move and returned to it. Not from the donor: 1.16's idle loop also
+eased the look itself, so the head nodded to twice the look every 4 s; here the
+head stays on the look. The heat moves and the pickaxe throw keep their Java arm
+poses (`SpeedKingModel`), which also gives this rig, whose bones keep the 1.16
+names, the 1.16 motion tilt.
+
+The skin's rig adds `leftArmXRot` and `rightArmXRot` above the arms, as the donor
+rig has for its legs, so the barrage's arms follow the look's pitch as 1.16's
+`armsRotationFull` did: `migration/arm_xrot_rig.py`, to be run after
+`migration/update-from-donor.ps1`. The module's own geo stays the donor's bytes.

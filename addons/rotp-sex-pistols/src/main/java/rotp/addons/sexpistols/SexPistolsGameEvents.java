@@ -10,13 +10,10 @@ import rotp.addons.sexpistols.content.sexpistols.SexPistolsCoordinator;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsDebugCommand;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsEntity;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsProjectileRedirector;
-import rotp.addons.sexpistols.config.SexPistolsConfig;
 import rotp.addons.sexpistols.network.SexPistolsConfigSync;
 import rotp.addons.sexpistols.registry.SexPistolsAttachments;
 import rotp.addons.sexpistols.registry.SexPistolsStands;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -31,7 +28,6 @@ import net.neoforged.neoforge.event.entity.item.ItemTossEvent;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
-import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
@@ -145,25 +141,6 @@ public final class SexPistolsGameEvents {
                     target,
                     damage * (multiplier - 1.0F));
         }
-    }
-
-    // Next Album 0.1.13 revolver melee: the gun's melee damage times the
-    // meleeDamageMultiplier config; the port keeps the vanilla attack, whose
-    // bare hit is 1 damage.
-    @SubscribeEvent
-    public static void onRevolverMelee(
-            LivingIncomingDamageEvent event) {
-        DamageSource source = event.getSource();
-        if (!(source.getDirectEntity() instanceof Player player)
-                || source.getEntity() != player
-                || !source.is(DamageTypes.PLAYER_ATTACK)
-                || !(player.getMainHandItem().getItem()
-                        instanceof RevolverItem revolver)) {
-            return;
-        }
-        event.setAmount((float) (event.getAmount()
-                * revolver.stats().meleeDamage()
-                * SexPistolsConfig.meleeDamageMultiplier()));
     }
 
     @SubscribeEvent

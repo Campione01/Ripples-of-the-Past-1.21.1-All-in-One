@@ -8,6 +8,8 @@ public final class EchoesGravityField {
     public static final double PINNED_VERTICAL = -0.1D;
     public static final double WATER_HORIZONTAL = 0.1D;
     public static final double WATER_VERTICAL = -0.8D;
+    // the author's GravityItemEvents.onPlayerTickEffect: pushDownToGround(player, 0.08), in the air
+    public static final double CARRIER_AIR_PRESS = 0.08D;
     // 092 GravityItemEvents pressure: range and period
     public static final double PRESSURE_RANGE = 3.0D;
     public static final long PRESSURE_PERIOD = 20L;
@@ -45,9 +47,10 @@ public final class EchoesGravityField {
         return Math.max(0.2D, 1.0D - count * 0.15D);
     }
 
-    // Carrier motion; in water the carrier sinks instead
+    // Carrier motion; in water the carrier sinks instead. The author's drag leaves the fall alone, and adds to it: the
+    // 1.16 drag on all three axes made a heavy item's carrier fall slower.
     public static double[] carrierMotion(
-            double x, double y, double z, int count, boolean inWater) {
+            double x, double y, double z, int count, boolean inWater, boolean onGround) {
         if (inWater) {
             return new double[] {
                     x * WATER_HORIZONTAL,
@@ -55,6 +58,6 @@ public final class EchoesGravityField {
                     z * WATER_HORIZONTAL};
         }
         double multiplier = carrierMultiplier(count);
-        return new double[] {x * multiplier, y * multiplier, z * multiplier};
+        return new double[] {x * multiplier, onGround ? y : y - CARRIER_AIR_PRESS, z * multiplier};
     }
 }

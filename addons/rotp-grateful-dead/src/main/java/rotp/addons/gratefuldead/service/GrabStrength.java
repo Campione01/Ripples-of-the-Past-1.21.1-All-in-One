@@ -1,5 +1,6 @@
 package rotp.addons.gratefuldead.service;
 
+import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -27,7 +28,8 @@ public final class GrabStrength {
     // StandStats power of The Grateful Dead (GratefulDeadAddon.createStand)
     public static final float GRAB_POWER = 10.0F;
     public static final float MIN_RESIST = 4.0F;
-    private static final Map<StandEntity, LivingEntity> ALLOWED = new WeakHashMap<>();
+    // The held entity weakly: through its level it reaches the Stand, the key, which a strong value would never let go.
+    private static final Map<StandEntity, WeakReference<LivingEntity>> ALLOWED = new WeakHashMap<>();
 
     private GrabStrength() {}
 
@@ -37,12 +39,12 @@ public final class GrabStrength {
             ALLOWED.remove(stand);
             return;
         }
-        if (ALLOWED.get(stand) == held) {
+        if (allowed(stand) == held) {
             return;
         }
         LivingEntity user = stand.getUser();
         if (user == null || !tooStrong(user, held)) {
-            ALLOWED.put(stand, held);
+            ALLOWED.put(stand, new WeakReference<>(held));
             return;
         }
         LivingComponentGrab grab = stand.getData(ModDataAttachmentTypes.LIVING_GRAB.get());
@@ -99,5 +101,24 @@ public final class GrabStrength {
             return base;
         }
         return base * (float) LivingAgingState.strengthEfficiency(state.progress());
+    }
+
+    private static LivingEntity allowed(StandEntity stand) {
+        WeakReference<LivingEntity> held = ALLOWED.get(stand);
+        return held != null ? held.get() : null;
+    }
+
+    /** The session's grabs, forgotten when its server has stopped. */
+    public static void forgetSession() {
+        ALLOWED.clear();
+    }
+
+    // For the game tests.
+    public static void allowForTests(StandEntity stand, LivingEntity held) {
+        ALLOWED.put(stand, new WeakReference<>(held));
+    }
+
+    public static boolean hasAllowedForTests(StandEntity stand) {
+        return ALLOWED.containsKey(stand);
     }
 }

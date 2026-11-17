@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-bad-company`, mod id `rotp_zbc`, version `1.0.8-port.18`.
+- Module: `rotp-bad-company`, mod id `rotp_zbc`, version `1.0.8-port.19`.
 - Original 1.16.5 add-on: `RotP-极恶中队-1.0.8.jar` (RotP 极恶中队, mod id `rotp_zbc`), by Makuta Zeml, StandoByte; declared license: GNU GPL v3.0; SHA-256 `27FCCC637B082095581F20CAD8652F54718B0DE7EC859F42CC7DFC9E219F81D6`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

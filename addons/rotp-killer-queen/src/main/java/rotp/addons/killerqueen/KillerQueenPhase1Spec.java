@@ -8,10 +8,10 @@ public final class KillerQueenPhase1Spec {
     public static final String DECOMPILE_TREE_SHA256 =
             "F9EFD448B7CC914372ABE64D44AE6E6589AE221EA040D58FF64E831984737541";
 
-    public static final double POWER = 15.0D;
+    public static final double POWER = 16.0D;
     public static final double SPEED = 14.0D;
-    public static final double EFFECTIVE_RANGE = 3.0D;
-    public static final double MAX_RANGE = 8.0D;
+    public static final double EFFECTIVE_RANGE = 1.0D;
+    public static final double MAX_RANGE = 2.0D;
     public static final double DURABILITY = 12.0D;
     public static final double PRECISION = 12.0D;
     public static final float ENTITY_WIDTH = 0.65F;
@@ -24,6 +24,7 @@ public final class KillerQueenPhase1Spec {
     public static final float PRIMARY_BOMB_DETONATE_STAMINA = 250.0F;
     public static final float PRIMARY_BOMB_CLEAR_STAMINA = 50.0F;
     public static final float ITEM_BOMB_DETONATE_STAMINA = 20.0F;
+    public static final double BLOCK_BOMB_MARK_RANGE = 8.0D;
     public static final double BLOCK_BOMB_RANGE = 50.0D;
     public static final float BLOCK_BOMB_MARK_STAMINA = 75.0F;
     public static final float BLOCK_BOMB_DETONATE_STAMINA = 125.0F;

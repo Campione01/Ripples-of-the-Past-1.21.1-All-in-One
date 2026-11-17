@@ -9,6 +9,7 @@ import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
+import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget.TargetType;
 import rotp.core.util.functions.ItemUtil;
 
@@ -99,13 +100,35 @@ public final class DiscProjectile extends ModdedProjectileEntity {
     public void tick() {
         LivingEntity owner = getOwner();
         if (!level().isClientSide()
-                && (tickCount > ticksLifespan()
-                        || owner != null && !owner.isAlive())) {
+                && (tickCount > ticksLifespan() || ownerIsGone(owner))) {
             dropPayload();
             discard();
             return;
         }
         super.tick();
+    }
+
+    @Override
+    protected boolean shouldExpire(@Nullable Entity owner) {
+        return tickCount > ticksLifespan()
+                || owner instanceof LivingEntity living && ownerIsGone(living);
+    }
+
+    // A disc in flight goes on through its Stand's recall (owner's rule of 2026-11-05), and ends with its user.
+    private static boolean ownerIsGone(@Nullable LivingEntity owner) {
+        if (owner == null || owner.isAlive()) {
+            return false;
+        }
+        LivingEntity user = owner instanceof StandEntity stand
+                ? stand.getUser()
+                : null;
+        if (user == null || !user.isAlive() || user.isRemoved() || user.level() != owner.level()) {
+            return true;
+        }
+        StandPower power = StandPower.get(user);
+        return power == null
+                || !power.hasPower()
+                || power.getPowerType() != WhitesnakeAddon.WHITESNAKE.get();
     }
 
     @Override

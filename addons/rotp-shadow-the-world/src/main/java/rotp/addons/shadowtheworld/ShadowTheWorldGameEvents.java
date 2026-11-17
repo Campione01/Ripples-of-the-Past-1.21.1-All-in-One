@@ -240,7 +240,10 @@ public final class ShadowTheWorldGameEvents {
     @SubscribeEvent
     public static void onTimeStopAdded(
             TimeStopLifecycleEvent.Added event) {
+        // 1.16 TimeStop.perform: the stop sound only for 40 ticks or more, so
+        // a double press's short stop has only its blink sound (the core's).
         if (!isShadowTimeStop(event)
+                || event.getInstance().totalTicks() < 40
                 || !(event.getLevel().getEntity(
                                 event.getInstance().userId())
                         instanceof LivingEntity user)) {

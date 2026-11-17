@@ -73,14 +73,14 @@
   "rotp_zkq.subtitle.bites_reversal_short": "Bites the Dust reverses",
   "rotp_zkq.subtitle.user_bites_za_dust": "\"Bites the Dust!\"",
   "jojo.message.action_condition.killer_queen_btd_requires_stand_arrow": "Bites the Dust requires a Stand Arrow",
-  "rotp_zkq.ability.bite_the_dust": "Bite the Dust",
+  "rotp_zkq.ability.bite_the_dust": "Bites the Dust",
   "rotp_zkq.ability.bite_the_dust.desc": "Place Bites the Dust inside another player. Your stand is locked and your stamina drains while it is inside. If you die, time loops back and the carrier has as many ticks as BTD lasted to kill you.",
-  "jojo.message.action_condition.btd_stand_locked": "Your stand is inside a Bite the Dust carrier",
-  "jojo.message.action_condition.btd_already_active": "Bite the Dust is already active",
-  "jojo.message.action_condition.btd_invalid_target": "Bite the Dust can only be placed in another living player",
+  "jojo.message.action_condition.btd_stand_locked": "Your stand is inside a Bites the Dust carrier",
+  "jojo.message.action_condition.btd_already_active": "Bites the Dust is already active",
+  "jojo.message.action_condition.btd_invalid_target": "Bites the Dust can only be placed in another living player",
   "jojo.message.action_condition.btd_other_dimension": "The target is in another dimension",
   "jojo.message.action_condition.btd_too_far": "The target is too far away",
-  "jojo.message.action_condition.btd_target_busy": "This player already carries a Bite the Dust",
+  "jojo.message.action_condition.btd_target_busy": "This player already carries a Bites the Dust",
   "rotp_zkq.btd.title": "",
-  "death.attack.rotp_zkq.bite_the_dust": "%1$s died because of Bite the Dust"
+  "death.attack.rotp_zkq.bite_the_dust": "%1$s died because of Bites the Dust"
 }

@@ -30,7 +30,11 @@ public final class EchoesAct1Stand {
     public static EntityStandType create(ResourceLocation id) {
         MovesetBuilder moveset = new MovesetBuilder()
                 .addHumanoidStandStuff()
+                // his 1.21.1 AddonStands: four punches, in the order of his clips punch to punch4, the core's light combo
                 .addAbility("punch", ModStandAbilities.PUNCH)
+                .addAbility("punch2", ModStandAbilities.PUNCH)
+                .addAbility("punch3", ModStandAbilities.PUNCH)
+                .addAbility("punch4", ModStandAbilities.PUNCH)
                 // master InitStands 95-109: heavy_attack at the PERFORM (1.16 standSound) of the heavy and of its
                 // finisher variation, which opens at Resolve 2 and takes the heavy's key at a finisher meter of 0.5
                 .addAbility("heavy_punch", ModStandAbilities.HEAVY_PUNCH,
@@ -109,7 +113,7 @@ public final class EchoesAct1Stand {
                 .standControlType(StandControlType.LONG_DISTANCE_OPERATION)
                 .manualControl(true)
                 .distanceStrengthDecay(false)
-                .standDimensions(0.4F, 1.2F)
+                .standDimensions(0.65F, 1.95F)
                 // master EchoesEntity: the ACT1 voice, the common summon stinger, the recall stinger
                 .summonShout(() -> EchoesSounds.ACT1_SUMMON)
                 .summonSound(() -> EchoesSounds.ECHOES_SUMMON_BGM_COMMON)

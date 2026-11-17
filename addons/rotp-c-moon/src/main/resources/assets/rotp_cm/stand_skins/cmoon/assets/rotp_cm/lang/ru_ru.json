@@ -10,6 +10,8 @@
     "rotp_cm.ability.center_of_gravity":  "Центр тяжести",
     "rotp_cm.ability.gravity_shift":  "Гравитационный сдвиг",
     "rotp_cm.ability.gravity_shift.param":  "Гравитационный сдвиг: Активирован",
+    "rotp_cm.ability.gravity_field":  "Гравитационное поле",
+    "rotp_cm.ability.gravity_field.param":  "Гравитационное поле: Активировано",
     "rotp_cm.ability.destroy":  "Уничтожить",
     "effect.rotp_cm.cm_inversion":  "Инверсия поверхности",
     "effect.rotp_cm.cm_shift":  "Гравитационный сдвиг",

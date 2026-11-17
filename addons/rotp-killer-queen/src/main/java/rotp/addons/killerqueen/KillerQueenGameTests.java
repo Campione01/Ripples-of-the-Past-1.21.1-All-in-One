@@ -3146,11 +3146,9 @@ public final class KillerQueenGameTests {
         helper.succeed();
     }
 
-    // Owner T2: Killer Queen's base reach is its max range of 8 (1.16 range(3, 8)), so its punch and finisher strike
-    // at full strength out to 8 and weaker to 10. The entity bomb, a 1.16 light attack, reaches out as the punch does:
-    // pressed at nothing past its user's reach with a cow on the look within 10, it takes the cow, flies out to it and
-    // plants the bomb, weaker past 8; past 10 it is refused as before. The barrage flies out from its press: the
-    // offset its action carries to clients is the flown-out one.
+    // Killer Queen's 1/2 range leaves its melee reach governed by its holder: 5 here, with a margin to 6.25.
+    // Entity Bomb is a melee strike: it takes the client's close target or picks a target in the margin itself.
+    // Both the bomb and the barrage send their actual fly-out offset to clients.
     @GameTest(template = "empty", batch = "kqReachOut", timeoutTicks = 20)
     public static void entityBombAndBarrageReachOutPastTheUsersReach(GameTestHelper helper) {
         BlockPos pad = sheerHeartPad(helper, true);
@@ -3174,44 +3172,47 @@ public final class KillerQueenGameTests {
         short barrageKey = 97;
         try {
             helper.assertTrue(bomb != null && barrage != null, "fixture: no entity bomb or barrage");
-            helper.assertTrue(Math.abs(StandMeleeReach.baseReach(stand, owner) - 8.0D) < 1.0E-6D
-                            && Math.abs(StandMeleeReach.maxReach(stand, owner, false) - 10.0D) < 1.0E-6D,
-                    "fixture: Killer Queen's base reach " + StandMeleeReach.baseReach(stand, owner) + " and max reach "
-                            + StandMeleeReach.maxReach(stand, owner, false) + " are not 8 and 10");
+            double baseReach = StandMeleeReach.baseReach(stand, owner);
+            double maxReach = StandMeleeReach.maxReach(stand, owner, false);
+            helper.assertTrue(stand.getEffectiveRange() == 1.0D && stand.getMaxRange() == 2.0D,
+                    "fixture: Killer Queen's registered ranges are not 1 and 2");
+            helper.assertTrue(Math.abs(baseReach - 5.0D) < 1.0E-6D && Math.abs(maxReach - 6.25D) < 1.0E-6D,
+                    "fixture: Killer Queen's base reach " + baseReach + " and max reach " + maxReach + " are not 5 and 6.25");
             // the user looks east along the pad; the cows stand off the look until their row
             turnOwner(owner, -90.0F, -90.0F);
             for (Cow cow : List.of(near, margin, past)) {
                 cow.setNoGravity(true);
                 cow.setPos(owner.getX(), owner.getY(), owner.getZ() + 3.0D);
             }
-            // a client's aims stop at its user's reach
-            aimUser(owner, ActionTarget.EMPTY);
-            aimStand(stand, ActionTarget.EMPTY);
-
+            double marginAhead = 6.5D;
             float[] loss = new float[2];
-            Object[][] rows = { { near, 6.5D, "6.5 blocks ahead" }, { margin, 9.3D, "9.3 blocks ahead, past 8" } };
+            Object[][] rows = { { near, 5.2D, "inside the holder's reach" }, { margin, marginAhead, "in the reach margin" } };
             for (int i = 0; i < rows.length; i++) {
                 Cow cow = (Cow) rows[i][0];
                 double ahead = (Double) rows[i][1];
                 String what = "a cow " + rows[i][2];
                 cow.setPos(owner.getX() + ahead, owner.getY(), owner.getZ());
                 cow.invulnerableTime = 0;
-                helper.assertTrue(StandMeleeReach.userDistance(owner, cow)
-                                > rotp.core.impl.stands._entitybase.StandEntityPunchAbility.userAimReach(owner, stand),
-                        "fixture: " + what + " is within its user's reach");
+                double distance = StandMeleeReach.userDistance(owner, cow);
+                helper.assertTrue(i == 0 ? distance <= baseReach : distance > baseReach && distance < maxReach,
+                        "fixture: " + what + " is at " + distance + " for reach " + baseReach + "/" + maxReach);
+                // The client can send the close target; the margin requires a server-side pick.
+                ActionTarget clientAim = i == 0 ? new ActionTarget(cow) : ActionTarget.EMPTY;
+                aimUser(owner, clientAim);
+                aimStand(stand, clientAim);
                 KillerQueenStateService.clearPrimaryBomb(owner);
                 power.setAbilityCooldown(KillerQueenAddon.PRIMARY_BOMB_NAME, 0, 0);
                 power.setStamina(power.getMaxStamina());
                 LivingComponentAction.getComponent(stand).setAction(null, owner, SyncType.NO_SYNC);
-                expectBombCheck(wrong, bomb, power, "pressed at nothing, " + what, true, null);
+                expectBombCheck(wrong, bomb, power, what, true, null);
                 EntityActionInstance plant = pressAction(owner, power, bomb, (short) (95 + i), InputMethod.CLICK);
                 if (plant == null) {
-                    wrong.add("the entity bomb pressed at nothing, " + what + ", did not start");
+                    wrong.add("the entity bomb at " + what + " did not start");
                     cow.setPos(owner.getX(), owner.getY(), owner.getZ() + 3.0D);
                     continue;
                 }
                 if (plant.getTaskTarget(level).getEntity() != cow) {
-                    wrong.add("the entity bomb pressed at nothing, " + what + ", did not take it: "
+                    wrong.add("the entity bomb at " + what + " did not take it: "
                             + plant.getTaskTarget(level));
                 }
                 double flownOut = flownOutFront(owner, cow);
@@ -3234,18 +3235,24 @@ public final class KillerQueenGameTests {
                 cow.setPos(owner.getX(), owner.getY(), owner.getZ() + 3.0D);
             }
             if (!(loss[1] > 0.0F && loss[1] < loss[0])) {
-                wrong.add("the entity bomb past the base reach of 8 is not weaker: " + loss[1] + " against "
-                        + loss[0] + " at 6.5");
+                wrong.add("the entity bomb in the margin is not weaker: " + loss[1] + " against "
+                        + loss[0] + " within base reach");
             }
 
             KillerQueenStateService.clearPrimaryBomb(owner);
             power.setAbilityCooldown(KillerQueenAddon.PRIMARY_BOMB_NAME, 0, 0);
-            past.setPos(owner.getX() + 11.5D, owner.getY(), owner.getZ());
-            expectBombCheck(wrong, bomb, power, "pressed at nothing, a cow 11.5 blocks ahead, past the max reach",
-                    false, null);
+            stand.updatePosition(owner);
+            helper.assertTrue(stand.distanceTo(owner) <= StandMeleeReach.AWAY_DISTANCE,
+                    "fixture: Killer Queen must return from the previous strike before the outside-range check");
+            aimUser(owner, ActionTarget.EMPTY);
+            aimStand(stand, ActionTarget.EMPTY);
+            past.setPos(owner.getX() + 7.2D, owner.getY(), owner.getZ());
+            helper.assertTrue(StandMeleeReach.userDistance(owner, past) > maxReach,
+                    "fixture: the refused target is within the max reach");
+            expectBombCheck(wrong, bomb, power, "pressed at nothing, a cow past the max reach", false, null);
             past.setPos(owner.getX(), owner.getY(), owner.getZ() + 3.0D);
 
-            near.setPos(owner.getX() + 6.5D, owner.getY(), owner.getZ());
+            near.setPos(owner.getX() + marginAhead, owner.getY(), owner.getZ());
             power.setStamina(power.getMaxStamina());
             EntityActionInstance held = pressAction(owner, power, barrage, barrageKey, InputMethod.HOLD);
             if (!(held instanceof StandEntityBarrage)) {
@@ -3254,7 +3261,7 @@ public final class KillerQueenGameTests {
                 double flownOut = flownOutFront(owner, near);
                 Vec3 sent = held.getSyncedStandOffset();
                 if (sent == null || Math.abs(sent.z - flownOut) > 1.0E-3D) {
-                    wrong.add("the barrage at a cow 6.5 blocks ahead does not fly out from its press: the offset sent "
+                    wrong.add("the barrage at a cow in the margin does not fly out from its press: the offset sent "
                             + "with the action is " + sent + ", the cow's front " + flownOut);
                 }
             }
@@ -3268,7 +3275,7 @@ public final class KillerQueenGameTests {
             owner.connection.disconnect(Component.literal("Killer Queen reach-out GameTest complete"));
             sheerHeartPad(helper, false);
         }
-        helper.assertTrue(wrong.isEmpty(), "Killer Queen's reach-out past its user's reach (owner T2): " + wrong);
+        helper.assertTrue(wrong.isEmpty(), "Killer Queen's holder reach and margin: " + wrong);
         helper.succeed();
     }
 

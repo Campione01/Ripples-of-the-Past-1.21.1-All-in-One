@@ -3,6 +3,8 @@ package rotp.addons.wonderofu.entity;
 import java.util.Optional;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.StandPower;
 
@@ -38,6 +40,13 @@ public final class WonderOfUStandEntity extends StandEntity {
             CURRENT_CAR_UUID = SynchedEntityData.defineId(
                     WonderOfUStandEntity.class,
                     EntityDataSerializers.OPTIONAL_UUID);
+    // The owner's rule of 2026-11-05: Calamity goes on through a recall. Its toggles stay on the removed entity, which the
+    // events keep asking, until the next summon takes them over or its user dies, leaves, changes level or loses the Stand.
+    public static final class Recalled {
+        @Nullable
+        WonderOfUStandEntity stand;
+    }
+
     private CarCalamityEntity activeCar;
     private long lastCarSpawnGameTime =
             -CAR_SPAWN_COOLDOWN_TICKS;
@@ -57,12 +66,86 @@ public final class WonderOfUStandEntity extends StandEntity {
         builder.define(CURRENT_CAR_UUID, Optional.empty());
     }
 
+    /** The user's summoned Wonder of U, or the recalled one whose Calamity goes on. */
+    @Nullable
+    public static WonderOfUStandEntity current(@Nullable LivingEntity user) {
+        if (user == null) {
+            return null;
+        }
+        StandPower power = StandPower.get(user);
+        boolean holdsTheStand = power != null
+                && power.hasPower()
+                && power.getPowerType()
+                        == WonderOfUAddon.WONDER_OF_YOU.get();
+        if (holdsTheStand
+                && power.getSummonedStandEntity()
+                        instanceof WonderOfUStandEntity stand
+                && stand.getUser() == user
+                && stand.isAlive()
+                && !stand.isRemoved()) {
+            return stand;
+        }
+        WonderOfUStandEntity recalled = carried(user);
+        if (recalled == null) {
+            return null;
+        }
+        if (!holdsTheStand
+                || recalled.getUser() != user
+                || !user.isAlive()
+                || user.isRemoved()
+                || recalled.level() != user.level()) {
+            user.getData(WonderOfUAddon.RECALLED_STAND).stand = null;
+            recalled.clearOwnedState(CarRemovalReason.POWER_CHANGED);
+            return null;
+        }
+        return recalled;
+    }
+
+    @Override
+    public void setUserAndPower(LivingEntity user, StandPower power) {
+        super.setUserAndPower(user, power);
+        if (user == null || level().isClientSide()) {
+            return;
+        }
+        WonderOfUStandEntity recalled = carried(user);
+        if (recalled == null || recalled == this) {
+            return;
+        }
+        user.getData(WonderOfUAddon.RECALLED_STAND).stand = null;
+        if (recalled.getUser() != user || recalled.level() != level()) {
+            recalled.clearOwnedState(CarRemovalReason.POWER_CHANGED);
+        }
+        else {
+            entityData.set(PASSIVE_ENABLED, recalled.isPassiveEnabled());
+            entityData.set(ACTIVE_ENABLED, recalled.isActiveEnabled());
+            entityData.set(CAR_ENABLED, recalled.isCarEnabled());
+            entityData.set(
+                    CURRENT_CAR_UUID,
+                    Optional.ofNullable(recalled.getCurrentCarUuid()));
+            activeCar = recalled.activeCar;
+            lastCarSpawnGameTime = recalled.lastCarSpawnGameTime;
+        }
+    }
+
+    @Nullable
+    private static WonderOfUStandEntity carried(LivingEntity user) {
+        return user.hasData(WonderOfUAddon.RECALLED_STAND)
+                ? user.getData(WonderOfUAddon.RECALLED_STAND).stand
+                : null;
+    }
+
+    private boolean carriedThroughRecall() {
+        LivingEntity user = getUser();
+        return user != null && carried(user) == this;
+    }
+
     public boolean isPassiveEnabled() {
         return entityData.get(PASSIVE_ENABLED);
     }
 
     public void setPassiveEnabled(boolean enabled) {
-        if (!level().isClientSide() && isAlive() && !isRemoved()) {
+        if (!level().isClientSide()
+                && (isAlive() && !isRemoved() || !enabled)) {
             if (enabled) {
                 entityData.set(ACTIVE_ENABLED, false);
             }
@@ -75,7 +158,8 @@ public final class WonderOfUStandEntity extends StandEntity {
     }
 
     public void setActiveEnabled(boolean enabled) {
-        if (!level().isClientSide() && isAlive() && !isRemoved()) {
+        if (!level().isClientSide()
+                && (isAlive() && !isRemoved() || !enabled)) {
             if (enabled) {
                 entityData.set(PASSIVE_ENABLED, false);
             }
@@ -88,7 +172,8 @@ public final class WonderOfUStandEntity extends StandEntity {
     }
 
     public void setCarEnabled(boolean enabled) {
-        if (level().isClientSide() || !isAlive() || isRemoved()) {
+        if (level().isClientSide()
+                || enabled && (!isAlive() || isRemoved())) {
             return;
         }
         entityData.set(CAR_ENABLED, enabled);
@@ -119,7 +204,7 @@ public final class WonderOfUStandEntity extends StandEntity {
                 || !power.hasPower()
                 || power.getPowerType()
                         != WonderOfUAddon.WONDER_OF_YOU.get()
-                || power.getSummonedStandEntity() != this
+                || current(user) != this
                 || !power.isAbilityUnlocked(
                         "calamity_car_attack")
                 || !WonderOfUGameEvents.canAffect(
@@ -234,14 +319,42 @@ public final class WonderOfUStandEntity extends StandEntity {
     @Override
     public void remove(Entity.RemovalReason reason) {
         if (!level().isClientSide()) {
-            clearOwnedState(CarRemovalReason.STAND_REMOVED);
+            if (recalledWithLastingState()) {
+                getUser().getData(WonderOfUAddon.RECALLED_STAND).stand = this;
+            }
+            else {
+                clearOwnedState(CarRemovalReason.STAND_REMOVED);
+            }
         }
         super.remove(reason);
+    }
+
+    public void onLeftTheLevel() {
+        if (!carriedThroughRecall()) {
+            clearOwnedState(CarRemovalReason.STAND_REMOVED);
+        }
+    }
+
+    private boolean recalledWithLastingState() {
+        LivingEntity user = getUser();
+        StandPower power = user != null ? StandPower.get(user) : null;
+        return (isPassiveEnabled() || isActiveEnabled() || isCarEnabled())
+                && user != null
+                && user.isAlive()
+                && !user.isRemoved()
+                && user.level() == level()
+                && power != null
+                && power.hasPower()
+                && power.getPowerType()
+                        == WonderOfUAddon.WONDER_OF_YOU.get();
     }
 
     public void clearOwnedState(CarRemovalReason reason) {
         if (!(level() instanceof ServerLevel serverLevel)) {
             return;
+        }
+        if (carriedThroughRecall()) {
+            getUser().getData(WonderOfUAddon.RECALLED_STAND).stand = null;
         }
         entityData.set(PASSIVE_ENABLED, false);
         entityData.set(ACTIVE_ENABLED, false);

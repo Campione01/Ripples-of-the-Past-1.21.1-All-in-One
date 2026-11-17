@@ -3,6 +3,8 @@ package rotp.addons.catchtherainbow.entity;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.annotation.Nullable;
+
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
@@ -84,6 +86,14 @@ public final class CatchTheRainbowEntity extends StandEntity {
                     CatchTheRainbowEntity.class,
                     EntityDataSerializers.FLOAT);
 
+    // The owner's rule of 2026-11-05: Blade Rain, Rain Stop, Merge and Temp Health go on through a recall, on the removed
+    // entity, which the user's tick keeps running, until the next summon takes them over or the user dies, leaves,
+    // changes level or loses the Stand. The rain walking and the reach are the summoned Stand's own passives.
+    public static final class Recalled {
+        @Nullable
+        CatchTheRainbowEntity stand;
+    }
+
     private int bladeRainTicks;
     private int rainStepTicks;
     private int rainStopTicks;
@@ -97,6 +107,106 @@ public final class CatchTheRainbowEntity extends StandEntity {
         super(entityType, level);
         noPhysics = true;
         setNoGravity(true);
+    }
+
+    @Nullable
+    public static CatchTheRainbowEntity recalled(@Nullable LivingEntity user) {
+        if (user == null) {
+            return null;
+        }
+        CatchTheRainbowEntity recalled =
+                user.hasData(CatchTheRainbowAddon.RECALLED_STAND)
+                        ? user.getData(CatchTheRainbowAddon.RECALLED_STAND).stand
+                        : null;
+        if (recalled == null) {
+            return null;
+        }
+        StandPower power = StandPower.get(user);
+        if (power == null
+                || !power.hasPower()
+                || power.getPowerType()
+                        != CatchTheRainbowAddon.CATCH_THE_RAINBOW.get()
+                || recalled.getUser() != user
+                || !user.isAlive()
+                || user.isRemoved()
+                || recalled.level() != user.level()) {
+            forgetRecalled(user);
+            CatchTheRainbowCleanup.clearTransientState(user, recalled);
+            return null;
+        }
+        return recalled;
+    }
+
+    public static void forgetRecalled(@Nullable LivingEntity user) {
+        if (user != null && user.hasData(CatchTheRainbowAddon.RECALLED_STAND)) {
+            user.getData(CatchTheRainbowAddon.RECALLED_STAND).stand = null;
+        }
+    }
+
+    public boolean recallLeavesSkillsOn(@Nullable LivingEntity user) {
+        StandPower power = user != null ? StandPower.get(user) : null;
+        return (isBladeRainActive()
+                        || isRainStopActive()
+                        || isMergeActive()
+                        || isTempHealthActive())
+                && user != null
+                && user.isAlive()
+                && !user.isRemoved()
+                && user.level() == level()
+                && power != null
+                && power.hasPower()
+                && power.getPowerType()
+                        == CatchTheRainbowAddon.CATCH_THE_RAINBOW.get();
+    }
+
+    // what the summoned Stand gave by being out ends here; the skills go on
+    private void keepSkillsThroughRecall(LivingEntity user) {
+        clearRainWalkingSupport(user);
+        clearReach(user);
+        CatchTheRainbowMaskItem.purgeAll(user);
+        user.getData(CatchTheRainbowAddon.RECALLED_STAND).stand = this;
+    }
+
+    @Override
+    public void setUserAndPower(LivingEntity user, StandPower power) {
+        super.setUserAndPower(user, power);
+        if (user == null || level().isClientSide()) {
+            return;
+        }
+        if (!user.hasData(CatchTheRainbowAddon.RECALLED_STAND)) {
+            return;
+        }
+        CatchTheRainbowEntity recalled =
+                user.getData(CatchTheRainbowAddon.RECALLED_STAND).stand;
+        forgetRecalled(user);
+        if (recalled != null
+                && recalled != this
+                && recalled.getUser() == user
+                && recalled.level() == level()) {
+            entityData.set(BLADE_RAIN_ACTIVE, recalled.isBladeRainActive());
+            entityData.set(RAIN_STOP_ACTIVE, recalled.isRainStopActive());
+            entityData.set(MERGE_ACTIVE, recalled.isMergeActive());
+            entityData.set(TEMP_HEALTH_ACTIVE, recalled.isTempHealthActive());
+            entityData.set(PLAYER_MAX_HP, recalled.getStoredMaxHealth());
+        }
+    }
+
+    /** From the user's own tick: a recalled Stand has no tick of its own. */
+    public void tickRecalled(LivingEntity user) {
+        StandPower power = getUserPower();
+        boolean creative = CatchTheRainbowAddon.isCreative(user);
+        if (!RainExposure.isExposedToRain(user) && !creative) {
+            clearDryWeatherState(user);
+        }
+        else {
+            tickFallingBlades(user, power, creative);
+            tickRainStop(user, power, creative);
+            tickRainMerge(user, power, creative);
+        }
+        if (!isBladeRainActive() && !isRainStopActive()
+                && !isMergeActive() && !isTempHealthActive()) {
+            forgetRecalled(user);
+        }
     }
 
     public boolean isBladeRainActive() {
@@ -619,7 +729,12 @@ public final class CatchTheRainbowEntity extends StandEntity {
     @Override
     public void remove(RemovalReason reason) {
         if (!level().isClientSide()) {
-            CatchTheRainbowCleanup.onControllerRemoved(getUser(), this);
+            if (recallLeavesSkillsOn(getUser())) {
+                keepSkillsThroughRecall(getUser());
+            }
+            else {
+                CatchTheRainbowCleanup.onControllerRemoved(getUser(), this);
+            }
         }
         super.remove(reason);
     }

@@ -105,13 +105,25 @@ public final class BulletTimeAbility extends StandEntityAbility {
             super(ability);
         }
 
+        // 1.16 ac.perform ran inside the click, with no hold and no windup:
+        // the field starts at the press, not in the action's first tick
         @Override
-        public void actionPerformStart() {
-            if (!(getPowerUser() instanceof ServerPlayer user)) {
-                return;
-            }
-            if (!isTimeStopped(user)) {
+        public void onActionSet(EntityActionInstance previousAction) {
+            if (!isRestoringInputLifecycle()
+                    && getPowerUser() instanceof ServerPlayer user
+                    && !isTimeStopped(user)) {
                 BulletTimeService.activate(user);
+            }
+        }
+
+        // a press that fails after this takes its action back before the
+        // action's first tick; an action that has run ends with no phase
+        @Override
+        public void onActionCleared(EntityActionInstance newAction) {
+            if (!isOver()
+                    && getPhaseTick() < 1.0F
+                    && getPowerUser() instanceof ServerPlayer user) {
+                BulletTimeService.cancel(user);
             }
         }
     }

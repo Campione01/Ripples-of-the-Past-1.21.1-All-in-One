@@ -53,6 +53,7 @@ public final class KissBombEntity extends Entity {
     private static final EntityDataAccessor<Float> TARGET_Z =
             SynchedEntityData.defineId(
                     KissBombEntity.class, EntityDataSerializers.FLOAT);
+    private boolean loadedFromSave;
 
     public KissBombEntity(
             EntityType<? extends KissBombEntity> type, Level level) {
@@ -113,10 +114,13 @@ public final class KissBombEntity extends Entity {
             move(MoverType.SELF, getDeltaMovement());
             return;
         }
-        if (!KissService.validController(level, getOwnerUuid(), getStandUuid())) {
+        // A bomb in flight goes on through a recall; one saved with its chunk does not come back after a relog.
+        if (!KissService.validOwner(level, getOwnerUuid())
+                || loadedFromSave && !KissService.validController(level, getOwnerUuid(), getStandUuid())) {
             discard();
             return;
         }
+        loadedFromSave = false;
         if (tickCount > LIFETIME_TICKS) {
             explode(level);
             return;
@@ -243,5 +247,6 @@ public final class KissBombEntity extends Entity {
                 tag.getDouble("TargetX"),
                 tag.getDouble("TargetY"),
                 tag.getDouble("TargetZ")));
+        loadedFromSave = true;
     }
 }

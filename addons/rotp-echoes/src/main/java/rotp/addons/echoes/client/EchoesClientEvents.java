@@ -9,7 +9,6 @@ import rotp.addons.echoes.network.EchoesSoundPayloads;
 import rotp.core.client.ui.marker.MarkerRenderer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.resources.PlayerSkin;
 import net.minecraft.world.entity.EntityType;
@@ -21,6 +20,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RenderLivingEvent;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 
 @EventBusSubscriber(modid = RotpEchoes.MOD_ID, value = Dist.CLIENT)
@@ -83,6 +83,13 @@ public final class EchoesClientEvents {
         }
 
         @SubscribeEvent
+        public static void onEntityLeave(EntityLeaveLevelEvent event) {
+            if (event.getLevel().isClientSide()) {
+                EchoesOnomatopoeiaClient.forget(event.getEntity().getId());
+            }
+        }
+
+        @SubscribeEvent
         public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
             EchoesOnomatopoeiaClient.clear();
             EchoesSoundClient.clear();
@@ -98,11 +105,7 @@ public final class EchoesClientEvents {
 
         @SubscribeEvent
         public static void onItemTooltip(ItemTooltipEvent event) {
-            Long until = event.getItemStack().get(
-                    EchoesDataComponents.GRAVITY_INFUSED_UNTIL);
-            ClientLevel level = Minecraft.getInstance().level;
-            if (until == null || level == null
-                    || until <= level.getGameTime()) {
+            if (!event.getItemStack().has(EchoesDataComponents.GRAVITY_INFUSION)) {
                 return;
             }
             event.getToolTip().add(Component.literal("\u2726 ")

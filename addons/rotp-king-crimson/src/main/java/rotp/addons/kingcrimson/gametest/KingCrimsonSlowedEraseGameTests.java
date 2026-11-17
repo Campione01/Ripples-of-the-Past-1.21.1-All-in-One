@@ -29,10 +29,12 @@ import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.kingcrimson.KingCrimsonAddon;
+import rotp.addons.kingcrimson.KingCrimsonConfig;
 import rotp.addons.kingcrimson.entity.KingCrimsonTimeEraseDecoyEntity;
 import rotp.addons.kingcrimson.state.KingCrimsonTemporalState;
 import rotp.addons.kingcrimson.state.KingCrimsonTemporalStateService;
 import rotp.core.api.time.EntityTimeRates;
+import rotp.core.api.time.LevelTimeRates;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
@@ -43,10 +45,11 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
 /**
- * KC-MIH (RS-T3 T3-13, MIH-FRAME.md mode A): an eraser whose own time runs at 1/m erases for m times as many world
- * ticks, and his decoy, which the same slow-down holds back (Made in Heaven cancels its skipped ticks), lasts as long.
- * Here a test provider holds a tagged player at a third of his time and a listener cancels two of every three ticks
- * of his decoy, as Made in Heaven's mode A does; the player's key stays down the whole time.
+ * Owner 2026-11-05: an erase lasts in the world's time, not its user's own ("時間刪除的時間應該按世界時間算，不按玩家自時間算"), so it
+ * shrinks as the world accelerates. In Made in Heaven's mode A the eraser is held at 1/m and the world runs in plain
+ * ticks: 200 ticks, a listener cancelling two of every three ticks of his decoy as that mode does. In mode B he keeps
+ * his time and the world runs m times faster: 200 / m ticks. Test providers stand in for Made in Heaven; his key stays
+ * down the whole time.
  */
 @GameTestHolder(KingCrimsonAddon.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -55,121 +58,178 @@ public final class KingCrimsonSlowedEraseGameTests {
     private static final float RATE = 1.0F / 3.0F;
     private static final short ERASE_KEY = 11;
     private static boolean providerRegistered;
+    private static float worldRate = LevelTimeRates.NO_RATE;
 
     private KingCrimsonSlowedEraseGameTests() {}
 
-    // Providers cannot be unregistered: this one answers only for an entity carrying the test's tag.
+    // Providers cannot be unregistered: these answer only for an entity carrying the test's tag and while a test sets a rate.
     private static synchronized void registerProvider() {
         if (!providerRegistered) {
             EntityTimeRates.register(KingCrimsonAddon.id("gametest_third_time"), (entity, channel) ->
                     (channel == EntityTimeRates.Channel.BEING || channel == EntityTimeRates.Channel.STAND_ACTIONS)
                             && entity.getTags().contains(SLOW_TAG)
                             ? RATE : EntityTimeRates.NO_RATE);
+            LevelTimeRates.register(KingCrimsonAddon.id("gametest_world_time"), (level, channel) ->
+                    channel == LevelTimeRates.Channel.TIME ? worldRate : LevelTimeRates.NO_RATE);
             providerRegistered = true;
         }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 760, batch = "kc_erase_own_time")
-    public static void anEraseHeldAtAThirdOfItsOwnTimeLastsThreeTimesLongerAndKeepsItsDecoy(GameTestHelper helper) {
+    @GameTest(template = "empty", timeoutTicks = 320, batch = "kc_erase_world_time_held_back")
+    public static void heldBackByTheAccelerationAnEraseStillLastsItsWorldTicks(GameTestHelper helper) {
         registerProvider();
-        ServerPlayer player = makePlayer(helper);
-        player.addTag(SLOW_TAG);
-        StandPower power = PowerClass.STAND.attachGet(player);
-        power.setStand(KingCrimsonAddon.KING_CRIMSON.get());
-        power.skipProgression();
-        helper.assertTrue(KingCrimsonAddon.KING_CRIMSON.get().summon(player, power), "Setup: Stand summon failed");
-        StandEntity stand = power.getSummonedStandEntity();
-        stand.summonLockTicks = 0;
-        power.setStamina(power.getMaxStamina());
-
+        worldRate = 3.0F;
+        Erase erase = new Erase(helper);
+        erase.player.addTag(SLOW_TAG);
         int[] decoyTicks = {0};
         Consumer<EntityTickEvent.Pre> holdBack = event -> {
             if (event.getEntity() instanceof KingCrimsonTimeEraseDecoyEntity decoy
-                    && decoy.getOwner() == player && decoyTicks[0]++ % 3 != 0) {
+                    && decoy.getOwner() == erase.player && decoyTicks[0]++ % 3 != 0) {
                 event.setCanceled(true);
             }
         };
         NeoForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, EntityTickEvent.Pre.class, holdBack);
-        long[] startedAt = {-1L};
-        long[] endedAt = {-1L};
-        Runnable cleanup = () -> {
-            NeoForge.EVENT_BUS.unregister(holdBack);
+        erase.onCleanup(() -> NeoForge.EVENT_BUS.unregister(holdBack));
+        helper.runAfterDelay(2, erase::press);
+        helper.runAfterDelay(150, () -> erase.guarded(() -> erase.assertStillErasing(148)));
+        helper.runAfterDelay(240, () -> erase.guarded(() -> erase.assertEndedAfter(195L, 205L,
+                "A held-back eraser's erase lasts its 200 world ticks")));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 120, batch = "kc_erase_world_time_accelerating")
+    public static void asTheWorldRunsFourTimesFasterAnEraseLastsAQuarter(GameTestHelper helper) {
+        registerProvider();
+        worldRate = 4.0F;
+        Erase erase = new Erase(helper);
+        helper.runAfterDelay(2, erase::press);
+        helper.runAfterDelay(30, () -> erase.guarded(() -> erase.assertStillErasing(28)));
+        helper.runAfterDelay(80, () -> erase.guarded(() -> erase.assertEndedAfter(47L, 53L,
+                "200 ticks of the world's time at 4 times its speed are 50 server ticks")));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 240, batch = "kc_erase_world_time_rising")
+    public static void anEraseShortensFromTheMomentTheWorldAccelerates(GameTestHelper helper) {
+        registerProvider();
+        worldRate = LevelTimeRates.NO_RATE;
+        Erase erase = new Erase(helper);
+        helper.runAfterDelay(2, erase::press);
+        // Counted from the erase's own start, which can come some ticks after the press on a loaded server.
+        helper.onEachTick(() -> {
+            if (!erase.player.isRemoved() && erase.startedAt[0] >= 0L && erase.endedAt[0] < 0L
+                    && helper.getLevel().getGameTime() - erase.startedAt[0] >= 100L) {
+                worldRate = 2.0F;
+            }
+        });
+        helper.runAfterDelay(200, () -> erase.guarded(() -> erase.assertEndedAfter(147L, 153L,
+                "100 plain ticks, then the other 100 of the world's time at twice its speed, are 150 server ticks")));
+    }
+
+    private static final class Erase {
+        private final GameTestHelper helper;
+        private final ServerPlayer player;
+        private final StandPower power;
+        private final StandEntity stand;
+        private final long[] startedAt = {-1L};
+        private final long[] endedAt = {-1L};
+        // The tests' 200 ticks: a limit of 10 s at Resolve 4.
+        private final int oldLimit = KingCrimsonConfig.TIME_ERASE_MAX_SECONDS.get();
+        private Runnable extraCleanup = () -> {};
+
+        private Erase(GameTestHelper helper) {
+            this.helper = helper;
+            KingCrimsonConfig.TIME_ERASE_MAX_SECONDS.set(10);
+            player = makePlayer(helper);
+            power = PowerClass.STAND.attachGet(player);
+            power.setStand(KingCrimsonAddon.KING_CRIMSON.get());
+            power.skipProgression();
+            helper.assertTrue(KingCrimsonAddon.KING_CRIMSON.get().summon(player, power), "Setup: Stand summon failed");
+            stand = power.getSummonedStandEntity();
+            stand.summonLockTicks = 0;
+            power.setStamina(power.getMaxStamina());
+            // Embedded fixture connections have no server network loop to drive the player's full tick.
+            helper.onEachTick(() -> {
+                if (player.isRemoved()) {
+                    return;
+                }
+                player.doTick();
+                KingCrimsonTemporalState state = KingCrimsonAddon.temporalState(player);
+                long now = helper.getLevel().getGameTime();
+                if (startedAt[0] < 0L && state.isErasing(now)) {
+                    startedAt[0] = state.startedAt();
+                }
+                else if (startedAt[0] >= 0L && endedAt[0] < 0L && state.isIdle()) {
+                    endedAt[0] = now;
+                }
+            });
+        }
+
+        private void onCleanup(Runnable cleanup) {
+            extraCleanup = cleanup;
+        }
+
+        private void press() {
+            guarded(() -> {
+                Ability erase = power.getAbility("kingcrimson_timeerase");
+                BufferingState buffering = BufferingState.clickCanBuffer();
+                FriendlyByteBuf input = new FriendlyByteBuf(Unpooled.buffer());
+                try {
+                    helper.assertTrue(erase != null && AbilityInput.withConditionCheck(erase, player),
+                            "Setup: Time Erase is not usable");
+                    AbilityInput.keyPress(ERASE_KEY, erase, player, input, InputMethod.HOLD, 0.0F, buffering,
+                            erase.getAbilityId());
+                }
+                finally {
+                    input.release();
+                }
+                helper.assertTrue(buffering.isActionSuccess && !buffering.shouldBuffer,
+                        "Setup: the held Time Erase did not start");
+            });
+        }
+
+        private void assertStillErasing(int ticks) {
+            long now = helper.getLevel().getGameTime();
+            helper.assertTrue(startedAt[0] >= 0L && KingCrimsonAddon.temporalState(player).isErasing(now),
+                    "The held erase ended within " + ticks + " world ticks: started " + startedAt[0] + ", now " + now);
+            helper.assertTrue(decoys(helper, player).size() == 1,
+                    "The decoy vanished " + (now - startedAt[0]) + " world ticks into its erase");
+        }
+
+        private void assertEndedAfter(long atLeast, long atMost, String rule) {
+            long length = endedAt[0] - startedAt[0];
+            helper.assertTrue(endedAt[0] >= 0L && length >= atLeast && length <= atMost,
+                    rule + "; the held erase lasted " + (endedAt[0] < 0L ? "longer than this test" : String.valueOf(length)));
+            helper.assertTrue(power.getAbilityCooldown("kingcrimson_timeerase") > 0,
+                    "The erase did not end through its own end (no cooldown was set)");
+            helper.assertTrue(decoys(helper, player).isEmpty(), "The decoy outlived its erase");
+            cleanup();
+            helper.succeed();
+        }
+
+        private void cleanup() {
+            worldRate = LevelTimeRates.NO_RATE;
+            KingCrimsonConfig.TIME_ERASE_MAX_SECONDS.set(oldLimit);
+            extraCleanup.run();
             AbilityInput.keyRelease(ERASE_KEY, player);
             player.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get()).heldKeys.clear();
             KingCrimsonTemporalStateService.terminate(player);
             stand.discard();
             helper.getLevel().removePlayerImmediately(player, Entity.RemovalReason.UNLOADED_WITH_PLAYER);
-        };
-        // Embedded fixture connections have no server network loop to drive the player's full tick.
-        helper.onEachTick(() -> {
-            if (player.isRemoved()) {
-                return;
-            }
-            player.doTick();
-            KingCrimsonTemporalState state = KingCrimsonAddon.temporalState(player);
-            long now = helper.getLevel().getGameTime();
-            if (startedAt[0] < 0L && state.isErasing(now)) {
-                startedAt[0] = state.startedAt();
-            }
-            else if (startedAt[0] >= 0L && endedAt[0] < 0L && state.isIdle()) {
-                endedAt[0] = now;
-            }
-        });
+        }
 
-        helper.runAfterDelay(2, () -> guarded(cleanup, () -> {
-            Ability erase = power.getAbility("kingcrimson_timeerase");
-            BufferingState buffering = BufferingState.clickCanBuffer();
-            FriendlyByteBuf input = new FriendlyByteBuf(Unpooled.buffer());
+        private void guarded(Runnable check) {
             try {
-                helper.assertTrue(erase != null && AbilityInput.withConditionCheck(erase, player),
-                        "Setup: Time Erase is not usable");
-                AbilityInput.keyPress(ERASE_KEY, erase, player, input, InputMethod.HOLD, 0.0F, buffering,
-                        erase.getAbilityId());
+                check.run();
             }
-            finally {
-                input.release();
+            catch (RuntimeException | AssertionError failure) {
+                cleanup();
+                throw failure;
             }
-            helper.assertTrue(buffering.isActionSuccess && !buffering.shouldBuffer,
-                    "Setup: the held Time Erase did not start");
-        }));
-        helper.runAfterDelay(300, () -> guarded(cleanup, () -> assertStillErasing(helper, player, startedAt[0], 298)));
-        helper.runAfterDelay(560, () -> guarded(cleanup, () -> assertStillErasing(helper, player, startedAt[0], 558)));
-        helper.runAfterDelay(700, () -> guarded(cleanup, () -> {
-            long length = endedAt[0] - startedAt[0];
-            helper.assertTrue(endedAt[0] >= 0L && length >= 585L && length <= 615L,
-                    "200 of the eraser's own ticks at a third of his time are about 600 world ticks; the held erase"
-                            + " lasted " + (endedAt[0] < 0L ? "beyond 700" : String.valueOf(length)));
-            helper.assertTrue(power.getAbilityCooldown("kingcrimson_timeerase") > 0,
-                    "The erase did not end through its own end (no cooldown was set)");
-            helper.assertTrue(decoys(helper, player).isEmpty(), "The decoy outlived its erase");
-            cleanup.run();
-            helper.succeed();
-        }));
-    }
-
-    private static void assertStillErasing(GameTestHelper helper, ServerPlayer player, long startedAt, int ticks) {
-        long now = helper.getLevel().getGameTime();
-        helper.assertTrue(startedAt >= 0L && KingCrimsonAddon.temporalState(player).isErasing(now),
-                "The held erase at a third of its time ended within " + ticks + " world ticks: started "
-                        + startedAt + ", now " + now);
-        helper.assertTrue(decoys(helper, player).size() == 1,
-                "The decoy, held back with its eraser, vanished " + (now - startedAt)
-                        + " world ticks into his slowed erase");
+        }
     }
 
     private static List<KingCrimsonTimeEraseDecoyEntity> decoys(GameTestHelper helper, ServerPlayer player) {
         return helper.getLevel().getEntitiesOfClass(KingCrimsonTimeEraseDecoyEntity.class,
                 player.getBoundingBox().inflate(16.0D), decoy -> !decoy.isRemoved());
-    }
-
-    private static void guarded(Runnable cleanup, Runnable check) {
-        try {
-            check.run();
-        }
-        catch (RuntimeException | AssertionError failure) {
-            cleanup.run();
-            throw failure;
-        }
     }
 
     private static ServerPlayer makePlayer(GameTestHelper helper) {

@@ -180,7 +180,7 @@ public final class LivingAgingState
         if (contact && progress >= MAX_PROGRESS_EPSILON
                 && target.tickCount != lastOverkillTick) {
             lastOverkillTick = target.tickCount;
-            AgingDamage.hurt(target, 1.0F);
+            AgingDamage.hurt(target, 1.0F, newOwner);
         }
         progress = Mth.clamp(
                 progress + amount, 0.0F, 1.0F);
@@ -272,7 +272,7 @@ public final class LivingAgingState
         tickForcedStates(target);
         if (progress >= MAX_PROGRESS_EPSILON
                 && target.tickCount % AGING_DAMAGE_INTERVAL == 0) {
-            AgingDamage.hurt(target, 1.0F);
+            AgingDamage.hurt(target, 1.0F, owner);
         }
         if (target instanceof Mob mob) {
             tickAgedMob(mob);

@@ -97,6 +97,7 @@ import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.subsystems.target.ActionTarget;
 
 /**
@@ -1356,8 +1357,20 @@ public final class KillerQueenHeldRecheckGameTests {
             scene.stand.setPos(standAt);
             level.setBlock(block, dry, Block.UPDATE_CLIENTS);
             scene.unsummon();
+            KillerQueenStateService.validateOwner(scene.owner);
+            if (!block.equals(KillerQueenStateService.blockBombPos(scene.owner))
+                    || !KillerQueenAddon.state(scene.owner).hasBlockBomb()) {
+                wrong.add("Killer Queen called back: the owner's rule of 2026-11-05 keeps a placed bomb through a recall; "
+                        + "the port dropped it");
+            }
+            scene.owner.setPos(corner.add(50.01D, 0.0D, 0.0D));
             if (KillerQueenStateService.blockBombPos(scene.owner) != null) {
-                wrong.add("Killer Queen called back: 1.16's bomb was the Stand's and went with it; the port kept it");
+                wrong.add("no Stand out, the user 50.01 blocks from the corner: the range runs from the user; the port kept it");
+            }
+            scene.owner.setPos(ownerAt);
+            PowerClass.STAND.attachGet(scene.owner).setStand(null);
+            if (KillerQueenAddon.state(scene.owner).hasBlockBomb()) {
+                wrong.add("the Stand removed from its user: the bomb goes with the Stand; the port kept it");
             }
         } finally {
             level.setBlockAndUpdate(block, Blocks.AIR.defaultBlockState());
@@ -1927,6 +1940,7 @@ public final class KillerQueenHeldRecheckGameTests {
                 StandEntity stand = btdStand(scene, true);
                 stand.setCanFollowUser(false);
                 stand.setManuallyControlled(true);
+                StandManualInput.setServerShift(scene.owner, true);
                 helper.assertTrue(stand.isManuallyControlled(), "fixture: Killer Queen is not manually controlled");
                 stand.moveTo(scene.owner.getX() + 3.0D, scene.owner.getY(), scene.owner.getZ(), 0.0F, 0.0F);
                 stand.setYHeadRot(0.0F);
@@ -1934,6 +1948,7 @@ public final class KillerQueenHeldRecheckGameTests {
                 scene.cow.setPos(stand.getX(), stand.getEyeY() - scene.cow.getBbHeight() / 2.0D, stand.getZ() + 2.0D);
                 putDustRow(scene, "Killer Queen under manual control, looking at the cow 2 blocks ahead of it, its user "
                         + "turned away, nothing under the crosshair", ActionTarget.EMPTY, true, true, key++, wrong);
+                StandManualInput.setServerShift(scene.owner, false);
                 if (scene.power.isSummoned()) {
                     stand.setManuallyControlled(false);
                     stand.setCanFollowUser(true);
@@ -2056,7 +2071,7 @@ public final class KillerQueenHeldRecheckGameTests {
 
     /**
      * 1.16 BlockBombAction.standPerform (020 :75-89) cast its own ray as it performed, whatever the press had aimed at:
-     * from the user's eyes (the Stand's under manual control) along their look over the Stand's max range, entities
+     * from the user's eyes (the Stand's under manual control) along their look over the original 8 blocks, entities
      * first and through blocks (JojoModUtil.rayTrace). An entity on it other than the Stand and its user left no bomb;
      * else the bomb went on the block whose outline it met and the Stand moved to the point it met.
      */
@@ -2072,12 +2087,13 @@ public final class KillerQueenHeldRecheckGameTests {
             BlockPos eye = BlockPos.containing(scene.owner.getEyePosition());
             BlockPos ahead = eye.south(2);
             BlockPos aside = ahead.east(2);
-            double range = scene.stand.getMaxRange();
-            BlockPos far = eye.south((int) Math.ceil(range) + 2);
-            for (BlockPos pos : List.of(ahead, aside, far)) {
+            BlockPos nearLimit = eye.south(7);
+            BlockPos far = eye.south(9);
+            for (BlockPos pos : List.of(ahead, aside, nearLimit, far)) {
                 level.setBlock(pos, Blocks.STONE.defaultBlockState(), Block.UPDATE_CLIENTS);
                 placed.add(pos);
             }
+            level.setBlock(nearLimit, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
             level.setBlock(far, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
 
             // pressed at the stone aside, its user then looking at the stone ahead
@@ -2091,7 +2107,7 @@ public final class KillerQueenHeldRecheckGameTests {
                 wrong.add("1.16 moved the Stand to the point its ray met, " + met + "; the port to " + standAt[0]);
             }
 
-            // a mob behind the stone, on the ray within the Stand's max range
+            // a mob behind the stone, on the marking ray
             scene.cow.setPos(scene.owner.getX(), scene.owner.getEyeY() - scene.cow.getBbHeight() / 2.0D,
                     ahead.getZ() + 1.5D);
             bombed = blockBombRow(scene, new ActionTarget(ahead, Direction.NORTH), standAt, wrong);
@@ -2101,12 +2117,20 @@ public final class KillerQueenHeldRecheckGameTests {
             }
             scene.cow.setPos(scene.owner.getX() + 6.0D, scene.owner.getY(), scene.owner.getZ());
 
-            // a stone past the Stand's max range
+            // The bomb's own ray still reaches well past the Stand's new stat range.
             level.setBlock(ahead, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+            level.setBlock(nearLimit, Blocks.STONE.defaultBlockState(), Block.UPDATE_CLIENTS);
+            bombed = blockBombRow(scene, ActionTarget.EMPTY, standAt, wrong);
+            if (!nearLimit.equals(bombed)) {
+                wrong.add("the marking ray lost its original reach: expected " + nearLimit + ", bombed " + bombed);
+            }
+            level.setBlock(nearLimit, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+
+            // A stone beyond 8 blocks still cannot be marked.
             level.setBlock(far, Blocks.STONE.defaultBlockState(), Block.UPDATE_CLIENTS);
             bombed = blockBombRow(scene, new ActionTarget(far, Direction.NORTH), standAt, wrong);
             if (bombed != null) {
-                wrong.add("a stone " + far + " past the Stand's max range " + range + ": 1.16's ray met nothing, the "
+                wrong.add("a stone " + far + " past the 8-block marking range: the ray should meet nothing, the "
                         + "port bombed " + bombed);
             }
             level.setBlock(far, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);

@@ -33,6 +33,10 @@ public final class NeoStandClientEvents {
                             "hg_emerald_full_bright"),
                     0,
                     new NeoEmeraldRenderer());
+            EntityPostRenderExtensions.register(
+                    NeoStandAddon.id("finger_sweep"),
+                    0,
+                    new FingerSweepRenderer());
         });
     }
 

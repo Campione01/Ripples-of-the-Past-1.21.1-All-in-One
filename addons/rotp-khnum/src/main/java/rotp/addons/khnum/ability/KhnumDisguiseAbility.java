@@ -7,11 +7,11 @@ import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.condition.AvailableAbilities;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
-import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 
 import rotp.addons.khnum.disguise.DisguiseClientBridge;
 import rotp.addons.khnum.disguise.DisguiseMode;
+import rotp.addons.khnum.disguise.KhnumDisguiseState;
 import rotp.addons.khnum.entity.KhnumControllerEntity;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -40,18 +40,18 @@ public final class KhnumDisguiseAbility
             Power<?> context, AvailableAbilities abilities) {
         LivingEntity user =
                 context != null ? context.getUser() : null;
-        StandPower power =
-                user != null ? StandPower.get(user) : null;
-        if (power != null
-                && power.getSummonedStandEntity()
-                                instanceof KhnumControllerEntity
-                                controller
-                && controller.getDisguiseMode() == mode) {
+        if (KhnumDisguiseState.of(user).mode() == mode) {
             Ability disable =
                     abilities.getContextVariation(disableName);
             return disable != null ? disable : this;
         }
         return this;
+    }
+
+    // the disguise goes on with the Stand recalled: the HUD lights the slot while the user wears this one
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        return KhnumDisguiseState.of(user).mode() == mode;
     }
 
     private static final class DisguiseAction

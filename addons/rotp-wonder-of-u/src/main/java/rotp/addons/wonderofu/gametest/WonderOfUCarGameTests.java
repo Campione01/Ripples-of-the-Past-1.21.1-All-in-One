@@ -24,6 +24,7 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
@@ -35,6 +36,7 @@ import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
@@ -48,10 +50,14 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.wonderofu.WonderOfUAddon;
 import rotp.addons.wonderofu.WonderOfUDamageTypes;
+import rotp.addons.wonderofu.ability.ExplosionAbility;
 import rotp.addons.wonderofu.entity.CarCalamityEntity;
 import rotp.addons.wonderofu.entity.CarCalamityEntity.CarRemovalReason;
 import rotp.addons.wonderofu.entity.WonderOfUStandEntity;
 import rotp.core.api.stand.StandPowerTransitions;
+import rotp.core.config.client.PlayerClientBroadcastedSettings;
+import rotp.core.init.ModDataAttachmentTypes;
+import rotp.core.init.ModGamerules;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
@@ -341,6 +347,133 @@ public final class WonderOfUCarGameTests {
                 throw exception;
             }
         });
+    }
+
+    // R772.1 OQ-B01: the car's blast, which asked only mobGriefing, also asks jojoAbilitiesBreakBlocks and the caster's
+    // "breaks blocks" Stand switch. The blast's block interaction is read in ExplosionEvent.Detonate, and the blocks it
+    // would break are dropped there, so no test digs into its neighbours.
+    @GameTest(template = "empty", batch = "wou_car_break_rule_off", timeoutTicks = 220)
+    public static void carBlastBreaksNoBlocksWithTheBlockRuleOff(GameTestHelper helper) {
+        blastsBlocks(helper, "rule_off", false, true, false);
+    }
+
+    @GameTest(template = "empty", batch = "wou_car_break_switch_off", timeoutTicks = 220)
+    public static void carBlastBreaksNoBlocksWithTheCastersSwitchOff(GameTestHelper helper) {
+        blastsBlocks(helper, "switch_off", true, false, false);
+    }
+
+    @GameTest(template = "empty", batch = "wou_car_break_both_on", timeoutTicks = 220)
+    public static void carBlastBreaksBlocksWithTheRuleAndTheSwitchOn(GameTestHelper helper) {
+        blastsBlocks(helper, "both_on", true, true, true);
+    }
+
+    private static void blastsBlocks(GameTestHelper helper, String name, boolean blockRule, boolean casterSwitch,
+            boolean expectBlocks) {
+        Fixture fixture = new Fixture(helper, name);
+        ServerLevel level = fixture.level;
+        GameRules.BooleanValue breakBlocks = level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS);
+        boolean breakBlocksBefore = breakBlocks.get();
+        PlayerClientBroadcastedSettings switches =
+                fixture.owner.getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get());
+        int[] affected = {-1};
+        helper.runAfterDelay(SPAWN_PROTECTION_TICKS, () -> {
+            try {
+                level.getGameRules().getRule(GameRules.RULE_MOBGRIEFING).set(true, level.getServer());
+                breakBlocks.set(blockRule, level.getServer());
+                switches.standBreaksBlocks = casterSwitch;
+                fixture.provokeCar();
+                CarCalamityEntity car = fixture.car;
+                fixture.listen(ExplosionEvent.Detonate.class, event -> {
+                    if (event.getLevel() == level && event.getExplosion().getDirectSourceEntity() == car) {
+                        affected[0] = event.getExplosion().getBlockInteraction() == Explosion.BlockInteraction.KEEP ? 0 : 1;
+                        event.getAffectedBlocks().clear();
+                    }
+                });
+                fixture.armedAt = helper.getTick();
+            }
+            catch (RuntimeException | Error exception) {
+                breakBlocks.set(breakBlocksBefore, level.getServer());
+                fixture.close();
+                throw exception;
+            }
+        });
+        helper.onEachTick(() -> {
+            if (fixture.armedAt < 0L || fixture.finished) {
+                return;
+            }
+            boolean timedOut = helper.getTick() - fixture.armedAt > LANDING_WINDOW_TICKS;
+            if (!fixture.car.isRemoved() && !timedOut) {
+                return;
+            }
+            fixture.finished = true;
+            breakBlocks.set(breakBlocksBefore, level.getServer());
+            fixture.close();
+            helper.assertTrue(affected[0] >= 0, "The car never exploded (" + name + ")");
+            helper.assertTrue(expectBlocks ? affected[0] > 0 : affected[0] == 0,
+                    "The car's blast " + (affected[0] > 0 ? "breaks" : "keeps") + " blocks (" + name + ")");
+            LOGGER.info("R772_WOU_BREAK_RULE_PASS {} breaks={}", name, affected[0] > 0);
+            helper.succeed();
+        });
+    }
+
+    // R772.1 OQ-B01: the Explosion move's blast (and the TNT and the creeper it may use instead) breaks blocks only with
+    // mobGriefing, jojoAbilitiesBreakBlocks and the user's "breaks blocks" switch all on; with one off the move gives the
+    // harmless blast. The stand's draw is set so that the move blasts at once (its other two draws are a primed TNT and a
+    // lit creeper), and the blast's block interaction is read in ExplosionEvent.Detonate.
+    @GameTest(template = "empty", batch = "wou_explosion_break_rule", timeoutTicks = 220)
+    public static void explosionMoveBreaksBlocksOnlyWhereTheRuleAndTheSwitchAllow(GameTestHelper helper) {
+        Fixture fixture = new Fixture(helper, "explosion_rule");
+        ServerLevel level = fixture.level;
+        GameRules.BooleanValue breakBlocks = level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS);
+        boolean breakBlocksBefore = breakBlocks.get();
+        helper.runAfterDelay(SPAWN_PROTECTION_TICKS, () -> {
+            try {
+                PlayerClientBroadcastedSettings switches =
+                        fixture.owner.getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get());
+                int[] interaction = {-1};
+                fixture.listen(ExplosionEvent.Detonate.class, event -> {
+                    if (event.getLevel() == level && event.getExplosion().getDirectSourceEntity() == fixture.stand) {
+                        interaction[0] = event.getExplosion().getBlockInteraction() == Explosion.BlockInteraction.KEEP ? 0 : 1;
+                        event.getAffectedBlocks().clear();
+                    }
+                });
+                level.getGameRules().getRule(GameRules.RULE_MOBGRIEFING).set(true, level.getServer());
+                helper.assertTrue(!blastBreaks(fixture, interaction, false, true),
+                        "The Explosion move's blast breaks blocks with jojoAbilitiesBreakBlocks off");
+                helper.assertTrue(!blastBreaks(fixture, interaction, true, false),
+                        "The Explosion move's blast breaks blocks with its user's Stand switch off");
+                helper.assertTrue(blastBreaks(fixture, interaction, true, true),
+                        "With mobGriefing, the rule and the switch on the Explosion move's blast must break blocks");
+                switches.standBreaksBlocks = true;
+                LOGGER.info("R772_WOU_BREAK_RULE_PASS explosion_move");
+                fixture.close();
+                helper.succeed();
+            }
+            catch (RuntimeException | Error exception) {
+                fixture.close();
+                throw exception;
+            }
+            finally {
+                breakBlocks.set(breakBlocksBefore, level.getServer());
+            }
+        });
+    }
+
+    // the move blasting once under the rule and the switch given; whether the blast would break blocks
+    private static boolean blastBreaks(Fixture fixture, int[] interaction, boolean rule, boolean standSwitch) {
+        ServerLevel level = fixture.level;
+        level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS).set(rule, level.getServer());
+        fixture.owner.getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get()).standBreaksBlocks = standSwitch;
+        long seed = 1L;
+        while (RandomSource.create(seed).nextInt(3) != 1) {
+            seed++;
+        }
+        fixture.stand.getRandom().setSeed(seed);
+        interaction[0] = -1;
+        ExplosionAbility.ExplosionAction.explodeAt(level, fixture.stand, fixture.owner,
+                fixture.stand.position().add(0.0D, 0.0D, 3.0D));
+        fixture.helper.assertTrue(interaction[0] >= 0, "The Explosion move did not blast");
+        return interaction[0] > 0;
     }
 
     private static void run(GameTestHelper helper, String name, Consumer<Fixture> afterCarSpawned) {

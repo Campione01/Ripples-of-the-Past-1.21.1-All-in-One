@@ -13,6 +13,7 @@ public final class TimeAccelerationState {
     private boolean active;
     private int phase;
     private int tickCounter;
+    private int pausedAtServerTick;
     private TimeAccelerationMode mode =
             TimeAccelerationMode.WORLD_ACCELERATES;
     // Rule G3: the day time the acceleration has set; no rewind sets it back.
@@ -30,6 +31,14 @@ public final class TimeAccelerationState {
 
     public boolean active() {
         return active;
+    }
+
+    public boolean hasSession() {
+        return ownerUuid != null;
+    }
+
+    public boolean ownsSession(UUID candidate) {
+        return candidate.equals(ownerUuid);
     }
 
     public int phase() {
@@ -53,9 +62,7 @@ public final class TimeAccelerationState {
     }
 
     public boolean isOwner(UUID candidate) {
-        return active
-                && ownerUuid != null
-                && ownerUuid.equals(candidate);
+        return active && ownsSession(candidate);
     }
 
     public void begin(UUID owner, TimeAccelerationMode nextMode) {
@@ -63,6 +70,7 @@ public final class TimeAccelerationState {
         active = true;
         phase = 0;
         tickCounter = 0;
+        pausedAtServerTick = 0;
         mode = nextMode;
         ownsDayTime = false;
     }
@@ -70,6 +78,22 @@ public final class TimeAccelerationState {
     public void advance(int nextPhase) {
         phase = nextPhase;
         tickCounter++;
+    }
+
+    void pause(int serverTick) {
+        active = false;
+        ownsDayTime = false;
+        pausedAtServerTick = serverTick;
+    }
+
+    void resume(int serverTick) {
+        long elapsed = Integer.toUnsignedLong(serverTick - pausedAtServerTick);
+        tickCounter = (int) Math.max(0L, tickCounter - elapsed);
+        // Phase 1 starts on the first acceleration tick, not after the first interval.
+        phase = tickCounter == 0 ? 0
+                : 1 + (tickCounter - 1) / TimeAccelerationService.LEGACY_PHASE_TICKS;
+        pausedAtServerTick = 0;
+        active = true;
     }
 
     public boolean ownsDayTime() {
@@ -100,6 +124,7 @@ public final class TimeAccelerationState {
         active = false;
         phase = 0;
         tickCounter = 0;
+        pausedAtServerTick = 0;
         ownsDayTime = false;
     }
 

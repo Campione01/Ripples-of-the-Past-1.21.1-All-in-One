@@ -27,5 +27,15 @@
   "action.rotp_nextalbum.grab_barrage": "Barragem de Socos",
   "rotp_nextalbum.ability.grab_barrage": "Barragem de Socos",
   "action.rotp_nextalbum.grab_heavy_punch": "Soco Pesado",
-  "rotp_nextalbum.ability.grab_heavy_punch": "Soco Pesado"
+  "rotp_nextalbum.ability.grab_heavy_punch": "Soco Pesado",
+  "rotp_nextalbum.options.agingAuraMistParticles": "Partículas de névoa do envelhecimento",
+  "rotp_nextalbum.options.agingAuraMistParticles.tooltip": "Mostra partículas discretas de névoa de envelhecimento enquanto a aura de envelhecimento do The Grateful Dead está ativa.",
+  "rotp_nextalbum.options.agingSpeedMultiplier": "Multiplicador da velocidade de envelhecimento",
+  "rotp_nextalbum.options.agingSpeedMultiplier.tooltip": "Multiplicador global da velocidade de envelhecimento do The Grateful Dead. 1.0 = padrão. Não ultrapassa a janela da taxa de envelhecimento.",
+  "rotp_grateful_dead.configuration.title": "The Grateful Dead",
+  "rotp_grateful_dead.configuration.section.rotp.grateful.dead.common.toml": "Configurações comuns",
+  "rotp_grateful_dead.configuration.section.rotp.grateful.dead.common.toml.title": "Configurações comuns",
+  "rotp_grateful_dead.configuration.section.rotp.grateful.dead.client.toml": "Configurações do cliente",
+  "rotp_grateful_dead.configuration.section.rotp.grateful.dead.client.toml.title": "Configurações do cliente",
+  "rotp_grateful_dead.configuration.Stand Settings": "Configurações do Stand"
 }

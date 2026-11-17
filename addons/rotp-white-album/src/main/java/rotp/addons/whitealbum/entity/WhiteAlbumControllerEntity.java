@@ -1,5 +1,7 @@
 package rotp.addons.whitealbum.entity;
 
+import javax.annotation.Nullable;
+
 import rotp.core.init.ModStatusEffects;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.standpower.StandPower;
@@ -30,6 +32,77 @@ public final class WhiteAlbumControllerEntity extends StandEntity {
                     WhiteAlbumControllerEntity.class,
                     EntityDataSerializers.BOOLEAN);
     private boolean wasStandBlocking;
+    // The owner's rule of 2026-11-05: both toggles go on through a recall, on the removed entity, until the next summon
+    // takes them over or the user dies, leaves, changes level or loses the Stand.
+    public static final class Recalled {
+        @Nullable
+        WhiteAlbumControllerEntity stand;
+    }
+
+    /** The recalled controller whose toggles go on, with no controller out. */
+    @Nullable
+    public static WhiteAlbumControllerEntity recalled(LivingEntity user) {
+        WhiteAlbumControllerEntity recalled =
+                user.hasData(WhiteAlbumAddon.RECALLED_STAND)
+                        ? user.getData(WhiteAlbumAddon.RECALLED_STAND).stand
+                        : null;
+        if (recalled == null) {
+            return null;
+        }
+        StandPower power = StandPower.get(user);
+        if (power == null
+                || !power.hasPower()
+                || power.getPowerType() != WhiteAlbumAddon.WHITE_ALBUM.get()
+                || recalled.getUser() != user
+                || !user.isAlive()
+                || user.isRemoved()
+                || recalled.level() != user.level()) {
+            forgetRecalled(user);
+            return null;
+        }
+        return recalled;
+    }
+
+    public static void forgetRecalled(LivingEntity user) {
+        if (user.hasData(WhiteAlbumAddon.RECALLED_STAND)) {
+            user.getData(WhiteAlbumAddon.RECALLED_STAND).stand = null;
+        }
+    }
+
+    @Override
+    public void setUserAndPower(LivingEntity user, StandPower power) {
+        super.setUserAndPower(user, power);
+        if (user == null || level().isClientSide()) {
+            return;
+        }
+        if (!user.hasData(WhiteAlbumAddon.RECALLED_STAND)) {
+            return;
+        }
+        WhiteAlbumControllerEntity recalled =
+                user.getData(WhiteAlbumAddon.RECALLED_STAND).stand;
+        forgetRecalled(user);
+        if (recalled != null
+                && recalled != this
+                && recalled.getUser() == user
+                && recalled.level() == level()) {
+            entityData.set(GENTLY_WEEPS_ACTIVE, recalled.isGentlyWeepsActive());
+            entityData.set(FREEZE_FLOOR_ACTIVE, recalled.isFreezeFloorActive());
+        }
+    }
+
+    @Override
+    public void remove(RemovalReason reason) {
+        LivingEntity user = getUser();
+        if (!level().isClientSide()
+                && (isGentlyWeepsActive() || isFreezeFloorActive())
+                && user != null
+                && user.isAlive()
+                && !user.isRemoved()
+                && user.level() == level()) {
+            user.getData(WhiteAlbumAddon.RECALLED_STAND).stand = this;
+        }
+        super.remove(reason);
+    }
 
     public WhiteAlbumControllerEntity(
             EntityType<? extends WhiteAlbumControllerEntity> type,
@@ -54,8 +127,7 @@ public final class WhiteAlbumControllerEntity extends StandEntity {
 
     public void setGentlyWeepsActive(boolean active) {
         if (!level().isClientSide()
-                && isAlive()
-                && !isRemoved()) {
+                && (!active || isAlive() && !isRemoved())) {
             entityData.set(GENTLY_WEEPS_ACTIVE, active);
         }
     }
@@ -66,8 +138,7 @@ public final class WhiteAlbumControllerEntity extends StandEntity {
 
     public void setFreezeFloorActive(boolean active) {
         if (!level().isClientSide()
-                && isAlive()
-                && !isRemoved()) {
+                && (!active || isAlive() && !isRemoved())) {
             entityData.set(FREEZE_FLOOR_ACTIVE, active);
         }
     }

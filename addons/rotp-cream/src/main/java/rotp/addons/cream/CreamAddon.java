@@ -3,6 +3,8 @@ package rotp.addons.cream;
 import static rotp.core.init.power.ModStands.SWITCH_SPECIAL;
 import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
+import java.util.function.Supplier;
+
 import rotp.core.api.RotpAddonApi;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.power.ModStandAbilities;
@@ -45,8 +47,10 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(CreamAddon.MOD_ID)
 public final class CreamAddon {
@@ -84,6 +88,9 @@ public final class CreamAddon {
     public static final DeferredRegister<AbilityType<?>>
             ABILITY_TYPES = DeferredRegister.create(
                     JojoRegistries.ABILITY_TYPES_REG, MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>>
+            ATTACHMENT_TYPES = DeferredRegister.create(
+                    NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
     public static final DeferredRegister<Block> BLOCKS =
             DeferredRegister.create(Registries.BLOCK, MOD_ID);
     public static final DeferredRegister<EntityType<?>>
@@ -240,6 +247,16 @@ public final class CreamAddon {
                     CREAM_SEMI_VOID_CANCEL_NAME,
                     () -> CREAM_SEMI_VOID_CANCEL_TYPE);
 
+    public static final Supplier<AttachmentType<CreamEntity.RecalledVoid>>
+            RECALLED_VOID = ATTACHMENT_TYPES.register(
+                    "recalled_void",
+                    () -> AttachmentType
+                            .builder(() -> new CreamEntity.RecalledVoid())
+                            .sync(
+                                    (holder, player) -> holder == player,
+                                    CreamEntity.RecalledVoid.STREAM_CODEC)
+                            .build());
+
     public static final DeferredHolder<Block, VoidBarrierBlock>
             VOID_BARRIER = BLOCKS.register(
                     "void_barrier",
@@ -339,6 +356,7 @@ public final class CreamAddon {
             IEventBus modEventBus, ModContainer modContainer) {
         requireCoreApi();
         ABILITY_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
         BLOCKS.register(modEventBus);
         ENTITY_TYPES.register(modEventBus);
         MOB_EFFECTS.register(modEventBus);
@@ -409,6 +427,8 @@ public final class CreamAddon {
             ResourceLocation id) {
         MovesetBuilder moveset = new MovesetBuilder()
                 .addHumanoidStandStuff()
+                // the owner kept two presses as two hands: CreamMeleeGameTests.twoPressesSwingTwoHands
+                .noPunchCombo()
                 .addAbility("punch", CREAM_PUNCH_TYPE)
                 // 1.16 Cream had no barrage; the shared one keeps the core's
                 // hit sound (the 1.7 s claw clip piled up at barrage rate).

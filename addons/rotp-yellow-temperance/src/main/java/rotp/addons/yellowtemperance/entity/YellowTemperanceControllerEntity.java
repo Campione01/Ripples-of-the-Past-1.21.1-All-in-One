@@ -3,17 +3,17 @@ package rotp.addons.yellowtemperance.entity;
 import java.util.Optional;
 import java.util.UUID;
 
-import rotp.core.init.ModEntityDataSerializers;
-import rotp.core.init.ModSpecialActions;
-import rotp.core.powersystem.entityaction.EntityActionInstance;
+import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.EntityStandType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
 
 import rotp.addons.yellowtemperance.YellowTemperanceAddon;
 import rotp.addons.yellowtemperance.disguise.DisguiseMode;
 import rotp.addons.yellowtemperance.disguise.DisguiseRetaliationService;
 import rotp.addons.yellowtemperance.disguise.DisguiseScaleService;
+import rotp.addons.yellowtemperance.disguise.YellowTemperanceDisguiseState;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -25,6 +25,8 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public final class YellowTemperanceControllerEntity
         extends StandEntity {
@@ -33,40 +35,19 @@ public final class YellowTemperanceControllerEntity
     /**
      * The 1.16 doll toggle lived in the user's {@code LivingData} capability (saved with the player and copied on
      * death), so it survived unsummoning, relogging and respawning; the port keeps the same per-player preference
-     * in {@link Player#PERSISTED_NBT_TAG} and mirrors it onto the controller.
+     * in {@link Player#PERSISTED_NBT_TAG} and mirrors it onto its user's disguise state.
      */
     public static final String DOLL_PREFERENCE =
             "rotp_yellowtemperance.doll_rendering";
+    // StandOffsetFromUser.createDefault: 1.16's place for a Stand, behind the user's right, whichever Stand it shows.
+    public static final Vec3 BESIDE_OFFSET = new Vec3(-0.75D, 0.2D, -0.75D);
+    // 1.16 InitStands: new StandEntityType(YellowTemperanceEntity::new, 0.7f, 2.1f)
+    private static final EntityDimensions BESIDE_BODY = EntityDimensions.scalable(0.7F, 2.1F);
 
-    private static final EntityDataAccessor<Byte> DISGUISE_MODE =
-            SynchedEntityData.defineId(
-                    YellowTemperanceControllerEntity.class,
-                    EntityDataSerializers.BYTE);
-    private static final EntityDataAccessor<Optional<ResourceLocation>>
-            DISGUISE_ID = SynchedEntityData.defineId(
-                    YellowTemperanceControllerEntity.class,
-                    ModEntityDataSerializers
-                            .RESOURCE_LOCATION_OPTIONAL.get());
-    private static final EntityDataAccessor<Optional<UUID>>
-            DISGUISE_PLAYER = SynchedEntityData.defineId(
-                    YellowTemperanceControllerEntity.class,
-                    EntityDataSerializers.OPTIONAL_UUID);
-    private static final EntityDataAccessor<String> DISGUISE_PLAYER_NAME =
-            SynchedEntityData.defineId(
-                    YellowTemperanceControllerEntity.class,
-                    EntityDataSerializers.STRING);
-    private static final EntityDataAccessor<Boolean> DOLL =
-            SynchedEntityData.defineId(
-                    YellowTemperanceControllerEntity.class,
-                    EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> BLOCKING =
             SynchedEntityData.defineId(
                     YellowTemperanceControllerEntity.class,
                     EntityDataSerializers.BOOLEAN);
-    private static final EntityDataAccessor<Integer> STATE_CHANGED_TICK =
-            SynchedEntityData.defineId(
-                    YellowTemperanceControllerEntity.class,
-                    EntityDataSerializers.INT);
 
     private DisguiseMode pendingMode = DisguiseMode.NONE;
     private long selectionExpiresAt = Long.MIN_VALUE;
@@ -85,57 +66,57 @@ public final class YellowTemperanceControllerEntity
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
-        builder.define(DISGUISE_MODE, DisguiseMode.NONE.id());
-        builder.define(DISGUISE_ID, Optional.empty());
-        builder.define(DISGUISE_PLAYER, Optional.empty());
-        builder.define(DISGUISE_PLAYER_NAME, "");
-        builder.define(DOLL, false);
         builder.define(BLOCKING, false);
-        builder.define(STATE_CHANGED_TICK, 0);
     }
 
     public DisguiseMode getDisguiseMode() {
-        return DisguiseMode.byId(entityData.get(DISGUISE_MODE));
+        return state().mode();
     }
 
     public Optional<ResourceLocation> getDisguiseId() {
-        return entityData.get(DISGUISE_ID);
+        return state().disguiseId();
     }
 
     public Optional<UUID> getDisguisePlayer() {
-        return entityData.get(DISGUISE_PLAYER);
+        return state().playerId();
     }
 
     public String getDisguisePlayerName() {
-        return entityData.get(DISGUISE_PLAYER_NAME);
+        return state().playerName();
     }
 
+    /** Whether the user himself looks like something else; a fake Stand beside him does not count (1.16 isUserDisguised). */
     public boolean isDisguised() {
-        return getDisguiseMode() != DisguiseMode.NONE;
+        return state().isDisguised();
+    }
+
+    public Optional<ResourceLocation> getBesideStand() {
+        return state().besideStand();
+    }
+
+    public boolean hasStandDisguise() {
+        return state().hasStandDisguise();
     }
 
     public boolean isDollEnabled() {
-        return entityData.get(DOLL);
+        return state().doll();
     }
 
     public boolean isYellowBlocking() {
         return entityData.get(BLOCKING);
     }
 
-    public int getStateChangedTick() {
-        return entityData.get(STATE_CHANGED_TICK);
+    private YellowTemperanceDisguiseState state() {
+        return YellowTemperanceDisguiseState.of(getUser());
     }
 
-    public boolean isUnsummoning() {
-        EntityActionInstance action = getCurStandAction();
-        return action != null
-                && action.ability == ModSpecialActions.STAND_UNSUMMON.get();
+    private void putState(YellowTemperanceDisguiseState state) {
+        YellowTemperanceDisguiseState.put(getUser(), state);
     }
 
     public void setDollEnabled(boolean enabled) {
         if (!level().isClientSide()) {
-            entityData.set(DOLL, enabled, true);
-            markChanged();
+            putState(state().withDoll(enabled));
             if (getUser() instanceof Player player) {
                 CompoundTag persisted = player.getPersistentData()
                         .getCompound(Player.PERSISTED_NBT_TAG);
@@ -153,8 +134,7 @@ public final class YellowTemperanceControllerEntity
                         .getCompound(Player.PERSISTED_NBT_TAG)
                         .getBoolean(DOLL_PREFERENCE);
         if (stored != isDollEnabled()) {
-            entityData.set(DOLL, stored, true);
-            markChanged();
+            putState(state().withDoll(stored));
         }
     }
 
@@ -168,7 +148,10 @@ public final class YellowTemperanceControllerEntity
         if (level().isClientSide() || mode == DisguiseMode.NONE) {
             return;
         }
-        clearDisguise();
+        // 1.16 kept the Stand disguise apart from the user's: choosing one left the other on
+        if (mode != DisguiseMode.STAND) {
+            clearDisguise();
+        }
         pendingMode = mode;
         selectionExpiresAt =
                 level().getGameTime() + SELECTION_WINDOW_TICKS;
@@ -178,7 +161,9 @@ public final class YellowTemperanceControllerEntity
             DisguiseMode mode, long gameTime) {
         return !level().isClientSide()
                 && mode != DisguiseMode.NONE
-                && pendingMode == mode
+                && (pendingMode == mode
+                        || pendingMode == DisguiseMode.STAND
+                                && mode == DisguiseMode.STAND_SELF)
                 && gameTime <= selectionExpiresAt;
     }
 
@@ -202,12 +187,23 @@ public final class YellowTemperanceControllerEntity
                         mode, level().getGameTime())) {
             return;
         }
-        entityData.set(DISGUISE_MODE, mode.id(), true);
-        entityData.set(DISGUISE_ID, Optional.of(id), true);
-        entityData.set(DISGUISE_PLAYER, Optional.empty(), true);
-        entityData.set(DISGUISE_PLAYER_NAME, "", true);
+        putState(state()
+                .withUserDisguise(
+                        mode, Optional.of(id), Optional.empty(), "")
+                .withBesideStand(Optional.empty()));
         applyScale(dimensions);
-        finishSelection();
+        cancelSelection();
+    }
+
+    // 1.16 StandDisguiseSetPacket: only the Stand changes; the user keeps his size and any disguise of his own.
+    public void applyBesideStand(ResourceLocation id) {
+        if (level().isClientSide()
+                || !canAcceptSelection(
+                        DisguiseMode.STAND, level().getGameTime())) {
+            return;
+        }
+        putState(state().withBesideStand(Optional.of(id)));
+        cancelSelection();
     }
 
     public void applyPlayerDisguise(Player target) {
@@ -218,20 +214,14 @@ public final class YellowTemperanceControllerEntity
                         level().getGameTime())) {
             return;
         }
-        entityData.set(
-                DISGUISE_MODE, DisguiseMode.PLAYER.id(), true);
-        entityData.set(DISGUISE_ID, Optional.empty(), true);
-        entityData.set(
-                DISGUISE_PLAYER,
+        putState(state().withUserDisguise(
+                DisguiseMode.PLAYER,
+                Optional.empty(),
                 Optional.of(target.getUUID()),
-                true);
-        entityData.set(
-                DISGUISE_PLAYER_NAME,
-                target.getGameProfile().getName(),
-                true);
+                target.getGameProfile().getName()));
         refreshUserDisplayName(); // chat shows the disguise name
         applyScale(target.getType().getDimensions());
-        finishSelection();
+        cancelSelection();
     }
 
     public void clearDisguise() {
@@ -242,16 +232,26 @@ public final class YellowTemperanceControllerEntity
         DisguiseScaleService.reset(user);
         if (isDisguised()) {
             boolean namedAsPlayer = getDisguiseMode() == DisguiseMode.PLAYER;
-            entityData.set(
-                    DISGUISE_MODE, DisguiseMode.NONE.id(), true);
-            entityData.set(DISGUISE_ID, Optional.empty(), true);
-            entityData.set(
-                    DISGUISE_PLAYER, Optional.empty(), true);
-            entityData.set(DISGUISE_PLAYER_NAME, "", true);
-            markChanged();
+            putState(state().withUserDisguise(
+                    DisguiseMode.NONE,
+                    Optional.empty(),
+                    Optional.empty(),
+                    ""));
             if (namedAsPlayer) {
                 refreshUserDisplayName(); // chat shows the real name again
             }
+        }
+        cancelSelection();
+    }
+
+    // 1.16 clearDisguisesStand: an entity or player disguise of the user stays on.
+    public void clearStandDisguise() {
+        if (level().isClientSide()) {
+            return;
+        }
+        putState(state().withBesideStand(Optional.empty()));
+        if (getDisguiseMode() == DisguiseMode.STAND_SELF) {
+            clearDisguise();
         }
         cancelSelection();
     }
@@ -265,7 +265,7 @@ public final class YellowTemperanceControllerEntity
         LivingEntity user = getUser();
         if (user == null || !user.isAlive() || user.isRemoved()) {
             if (!level().isClientSide()) {
-                clearServerState();
+                setYellowBlocking(false);
             }
             return;
         }
@@ -284,22 +284,8 @@ public final class YellowTemperanceControllerEntity
                             != YellowTemperanceAddon
                                     .YELLOW_TEMPERANCE.get()
                     || power.getSummonedStandEntity() != this) {
-                clearServerState();
+                setYellowBlocking(false);
                 return;
-            }
-            // 1.16 YellowTemperanceEntity.tick :44-46 took the protection off
-            // in the Stand's own tick on every tick of the unsummon, so
-            // entities ticking after the Stand met none until the player's
-            // tick put a held guard back
-            if (isUnsummoning()) {
-                user.removeEffect(YellowTemperanceAddon.PROTECTION);
-            }
-            // 1.16 AbstractDisguiseStandEntity.tick :195-196: the unsummon's
-            // first tick took an entity disguise off; a player or Stand
-            // disguise alone stayed until remove()
-            if (isUnsummoning()
-                    && getDisguiseMode() == DisguiseMode.ENTITY) {
-                clearDisguise();
             }
             if (!dollPreferenceApplied) {
                 applyStoredDollPreference(user);
@@ -311,17 +297,58 @@ public final class YellowTemperanceControllerEntity
         }
     }
 
+    // The owner's rule of 2026-11-06, over 1.16's: the disguises, the doll and the Protection go on with the Stand
+    // recalled, from the user's own state. Only the block, a hold, stops.
     @Override
     public void remove(Entity.RemovalReason reason) {
         if (!level().isClientSide()) {
-            clearServerState();
+            setYellowBlocking(false);
+            cancelSelection();
         }
         super.remove(reason);
     }
 
+    /** Whether the fake Stand of the Stand disguise stands beside the user, where this Stand's body then is. */
+    public boolean showsBesideStand() {
+        LivingEntity user = getUser();
+        return user != null && YellowTemperanceDisguiseState.of(user).besideStand().isPresent();
+    }
+
+    /** Where the fake Stand stands: 1.16's place for a Stand, behind the user's right, turned with his head. */
+    public static Vec3 besidePosition(LivingEntity user, float partialTick) {
+        Vec3 offset = StandOffsetFromUser.relativeToAbsolute(
+                BESIDE_OFFSET,
+                StandOffsetFromUser.Rotations.HEAD,
+                user.getViewYRot(partialTick),
+                user.getViewXRot(partialTick),
+                user instanceof Player player
+                        ? PlayerClientBroadcastedSettings.getPlayerSettings(player)
+                        : Optional.empty(),
+                true);
+        return user.getPosition(partialTick).add(offset);
+    }
+
+    // 1.16 YellowTemperanceEntity: the Stand disguise was this Stand's own body, 0.7 by 2.1 at its place behind the
+    // user, struck as any Stand is, its hits passing to the user through the health link. The entity stays at the
+    // user's feet, which every range is measured from; only its box stands with the fake Stand.
+    @Override
+    protected AABB makeBoundingBox() {
+        LivingEntity user = getUser();
+        if (user != null && YellowTemperanceDisguiseState.of(user).besideStand().isPresent()) {
+            return BESIDE_BODY.makeBoundingBox(besidePosition(user, 1.0F));
+        }
+        return super.makeBoundingBox();
+    }
+
+    // the core's move by the box would carry the entity to where the box stands
+    @Override
+    protected void moveWithoutCollision(Vec3 moveVec) {
+        setPos(position().add(moveVec));
+    }
+
     @Override
     public boolean isPickable() {
-        return false;
+        return showsBesideStand() && super.isPickable();
     }
 
     @Override
@@ -342,15 +369,6 @@ public final class YellowTemperanceControllerEntity
         }
     }
 
-    private void finishSelection() {
-        markChanged();
-        cancelSelection();
-    }
-
-    private void markChanged() {
-        entityData.set(STATE_CHANGED_TICK, tickCount, true);
-    }
-
     // Recomputes the cached display name through PlayerEvent.NameFormat.
     private void refreshUserDisplayName() {
         if (getUser() instanceof Player player) {
@@ -363,18 +381,4 @@ public final class YellowTemperanceControllerEntity
         selectionExpiresAt = Long.MIN_VALUE;
     }
 
-    private void clearServerState() {
-        LivingEntity user = getUser();
-        setYellowBlocking(false);
-        // Only the controller's view is reset; the user's stored doll preference is kept.
-        entityData.set(DOLL, false);
-        dollPreferenceApplied = false;
-        clearDisguise();
-        if (user != null) {
-            user.removeEffect(YellowTemperanceAddon.PROTECTION);
-        }
-        if (user instanceof Player player) {
-            DisguiseRetaliationService.clear(player);
-        }
-    }
 }

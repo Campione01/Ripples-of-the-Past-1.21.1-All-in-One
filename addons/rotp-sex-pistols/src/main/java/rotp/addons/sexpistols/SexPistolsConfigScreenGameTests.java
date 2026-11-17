@@ -32,7 +32,7 @@ import rotp.addons.sexpistols.config.SexPistolsConfig;
 @GameTestHolder(SexPistolsIds.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class SexPistolsConfigScreenGameTests {
-    private static final List<String> LOCALES = List.of("en_us", "zh_cn");
+    private static final List<String> LOCALES = List.of("en_us", "zh_cn", "pt_br");
 
     private SexPistolsConfigScreenGameTests() {}
 

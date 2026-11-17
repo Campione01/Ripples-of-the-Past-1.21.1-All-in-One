@@ -150,7 +150,7 @@ public final class SexPistolsReloadAbility extends Ability {
             fail(
                     serverLevel,
                     owner,
-                    "sex_pistols_reload_unavailable",
+                    refusalReason(revolver),
                     NOTHING_LOADED_FAIL_CLICK_VOLUME);
             return;
         }
@@ -242,6 +242,16 @@ public final class SexPistolsReloadAbility extends Ability {
             }
         }
         return loadedBullets > 0 || attachedAny;
+    }
+
+    // Stand Reload never loads a round: its member rides the one already in
+    // the selected chamber, which only this text tells the player.
+    private String refusalReason(ItemStack revolver) {
+        return !quickReload
+                        && RevolverReload.selectedLiveChamber(
+                                RevolverItem.state(revolver)) < 0
+                ? "sex_pistols_reload_no_round"
+                : "sex_pistols_reload_unavailable";
     }
 
     // 1.16 answered a failed reload with a vanilla click and no text.

@@ -5,6 +5,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import rotp.core.client.ClientGlobals;
+import rotp.core.client.entityanim.PreFrameEntityAnimCalc;
+import rotp.core.client.entityanim.barrage.BarrageSwings;
 import rotp.core.client.firstperson.FirstPersonModelLayer;
 import rotp.core.client.rendertype.AlphaMultiBufferSource;
 import rotp.core.impl.stands._entitybase.StandEntityBlockAbility;
@@ -152,6 +154,35 @@ public final class ScaryMonstersSuitLayer
                 packedLight,
                 LivingEntityRenderer.getOverlayCoords(player, 0.0F),
                 0xFFFFFFFF);
+        renderBarrageAfterimages(player, poseStack, vertices, packedLight, headPitch);
+    }
+
+    /**
+     * The Stand entity has no shape, so its barrage's afterimages have no arm of their own to draw: they are the suit's,
+     * in the suit's texture and pass, on the user's body. render() poses the suit anew each frame.
+     */
+    private void renderBarrageAfterimages(
+            AbstractClientPlayer player,
+            PoseStack poseStack,
+            VertexConsumer vertices,
+            int packedLight,
+            float headPitch) {
+        StandPower power = StandPower.get(player);
+        StandEntity stand = power != null ? power.getSummonedStandEntity() : null;
+        BarrageSwings swings = stand != null ? PreFrameEntityAnimCalc.getBarrageSwings(stand) : null;
+        if (swings == null || !swings.hasSmthToRender()) {
+            return;
+        }
+        for (BarrageSwings.BarrageSwing swing : swings.barrageSwings) {
+            swing.poseAndRender(
+                    suitModel,
+                    poseStack,
+                    vertices,
+                    packedLight,
+                    LivingEntityRenderer.getOverlayCoords(player, 0.0F),
+                    0xFFFFFFFF,
+                    headPitch);
+        }
     }
 
     @Override

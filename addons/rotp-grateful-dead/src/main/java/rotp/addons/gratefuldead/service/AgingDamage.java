@@ -1,8 +1,15 @@
 package rotp.addons.gratefuldead.service;
 
+import java.util.UUID;
+
+import javax.annotation.Nullable;
+
 import rotp.addons.gratefuldead.GratefulDeadAddon;
+import rotp.core.powersystem.standpower.StandDamageContext;
+import rotp.core.powersystem.standpower.StandPower;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -17,12 +24,25 @@ public final class AgingDamage {
 
     private AgingDamage() {}
 
-    public static void hurt(LivingEntity entity, float amount) {
+    /** Old age dealt by the Grateful Dead user the aging is owned by: it takes the Stand's damage share. */
+    public static void hurt(LivingEntity entity, float amount, @Nullable UUID owner) {
         if (entity == null || amount <= 0.0F || !entity.isAlive()
                 || entity.level().isClientSide()) {
             return;
         }
         entity.invulnerableTime = 0;
-        entity.hurt(entity.damageSources().source(AGING), amount);
+        try (var running = StandDamageContext.enter(ownersStand(entity, owner))) {
+            entity.hurt(entity.damageSources().source(AGING), amount);
+        }
+    }
+
+    // an owner who is offline or no longer a Grateful Dead user leaves the damage as it is
+    @Nullable
+    private static StandPower ownersStand(LivingEntity entity, @Nullable UUID owner) {
+        if (owner == null || entity.getServer() == null) {
+            return null;
+        }
+        ServerPlayer player = entity.getServer().getPlayerList().getPlayer(owner);
+        return player != null && AgingService.hasGratefulDead(player) ? StandPower.get(player) : null;
     }
 }

@@ -34,6 +34,7 @@ import rotp.core.powersystem.playerpower.PlayerPower;
 import rotp.core.powersystem.playerpower.PlayerPowerType;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandStats;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.powersystem.standpower.type.StandTypePersistentData;
@@ -80,6 +81,10 @@ public final class MobPowerUtil {
             ResourceLocation.fromNamespaceAndPath(
                     "jojo_ripples",
                     "jojo/summon_stand");
+    private static final ResourceLocation KING_CRIMSON =
+            ResourceLocation.fromNamespaceAndPath("rotp_kingcrimson", "kingcrimson");
+    private static final String TIME_ERASE = "kingcrimson_timeerase";
+    private static final double KING_CRIMSON_WEIGHT_SHARE = 0.25D;
     private static final Set<String> CORE_BLOCKED_MOB_ABILITIES = Set.of(
             "jojo_ripples:enhanced_eyesight",
             "jojo_ripples:repair_item",
@@ -188,31 +193,55 @@ public final class MobPowerUtil {
         return false;
     }
 
-    @Nullable
-    public static StandType randomStand(LivingEntity entity) {
-        List<StandType> eligible = StandType.getAllEnabledStands()
-                .filter(ModStands.PLAYER_CAN_GET_FROM_ARROW::contains)
-                .filter(stand -> MobPowerConfig.USE_ADDON_STANDS.get()
-                        || stand.getId().getNamespace()
-                                .equals("jojo_ripples"))
+    /**
+     * The Stands a creature's roll draws from, in the order of the draw: those an arrow gives a player (add-on
+     * Stands among them only with useAddonStands), and King Crimson, which no arrow gives. The owner, 2026-11-12,
+     * on creatures rolling it: "開放，但機率偏低". It is in the draw whatever useAddonStands says;
+     * blockedStandsForMobs takes it out as it takes any Stand out.
+     */
+    public static List<StandType> randomStandPool() {
+        return StandType.getAllEnabledStands()
+                .filter(stand -> KING_CRIMSON.equals(stand.getId())
+                        || ModStands.PLAYER_CAN_GET_FROM_ARROW.contains(stand)
+                                && (MobPowerConfig.USE_ADDON_STANDS.get()
+                                        || stand.getId().getNamespace().equals("jojo_ripples")))
                 .filter(stand -> !MobPowerConfig
                         .BLOCKED_STANDS_FOR_MOBS
                         .get()
                         .contains(stand.getId().toString()))
                 .toList();
+    }
+
+    /**
+     * What a Stand weighs in that draw: its own random weight, and for King Crimson a quarter of a normal Stand's
+     * (the core's default), unless its own stats give it none.
+     */
+    public static double randomStandWeight(StandType stand) {
+        double weight = safeRandomWeight(stand);
+        return weight > 0.0D && KING_CRIMSON.equals(stand.getId())
+                ? StandStats.DEFAULT_RANDOM_WEIGHT * KING_CRIMSON_WEIGHT_SHARE
+                : weight;
+    }
+
+    @Nullable
+    public static StandType randomStand(LivingEntity entity) {
+        List<StandType> eligible = randomStandPool();
         double totalWeight = 0.0D;
         for (StandType stand : eligible) {
-            totalWeight += safeRandomWeight(stand);
+            totalWeight += randomStandWeight(stand);
         }
         if (!(totalWeight > 0.0D) || !Double.isFinite(totalWeight)) {
             return null;
         }
+        return drawn(eligible, entity.getRandom().nextDouble() * totalWeight);
+    }
 
-        double selectedWeight =
-                entity.getRandom().nextDouble() * totalWeight;
+    /** The Stand of the pool on which so much weight, counted from its first Stand, falls. */
+    @Nullable
+    public static StandType drawn(List<StandType> eligible, double selectedWeight) {
         StandType lastWeighted = null;
         for (StandType stand : eligible) {
-            double weight = safeRandomWeight(stand);
+            double weight = randomStandWeight(stand);
             if (weight <= 0.0D) {
                 continue;
             }
@@ -336,9 +365,24 @@ public final class MobPowerUtil {
                         .contains(stand.getId().toString());
     }
 
+    /**
+     * King Crimson's Time Erase, when this is King Crimson's power; null otherwise. The owner, 2026-11-11: a creature
+     * that carries King Crimson erases time in a fight with a player. It does so by a rule of its own
+     * (TimeEraseTactic), so the erase is none of the moves a goal, a command or the Debug Stand picks.
+     */
+    @Nullable
+    public static Ability timeErase(Power<?> power) {
+        return power != null && power.getPowerType() != null
+                && KING_CRIMSON.equals(power.getPowerType().getId())
+                ? power.getMoveset().getAbility(TIME_ERASE) : null;
+    }
+
     public static boolean isMobSafeAbility(
             Power<?> power,
             Ability ability) {
+        if (ability != null && ability == timeErase(power)) {
+            return false;
+        }
         if (!(ability instanceof EntityActionAbility
                         || isAttackFollowUp(ability)
                         || isTimeStopBlink(ability))
@@ -433,6 +477,21 @@ public final class MobPowerUtil {
                 && (ability instanceof StandEntityPunchAbility
                         || ability instanceof StandEntityBarrageAbility
                         || ability instanceof StandEntityHeavyPunchAbility);
+    }
+
+    /**
+     * The name a mob knows a press by: a combo's later punch goes by its punch, as a player's one key does.
+     * Its 1.16 Stands had one light punch to pick and to wait on, and the combo is no more of them.
+     */
+    public static String pickName(Power<?> power, Ability ability) {
+        String name = ability.name();
+        if (ability instanceof StandEntityPunchAbility && ability.isSubAbility && Character.isDigit(name.charAt(name.length() - 1))) {
+            String punch = name.substring(0, name.length() - 1);
+            if (power.getMoveset().getAbility(punch) instanceof StandEntityPunchAbility) {
+                return punch;
+            }
+        }
+        return name;
     }
 
     public static List<Ability> availableMobAbilities(Power<?> power) {

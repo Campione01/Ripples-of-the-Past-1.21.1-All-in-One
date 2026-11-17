@@ -48,5 +48,11 @@
     "message.rotp_whitesnake.random_disc":  "光碟得隨機之效：%s",
     "message.rotp_whitesnake.no_buff_to_extract":  "無Buff可抽",
     "message.rotp_whitesnake.extracted_buff":  "已抽%s為光碟",
-    "jojo.message.action_condition.whitesnake_disc_payload":  "須持替身、記憶或Buff光碟"
+    "jojo.message.action_condition.whitesnake_disc_payload":  "須持替身、記憶或Buff光碟",
+    "rotp_whitesnake.glint_config":  "顯示白蛇閃光",
+    "rotp_whitesnake.glint_config.tooltip":  "於白蛇之身，現如附魔之閃光。僅為外觀，其疾徐隨遊戲所設之光效速度。",
+    "rotp_whitesnake.configuration.title":  "白蛇設定",
+    "rotp_whitesnake.configuration.section.rotp.whitesnake.common.toml":  "白蛇通用設定",
+    "rotp_whitesnake.configuration.section.rotp.whitesnake.common.toml.title":  "白蛇通用設定",
+    "rotp_whitesnake.configuration.Whitesnake glint effect":  "白蛇閃光效果"
 }

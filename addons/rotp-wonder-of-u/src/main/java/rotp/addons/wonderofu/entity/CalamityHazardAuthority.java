@@ -67,17 +67,12 @@ public final class CalamityHazardAuthority {
             return false;
         }
 
+        // A hazard goes on through a recall (owner's rule of 2026-11-05): it answers to its owner and his power.
         Entity ownerEntity =
                 level.getEntity(authority.getUUID(OWNER_TAG));
-        Entity standEntity =
-                level.getEntity(authority.getUUID(STAND_TAG));
         if (!(ownerEntity instanceof LivingEntity owner)
-                || !(standEntity instanceof WonderOfUStandEntity stand)
                 || !owner.isAlive()
-                || owner.isRemoved()
-                || !stand.isAlive()
-                || stand.isRemoved()
-                || stand.getUser() != owner) {
+                || owner.isRemoved()) {
             return false;
         }
 
@@ -86,7 +81,6 @@ public final class CalamityHazardAuthority {
                 && power.hasPower()
                 && power.getPowerType()
                         == WonderOfUAddon.WONDER_OF_YOU.get()
-                && power.getSummonedStandEntity() == stand
                 && power.isAbilityUnlocked("explosion");
     }
 

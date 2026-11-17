@@ -297,6 +297,15 @@ public final class ZipperCombatData extends SavedData {
         broadcastPresentation(level, target.getUUID());
     }
 
+    public boolean ownsParts(UUID ownerId) {
+        for (DetachedBodyPartRecord record : partsByEntity.values()) {
+            if (record.ownerId().equals(ownerId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean isPartActive(UUID entityId) {
         return partsByEntity.containsKey(entityId);
     }
@@ -455,7 +464,7 @@ public final class ZipperCombatData extends SavedData {
         if (owner.level() != level) {
             return ZipperCombatCloseReason.DIMENSION_CHANGE;
         }
-        if (!StickyFingersAddon.isStickyFingersActive(owner)) {
+        if (!StickyFingersAddon.holdsStickyFingers(owner)) {
             return ZipperCombatCloseReason.ABILITY_LOST;
         }
         return null;

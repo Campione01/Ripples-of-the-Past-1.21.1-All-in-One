@@ -402,9 +402,8 @@ public final class RhcpAbility extends StandEntityAbility
                     && getPowerUser() instanceof ServerPlayer player) {
                 dashAim = RhcpService.dashAim(player);
                 RhcpStandEntity stand = RhcpService.activeStand(player);
-                // Still the user's own sneak here; once manual control is
-                // on, Shift waits for the client's key packet.
-                dashShift = StandManualInput.isShiftHeld(player, stand);
+                // Read at the press, before manual control turns on.
+                dashShift = StandManualInput.isShiftHeld(player);
                 if (stand != null && !stand.isManuallyControlled()) {
                     StandEntityManualControlToggle.on(level(), stand);
                 }
@@ -431,8 +430,7 @@ public final class RhcpAbility extends StandEntityAbility
                 case ELECTRIC_DASH -> RhcpService.dash(player,
                         dashAim != null ? dashAim : RhcpService.dashAim(player),
                         dashShift != null ? dashShift
-                                : StandManualInput.isShiftHeld(player,
-                                        RhcpService.activeStand(player)));
+                                : StandManualInput.isShiftHeld(player));
                 case DODGE -> {
                     state.setDodging(true);
                     RhcpService.sync(player);

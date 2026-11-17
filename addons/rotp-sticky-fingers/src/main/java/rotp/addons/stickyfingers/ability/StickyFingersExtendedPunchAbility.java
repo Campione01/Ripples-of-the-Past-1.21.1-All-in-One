@@ -13,6 +13,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.stickyfingers.StickyFingersAddon;
 import rotp.addons.stickyfingers.StickyFingersPhase1Spec;
@@ -45,7 +46,7 @@ public final class StickyFingersExtendedPunchAbility
         LivingEntity user = context != null
                 ? context.getUser()
                 : null;
-        return user != null && user.isShiftKeyDown()
+        return StandManualInput.isShiftHeld(user)
                 ? super.getSpriteName(context) + "_pull"
                 : super.getSpriteName(context);
     }
@@ -102,7 +103,7 @@ public final class StickyFingersExtendedPunchAbility
             extendedPunch.setLifeSpan(
                     StickyFingersPhase1Spec
                             .EXTENDED_PUNCH_PERFORM_TICKS);
-            extendedPunch.setPullTargets(user.isShiftKeyDown());
+            extendedPunch.setPullTargets(StandManualInput.isShiftHeld(user));
             extendedPunch.setShootingPosOf(stand);
             addProjectileWithStandStats(extendedPunch);
             // 1.16 StandEntityTask: the cost is paid after the perform with

@@ -53,7 +53,7 @@ public final class CreamGameEvents {
     public static void onIncomingDamage(
             LivingIncomingDamageEvent event) {
         LivingEntity target = event.getEntity();
-        CreamEntity active = CreamEntity.activeFor(target);
+        CreamEntity active = CreamEntity.voidHolder(target);
         // 1.16 SemiVoidUserDamageMixin let a Stand's own blow reach the user
         // inside Cream; the ball and the dash (VoidedEffect) let nothing in.
         if (active != null
@@ -75,9 +75,7 @@ public final class CreamGameEvents {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onAbilityUse(
             RipplesAbilityKeyPressEvent event) {
-        CreamEntity stand = CreamEntity.activeFor(
-                event.getEntity());
-        if (stand == null || !stand.isInVoidState()) {
+        if (!CreamEntity.isInVoidState(event.getEntity())) {
             return;
         }
         ResourceLocation abilityId =
@@ -116,6 +114,10 @@ public final class CreamGameEvents {
                     false,
                     false,
                     false));
+        }
+
+        if (living.hasData(CreamAddon.RECALLED_VOID)) {
+            CreamEntity.tickRecalledVoid(living);
         }
 
         if ((living.hasEffect(CreamAddon.VOIDED)
@@ -368,7 +370,7 @@ public final class CreamGameEvents {
         if (living == null || living.level().isClientSide()) {
             return;
         }
-        CreamEntity active = CreamEntity.activeFor(living);
+        CreamEntity active = CreamEntity.voidHolder(living);
         if (active != null) {
             active.endVoidMode(false);
         }

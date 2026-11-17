@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-soft-and-wet`, mod id `rotp_sw`, version `1.1.0-port.12`.
+- Module: `rotp-soft-and-wet`, mod id `rotp_sw`, version `1.1.0-port.13`.
 - Original 1.16.5 add-on: `RotP-软又湿-1.1.jar` (RotP Soft And Wet, mod id `rotp_sw`), by Top1545, StandoByte; declared license: GNU GPL v3.0; SHA-256 `E77115599B127F5ABE8CE83BF1CBE8265A67B9F9D1246C17DCDDA521808A5610`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

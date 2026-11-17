@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-cream`, mod id `rotp_cream`, version `1.1.1-port.19`.
+- Module: `rotp-cream`, mod id `rotp_cream`, version `1.1.1-port.20`.
 - Original 1.16.5 add-on: `RotP-亚空瘴气-1.1.1.jar` (RotP Cream, mod id `rotp_cream`), by Hello There; declared license: GNU GPL v3.0; SHA-256 `FD9E9AC1D6C2A4EE02187E8AF1E3DE0CED0E19CDC1BCC68F4A2AAB71884430A0`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

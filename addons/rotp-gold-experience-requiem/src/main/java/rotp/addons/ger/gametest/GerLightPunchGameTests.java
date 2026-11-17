@@ -14,7 +14,9 @@ import rotp.addons.ger.gametest.GerMeleeGameTestScene.Hurt;
 import rotp.addons.ger.gametest.GerMeleeGameTestScene.Knock;
 import rotp.addons.ger.gametest.GerMeleeGameTestScene.ObservedCow;
 import rotp.addons.ger.gametest.GerMeleeGameTestScene.Sequence;
+import rotp.core.init.ModEntityAttributes;
 import rotp.core.init.ModStatusEffects;
+import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.ability.input.AbilityInput;
@@ -77,6 +79,11 @@ public final class GerLightPunchGameTests {
                     scene.premise(startRecovery == 4 * StandStatFormulas.getLightAttackRecovery(
                                     actor.stand().getAttackSpeed(), meter),
                             "admission cached RECOVERY " + startRecovery + " from meter " + meter);
+                    // At Requiem's speed of 17.5 the recovery no longer moves with the meter, so the speed changes
+                    // during the punch, as a stamina or Resolve change would make it.
+                    actor.user().getAttribute(ModEntityAttributes.STAND_SPEED).setBaseValue(5);
+                    StandEntity.updateStandStatAttributes(actor.stand(), actor.user());
+                    actor.stand().updateStrengthMultipliers();
                     stage = 2;
                 }
                 case 2 -> {

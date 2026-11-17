@@ -44,6 +44,7 @@ import rotp.addons.ger.ability.GerUndiePunchAbility;
 import rotp.addons.ger.entity.GerBeamEntity;
 import rotp.addons.ger.entity.GerFieldEntity;
 import rotp.addons.ger.entity.GerStandEntity;
+import rotp.addons.ger.network.GerAnswerPayloads;
 import rotp.addons.ger.network.GerDisablerPayloads;
 import rotp.addons.ger.network.GerRtzPayloads;
 import rotp.addons.ger.network.GerUndiePayloads;
@@ -69,11 +70,11 @@ public final class GoldExperienceRequiemAddon {
     private static final int REQUIRED_CORE_ABI = 1;
 
     public static final double POWER = 20.0D;
-    public static final double SPEED = 15.0D;
-    public static final double EFFECTIVE_RANGE = 10.0D;
-    public static final double MAX_RANGE = 15.0D;
+    public static final double SPEED = 17.5D;
+    public static final double EFFECTIVE_RANGE = 7.0D;
+    public static final double MAX_RANGE = 10.5D;
     public static final double DURABILITY = 20.0D;
-    public static final double PRECISION = 10.0D;
+    public static final double PRECISION = 20.0D;
     public static final float STAND_WIDTH = 0.35F;
     public static final float STAND_HEIGHT = 1.05F;
 
@@ -352,6 +353,7 @@ public final class GoldExperienceRequiemAddon {
         modEventBus.addListener(GerRtzPayloads::register);
         modEventBus.addListener(GerUndiePayloads::register);
         modEventBus.addListener(GerDisablerPayloads::register);
+        modEventBus.addListener(GerAnswerPayloads::register);
     }
 
     public static ResourceLocation id(String path) {
@@ -608,9 +610,10 @@ public final class GoldExperienceRequiemAddon {
                             "create_lifeform",
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             "revert_lifeform",
-                            0,
+                            "create_lifeform",
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             "mark_item",
@@ -628,9 +631,10 @@ public final class GoldExperienceRequiemAddon {
                             "heal",
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             "heal_other",
-                            0,
+                            "heal",
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             "healing_item",

@@ -14,6 +14,7 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.hermitpurple.HermitDivination;
 import rotp.addons.hermitpurple.HermitPurpleAddon;
@@ -159,7 +160,7 @@ public final class HermitDivinationAbility
                 user.getOffhandItem().shrink(1);
             }
             byte scale = (byte) (
-                    user.isShiftKeyDown() ? 0 : 2);
+                    StandManualInput.isShiftHeld(user) ? 0 : 2);
             ItemStack map = MapItem.create(
                     user.serverLevel(),
                     target.getX(),

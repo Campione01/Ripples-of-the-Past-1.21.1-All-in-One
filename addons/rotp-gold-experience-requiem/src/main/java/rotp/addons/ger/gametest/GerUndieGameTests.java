@@ -9,10 +9,12 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.game.ClientboundPlayerCombatKillPacket;
+import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.LivingEntity;
@@ -35,6 +37,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.ger.GoldExperienceRequiemAddon;
 import rotp.addons.ger.GoldExperienceRequiemGameEvents;
+import rotp.addons.ger.damage.GerDamageTypes;
 import rotp.addons.ger.gametest.GerMeleeGameTestScene.Actor;
 import rotp.addons.ger.gametest.GerMeleeGameTestScene.Client;
 import rotp.addons.ger.gametest.GerMeleeGameTestScene.ObservedCow;
@@ -225,11 +228,15 @@ public final class GerUndieGameTests {
         }.start();
     }
 
-    /** 1.16 UndiePunch tagged the target before the hit and never untagged a survivor. */
+    /**
+     * The owner, 2026-11-08: a Finisher Punch that would not kill lands once as true damage and marks nothing
+     * ("不然只是一次無視閃避，傷害間隔等的真實傷害"). 1.16 tagged the target before the hit and kept the tag on a survivor.
+     */
     @GameTest(template = "empty",
             timeoutTicks = GerMeleeGameTestScene.WAIT_TEST_TICKS + 300, batch = "ger_undie_survivor")
-    public static void undieMarkStaysOnASurvivingTarget(GameTestHelper helper) {
+    public static void undieSurvivorTakesTrueDamageAndIsNotMarked(GameTestHelper helper) {
         new Sequence(helper, "undie/survivor", 250) {
+            private final float health = 200.0F;
             private Actor actor;
             private ObservedCow cow;
             private EntityActionInstance punch;
@@ -240,25 +247,40 @@ public final class GerUndieGameTests {
                 switch (stage) {
                     case 0 -> {
                         actor = scene.actor();
-                        cow = markableCow(scene, scene.origin.add(0, 0, 1.5));
-                        // 10 health is markable, and the absorption takes the whole hit.
-                        cow.getAttribute(Attributes.MAX_ABSORPTION).setBaseValue(100);
-                        cow.setAbsorptionAmount(100);
+                        cow = scene.cow(scene.origin.add(0, 0, 1.5));
+                        // Everything that takes from a hit or refuses it: armour, Resistance V, the hurt cooldown of a
+                        // larger hit, and the invulnerable flag.
+                        cow.getAttribute(Attributes.ARMOR).setBaseValue(20.0D);
+                        cow.getAttribute(Attributes.ARMOR_TOUGHNESS).setBaseValue(8.0D);
+                        cow.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 2000, 4));
+                        cow.setInvulnerable(true);
                         stage = 1;
                     }
                     case 1 -> {
                         punch = scene.pressAction(actor, cow, UNDIE, UNDIE,
                                 InputMethod.CLICK, GerMeleeGameTestScene.SPECIAL);
+                        helper.assertTrue(punch.phasesLength.getFloat(ActionPhase.WINDUP)
+                                        == StandStatFormulas.getHeavyAttackWindup(actor.stand().getAttackSpeed(), 0)
+                                        && punch.phasesLength.getFloat(ActionPhase.WINDUP) == 13,
+                                scene.id + ": the Finisher Punch winds up for "
+                                        + punch.phasesLength.getFloat(ActionPhase.WINDUP)
+                                        + " ticks, not the heavy punch's 13 at speed 17.5");
                         stage = 2;
                     }
                     case 2 -> {
+                        cow.invulnerableTime = 20;
+                        cow.lastHurt = 1000;
                         if (punch.punchedTarget != null) {
-                            scene.log("health=" + cow.getHealth() + " hurts=" + cow.hurts
-                                    + " caster=" + state(cow).undieCaster());
-                            scene.premise(!cow.hurts.isEmpty() && cow.isAlive(), "the cow took the hit and lived");
-                            helper.assertTrue(state(cow).undieActive()
-                                            && actor.user().getUUID().equals(state(cow).undieCaster()),
-                                    scene.id + ": the surviving target lost its Undie mark");
+                            float lost = health - cow.getHealth();
+                            scene.log("lost=" + lost + " hurts=" + cow.hurts + " caster=" + state(cow).undieCaster()
+                                    + " type=" + (cow.sources.isEmpty() ? null
+                                            : cow.sources.get(0).typeHolder().getRegisteredName()));
+                            scene.premise(cow.isAlive(), "the cow lived");
+                            helper.assertTrue(Math.abs(lost - 20.0F) < GerMeleeGameTestScene.EPS,
+                                    scene.id + ": the hit took " + lost + " through armour, Resistance V, the hurt"
+                                            + " cooldown and the invulnerable flag, not its whole 20");
+                            helper.assertTrue(!state(cow).undieActive() && state(cow).undieCaster() == null,
+                                    scene.id + ": a target the punch could not kill was marked for the loop");
                             return true;
                         }
                     }
@@ -302,9 +324,7 @@ public final class GerUndieGameTests {
                     case 2 -> {
                         if (state(cow).undieDeaths() == 1 && cow.getHealth() > 0) {
                             watch.bringBack();
-                            // The second strike must not kill: only its marking is under test.
-                            cow.getAttribute(Attributes.MAX_ABSORPTION).setBaseValue(100);
-                            cow.setAbsorptionAmount(100);
+                            // At 1 health the second strike kills, as it must to take the loop over.
                             strike = scene.pressAction(second, cow, UNDIE, UNDIE,
                                     InputMethod.CLICK, GerMeleeGameTestScene.SPECIAL);
                             stage = 3;
@@ -580,7 +600,7 @@ public final class GerUndieGameTests {
                     case 2 -> {
                         if (List.of(puncher, out, away).stream().allMatch(victim -> victim.player().getHealth() <= 0)) {
                             StandPower puncherPower = StandPower.get(puncher.player());
-                            Ability punch = puncherPower.getAbility("ger_stand_punch");
+                            Ability punch = puncherPower.getAbility("punch");
                             BufferingState buffer = BufferingState.clickOnly();
                             AbilityInput.keyPress(GerMeleeGameTestScene.LMB, punch, puncher.player(), null,
                                     InputMethod.CLICK, 0, buffer, punch.getAbilityId());
@@ -705,17 +725,20 @@ public final class GerUndieGameTests {
         }.start();
     }
 
-    /** A player with GER, its Stand out or not, whose dying runs in its connection tick. */
+    /**
+     * A player with a Stand, out or not, whose dying runs in its connection tick. Not Requiem: its holder is never
+     * put in the loop.
+     */
     static Client standUser(GerMeleeGameTestScene scene, Vec3 position, boolean summoned) {
         Client client = scene.client(position);
         StandPower power = PowerClass.STAND.attachGet(client.player());
-        StandType type = GoldExperienceRequiemAddon.GER_STAND.get();
+        StandType type = ModStands.STAR_PLATINUM.get();
         scene.premise(StandPowerTransitions.insert(power, new StandInstance(type)).status()
                         == StandPowerTransitions.Status.APPLIED,
-                "the victim has GER");
+                "the victim has a Stand");
         power.skipProgression();
         if (summoned) {
-            scene.premise(type.summon(client.player(), power), "the victim's GER is out");
+            scene.premise(type.summon(client.player(), power), "the victim's Stand is out");
             scene.owned.add(power.getSummonedStandEntity());
         }
         scene.onClose(() -> {
@@ -785,10 +808,13 @@ public final class GerUndieGameTests {
         }.start();
     }
 
-    /** 1.16 UndieManager.reKillEntity: with no stored death source the rekill is OUT_OF_WORLD. */
+    /**
+     * The owner, 2026-11-08: the loop kills with its own damage type, which nothing avoids, after a reload too (1.16
+     * UndieManager.reKillEntity fell back to OUT_OF_WORLD, which an erase or another mod's void rule can refuse).
+     */
     @GameTest(template = "empty",
             timeoutTicks = GerMeleeGameTestScene.WAIT_TEST_TICKS + 300, batch = "ger_undie_rekill_fallback")
-    public static void undieRekillWithoutAStoredSourceFallsOutOfTheWorld(GameTestHelper helper) {
+    public static void undieRekillIsTheLoopsOwnDamageType(GameTestHelper helper) {
         new Sequence(helper, "undie/rekill-fallback", 250) {
             private Actor actor;
             private ObservedCow cow;
@@ -829,8 +855,14 @@ public final class GerUndieGameTests {
                         if (sources.size() > sourcesAtRevive) {
                             DamageSource rekill = sources.get(sourcesAtRevive);
                             scene.log("rekill=" + rekill.type().msgId());
-                            helper.assertTrue(rekill.is(DamageTypes.FELL_OUT_OF_WORLD),
-                                    scene.id + ": the rekill without a stored source was " + rekill.type().msgId());
+                            helper.assertTrue(rekill.is(GerDamageTypes.DEATH_LOOP)
+                                            && rekill.is(DamageTypeTags.BYPASSES_INVULNERABILITY)
+                                            && rekill.is(DamageTypeTags.BYPASSES_ARMOR)
+                                            && rekill.is(DamageTypeTags.BYPASSES_EFFECTS)
+                                            && rekill.is(DamageTypeTags.BYPASSES_ENCHANTMENTS)
+                                            && rekill.getEntity() == actor.user(),
+                                    scene.id + ": the rekill was " + rekill.type().msgId() + " by "
+                                            + rekill.getEntity());
                             return true;
                         }
                     }
@@ -842,8 +874,9 @@ public final class GerUndieGameTests {
     }
 
     /**
-     * Ten loop deaths of a mob: every rekill uses the death source the loop
-     * accepted, and the loot and experience drop once, at the final death.
+     * Ten loop deaths of a mob: the Finisher Punch's own hit starts them,
+     * every rekill is the loop's own damage type in the caster's name, and
+     * the loot and experience drop once, at the final death.
      */
     @GameTest(template = "empty",
             timeoutTicks = GerMeleeGameTestScene.WAIT_TEST_TICKS + 900, batch = "ger_undie_mob_loop")
@@ -936,10 +969,12 @@ public final class GerUndieGameTests {
                         scene.id + ": the experience dropped as " + experienceEvents);
                 helper.assertTrue(lethal.size() == LOOPS + 1,
                         scene.id + ": " + lethal.size() + " lethal hits for " + (LOOPS + 1) + " deaths");
-                DamageSource accepted = lethal.get(0);
-                helper.assertTrue(lethal.stream().allMatch(source -> source == accepted),
-                        scene.id + ": a rekill did not reuse the accepted death source "
-                                + accepted.type().msgId());
+                helper.assertTrue(lethal.get(0).is(GerDamageTypes.REQUIEM_TRUE),
+                        scene.id + ": the loop started from " + lethal.get(0).type().msgId()
+                                + ", not from the Finisher Punch's own hit");
+                helper.assertTrue(lethal.stream().skip(1).allMatch(source -> source.is(GerDamageTypes.DEATH_LOOP)
+                                && source.getEntity() == actor.user()),
+                        scene.id + ": a rekill was not the loop's own damage in the caster's name");
             }
         }.start();
     }

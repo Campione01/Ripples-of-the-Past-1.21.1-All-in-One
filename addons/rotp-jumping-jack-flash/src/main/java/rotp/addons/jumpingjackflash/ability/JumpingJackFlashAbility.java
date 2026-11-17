@@ -118,10 +118,22 @@ public final class JumpingJackFlashAbility extends StandEntityAbility {
         return base;
     }
 
+    // 1.16 played its one "fire" clip for every move, frozen until the
+    // move ended: each move has a copy that returns to the idle by its end.
     @Override
     public ActionAnimIdentifier getEntityAnim(
             EntityActionInstance action) {
-        return ActionAnimIdentifier.getOrCreate("fire", false);
+        return ActionAnimIdentifier.getOrCreate(clipName(mode), false);
+    }
+
+    static String clipName(Mode mode) {
+        return switch (mode) {
+            case VOLLEY -> "fire_volley";
+            case GRAVITY_SNOWBALL -> "fire_snowball";
+            case CANCEL_GRAVITY -> "fire_cancel";
+            case DOMAIN_OPEN -> "fire_domain_open";
+            case DOMAIN_CLOSE -> "fire_domain_close";
+        };
     }
 
     private static final class JumpingJackFlashAction

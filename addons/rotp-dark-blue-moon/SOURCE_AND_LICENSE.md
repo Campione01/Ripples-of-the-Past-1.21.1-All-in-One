@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-dark-blue-moon`, mod id `darkbluemoon`, version `1.0.0-port.1`.
+- Module: `rotp-dark-blue-moon`, mod id `darkbluemoon`, version `1.0.0-port.2`.
 - Original 1.16.5 add-on: see the record below (original authors: Grasshopper, Day_GeE).
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-10-29 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-10-29 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -27,5 +27,6 @@ Moon Addon") by another author, which this module does not use.
 The Java implementation is a clean NeoForge 1.21.1 port onto the Ripples of the Past 1.21.1 core API.
 The donor's models, animations, textures, sounds, sound declarations, language files, item models,
 recipes, loot table and Stand skin are redistributed under the donor's GPL-3.0 license, the 1.21
-layouts (Stand skin folder, ability icons, recipe and loot table folders) copied from them. Port code
-is provided under GPL-3.0-only.
+layouts (Stand skin folder, ability icons, recipe and loot table folders) copied from them. In the Stand
+skins' clips, the head's rotation is the look (`migration/head_follows_look.py`), which the donor's model
+applied in code. Port code is provided under GPL-3.0-only.

@@ -11,6 +11,7 @@ import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 
 import rotp.addons.yellowtemperance.disguise.DisguiseClientBridge;
 import rotp.addons.yellowtemperance.disguise.DisguiseMode;
+import rotp.addons.yellowtemperance.disguise.YellowTemperanceDisguiseState;
 import rotp.addons.yellowtemperance.entity.YellowTemperanceControllerEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -35,20 +36,23 @@ public final class YellowTemperanceDisguiseAbility
         resolveLevelToUnlock(resolveLevel);
     }
 
+    // R772.1 OQ-C04: the disguises go on with the Stand recalled (the owner's 收回仍持續), so the HUD lights this slot
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        YellowTemperanceDisguiseState state = YellowTemperanceDisguiseState.of(user);
+        return mode == DisguiseMode.STAND ? state.hasStandDisguise() : state.mode() == mode;
+    }
+
     @Override
     public Ability replaceWithSubAbility(
             Power<?> context, AvailableAbilities abilities) {
         LivingEntity user =
                 context != null ? context.getUser() : null;
-        var power = user != null
-                ? rotp.core.powersystem
-                        .standpower.StandPower.get(user)
-                : null;
-        if (power != null
-                && power.getSummonedStandEntity()
-                                instanceof YellowTemperanceControllerEntity
-                                controller
-                && controller.getDisguiseMode() == mode) {
+        YellowTemperanceDisguiseState state =
+                YellowTemperanceDisguiseState.of(user);
+        if (mode == DisguiseMode.STAND
+                ? state.hasStandDisguise()
+                : state.mode() == mode) {
             Ability disable =
                     abilities.getContextVariation(disableName);
             return disable != null ? disable : this;

@@ -7,6 +7,8 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import rotp.core.JojoModConfig;
+import rotp.core.api.simulation.EntitySimulations;
 import rotp.core.api.timestop.TimeStopLifecycleEvent;
 import rotp.core.event.ModEventHooks;
 import rotp.core.init.ModDataAttachmentTypes;
@@ -22,8 +24,8 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
+import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandEntity;
-import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTargetRange;
 import rotp.core.subsystems.target.HitResultUtil;
@@ -44,8 +46,10 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
+// 1.16 ag.java built it with StandAction's default pose, StandPose.IDLE: the
+// idle loop ran on through it
 public final class TimeStopTeleportationAbility
-        extends StandEntityAbility {
+        extends NoPoseStandEntityAbility {
     public static final float STAMINA_COST = 500.0F;
     public static final double HISTORY_DISTANCE = 20.0D;
     private static final int TRANSPORT_TICKS = 9;
@@ -238,6 +242,12 @@ public final class TimeStopTeleportationAbility
             if (!(level() instanceof ServerLevel serverLevel)) {
                 return;
             }
+            // A copy carries the int id of its body: its stop would run under the real user's id.
+            // No startRecovery() either: it syncs a phase packet by that same id.
+            if (EntitySimulations.isSimulated(performer)
+                    || EntitySimulations.isSimulated(getPowerUser())) {
+                return;
+            }
             LivingEntity user = getPowerUser();
             StandPower power =
                     user != null ? StandPower.get(user) : null;
@@ -264,7 +274,8 @@ public final class TimeStopTeleportationAbility
             }
             TimeStopState.Instance instance = new TimeStopState.Instance(
                     user.getId(), TRANSPORT_TICKS, TRANSPORT_TICKS,
-                    new ChunkPos(user.blockPosition()), 1, user.getId(),
+                    new ChunkPos(user.blockPosition()),
+                    JojoModConfig.getCommonConfigInstance(false).timeStopChunkRange.get(), user.getId(),
                     "the_world_time_stop", -1, -1,
                     TimeStopLearning.getTimeStopStaminaCostTick(power)).withStandSkin(power);
             TimeStopLifecycleEvent.PreStart event =

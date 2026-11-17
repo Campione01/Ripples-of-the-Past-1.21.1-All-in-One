@@ -7,6 +7,7 @@ import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
+import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.standpower.StandStats;
 import rotp.core.powersystem.standpower.StandUnlockableSkill;
 import rotp.core.powersystem.standpower.entity.EntityStandType;
@@ -23,12 +24,18 @@ public final class EchoesAct2Stand {
     public static EntityStandType create(ResourceLocation id) {
         MovesetBuilder moveset = new MovesetBuilder()
                 .addHumanoidStandStuff()
+                // his 1.21.1 AddonStands: four punches, in the order of his clips punch to punch4, the core's light combo
                 .addAbility("act2_punch", ModStandAbilities.PUNCH)
+                .addAbility("act2_punch2", ModStandAbilities.PUNCH)
+                .addAbility("act2_punch3", ModStandAbilities.PUNCH)
+                .addAbility("act2_punch4", ModStandAbilities.PUNCH)
                 // master InitStands 173-187: heavy_attack at the PERFORM (1.16 standSound) of the heavy and of its
                 // finisher variation, which takes the heavy's key at a finisher meter of 0.5 (both open with ACT2)
                 .addAbility("act2_heavy_punch", ModStandAbilities.HEAVY_PUNCH,
                         heavy -> heavy.heavyPunchPerformSound(EchoesSounds.HEAVY_ATTACK))
-                .addAbility("act2_guard", ModStandAbilities.GUARD)
+                // the core's guard ends at once; this one's clip goes back to the idle over these ticks
+                .addAbility("act2_guard", ModStandAbilities.GUARD,
+                        guard -> guard.setDefaultPhaseLength(ActionPhase.RECOVERY, 3.0F))
                 .addAbility("act2_finisher", EchoesAbilities.ACT2_FINISHER, finisher -> {
                     finisher.heavyPunchPerformSound(EchoesSounds.HEAVY_ATTACK);
                     finisher.initIsFinisher("act2_heavy_punch");
@@ -108,7 +115,7 @@ public final class EchoesAct2Stand {
                 .standControlType(StandControlType.LONG_DISTANCE_OPERATION)
                 .manualControl(true)
                 .distanceStrengthDecay(false)
-                .standDimensions(0.4F, 1.25F)
+                .standDimensions(0.65F, 1.95F)
                 // master EchoesEntity: the ACT2 voice, the common summon stinger, the recall stinger
                 .summonShout(() -> EchoesSounds.ACT2_SUMMON)
                 .summonSound(() -> EchoesSounds.ECHOES_SUMMON_BGM_COMMON)

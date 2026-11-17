@@ -7,15 +7,19 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import rotp.core.customobjects.DamageSourceModified;
+import rotp.core.init.ModParticles;
+import rotp.core.init.ModSoundEvents;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
+import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
 import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
@@ -23,6 +27,8 @@ import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
 
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -35,6 +41,13 @@ public final class FingerSweepAbility extends StandEntityAbility {
     // 1.16 registered it as a plain StandEntityHeavyAttack: the builder's
     // DEFAULT_STAMINA_COST.
     public static final float STAMINA_COST = 50.0F;
+    // 1.16 StandEntityHeavyAttack.Builder: StandPose.HEAVY_ATTACK. A Stand's
+    // skin has no clip under the moveset name of an ability this module adds,
+    // so the core's lookup lands on the idle
+    static final ActionAnimIdentifier HEAVY_PUNCH_ANIM =
+            ActionAnimIdentifier.getOrCreate("heavy_punch", false);
+    private static final float FINGER_OUT_TICKS = 2.0F;
+    private static final float FINGER_BACK_TICKS = 3.0F;
 
     public FingerSweepAbility(
             AbilityType<?> abilityType, AbilityId abilityId) {
@@ -53,6 +66,37 @@ public final class FingerSweepAbility extends StandEntityAbility {
     // attack's windup, at least one
     static int windupTicks(int heavyWindup) {
         return Math.max(heavyWindup - 2, 1);
+    }
+
+    @Override
+    public ActionAnimIdentifier getEntityAnim(EntityActionInstance action) {
+        return HEAVY_PUNCH_ANIM;
+    }
+
+    /**
+     * Degrees from the Stand's look, negative to its left, of the part of the
+     * fan this many ticks into the perform: 1.16 ad.java :83-85 went from
+     * left to right. The hits and the drawn finger both take it.
+     */
+    public static float sweepAngle(float performTicks) {
+        return -90.0F + 180.0F
+                * Mth.clamp(performTicks / PERFORM_TICKS, 0.0F, 1.0F);
+    }
+
+    /**
+     * How much of its reach the drawn finger has, 0 to 1. It goes out at the
+     * start of the perform, stays out for the whole fan and comes back at the
+     * start of the recovery.
+     */
+    public static float fingerReach(ActionPhase phase, float phaseTicks) {
+        if (phase == ActionPhase.PERFORM) {
+            return Mth.clamp(phaseTicks / FINGER_OUT_TICKS, 0.0F, 1.0F);
+        }
+        if (phase == ActionPhase.RECOVERY) {
+            return Mth.clamp(
+                    1.0F - phaseTicks / FINGER_BACK_TICKS, 0.0F, 1.0F);
+        }
+        return 0.0F;
     }
 
     // 1.16 StandEntityHeavyAttack.getStandWindupTicks (:186-189) by the
@@ -197,6 +241,15 @@ public final class FingerSweepAbility extends StandEntityAbility {
                     user != null ? StandPower.get(user) : null,
                     STAMINA_COST,
                     false);
+            // 1.16 drew no finger and made no sound here; the finger is the
+            // player's request, and it sounds like the Stand's Star Finger
+            if (getPerformer() instanceof StandEntity stand) {
+                StandUtil.playStandEntitySound(
+                        stand,
+                        ModSoundEvents.STAR_PLATINUM_STAR_FINGER,
+                        1.0F,
+                        1.0F);
+            }
         }
 
         @Override
@@ -208,8 +261,7 @@ public final class FingerSweepAbility extends StandEntityAbility {
             }
             LivingEntity user = getPowerUser();
             double segment = 180.0D / PERFORM_TICKS;
-            double center = -90.0D
-                    + (getPhaseTick() + 0.5D) * segment;
+            double center = sweepAngle(getPhaseTick() + 0.5F);
             Vec3 forward = stand.getLookAngle()
                     .multiply(1.0D, 0.0D, 1.0D);
             if (forward.lengthSqr() < 1.0E-6D && user != null) {
@@ -261,7 +313,28 @@ public final class FingerSweepAbility extends StandEntityAbility {
                 if (standEntityAttack(
                         stand, target, source, damage)) {
                     hitTargets.add(target.getUUID());
+                    bleed(target);
                 }
+            }
+        }
+
+        // 1.16 ad.java :116-125
+        private void bleed(LivingEntity target) {
+            if (!(level() instanceof ServerLevel serverLevel)) {
+                return;
+            }
+            Vec3 center = target.getBoundingBox().getCenter();
+            for (int i = 0; i < 8; i++) {
+                serverLevel.sendParticles(
+                        ModParticles.BLOOD.get(),
+                        center.x,
+                        center.y,
+                        center.z,
+                        1,
+                        (serverLevel.random.nextDouble() - 0.5D) * 0.4D,
+                        serverLevel.random.nextDouble() * 0.3D + 0.1D,
+                        (serverLevel.random.nextDouble() - 0.5D) * 0.4D,
+                        0.1D);
             }
         }
     }

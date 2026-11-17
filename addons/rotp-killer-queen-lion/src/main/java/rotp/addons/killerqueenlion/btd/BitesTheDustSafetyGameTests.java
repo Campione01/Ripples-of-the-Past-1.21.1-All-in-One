@@ -4,7 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 
+import rotp.core.api.time.event.BitesTheDustDetonateEvent;
+import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.init.ModItems;
 import rotp.core.mechanics.standarrow.StandArrowEntity;
 import rotp.core.powersystem.standpower.StandPower;
@@ -26,6 +29,7 @@ import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.PlayerList;
@@ -37,6 +41,9 @@ import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.bus.api.Event;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.common.damagesource.DamageContainer;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
@@ -907,6 +914,248 @@ public final class BitesTheDustSafetyGameTests {
                             + " relogged owner, "
                             + bystander.hasDisconnected()
                             + " bystander gone).");
+        });
+    }
+
+    // owner Q3, defused: the bomb vanishes as it would go off; no blast, no
+    // rewind, and the marker ends clean so a new one can be set
+    @GameTest(
+            template = "empty",
+            batch = "btdDefuse",
+            timeoutTicks = 40)
+    public static void aDefusedBombOnAMobAttackerIsGoneWithNoBlast(
+            GameTestHelper helper) {
+        ArmedMarker armed = armIsolated(
+                helper, "kq-defuse-mob-owner");
+        answerDetonations(helper, armed.owner(), true);
+        int[] rewinds = countRewinds(helper, armed.owner());
+        Cow attacker = helper.spawnWithNoFreeWill(
+                EntityType.COW, 3, 2, 1);
+        armed.victim().invulnerableTime = 0;
+        float health = armed.victim().getHealth();
+        boolean applied = armed.victim().hurt(
+                helper.getLevel().damageSources().mobAttack(attacker),
+                1.0F);
+        helper.assertTrue(
+                !applied
+                        && Float.compare(
+                                armed.victim().getHealth(), health) == 0
+                        && attacker.isAlive()
+                        && rewinds[0] == 0,
+                "A defused bomb let the blow through or still blew up "
+                        + "its attacker.");
+        assertDefusedClean(helper, armed);
+        attacker.discard();
+        cleanup(armed, null);
+        helper.succeed();
+    }
+
+    @GameTest(
+            template = "empty",
+            batch = "btdDefuse",
+            timeoutTicks = 90)
+    public static void aDefusedBombOnAPlayerAttackerIsGoneWithNoRewind(
+            GameTestHelper helper) {
+        ArmedMarker armed = armIsolated(
+                helper, "kq-defuse-player-owner");
+        answerDetonations(helper, armed.owner(), true);
+        int[] rewinds = countRewinds(helper, armed.owner());
+        armed.owner().getFoodData().setFoodLevel(0);
+        Vec3 mutatedPosition = armed.markerPosition().add(
+                5.0D, 0.0D, 0.0D);
+        float mutatedHealth = armed.owner().getMaxHealth() - 6.0F;
+        armed.owner().setPos(mutatedPosition);
+        armed.owner().setHealth(mutatedHealth);
+        ServerPlayer attacker = makeCompatibleMockPlayer(
+                helper, "kq-defuse-player-atk");
+        placeNearVictim(attacker, armed.victim());
+        trigger(helper, armed.victim(), attacker);
+
+        helper.onEachTick(() -> {
+            if (BitesTheDustService.pendingAgeForTests(
+                            helper.getLevel().getServer(),
+                            attacker.getUUID())
+                    >= 0) {
+                return;
+            }
+            helper.assertTrue(
+                    attacker.isAlive()
+                            && Float.compare(
+                                    attacker.getHealth(),
+                                    attacker.getMaxHealth()) == 0
+                            && !KillerQueenLionAddon.state(attacker)
+                                    .hasBitesTheDustTrigger()
+                            && rewinds[0] == 0,
+                    "A defused trigger still blew up its attacker, kept "
+                            + "its countdown or rewound.");
+            assertStillMutated(
+                    helper,
+                    armed,
+                    mutatedPosition,
+                    mutatedHealth,
+                    "after a defused trigger");
+            assertDefusedClean(helper, armed);
+            cleanup(armed, attacker);
+            helper.succeed();
+        });
+    }
+
+    // owner Q3, held: cancelled without defusing, the bomb stays as before
+    @GameTest(
+            template = "empty",
+            batch = "btdDefuse",
+            timeoutTicks = 90)
+    public static void aHeldBombStaysArmedAsBefore(
+            GameTestHelper helper) {
+        ArmedMarker byMob = armIsolated(
+                helper, "kq-held-mob-owner");
+        ArmedMarker byPlayer = armIsolated(
+                helper, "kq-held-player-owner");
+        answerDetonations(helper, byMob.owner(), false);
+        answerDetonations(helper, byPlayer.owner(), false);
+        int[] rewinds = countRewinds(helper, byPlayer.owner());
+        MinecraftServer server = helper.getLevel().getServer();
+
+        Cow mobAttacker = helper.spawnWithNoFreeWill(
+                EntityType.COW, 3, 2, 1);
+        byMob.victim().invulnerableTime = 0;
+        boolean applied = byMob.victim().hurt(
+                helper.getLevel().damageSources()
+                        .mobAttack(mobAttacker),
+                1.0F);
+        helper.assertTrue(
+                !applied
+                        && mobAttacker.isAlive()
+                        && byMob.state().hasBitesTheDustMarker()
+                        && byMob.state().hasBitesTheDustVictim()
+                        && BitesTheDustVictimIndex.get(server)
+                                .bindingForOwner(byMob.owner().getUUID())
+                                != null,
+                "A held bomb on a mob attacker did not stay armed.");
+
+        byPlayer.owner().getFoodData().setFoodLevel(0);
+        Vec3 mutatedPosition = byPlayer.markerPosition().add(
+                5.0D, 0.0D, 0.0D);
+        float mutatedHealth = byPlayer.owner().getMaxHealth() - 6.0F;
+        byPlayer.owner().setPos(mutatedPosition);
+        byPlayer.owner().setHealth(mutatedHealth);
+        ServerPlayer attacker = makeCompatibleMockPlayer(
+                helper, "kq-held-player-atk");
+        placeNearVictim(attacker, byPlayer.victim());
+        trigger(helper, byPlayer.victim(), attacker);
+
+        helper.onEachTick(() -> {
+            if (BitesTheDustService.pendingAgeForTests(
+                            server, attacker.getUUID())
+                    >= 0) {
+                return;
+            }
+            helper.assertTrue(
+                    attacker.isAlive()
+                            && !KillerQueenLionAddon.state(attacker)
+                                    .hasBitesTheDustTrigger()
+                            && rewinds[0] == 0
+                            && byPlayer.state().hasBitesTheDustMarker()
+                            && byPlayer.state().hasBitesTheDustVictim()
+                            && byPlayer.state()
+                                    .latestBitesTheDustActivationReceipt()
+                                    == null
+                            && BitesTheDustVictimIndex.get(server)
+                                    .bindingForOwner(
+                                            byPlayer.owner().getUUID())
+                                    != null,
+                    "A held trigger did not leave the bomb armed as "
+                            + "before.");
+            assertStillMutated(
+                    helper,
+                    byPlayer,
+                    mutatedPosition,
+                    mutatedHealth,
+                    "after a held trigger");
+            mobAttacker.discard();
+            cleanup(byMob, null);
+            cleanup(byPlayer, attacker);
+            helper.succeed();
+        });
+    }
+
+    private static void assertDefusedClean(
+            GameTestHelper helper, ArmedMarker armed) {
+        KillerQueenState state = armed.state();
+        helper.assertTrue(
+                !state.hasBitesTheDustMarker()
+                        && !state.hasBitesTheDustVictim()
+                        && state.latestBitesTheDustActivationReceipt()
+                                == null
+                        && BitesTheDustVictimIndex.get(
+                                        helper.getLevel().getServer())
+                                .bindingForOwner(
+                                        armed.owner().getUUID())
+                                == null,
+                "A defused bomb left its marker, victim, receipt or "
+                        + "victim binding behind.");
+        helper.assertTrue(
+                BitesTheDustService.markTime(armed.owner())
+                        && BitesTheDustService.selectVictim(
+                                armed.owner(), armed.victim()),
+                "A new bomb could not be set after a defused one.");
+    }
+
+    // A listener as the Requiem's: defuses or only holds this owner's bombs
+    private static void answerDetonations(
+            GameTestHelper helper, ServerPlayer owner, boolean defuse) {
+        UUID ownerUuid = owner.getUUID();
+        listen(helper, BitesTheDustDetonateEvent.class, event -> {
+            if (event.getOwner().getUUID().equals(ownerUuid)) {
+                if (defuse) {
+                    event.defuse();
+                } else {
+                    event.setCanceled(true);
+                }
+            }
+        });
+    }
+
+    private static int[] countRewinds(
+            GameTestHelper helper, ServerPlayer owner) {
+        UUID ownerUuid = owner.getUUID();
+        int[] count = {0};
+        listen(helper, RewindAppliedEvent.class, event -> {
+            if (event.getRewinder() != null
+                    && event.getRewinder().getUUID().equals(ownerUuid)) {
+                count[0]++;
+            }
+        });
+        return count;
+    }
+
+    private static <T extends Event> void listen(
+            GameTestHelper helper, Class<T> type, Consumer<T> listener) {
+        NeoForge.EVENT_BUS.addListener(
+                EventPriority.NORMAL, false, type, listener);
+        helper.testInfo.addListener(new GameTestListener() {
+            @Override
+            public void testStructureLoaded(GameTestInfo info) {}
+
+            @Override
+            public void testPassed(
+                    GameTestInfo info, GameTestRunner runner) {
+                NeoForge.EVENT_BUS.unregister(listener);
+            }
+
+            @Override
+            public void testFailed(
+                    GameTestInfo info, GameTestRunner runner) {
+                NeoForge.EVENT_BUS.unregister(listener);
+            }
+
+            @Override
+            public void testAddedForRerun(
+                    GameTestInfo oldInfo,
+                    GameTestInfo newInfo,
+                    GameTestRunner runner) {
+                NeoForge.EVENT_BUS.unregister(listener);
+            }
         });
     }
 

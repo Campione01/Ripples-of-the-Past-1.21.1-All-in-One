@@ -22,6 +22,7 @@ import rotp.addons.kiss.ability.KissBarrageAbility;
 import rotp.addons.kiss.ability.KissSpecialAbility;
 import rotp.addons.kiss.ability.KissSpecialAbility.Mode;
 import rotp.addons.kiss.entity.KissBombEntity;
+import rotp.addons.kiss.entity.KissStandEntity;
 import rotp.addons.kiss.entity.KissStickerEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -80,7 +81,7 @@ public final class KissAddon {
             KISS_ENTITY = ENTITY_TYPES.register(
                     "kiss",
                     key -> EntityType.Builder.<StandEntity>of(
-                                    StandEntity::new, MobCategory.MISC)
+                                    KissStandEntity::new, MobCategory.MISC)
                             .noSave()
                             .noSummon()
                             .sized(ENTITY_WIDTH, ENTITY_HEIGHT)
@@ -196,7 +197,11 @@ public final class KissAddon {
                     .bind(BLOCK, InputMethod.HOLD, InputKey.RMB)
                     .makeHotbar(0, USE_SPECIAL, SWITCH_SPECIAL)
                     .addToHotbar(STICKER_PLACE, 0, InputMethod.CLICK)
-                    .addToHotbar(STICKER, 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            STICKER,
+                            STICKER_PLACE,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     .addToHotbar(PULL, 0, InputMethod.HOLD)
                     .addToHotbar(BOMB, 0, InputMethod.CLICK)
                 .finalizeControlScheme()
@@ -235,7 +240,6 @@ public final class KissAddon {
                 .manualControl(true)
                 .distanceStrengthDecay(true)
                 .standDimensions(ENTITY_WIDTH, ENTITY_HEIGHT)
-                .summonSound(() -> SUMMON)
-                .summonShout(() -> SUMMON_VOICE);
+                .summonSound(() -> SUMMON);
     }
 }

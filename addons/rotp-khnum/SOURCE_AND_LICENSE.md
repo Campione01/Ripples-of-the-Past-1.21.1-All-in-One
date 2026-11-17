@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-khnum`, mod id `rotp_khnum`, version `0.9.4b-port.9`.
+- Module: `rotp-khnum`, mod id `rotp_khnum`, version `0.9.4b-port.10`.
 - Original 1.16.5 add-on: `rotp_yellowtemperance-0.9.4b.jar` (Yellow Temperance Addon, mod id `rotp_yellowtemperance`), by TheChaYe; declared license: GNU GPL v3.0; SHA-256 `F1D39C5A28C77BFCB9E8BC6FF2D273135E2EA551CCA2AA469F9CC2A16876125D`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

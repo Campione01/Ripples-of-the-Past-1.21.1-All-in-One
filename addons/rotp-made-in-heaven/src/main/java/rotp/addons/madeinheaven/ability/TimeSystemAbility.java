@@ -74,7 +74,7 @@ public final class TimeSystemAbility
     public String getSpriteName(Power<?> context) {
         boolean clearIcon = clear
                 || context != null
-                        && TimeAccelerationService.isActiveOwner(
+                        && TimeAccelerationService.isSessionOwner(
                                 context.getUser());
         return MadeInHeavenTimeSystemIcons.spriteName(
                 MadeInHeavenClientConfig
@@ -88,7 +88,7 @@ public final class TimeSystemAbility
             AvailableAbilities abilities) {
         if (!clear
                 && context != null
-                && TimeAccelerationService.isActiveOwner(
+                && TimeAccelerationService.isSessionOwner(
                         context.getUser())) {
             Ability variation =
                     abilities.getContextVariation(
@@ -109,7 +109,7 @@ public final class TimeSystemAbility
         }
         LivingEntity user = context.getUser();
         if (clear) {
-            return TimeAccelerationService.isActiveOwner(user)
+            return TimeAccelerationService.isSessionOwner(user)
                     ? checkStamina(context)
                     : ConditionCheck.NEGATIVE;
         }
@@ -123,7 +123,7 @@ public final class TimeSystemAbility
                         .getBoolean(GameRules.RULE_DAYLIGHT)
                 || MadeInHeavenAddon
                         .accelerationState(user.level())
-                        .active()) {
+                        .hasSession()) {
             return ConditionCheck.createNegative(
                     "already_time_manipulation");
         }
@@ -156,8 +156,8 @@ public final class TimeSystemAbility
                         .getBoolean(GameRules.RULE_DAYLIGHT)
                 || MadeInHeavenAddon
                         .accelerationState(user.level())
-                        .active()
-                        && !TimeAccelerationService.isActiveOwner(user)) {
+                        .hasSession()
+                        && !TimeAccelerationService.isSessionOwner(user)) {
             return ConditionCheck.createNegative(
                     "already_time_manipulation");
         }

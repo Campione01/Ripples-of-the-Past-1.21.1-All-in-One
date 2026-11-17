@@ -11,6 +11,7 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.addons.echoes.RotpEchoes;
 import rotp.addons.echoes.state.EchoesGravityService;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -41,7 +42,8 @@ public final class EchoesGravityCancelAbility extends Ability {
             return ConditionCheck.NEGATIVE;
         }
         if (mode == EchoesGravityAbility.Mode.INFUSE_CANCEL && !EchoesGravityService.holdsInfusedItem(player)) {
-            return ConditionCheck.NEGATIVE;
+            return ConditionCheck.createNegative(
+                    Component.translatable("rotp_echoes.message.need_own_gravity_item"));
         }
         return ConditionCheck.POSITIVE;
     }

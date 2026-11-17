@@ -10,6 +10,8 @@
     "rotp_cm.ability.center_of_gravity":  "重力反转",
     "rotp_cm.ability.gravity_shift":  "重力屏障",
     "rotp_cm.ability.gravity_shift.param":  "关闭屏障",
+    "rotp_cm.ability.gravity_field":  "重力场",
+    "rotp_cm.ability.gravity_field.param":  "重力场：已激活",
     "rotp_cm.ability.destroy":  "追踪连打",
     "effect.rotp_cm.cm_inversion":  "血肉翻转",
     "effect.rotp_cm.cm_shift":  "重力屏障",

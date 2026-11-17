@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-yellow-temperance`, mod id `rotp_yellowtemperance`, version `0.9.4b-port.19`.
+- Module: `rotp-yellow-temperance`, mod id `rotp_yellowtemperance`, version `0.9.4b-port.20`.
 - Original 1.16.5 add-on: `rotp_yellowtemperance-0.9.4b.jar` (Yellow Temperance Addon, mod id `rotp_yellowtemperance`), by TheChaYe; declared license: GNU GPL v3.0; SHA-256 `F1D39C5A28C77BFCB9E8BC6FF2D273135E2EA551CCA2AA469F9CC2A16876125D`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-15); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -32,14 +32,18 @@ files and are byte-equivalent by relative file path. The JAR contains Khnum
 as well. No Khnum class, registry entry, action, texture, translation, or
 gameplay path is part of this module.
 
-The source Yellow coating is a 64x64 player layer. The port replaces it with
-two native 256x256 default/slim materials and dedicated player-space geometry.
-The generator works per output texel and uses vector drawing for the doll; it
-does not resize the legacy texture and contains no nearest-neighbor path. The
-old coating texture and geo file remain under `migration/source-assets` as
-audit inputs and are also retained byte-for-byte in the packaged
-`assets/rotp_yellowtemperance/legacy_archive` tree. The source energy atlas is
-copied byte-for-byte to runtime for the module-owned food HUD replacement.
+The source has a 64x64 coating layer that nothing in the jar ever adds to a
+renderer, so the source draws no coat on its user, and neither does this port
+by default since R772.1. The setting `client.showMangaSlime` draws the manga's
+slime with this port's own art (`textures/entity/manga_slime`, painted by
+`migration/tools/draw_manga_slime.py`). The generator works per output texel and uses vector drawing for
+the doll; it does not resize the legacy texture and contains no nearest-neighbor
+path. The old coating texture and geo file remain under
+`migration/source-assets` as audit inputs and are also retained byte-for-byte in
+the packaged `assets/rotp_yellowtemperance/legacy_archive` tree. The source
+energy atlas is copied byte-for-byte to runtime for the module-owned food HUD
+replacement, and five of the source erosion textures to runtime for the erosion
+layer.
 
 The same archive tree retains 39 exact source entries: 32 reconstruction
 inputs, three old UI images, two AppleSkin images, one malformed duplicate

@@ -20,10 +20,10 @@ public final class SpeedKingModel extends StandEntityModel<
         torso_bend = part(model, "upperPart");
         torso_no_arms = part(model, "torso");
         torso_lower = torso_no_arms;
-        left_arm_xrot = part(model, "leftArm");
+        left_arm_xrot = part(model, "leftArmXRot");
         left_arm = part(model, "leftArm");
         left_arm_bend = part(model, "leftForeArm");
-        right_arm_xrot = part(model, "rightArm");
+        right_arm_xrot = part(model, "rightArmXRot");
         right_arm = part(model, "rightArm");
         right_arm_bend = part(model, "rightForeArm");
         left_leg_xrot = part(model, "leftLegXRot");
@@ -38,8 +38,8 @@ public final class SpeedKingModel extends StandEntityModel<
     // HumanoidStandModel.motionTilt: no head counter-tilt (the head is not under the body here) and no upperPart.
     private static final String[][] TILT_BONES = {
             {"body_rot", "body"},
-            {"left_arm_xrot", "leftArm"}, {"left_arm", "leftArm"}, {"left_arm_bend", "leftForeArm"},
-            {"right_arm_xrot", "rightArm"}, {"right_arm", "rightArm"}, {"right_arm_bend", "rightForeArm"},
+            {"left_arm_xrot", "leftArmXRot"}, {"left_arm", "leftArm"}, {"left_arm_bend", "leftForeArm"},
+            {"right_arm_xrot", "rightArmXRot"}, {"right_arm", "rightArm"}, {"right_arm_bend", "rightForeArm"},
             {"left_leg_xrot", "leftLegXRot"}, {"left_leg", "leftLeg"}, {"left_leg_bend", "leftLowerLeg"},
             {"right_leg_xrot", "rightLegXRot"}, {"right_leg", "rightLeg"}, {"right_leg_bend", "rightLowerLeg"}};
     private final AnimFramePose tiltView = new AnimFramePose();
@@ -85,13 +85,13 @@ public final class SpeedKingModel extends StandEntityModel<
 
     private void poseArms(
             float leftX, float rightX, float leftZ, float rightZ) {
-        if (left_arm_xrot != null) {
-            left_arm_xrot.xRot = leftX;
-            left_arm_xrot.zRot = leftZ;
+        if (left_arm != null) {
+            left_arm.xRot = leftX;
+            left_arm.zRot = leftZ;
         }
-        if (right_arm_xrot != null) {
-            right_arm_xrot.xRot = rightX;
-            right_arm_xrot.zRot = rightZ;
+        if (right_arm != null) {
+            right_arm.xRot = rightX;
+            right_arm.zRot = rightZ;
         }
     }
 

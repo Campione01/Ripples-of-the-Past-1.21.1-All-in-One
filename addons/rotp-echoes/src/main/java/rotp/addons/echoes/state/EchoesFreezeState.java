@@ -17,7 +17,13 @@ public final class EchoesFreezeState
     public enum Kind {
         TARGET,
         HAND,
-        FINISHER
+        FINISHER,
+        // master SheerHeartAttackCompat: the owner of a frozen Sheer Heart Attack; his state's owner is the car
+        SHEER_HEART_OWNER;
+
+        public boolean handsOnly() {
+            return this == HAND || this == SHEER_HEART_OWNER;
+        }
     }
 
     private static final int SERIALIZATION_VERSION = 2;

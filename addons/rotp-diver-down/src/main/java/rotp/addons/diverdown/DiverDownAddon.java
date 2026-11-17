@@ -546,7 +546,7 @@ public final class DiverDownAddon {
                 new StandStats.Builder()
                         .power(14.0, 16.0)
                         .speed(14.0, 16.0)
-                        .range(2.0, 10.0)
+                        .range(2.0, 3.0)
                         .durability(9.0, 10.0)
                         .precision(13.0)
                         .build(),

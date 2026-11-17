@@ -7,8 +7,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
+import io.netty.buffer.ByteBuf;
+
+import rotp.core.init.ModSpecialActions;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.init.power.ModPlayerPowers;
+import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.playerpower.PlayerPower;
@@ -20,8 +26,11 @@ import rotp.core.util.functions.JojoModUtil;
 import rotp.addons.cream.CreamAddon;
 import rotp.addons.cream.CreamConfig;
 import rotp.addons.cream.CreamSpec;
+import rotp.addons.cream.ability.CreamVoidAbility;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.game.ClientboundStopSoundPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -51,6 +60,31 @@ public final class CreamEntity extends StandEntity {
                     CreamEntity.class, EntityDataSerializers.INT);
     private static final int VOID_EFFECT_TICKS = 4;
 
+    /**
+     * The owner's rule of 2026-11-06: the void goes on with Cream recalled, out of sight, run from its user's tick on the
+     * removed Stand until the next summon takes it over or it ends. On a user attachment with no serializer, so a relog
+     * does not bring it back; his own client gets the mode, to know its keys.
+     */
+    public static final class RecalledVoid {
+        public static final StreamCodec<ByteBuf, RecalledVoid> STREAM_CODEC =
+                ByteBufCodecs.BYTE.map(
+                        id -> new RecalledVoid(null, VoidMode.fromId(id)),
+                        recalled -> recalled.mode.id);
+
+        @Nullable
+        private final CreamEntity stand;
+        private final VoidMode mode;
+
+        public RecalledVoid() {
+            this(null, VoidMode.NONE);
+        }
+
+        private RecalledVoid(@Nullable CreamEntity stand, VoidMode mode) {
+            this.stand = stand;
+            this.mode = mode;
+        }
+    }
+
     private final Set<UUID> erasedEntities = new HashSet<>();
     private final Map<UUID, Integer> damageCooldowns =
             new HashMap<>();
@@ -58,6 +92,7 @@ public final class CreamEntity extends StandEntity {
     private VoidMode entryMode = VoidMode.NONE;
     private int totalVoidTicks;
     private final CreamFlightLease flightLease = new CreamFlightLease();
+    private boolean leaving;
 
     public CreamEntity(
             EntityType<? extends CreamEntity> type, Level level) {
@@ -105,19 +140,80 @@ public final class CreamEntity extends StandEntity {
     }
 
     @Override
-    public void onUnsummonUserInput() {
-        if (!level().isClientSide()) {
-            endVoidMode(false);
+    public void setUserAndPower(LivingEntity user, StandPower power) {
+        super.setUserAndPower(user, power);
+        if (user == null
+                || level().isClientSide()
+                || !user.hasData(CreamAddon.RECALLED_VOID)) {
+            return;
         }
-        super.onUnsummonUserInput();
+        CreamEntity recalled = user.getData(CreamAddon.RECALLED_VOID).stand;
+        user.removeData(CreamAddon.RECALLED_VOID);
+        if (recalled == null || recalled == this) {
+            return;
+        }
+        if (recalled.getUser() == user && recalled.level() == level()) {
+            takeVoidOver(recalled);
+        }
+        else {
+            recalled.endVoidMode(false);
+        }
+    }
+
+    private void takeVoidOver(CreamEntity recalled) {
+        entityData.set(VOID_MODE, recalled.entityData.get(VOID_MODE), true);
+        entityData.set(VOID_TICKS, recalled.getVoidTicks(), true);
+        entryMode = recalled.entryMode;
+        totalVoidTicks = recalled.totalVoidTicks;
+        erasedEntities.addAll(recalled.erasedEntities);
+        damageCooldowns.putAll(recalled.damageCooldowns);
+        flightLease.takeFrom(recalled.flightLease);
+        recalled.entityData.set(VOID_MODE, VoidMode.NONE.id, true);
+        if (getVoidMode() != VoidMode.SEMI) {
+            addEffect(fullInvisibility());
+        }
     }
 
     @Override
     public void remove(Entity.RemovalReason reason) {
-        if (!level().isClientSide()) {
+        if (!level().isClientSide() && !carryVoidThroughRecall()) {
             endVoidMode(false);
         }
         super.remove(reason);
+    }
+
+    private boolean carryVoidThroughRecall() {
+        LivingEntity user = getUser();
+        StandPower power = getUserPower();
+        if (!isInVoidState()
+                || user == null
+                || power == null
+                || !user.isAlive()
+                || user.isRemoved()
+                || user.level() != level()
+                || power.getPowerType() != CreamAddon.CREAM.get()
+                || !power.canUsePower()) {
+            return false;
+        }
+        user.setData(
+                CreamAddon.RECALLED_VOID,
+                new RecalledVoid(this, getVoidMode()));
+        return true;
+    }
+
+    /** A forced unsummon clears the Stand's action before it removes the Stand, and that must not end the void. */
+    public void markLeaving() {
+        leaving = true;
+    }
+
+    public boolean isLeaving() {
+        return leaving;
+    }
+
+    public boolean isUnsummoning() {
+        EntityActionInstance action = getCurStandAction();
+        return action != null
+                && action.ability == ModSpecialActions.STAND_UNSUMMON.get();
     }
 
     public VoidMode getVoidMode() {
@@ -180,6 +276,11 @@ public final class CreamEntity extends StandEntity {
         totalVoidTicks = 0;
         erasedEntities.clear();
         damageCooldowns.clear();
+        if (user != null
+                && user.hasData(CreamAddon.RECALLED_VOID)
+                && user.getData(CreamAddon.RECALLED_VOID).stand == this) {
+            user.removeData(CreamAddon.RECALLED_VOID);
+        }
 
         restoreFlightLease();
         removeOwnFullInvisibility(this);
@@ -221,8 +322,52 @@ public final class CreamEntity extends StandEntity {
     }
 
     public static boolean isInVoidState(LivingEntity user) {
+        return voidModeOf(user) != VoidMode.NONE;
+    }
+
+    /** On either side, with Cream out or recalled. */
+    public static VoidMode voidModeOf(LivingEntity user) {
         CreamEntity cream = activeFor(user);
-        return cream != null && cream.isInVoidState();
+        if (cream != null && cream.isInVoidState()) {
+            return cream.getVoidMode();
+        }
+        RecalledVoid recalled = user != null
+                ? user.getExistingDataOrNull(CreamAddon.RECALLED_VOID)
+                : null;
+        return recalled != null ? recalled.mode : VoidMode.NONE;
+    }
+
+    /** The server's holder of a user's void: the recalled Cream if there is one, or else the one out. */
+    @Nullable
+    public static CreamEntity voidHolder(LivingEntity user) {
+        RecalledVoid recalled = user != null
+                ? user.getExistingDataOrNull(CreamAddon.RECALLED_VOID)
+                : null;
+        return recalled != null && recalled.stand != null
+                ? recalled.stand
+                : activeFor(user);
+    }
+
+    /** Runs the void with Cream recalled; a user who can no longer hold it ends it here. */
+    public static void tickRecalledVoid(LivingEntity user) {
+        RecalledVoid recalled =
+                user.getExistingDataOrNull(CreamAddon.RECALLED_VOID);
+        if (recalled == null || recalled.stand == null) {
+            return;
+        }
+        StandPower power = StandPower.get(user);
+        if (power == null
+                || !power.hasPower()
+                || power.getPowerType() != CreamAddon.CREAM.get()
+                || !power.canUsePower()
+                || !user.isAlive()
+                || user.isRemoved()
+                || recalled.stand.getUser() != user
+                || recalled.stand.level() != user.level()) {
+            recalled.stand.endVoidMode(false);
+            return;
+        }
+        recalled.stand.tickVoidState();
     }
 
     /** The dash's tick in the tick its perform starts, before Cream's own tick runs the rest. */
@@ -297,13 +442,21 @@ public final class CreamEntity extends StandEntity {
                 ? CreamConfig.VOID_BALL_DURATION.get()
                 : mode == VoidMode.SEMI
                         ? CreamConfig.SEMI_VOID_DURATION.get()
-                        : Integer.MAX_VALUE;
+                        : isDashActionRunning()
+                                ? Integer.MAX_VALUE
+                                : CreamSpec.VOID_DASH_TICKS;
         // 1.16 CreamVoidBall also let go at the end of the tick that
         // emptied the bar.
         if (modeTicks >= duration
                 || mode == VoidMode.BALL && power.getStamina() <= 0.0F) {
             endAndClearAction(true);
         }
+    }
+
+    // The dash's own action ends it; a recall takes that action away, and the dash still lasts no longer than it did.
+    private boolean isDashActionRunning() {
+        EntityActionInstance action = getCurStandAction();
+        return action != null && action.ability instanceof CreamVoidAbility;
     }
 
     private void maintainUserState(
@@ -522,7 +675,7 @@ public final class CreamEntity extends StandEntity {
 
     private boolean canBreakBlocks() {
         return CreamConfig.EXCLUDE_VOID_FROM_BLOCK_BREAKING.get()
-                || JojoModUtil.breakingBlocksEnabled(level());
+                || JojoModUtil.breakingBlocksEnabled(level(), this);
     }
 
     private boolean isBlockBlacklisted(BlockState state) {
@@ -680,9 +833,12 @@ public final class CreamEntity extends StandEntity {
     }
 
     private void endAndClearAction(boolean applyCooldown) {
+        boolean goingAnyway = isUnsummoning() || isRemoved();
         endVoidMode(applyCooldown);
-        LivingComponentAction.getComponent(this)
-                .setAction(null, SyncType.TRACKING_AND_SELF);
+        if (!goingAnyway) {
+            LivingComponentAction.getComponent(this)
+                    .setAction(null, SyncType.TRACKING_AND_SELF);
+        }
     }
 
     private void playVoidSound(

@@ -2,8 +2,16 @@
   "geraddon.ability.ger_stand_punch": "Удар",
   "geraddon.ability.ger_stand_barrage": "Шквал ударов",
   "geraddon.ability.ger_return_to_zero": "Вернуться к Нулю",
-  "action.geraddon.ger_stand_punch": "Удар",
-  "action.geraddon.ger_stand_barrage": "Шквал ударов",
-  "action.geraddon.ger_return_to_zero": "Вернуться к Нулю",
-  "jojo.message.action_condition.on_disable": "Ваши способности отключены"
+  "jojo.message.action_condition.on_disable": "Ваши способности отключены",
+  "geraddon.ability.create_lifeform.param": "Создать: %s",
+  "geraddon.ability.revert_lifeform.param": "Обратить в %s",
+  "geraddon.ability.heal.arrow": "Закрыть рану от стрелы",
+  "geraddon.ability.heal.knife": "Закрыть рану от ножа",
+  "geraddon.ability.heal_other.target": "Закрыть раны %s",
+  "geraddon.ability.heal_other.arrow": "Закрыть рану от стрелы %s",
+  "geraddon.ability.heal_other.knife": "Закрыть рану от ножа %s",
+  "geraddon.ability.heal_other.dying": "Дать жизненную энергию %s",
+  "death.attack.geraddon.death_loop": "%1$s погиб в петле смерти",
+  "death.attack.geraddon.death_loop.player": "%1$s погиб в петле смерти, начатой %2$s",
+  "death.attack.geraddon.death_loop.item": "%1$s погиб в петле смерти, начатой %2$s"
 }

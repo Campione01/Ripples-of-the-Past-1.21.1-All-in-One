@@ -111,6 +111,19 @@ public final class LaunchBombProjectileAbility
                 : ConditionCheck.POSITIVE;
     }
 
+    // a bomb launched with the Stand out goes on through a recall: the HUD lights the slot while one of the user's is
+    // in flight in the range the detonation reaches
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        Class<? extends KillerQueenBombProjectile> bombType =
+                kind == Kind.SNOW ? SnowBombEntity.class : BubbleBombEntity.class;
+        return !user.level().getEntitiesOfClass(
+                bombType,
+                user.getBoundingBox().inflate(
+                        DetonateBombProjectilesAbility.LEGACY_RANGE),
+                bomb -> bomb.isOwnedBy(user.getUUID())).isEmpty();
+    }
+
     private static boolean hasSnowball(Player player) {
         if (player.getAbilities().instabuild) {
             return true;

@@ -6,6 +6,7 @@ import rotp.core.subsystems.entity_possessionv2.LivingComponentPossession;
 
 import rotp.addons.stickyfingers.ability.StickyFingersHideInMobAbility;
 import rotp.addons.stickyfingers.entity.DetachedBodyPartEntity;
+import rotp.addons.stickyfingers.state.RecallSign;
 import rotp.addons.stickyfingers.state.ZipperCloseReason;
 import rotp.addons.stickyfingers.state.ZipperCombatCloseReason;
 import rotp.addons.stickyfingers.state.ZipperCombatData;
@@ -20,6 +21,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -76,6 +78,10 @@ public final class StickyFingersGameEvents {
                 LivingComponentPossession.setPossessionTarget(
                         player, null, null);
             }
+            ZipperStorageData.get(player.getServer())
+                    .closeViewer(player);
+        }
+        if (!StickyFingersAddon.holdsStickyFingers(player)) {
             ZipperLeaseData.get(player.serverLevel())
                     .closeOwned(
                             player.serverLevel(),
@@ -85,9 +91,8 @@ public final class StickyFingersGameEvents {
                     player,
                     ZipperCombatCloseReason.ABILITY_LOST,
                     false);
-            ZipperStorageData.get(player.getServer())
-                    .closeViewer(player);
         }
+        RecallSign.update(player);
     }
 
     @SubscribeEvent
@@ -311,8 +316,16 @@ public final class StickyFingersGameEvents {
             return;
         }
         ChunkPos chunkPosition = event.getChunk().getPos();
-        ZipperStorageData.get(level.getServer())
-                .onChunkUnload(level, event.getChunk());
+        // Vanilla unloads on the server thread; a chunk mod may not. The storage's closing menus and plain maps need it.
+        if (level.getServer().isSameThread()) {
+            ZipperStorageData.get(level.getServer())
+                    .onChunkUnload(level, event.getChunk());
+        } else {
+            ChunkAccess chunk = event.getChunk();
+            level.getServer().execute(
+                    () -> ZipperStorageData.get(level.getServer())
+                            .onChunkUnload(level, chunk));
+        }
         level.getServer().execute(
                 () -> ZipperLeaseData.get(level)
                         .onChunkUnload(level, chunkPosition));

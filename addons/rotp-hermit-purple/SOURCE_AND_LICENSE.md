@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-hermit-purple`, mod id `rotp_zhp`, version `1.3.5d-port.32`.
+- Module: `rotp-hermit-purple`, mod id `rotp_zhp`, version `1.3.5d-port.33`.
 - Original 1.16.5 add-on: `RotP-紫色隐者-1.3.5d.jar` (RotP 紫色隐者, mod id `rotp_zhp`), by Makuta Zeml, StandoByte, StandSkins and Icons by: MlgMC; declared license: GNU GPL v3.0; SHA-256 `BEC55C7EB3A3C2654837740BC56D2CC97D25D4AAE39F20FBC58A8DF0044C3AA6`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

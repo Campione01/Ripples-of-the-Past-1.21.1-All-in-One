@@ -13,9 +13,16 @@ import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 
+import java.util.UUID;
+
 import rotp.addons.whitesnake.WhitesnakeAddon;
+import rotp.addons.whitesnake.blockentity.MeltHeartBlockEntity;
 import rotp.addons.whitesnake.entity.projectile.MeltHeartProjectile;
+import net.minecraft.core.SectionPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.Vec3;
 
 public final class WhitesnakeMeltYourHeartAbility
@@ -24,12 +31,48 @@ public final class WhitesnakeMeltYourHeartAbility
     public static final float STAMINA_COST = 10.0F;
     public static final int MAX_HOLD_TICKS = 100;
     private static final String ABILITY_NAME = "melt_your_heart";
+    // the drop's client tracking range
+    private static final double SIGN_RANGE = 64.0D;
 
     public WhitesnakeMeltYourHeartAbility(
             AbilityType<?> abilityType, AbilityId abilityId) {
         super(abilityType, abilityId, MeltYourHeartAction::new);
         setButtonHoldPhase(ActionPhase.PERFORM);
         cooldown(20, 100, 0.0F);
+    }
+
+    // R772.1 OQ-C04: the drops in flight and the melt on the ground go on with the Stand recalled (the owner's rule of
+    // 2026-11-05), so the HUD lights this slot while one of the user's is there; both carry his id to the client
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        return hasMeltOutNear(user);
+    }
+
+    public static boolean hasMeltOutNear(LivingEntity user) {
+        UUID userId = user.getUUID();
+        Level level = user.level();
+        if (!level.getEntitiesOfClass(MeltHeartProjectile.class, user.getBoundingBox().inflate(SIGN_RANGE),
+                drop -> drop.isAlive() && userId.equals(drop.whitesnakeUser())).isEmpty()) {
+            return true;
+        }
+        int chunkX = SectionPos.blockToSectionCoord(user.getBlockX());
+        int chunkZ = SectionPos.blockToSectionCoord(user.getBlockZ());
+        int radius = SectionPos.blockToSectionCoord((int) SIGN_RANGE);
+        for (int x = chunkX - radius; x <= chunkX + radius; x++) {
+            for (int z = chunkZ - radius; z <= chunkZ + radius; z++) {
+                LevelChunk chunk = level.getChunkSource().getChunkNow(x, z);
+                if (chunk == null) {
+                    continue;
+                }
+                for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
+                    if (blockEntity instanceof MeltHeartBlockEntity melt && !melt.isRemoved()
+                            && userId.equals(melt.ownerId())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     @Override

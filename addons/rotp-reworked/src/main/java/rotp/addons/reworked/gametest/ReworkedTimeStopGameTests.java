@@ -22,6 +22,7 @@ import net.minecraft.network.Connection;
 import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
@@ -53,6 +54,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.EventHooks;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
@@ -65,7 +67,10 @@ import rotp.addons.reworked.ReworkedGameEvents;
 import rotp.addons.reworked.ability.ReworkedStandAbilities;
 import rotp.core.JojoModConfig;
 import rotp.core.api.power.PowerSkillUnlocks;
+import rotp.core.api.simulation.EntitySimulations;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.api.timestop.TimeStopLifecycleEvent;
+import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
 import rotp.core.impl.stands._entitybase.StandMeleeReach;
@@ -323,6 +328,92 @@ public final class ReworkedTimeStopGameTests {
     }
 
     /**
+     * A copy carries the int id of its body, so an automatic stop started for a copy would run in the real level under
+     * the real user's id. The scene is that of automaticStopChargesTheUntrainedTimeStopRate (its control: there the same
+     * snowball starts exactly one stop and unlocks the time stop), with the user called simulated by the core.
+     */
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 80, batch = "rejojoTsAutomaticCopy")
+    public static void automaticStopLeavesASimulatedUserAloneAndUnlocksNothing(GameTestHelper helper) {
+        Fixture fixture = user(helper, "rejojo-ts-auto-copy");
+        ServerPlayer player = fixture.player();
+        StandPower power = fixture.power();
+        ServerLevel level = helper.getLevel();
+        ResourceLocation rule = ResourceLocation.fromNamespaceAndPath("rotp_rejojo", "test_automatic_stop_copy");
+        List<TimeStopLifecycleEvent.PreStart> preStarts = new ArrayList<>();
+        List<TimeStopState.Instance> added = new ArrayList<>();
+        Consumer<TimeStopLifecycleEvent.PreStart> onPreStart = event -> {
+            if (event.getInstance().userId() == player.getId()) {
+                preStarts.add(event);
+            }
+        };
+        Consumer<TimeStopLifecycleEvent.Added> onAdded = event -> {
+            if (event.getInstance().userId() == player.getId()) {
+                added.add(event.getInstance());
+            }
+        };
+        Snowball[] threat = new Snowball[1];
+        Cow[] thrower = new Cow[1];
+        Runnable end = () -> {
+            EntitySimulations.unregister(rule);
+            NeoForge.EVENT_BUS.unregister(onPreStart);
+            NeoForge.EVENT_BUS.unregister(onAdded);
+            if (threat[0] != null) {
+                threat[0].discard();
+            }
+            if (thrower[0] != null) {
+                thrower[0].discard();
+            }
+            cleanup(fixture);
+        };
+        helper.runAfterDelay(2, () -> guarded(end, () -> {
+            power.setResolveLevel(2);
+            helper.assertTrue(power.getResolveLevel() >= 2
+                            && !power.isAbilityUnlocked(TimeStopLearning.TIME_STOP),
+                    "Setup: The World must be at Resolve level 2 with its time stop locked");
+            helper.assertTrue(!power.isStaminaInfinite() && power.getMaxStamina() >= 100.0F,
+                    "Setup: the user needs a finite stamina bar of at least 100");
+            power.setStamina(100.0F);
+            EntitySimulations.register(rule, entity -> entity == player);
+            NeoForge.EVENT_BUS.addListener(
+                    EventPriority.LOWEST, false, TimeStopLifecycleEvent.PreStart.class, onPreStart);
+            NeoForge.EVENT_BUS.addListener(
+                    EventPriority.LOWEST, false, TimeStopLifecycleEvent.Added.class, onAdded);
+            Vec3 feet = player.position();
+            Cow cow = EntityType.COW.create(level);
+            cow.setPos(feet.add(0.0D, 0.0D, 1.0D));
+            cow.setNoAi(true);
+            cow.setNoGravity(true);
+            level.addFreshEntity(cow);
+            thrower[0] = cow;
+            Snowball snowball = new Snowball(level, feet.x - 3.0D, feet.y + 1.0D, feet.z);
+            snowball.setOwner(cow);
+            snowball.setNoGravity(true);
+            snowball.setDeltaMovement(0.75D, 0.0D, 0.0D);
+            level.addFreshEntity(snowball);
+            threat[0] = snowball;
+        }));
+        helper.runAfterDelay(12, () -> {
+            try {
+                helper.assertTrue(EntitySimulations.isSimulated(player),
+                        "Setup: the core does not call the user simulated");
+                helper.assertTrue(preStarts.isEmpty() && added.isEmpty()
+                                && state(player).getInstance(player.getId()).isEmpty(),
+                        "A simulated user got an automatic time stop: " + preStarts.size() + " pre-start(s), "
+                                + added.size() + " added, instance "
+                                + state(player).getInstance(player.getId()).isPresent());
+                helper.assertTrue(!power.isAbilityUnlocked(TimeStopLearning.TIME_STOP),
+                        "A simulated user's projectile threat unlocked the time stop on the real power");
+                // the bar regenerates meanwhile; the automatic stop would have drained it to 0
+                helper.assertTrue(power.getStamina() >= 100.0F && !player.hasEffect(ModStatusEffects.TIME_STOP),
+                        "A simulated user paid stamina or got the time stop effect: stamina " + power.getStamina());
+            } finally {
+                end.run();
+            }
+            helper.succeed();
+        });
+    }
+
+    /**
      * 1.16 TheWorldTSBlinkRecovery.perform never refused for stamina: it capped the 4 skipped ticks by the stamina over
      * its own costs (both 0, so only an empty bar changes them, to the minimum 5), then paid the Reworked blink's start
      * cost plus those ticks and ignored the result.
@@ -430,44 +521,164 @@ public final class ReworkedTimeStopGameTests {
     }
 
     /**
-     * 1.16 TheWorldTimeStop.getHoldDurationToFire (RE_THE_WORLD_TIME_STOP is one) asked IStandPower.getResolveLevel,
-     * the stored level: the 20-tick charge came from stored level 4, and a Resolve effect over a lower stored level
-     * kept the 35 ticks (the effect only raised the stored level when it started).
+     * The owner's rule for every time stop (2026-11-06): the charge is the core's setting, not Reworked's 30 and 35. The
+     * World's is a TheWorldTimeStop (RE_THE_WORLD_TIME_STOP), which the core shortens to two thirds from Resolve 4; 1.16
+     * asked IStandPower.getResolveLevel, the stored level, so a Resolve effect over a lower stored level keeps the full
+     * charge. Star Platinum's never shortens.
      */
     @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 80, batch = "rejojoTsCharge")
-    public static void theWorldChargeShortensOnTheStoredResolveLevelOnlyAsIn116(GameTestHelper helper) {
+    public static void theChargeIsTheCoresSettingAndTheWorldsShortensOnTheStoredResolveLevelOnly(GameTestHelper helper) {
         Fixture fixture = user(helper, "rejojo-ts-charge");
+        Fixture starPlatinum = user(helper, "rejojo-ts-charge-sp", ModStands.STAR_PLATINUM.get());
         ServerPlayer player = fixture.player();
         StandPower power = fixture.power();
         helper.runAfterDelay(2, () -> {
             try {
                 Ability timeStop = power.getAbility(TimeStopLearning.TIME_STOP);
-                helper.assertTrue(timeStop instanceof ReworkedStandAbilities.ReworkedTimeStopAbility,
-                        "Setup: The World has no Reworked time stop: " + timeStop);
+                Ability spTimeStop = starPlatinum.power().getAbility(TimeStopLearning.TIME_STOP);
+                helper.assertTrue(timeStop instanceof ReworkedStandAbilities.ReworkedTimeStopAbility
+                                && spTimeStop instanceof ReworkedStandAbilities.ReworkedTimeStopAbility,
+                        "Setup: no Reworked time stops: " + timeStop + ", " + spTimeStop);
+                power.setResolveLevel(3);
+                helper.assertTrue(chargeTicks(timeStop, player, 1.5D) == 30 && chargeTicks(timeStop, player, 2.5D) == 50,
+                        "The World must charge for the core's setting, 30 ticks at 1.5 s and 50 at 2.5 s; the port "
+                                + chargeTicks(timeStop, player, 1.5D) + " and " + chargeTicks(timeStop, player, 2.5D));
                 power.setResolveLevel(4);
-                helper.assertTrue(chargeTicks(timeStop, player) == ReworkedStandAbilities.THE_WORLD_RESOLVE_HOLD_TO_FIRE_TICKS,
-                        "1.16 charged The World's Reworked time stop for 20 ticks from stored Resolve level 4; the port "
-                                + chargeTicks(timeStop, player));
+                helper.assertTrue(chargeTicks(timeStop, player, 1.5D) == 20 && chargeTicks(timeStop, player, 2.5D) == 33,
+                        "From stored Resolve level 4 The World charges for two thirds, 20 and 33 ticks; the port "
+                                + chargeTicks(timeStop, player, 1.5D) + " and " + chargeTicks(timeStop, player, 2.5D));
                 player.addEffect(new MobEffectInstance(ModStatusEffects.RESOLVE, 400, 4, false, false, true));
                 power.setResolveLevel(2);
                 helper.assertTrue(power.getResolveLevel() == 2
                                 && ResolveModeEffect.getEffectiveResolveLevel(player, power) >= 4,
                         "Setup: stored level 2 under a level 4 Resolve effect: " + power.getResolveLevel() + ", "
                                 + ResolveModeEffect.getEffectiveResolveLevel(player, power));
-                helper.assertTrue(chargeTicks(timeStop, player) == ReworkedStandAbilities.THE_WORLD_HOLD_TO_FIRE_TICKS,
-                        "1.16 read the stored level 2 and charged 35 ticks under a Resolve effect of level 4; the port "
-                                + chargeTicks(timeStop, player));
+                helper.assertTrue(chargeTicks(timeStop, player, 2.5D) == 50,
+                        "1.16 read the stored level 2 and kept the full charge under a Resolve effect of level 4; the port "
+                                + chargeTicks(timeStop, player, 2.5D));
+                starPlatinum.power().setResolveLevel(4);
+                helper.assertTrue(chargeTicks(spTimeStop, starPlatinum.player(), 2.5D) == 50,
+                        "Star Platinum must charge for the whole 2.5 s at Resolve 4, 50 ticks; the port "
+                                + chargeTicks(spTimeStop, starPlatinum.player(), 2.5D));
             } finally {
                 cleanup(fixture);
+                cleanup(starPlatinum);
             }
             helper.succeed();
         });
     }
 
-    private static int chargeTicks(Ability timeStop, ServerPlayer player) {
-        EntityActionInstance action = ((EntityActionType) timeStop)
-                .initActionOnAbilityUse(player.level(), player, player, null);
-        return (int) action.phasesLength.getFloat(ActionPhase.BUTTON_CHARGE);
+    // a press reads the setting once, so it is back before anything else can read it
+    private static int chargeTicks(Ability timeStop, ServerPlayer player, double seconds) {
+        net.neoforged.neoforge.common.ModConfigSpec.DoubleValue value = JojoModConfig.COMMON_SPEC.getValues()
+                .get(List.of("Stand settings", "Time Stop", "timeStopChargeSeconds"));
+        double before = value.get();
+        value.set(seconds);
+        try {
+            EntityActionInstance action = ((EntityActionType) timeStop)
+                    .initActionOnAbilityUse(player.level(), player, player, null);
+            return (int) action.phasesLength.getFloat(ActionPhase.BUTTON_CHARGE);
+        } finally {
+            value.set(before);
+        }
+    }
+
+    /**
+     * The owner's minimum (2026-11-05): a release before half of the charge stops nothing, from half it stops time, and
+     * an urgent stop is a quick double press. Pressed by the key as the server takes a press, at a setting of 0.5 s (10
+     * ticks), the charge ticked by hand inside one game tick, the stop moved far off so it freezes nothing here.
+     */
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 80, batch = "rejojoTsMinimum")
+    public static void theWorldsTimeStopFiresFromHalfTheCoresChargeOrAtOnceOnADoublePress(GameTestHelper helper) {
+        Fixture fixture = user(helper, "rejojo-ts-minimum");
+        ServerPlayer player = fixture.player();
+        StandPower power = fixture.power();
+        LivingComponentAction slot = LivingComponentAction.getComponent(player, PowerClass.STAND);
+        short key = 157;
+        ChunkPos farAway = new ChunkPos(53500 + player.getId() * 2, 53500);
+        Consumer<TimeStopLifecycleEvent.PreStart> isolate = event -> {
+            if (event.getInstance().userId() == player.getId()) {
+                event.setInstance(event.getInstance().withArea(farAway, 1));
+            }
+        };
+        Runnable end = () -> {
+            NeoForge.EVENT_BUS.unregister(isolate);
+            AbilityInput.keyRelease(key, player);
+            slot.setAction(null, SyncType.NO_SYNC);
+            cleanup(fixture);
+        };
+        helper.runAfterDelay(2, () -> {
+            try {
+                NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, false, TimeStopLifecycleEvent.PreStart.class, isolate);
+                power.setResolveLevel(3);
+                ReworkedAddon.POWER_SKILL_UNLOCKS.forceUnlock(power, TimeStopLearning.TIME_STOP);
+                Ability timeStop = power.getAbility(TimeStopLearning.TIME_STOP);
+                helper.assertTrue(timeStop instanceof ReworkedStandAbilities.ReworkedTimeStopAbility
+                                && timeStop.isAbilityUnlocked(power),
+                        "Setup: no unlocked Reworked time stop: " + timeStop);
+                EntityActionInstance held = pressTimeStop(helper, player, power, timeStop, key, 0.5D);
+                helper.assertTrue(held != null && held.getPhase() == ActionPhase.BUTTON_CHARGE
+                                && held.getCurPhaseLength() == 10.0F,
+                        "The time stop must charge for the core's 0.5 s, 10 ticks: "
+                                + (held == null ? "no charge" : held.getPhase() + " of " + held.getCurPhaseLength()));
+                tickSlot(slot, 4);
+                AbilityInput.keyRelease(key, player);
+                helper.assertTrue(state(player).getInstance(player.getId()).isEmpty(),
+                        "A release 4 ticks into a 10-tick charge stopped time");
+                slot.setAction(null, SyncType.NO_SYNC);
+                player.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get()).timeStopFirstPressTime =
+                        rotp.core.powersystem.entityaction.EntityActionInputState.NO_PRESS;
+                pressTimeStop(helper, player, power, timeStop, key, 0.5D);
+                tickSlot(slot, 5);
+                AbilityInput.keyRelease(key, player);
+                helper.assertTrue(state(player).getInstance(player.getId()).isPresent(),
+                        "A release at half of the core's 10-tick charge must stop time");
+                state(player).removeInstance(player.getId());
+                player.removeAllEffects();
+                slot.setAction(null, SyncType.NO_SYNC);
+                player.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get()).timeStopFirstPressTime =
+                        rotp.core.powersystem.entityaction.EntityActionInputState.NO_PRESS;
+                power.setAbilityCooldown(TimeStopCooldowns.TIME_STOP, 0);
+                pressTimeStop(helper, player, power, timeStop, key, 1.5D);
+                AbilityInput.keyRelease(key, player);
+                helper.assertTrue(state(player).getInstance(player.getId()).isEmpty(), "A tap stopped time");
+                tickSlot(slot, 1);
+                pressTimeStop(helper, player, power, timeStop, key, 1.5D);
+                helper.assertTrue(state(player).getInstance(player.getId()).isPresent(),
+                        "A quick second press must stop time at once");
+            } finally {
+                end.run();
+            }
+            helper.succeed();
+        });
+    }
+
+    private static EntityActionInstance pressTimeStop(GameTestHelper helper, ServerPlayer player, StandPower power,
+            Ability timeStop, short key, double seconds) {
+        net.neoforged.neoforge.common.ModConfigSpec.DoubleValue value = JojoModConfig.COMMON_SPEC.getValues()
+                .get(List.of("Stand settings", "Time Stop", "timeStopChargeSeconds"));
+        double before = value.get();
+        value.set(seconds);
+        try {
+            power.setStamina(power.getMaxStamina());
+            // as ClAbilityInputPacket takes a held press: the key's resolution, its condition check, the press
+            AvailableAbilities available = new AvailableAbilities();
+            available.update(power, power.getMoveset());
+            var resolved = available.getContextVariationContainer(timeStop);
+            helper.assertTrue(resolved != null && AbilityInput.withConditionCheck(resolved, player, InputMethod.HOLD),
+                    "Setup: the time stop key was refused: " + (resolved == null ? "nothing" : resolved.conditionCheck));
+            var held = AbilityInput.keyPress(key, resolved.ability, player, null, InputMethod.HOLD, 0.0F,
+                    BufferingState.clickCanBuffer(), timeStop.getAbilityId());
+            return held != null && held.action instanceof EntityActionInstance action ? action : null;
+        } finally {
+            value.set(before);
+        }
+    }
+
+    private static void tickSlot(LivingComponentAction slot, int ticks) {
+        for (int tick = 0; tick < ticks; tick++) {
+            slot.tick();
+        }
     }
 
     /**
@@ -487,6 +698,17 @@ public final class ReworkedTimeStopGameTests {
         new PressedStopCooldownScene(helper, ModStands.THE_WORLD.get(), "rejojo-ts-cd-tw").start();
     }
 
+    /**
+     * In the no-cooldown mode the stop's end sets the blink's cooldown as a lock, not as a use of the blink: the blink
+     * takes no fatigue (the stop's own fatigue is the core's, added at its end). The same press as
+     * theWorldPressedTimeStopWithoutItsStandTakesTheLegacyCooldownAsIn116, with the user's no-cooldown setting on; it also
+     * reads the core's no-cooldown time stop multiplier (1, no longer 3).
+     */
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 200, batch = "rejojoTsPressedCdFatigue")
+    public static void theStopsEndLocksTheBlinkWithoutFatigueInTheNoCooldownMode(GameTestHelper helper) {
+        new PressedStopCooldownScene(helper, ModStands.THE_WORLD.get(), "rejojo-ts-cd-nocd", true).start();
+    }
+
     // Star Platinum with its Stand out, or The World at Resolve 3 not out; the untrained stop lasts 5 ticks after its
     // 35-tick opening.
     private static final class PressedStopCooldownScene {
@@ -497,6 +719,7 @@ public final class ReworkedTimeStopGameTests {
         private final EntityStandType standType;
         private final boolean starPlatinum;
         private final String name;
+        private final boolean noCooldown;
         private final List<Object> listeners = new ArrayList<>();
         private Fixture fixture;
         private EntityActionInstance pressed;
@@ -510,6 +733,12 @@ public final class ReworkedTimeStopGameTests {
         private int ticks;
 
         private PressedStopCooldownScene(GameTestHelper helper, EntityStandType standType, String name) {
+            this(helper, standType, name, false);
+        }
+
+        private PressedStopCooldownScene(GameTestHelper helper, EntityStandType standType, String name,
+                boolean noCooldown) {
+            this.noCooldown = noCooldown;
             this.helper = helper;
             this.standType = standType;
             this.starPlatinum = standType == ModStands.STAR_PLATINUM.get();
@@ -519,6 +748,10 @@ public final class ReworkedTimeStopGameTests {
         private void start() {
             try {
                 fixture = user(helper, name, standType);
+                if (noCooldown) {
+                    fixture.player().getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get())
+                            .noStandAbilityCooldown = true;
+                }
                 listen();
                 helper.onEachTick(this::tick);
             } catch (RuntimeException | Error failure) {
@@ -650,6 +883,25 @@ public final class ReworkedTimeStopGameTests {
                             + expected + " ticks, its blink " + expectedBlink + "; the port set " + timeStopCooldown
                             + " and " + blinkCooldown + " (the core's own " + core + " / " + coreBlink + "); "
                             + atStart);
+            if (noCooldown) {
+                // read a tick after the event: the core adds the stop's own fatigue once the event is through
+                float blinkFatigue = StandAbilityFatigue.getFatigueTicks(power, TimeStopCooldowns.TIME_STOP_BLINK);
+                float timeStopFatigue = StandAbilityFatigue.getFatigueTicks(power, TimeStopCooldowns.TIME_STOP);
+                helper.assertTrue(StandAbilityFatigue.applies(power)
+                                && PlayerClientBroadcastedSettings.getTimeStopStaminaCostMultiplier(power) == 1.0F,
+                        "Setup: the no-cooldown mode is not on, or the core's time stop multiplier is not 1: "
+                                + PlayerClientBroadcastedSettings.getTimeStopStaminaCostMultiplier(power));
+                helper.assertTrue(blinkFatigue == 0.0F,
+                        "The stop's end set the blink's lock as a use of the blink: fatigue " + blinkFatigue);
+                // the core adds the stop's own fatigue at its end; the add-on's cooldown must not add a second use
+                // (the untrained stop's core cooldown is under the 20 trivial ticks, so its own addition is 0; the
+                // add-on's longer cooldown set as a use would add its whole length)
+                float own = StandAbilityFatigue.stackedFatigue(0.0F,
+                        TimeStopCooldowns.timeStopCooldown(power, ticksPassed));
+                helper.assertTrue(Math.abs(timeStopFatigue - own) < 0.01F,
+                        "The stop's fatigue is " + timeStopFatigue + ", the core's own addition is " + own
+                                + ": the add-on's end cooldown counted as a second use");
+            }
         }
 
         private void close() {
@@ -1368,8 +1620,9 @@ public final class ReworkedTimeStopGameTests {
             punch = held != null && held.action instanceof EntityActionInstance action
                     ? action
                     : stand.getCurStandAction();
-            helper.assertTrue(punch != null && punch.ability == base,
-                    "Setup: the punch key did not start the Reworked punch: " + punch);
+            helper.assertTrue(punch instanceof ReworkedStandAbilities.ReworkedMagiciansRedPunch
+                            && punch.ability == selected.ability,
+                    "Setup: the punch key did not start the selected Reworked combo member: " + punch);
         }
 
         private void startCreative() {
@@ -3900,6 +4153,129 @@ public final class ReworkedTimeStopGameTests {
             }
         }
         helper.succeed();
+    }
+
+    /**
+     * A flame's pending hit keeps no target alive (through its level the target reaches the flame, the weak key), and
+     * the pending hits are forgotten when the server has stopped.
+     */
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 40, batch = "rejojoFlameHitLifetime")
+    public static void aPendingFlameHitKeepsNoTargetAndTheStopForgetsIt(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Vec3 origin = chunkMiddle(helper);
+        List<Runnable> cleanups = new ArrayList<>();
+        try {
+            StandEntity shooter = flameStand(helper, origin, "rejojo-flame-life", ModStands.MAGICIANS_RED.get(), cleanups);
+            HitFlame flame = new HitFlame(shooter, level);
+            java.lang.ref.WeakReference<Cow> target = hitAGoneCow(helper, flame);
+            for (int i = 0; i < 40 && target.get() != null; i++) {
+                System.gc();
+                try {
+                    Thread.sleep(25L);
+                }
+                catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            helper.assertTrue(target.get() == null, "A flame's pending hit keeps its target alive");
+            Cow kept = EntityType.COW.create(level);
+            helper.assertTrue(kept != null, "Setup: no cow");
+            EventHooks.onProjectileImpact(flame, new EntityHitResult(kept));
+            helper.assertTrue(ReworkedGameEvents.pendingFlameTarget(flame) == kept, "Setup: no pending hit");
+            ReworkedGameEvents.onServerStopped(new ServerStoppedEvent(level.getServer()));
+            helper.assertTrue(ReworkedGameEvents.pendingFlameTarget(flame) == null,
+                    "ServerStoppedEvent did not forget the pending flame hits");
+        }
+        finally {
+            for (int i = cleanups.size() - 1; i >= 0; i--) {
+                cleanups.get(i).run();
+            }
+        }
+        helper.succeed();
+    }
+
+    // The cow is never added to the level and lives only in this frame: once it returns, only the hit could keep it.
+    private static java.lang.ref.WeakReference<Cow> hitAGoneCow(GameTestHelper helper, HitFlame flame) {
+        Cow cow = EntityType.COW.create(helper.getLevel());
+        helper.assertTrue(cow != null, "Setup: no cow");
+        EventHooks.onProjectileImpact(flame, new EntityHitResult(cow));
+        helper.assertTrue(ReworkedGameEvents.pendingFlameTarget(flame) == cow, "Setup: the impact left no pending hit");
+        return new java.lang.ref.WeakReference<>(cow);
+    }
+
+    /**
+     * A copy of an entity (King Crimson's Epitaph runs them ahead of time, outside the world) carries the int id of its
+     * body. A flame hit foreseen on such a copy must neither replace nor consume the pending hit of the real flame, and
+     * an entity the core calls simulated is left alone by the impact handler (no Slow Burn, no pending hit).
+     */
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 40, batch = "rejojoFlameCopy")
+    public static void aFlameHitOnACopyWithTheSameIdsLeavesTheRealHitAlone(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Vec3 origin = chunkMiddle(helper);
+        List<Runnable> cleanups = new ArrayList<>();
+        ResourceLocation rule = ResourceLocation.fromNamespaceAndPath("rotp_rejojo", "test_flame_copies");
+        try {
+            StandEntity shooter = flameStand(helper, origin, "rejojo-flame-copy", ModStands.MAGICIANS_RED.get(), cleanups);
+            Cow cow = EntityType.COW.create(level);
+            helper.assertTrue(cow != null, "Setup: no cow");
+            cow.setNoAi(true);
+            cow.setNoGravity(true);
+            cow.getAttribute(Attributes.MAX_HEALTH).setBaseValue(200.0D);
+            cow.moveTo(origin.x, origin.y, origin.z + 1.5D, 0.0F, 0.0F);
+            helper.assertTrue(level.addFreshEntity(cow), "Setup: the cow was not added");
+            cleanups.add(cow::discard);
+            HitFlame flame = new HitFlame(shooter, level);
+            Cow copy = copyOf(level, cow);
+            HitFlame flameCopy = copyOf(flame, shooter, level);
+            helper.assertTrue(copy.getId() == cow.getId() && flameCopy.getId() == flame.getId() && copy != cow,
+                    "Setup: the copies do not carry the ids of the real ones");
+
+            helper.assertTrue(!EventHooks.onProjectileImpact(flame, new EntityHitResult(cow))
+                            && ReworkedGameEvents.pendingFlameTarget(flame) == cow,
+                    "Setup: the real flame's impact left no pending hit");
+            // a hit foreseen on the copies, as far as its hurt
+            EventHooks.onProjectileImpact(flameCopy, new EntityHitResult(copy));
+            copy.hurt(level.damageSources().thrown(flameCopy, shooter), 1.0F);
+            helper.assertTrue(ReworkedGameEvents.pendingFlameTarget(flame) == cow,
+                    "A flame hit on a copy with the same ids replaced or consumed the real flame's pending hit: it now"
+                            + " waits on " + ReworkedGameEvents.pendingFlameTarget(flame));
+
+            // the same, with the copies called simulated by the core: the handler leaves at once
+            Cow simulated = copyOf(level, cow);
+            HitFlame simulatedFlame = copyOf(flame, shooter, level);
+            EntitySimulations.register(rule, entity -> entity == simulated || entity == simulatedFlame);
+            EventHooks.onProjectileImpact(simulatedFlame, new EntityHitResult(simulated));
+            helper.assertTrue(!simulated.hasEffect(ReworkedAddon.SLOW_BURN)
+                            && ReworkedGameEvents.pendingFlameTarget(simulatedFlame) == null
+                            && ReworkedGameEvents.pendingFlameTarget(flame) == cow,
+                    "A simulated entity's flame impact got Slow Burn or a pending hit");
+
+            cow.hurt(level.damageSources().thrown(flame, shooter), 1.0F);
+            helper.assertTrue(ReworkedGameEvents.pendingFlameTarget(flame) == null,
+                    "The real flame's hurt did not consume its own pending hit");
+        }
+        finally {
+            EntitySimulations.unregister(rule);
+            for (int i = cleanups.size() - 1; i >= 0; i--) {
+                cleanups.get(i).run();
+            }
+        }
+        helper.succeed();
+    }
+
+    // an unplaced cow of the same int id: what a foreseen copy of the real one is to the handlers
+    private static Cow copyOf(ServerLevel level, Cow real) {
+        Cow copy = EntityType.COW.create(level);
+        copy.setId(real.getId());
+        copy.moveTo(real.position());
+        return copy;
+    }
+
+    private static HitFlame copyOf(HitFlame real, StandEntity shooter, ServerLevel level) {
+        HitFlame copy = new HitFlame(shooter, level);
+        copy.setId(real.getId());
+        return copy;
     }
 
     private static StandEntity flameStand(GameTestHelper helper, Vec3 position, String name, EntityStandType type,

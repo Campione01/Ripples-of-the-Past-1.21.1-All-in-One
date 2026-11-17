@@ -3,14 +3,16 @@ package rotp.addons.lovers.entity;
 import java.util.Optional;
 import java.util.UUID;
 
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
 import rotp.addons.lovers.state.LoversLinkService;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 
 public final class LoversStandEntity extends StandEntity {
@@ -77,18 +79,10 @@ public final class LoversStandEntity extends StandEntity {
     }
 
     @Override
-    public void onUnsummonUserInput() {
-        if (!level().isClientSide()) {
-            LoversLinkService.clearByStand(this);
+    public void setUserAndPower(LivingEntity user, StandPower power) {
+        super.setUserAndPower(user, power);
+        if (user instanceof ServerPlayer owner) {
+            LoversLinkService.takeOver(owner, this);
         }
-        super.onUnsummonUserInput();
-    }
-
-    @Override
-    public void remove(Entity.RemovalReason reason) {
-        if (!level().isClientSide()) {
-            LoversLinkService.clearByStand(this);
-        }
-        super.remove(reason);
     }
 }

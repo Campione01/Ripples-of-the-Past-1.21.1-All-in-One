@@ -5,6 +5,7 @@ import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
 import rotp.core.core.JojoRegistries;
 import rotp.core.powersystem.MovesetBuilder;
+import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.standpower.StandStats;
 import rotp.core.powersystem.standpower.StandUnlockableSkill;
@@ -134,8 +135,11 @@ public final class SexPistolsStands {
                         forcedTarget, 0, InputMethod.CLICK)
                 .addToHotbar(
                         standReload, 0, InputMethod.CLICK)
-                .addToHotbar(
-                        quickReload, 0, InputMethod.CLICK)
+                .addHotbarSlotVariation(
+                        quickReload,
+                        standReload,
+                        InputKey.Modifier.SHIFT,
+                        InputMethod.CLICK)
                 .addToHotbar(
                         recall, 0, InputMethod.CLICK)
                 .addToHotbar(
@@ -188,7 +192,7 @@ public final class SexPistolsStands {
         return new SexPistolsStandType(
                 new StandStats.Builder()
                         .power(2.0D)
-                        .speed(8.0D, 14.0D)
+                        .speed(8.0D, 10.0D)
                         .range(40.0D, 40.0D)
                         .durability(12.0D, 16.0D)
                         .precision(16.0D, 20.0D)

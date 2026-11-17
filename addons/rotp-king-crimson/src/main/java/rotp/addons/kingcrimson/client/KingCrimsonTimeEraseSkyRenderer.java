@@ -22,9 +22,8 @@ import com.mojang.math.Axis;
 
 import rotp.addons.kingcrimson.KingCrimsonAddon;
 import rotp.addons.kingcrimson.KingCrimsonPhase5Spec;
+import rotp.addons.kingcrimson.client.shatter.KingCrimsonShatterUniverse;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
@@ -40,10 +39,6 @@ public final class KingCrimsonTimeEraseSkyRenderer
             KingCrimsonAddon.id(
                     "textures/entity/erase_sky_second.png");
     private static final float DISTANCE = 100.0F;
-    private static final float SCREEN_EXTENT = DISTANCE * 4.0F;
-    private static final float IRIS_RED_GAIN = 16.0F;
-    private static final float IRIS_GREEN_GAIN = 4.0F;
-    private static final float IRIS_BLUE_GAIN = 6.0F;
     private static final float[][] PASS_COLORS = createPassColors();
 
     private static ShaderInstance timeEraseSkyShader;
@@ -69,37 +64,34 @@ public final class KingCrimsonTimeEraseSkyRenderer
 
     @Override
     public void render(ClientSkyRenderContext context) {
+        if (ClientRenderCompatibility.snapshot().irisShaderPackInUse()) {
+            // The opaque Iris shell draws with the entity program after entities.
+            return;
+        }
+        if (KingCrimsonShatterUniverse.drawSky(context.frustumMatrix(), context.projectionMatrix())) {
+            return;
+        }
         context.skyFogSetup().run();
         RenderSystem.disableCull();
         RenderSystem.enableBlend();
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
         PoseStack poseStack = new PoseStack();
-        boolean shaderPackInUse =
-                ClientRenderCompatibility.snapshot()
-                        .irisShaderPackInUse();
-        RenderSystem.depthMask(shaderPackInUse);
-        float gameTime = ((context.level().getGameTime()
-                + context.partialTick()) % 24000.0F) / 24000.0F;
+        RenderSystem.depthMask(false);
         try {
-            if (shaderPackInUse) {
-                RenderSystem.defaultBlendFunc();
-                renderShaderPackBackdrop(poseStack, gameTime);
-            } else {
-                poseStack.mulPose(context.frustumMatrix());
-                for (int layer = 1;
-                        layer <= KingCrimsonPhase5Spec
-                                .TIME_ERASE_SKY_PORTAL_LAYERS;
-                        layer++) {
-                    if (layer == 1) {
-                        RenderSystem.defaultBlendFunc();
-                    } else {
-                        RenderSystem.blendFunc(
-                                SourceFactor.ONE,
-                                DestFactor.ONE);
-                    }
-                    renderLayer(poseStack, layer);
+            poseStack.mulPose(context.frustumMatrix());
+            for (int layer = 1;
+                    layer <= KingCrimsonPhase5Spec
+                            .TIME_ERASE_SKY_PORTAL_LAYERS;
+                    layer++) {
+                if (layer == 1) {
+                    RenderSystem.defaultBlendFunc();
+                } else {
+                    RenderSystem.blendFunc(
+                            SourceFactor.ONE,
+                            DestFactor.ONE);
                 }
+                renderLayer(poseStack, layer);
             }
         }
         finally {
@@ -152,147 +144,6 @@ public final class KingCrimsonTimeEraseSkyRenderer
             poseStack.popPose();
         }
         BufferUploader.drawWithShader(builder.buildOrThrow());
-    }
-
-    private static void renderShaderPackBackdrop(
-            PoseStack poseStack,
-            float gameTime) {
-        RenderSystem.setShader(
-                GameRenderer::getRendertypeEntityTranslucentEmissiveShader);
-        RenderSystem.setShaderTexture(0, FIRST_LAYER_TEXTURE);
-
-        BufferBuilder builder = Tesselator.getInstance().begin(
-                VertexFormat.Mode.QUADS,
-                DefaultVertexFormat.NEW_ENTITY);
-        var matrix = poseStack.last().pose();
-        addBackdropVertex(builder, matrix, -SCREEN_EXTENT, -SCREEN_EXTENT);
-        addBackdropVertex(builder, matrix, -SCREEN_EXTENT, SCREEN_EXTENT);
-        addBackdropVertex(builder, matrix, SCREEN_EXTENT, SCREEN_EXTENT);
-        addBackdropVertex(builder, matrix, SCREEN_EXTENT, -SCREEN_EXTENT);
-        BufferUploader.drawWithShader(builder.buildOrThrow());
-
-        RenderSystem.depthMask(false);
-        RenderSystem.blendFunc(SourceFactor.ONE, DestFactor.ONE);
-        renderShaderPackTexturePass(
-                poseStack,
-                FIRST_LAYER_TEXTURE,
-                1,
-                0,
-                gameTime);
-        renderShaderPackTexturePass(
-                poseStack,
-                FIRST_LAYER_TEXTURE,
-                1,
-                1,
-                gameTime);
-        for (int layer = 2;
-                layer <= KingCrimsonPhase5Spec
-                        .TIME_ERASE_SKY_PORTAL_LAYERS;
-                layer++) {
-            renderShaderPackTexturePass(
-                    poseStack,
-                    PORTAL_TEXTURE,
-                    layer,
-                    layer,
-                    gameTime);
-        }
-    }
-
-    private static void addBackdropVertex(
-            BufferBuilder builder,
-            org.joml.Matrix4f matrix,
-            float x,
-            float y) {
-        builder.addVertex(matrix, x, y, -DISTANCE)
-                .setUv(0.5F, 0.5F)
-                .setColor(0.0F, 0.0F, 0.0F, 1.0F)
-                .setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT)
-                .setNormal(0.0F, 0.0F, 1.0F);
-    }
-
-    private static void renderShaderPackTexturePass(
-            PoseStack poseStack,
-            ResourceLocation texture,
-            int layer,
-            int colorPass,
-            float gameTime) {
-        RenderSystem.setShader(
-                GameRenderer::getRendertypeEntityTranslucentEmissiveShader);
-        RenderSystem.setShaderTexture(0, texture);
-        BufferBuilder builder = Tesselator.getInstance().begin(
-                VertexFormat.Mode.QUADS,
-                DefaultVertexFormat.NEW_ENTITY);
-        float angle = (float) Math.toRadians(
-                (layer * layer * 4321.0F + layer * 9.0F)
-                        * 2.0F);
-        float cos = (float) Math.cos(angle);
-        float sin = (float) Math.sin(angle);
-        float scale = (4.5F - layer / 4.0F) * 2.0F;
-        float offsetU = 17.0F / layer;
-        float offsetV = (2.0F + layer / 1.5F)
-                * (gameTime * 1.5F);
-        float red = Math.min(
-                1.0F, PASS_COLORS[colorPass][0] * IRIS_RED_GAIN);
-        float green = Math.min(
-                1.0F, PASS_COLORS[colorPass][1] * IRIS_GREEN_GAIN);
-        float blue = Math.min(
-                1.0F, PASS_COLORS[colorPass][2] * IRIS_BLUE_GAIN);
-        var matrix = poseStack.last().pose();
-        addShaderPackTextureVertex(
-                builder, matrix,
-                -SCREEN_EXTENT, -SCREEN_EXTENT,
-                0.0F, 0.0F,
-                cos, sin, scale, offsetU, offsetV,
-                red, green, blue);
-        addShaderPackTextureVertex(
-                builder, matrix,
-                -SCREEN_EXTENT, SCREEN_EXTENT,
-                0.0F, 1.0F,
-                cos, sin, scale, offsetU, offsetV,
-                red, green, blue);
-        addShaderPackTextureVertex(
-                builder, matrix,
-                SCREEN_EXTENT, SCREEN_EXTENT,
-                1.0F, 1.0F,
-                cos, sin, scale, offsetU, offsetV,
-                red, green, blue);
-        addShaderPackTextureVertex(
-                builder, matrix,
-                SCREEN_EXTENT, -SCREEN_EXTENT,
-                1.0F, 0.0F,
-                cos, sin, scale, offsetU, offsetV,
-                red, green, blue);
-        BufferUploader.drawWithShader(builder.buildOrThrow());
-    }
-
-    private static void addShaderPackTextureVertex(
-            BufferBuilder builder,
-            org.joml.Matrix4f matrix,
-            float x,
-            float y,
-            float u,
-            float v,
-            float cos,
-            float sin,
-            float scale,
-            float offsetU,
-            float offsetV,
-            float red,
-            float green,
-            float blue) {
-        float centeredU = u - 0.5F;
-        float centeredV = v - 0.5F;
-        float transformedU = (centeredU * cos - centeredV * sin)
-                * scale + 0.5F + offsetU;
-        float transformedV = (centeredU * sin + centeredV * cos)
-                * scale + 0.5F + offsetV;
-        builder.addVertex(matrix, x, y, -DISTANCE)
-                .setUv(transformedU, transformedV)
-                .setColor(red, green, blue, 1.0F)
-                .setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT)
-                .setNormal(0.0F, 0.0F, 1.0F);
     }
 
     private static void rotateFace(PoseStack poseStack, int face) {

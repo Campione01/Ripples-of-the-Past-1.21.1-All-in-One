@@ -74,6 +74,7 @@ public final class SexPistolsRenderer extends StandEntityRenderer<
         renderState.foodBegging = entity.isFoodBegging();
 
         if (renderState.kickTicks > 0) {
+            SexPistolsIdlePose.kickSeen(entity, renderState.kickVariant);
             applyNamedAnimation(
                     entity,
                     renderState,
@@ -100,6 +101,10 @@ public final class SexPistolsRenderer extends StandEntityRenderer<
                             renderState.summonVariant),
                     SexPistolsEntity.SUMMON_ANIMATION_TICKS,
                     renderState.summonTicks);
+        }
+        else {
+            SexPistolsIdlePose.apply(entity, renderState, partialTick);
+            SexPistolsIdlePose.blendKickOut(entity, renderState, partialTick);
         }
     }
 

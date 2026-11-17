@@ -1,16 +1,19 @@
 package rotp.addons.kingcrimson.client;
 
 import rotp.core.client.ClientGlobals;
+import rotp.core.client.entityrender.stand.StandOpacityPolicy;
 import rotp.core.client.entityrender.stand.StandVisualContext;
 import rotp.core.client.firstperson.FirstPersonModelLayer;
 import rotp.core.client.rendertype.AlphaMultiBufferSource;
 import rotp.core.client.rendertype.ModRenderTypes;
+import rotp.core.config.client.ClientModSettings;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import rotp.addons.kingcrimson.KingCrimsonAddon;
+import rotp.addons.kingcrimson.client.epitaph.EpitaphClientSession;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.PlayerModel;
@@ -110,19 +113,23 @@ public final class KingCrimsonEpitaphLayer extends RenderLayer<
                 || player.isInvisible()
                 || player.isSpectator()
                 || minecraft.level == null
-                || !player.hasData(KingCrimsonAddon.EPITAPH_STATE)
-                || !KingCrimsonAddon.epitaphState(player)
-                        .isPresentationActive(
-                                minecraft.level.getGameTime())) {
+                // Epitaph shows on the one who foresees: on his own screen while his prediction runs, on the screens
+                // of the others while he is marked (a player his prediction is aimed at is never told of the mark).
+                || !(player == minecraft.player ? EpitaphClientSession.current() != null
+                        : player.hasData(KingCrimsonAddon.EPITAPH_FORESEEING))) {
             return null;
         }
         StandPower power = StandPower.get(player);
         if (power == null
                 || power.getPowerType()
-                        != KingCrimsonAddon.KING_CRIMSON.get()
-                || !(power.getSummonedStandEntity()
-                        instanceof StandEntity controller)
-                || controller.clientStuff == null) {
+                        != KingCrimsonAddon.KING_CRIMSON.get()) {
+            return null;
+        }
+        if (!(power.getSummonedStandEntity()
+                instanceof StandEntity controller)) {
+            return withoutStand(player);
+        }
+        if (controller.clientStuff == null) {
             return null;
         }
         float lifecycleAlpha = controller.clientStuff.getAlpha(
@@ -132,6 +139,24 @@ public final class KingCrimsonEpitaphLayer extends RenderLayer<
                         controller, lifecycleAlpha);
         return context.effectiveAlpha() > 0.0F
                 ? context
+                : null;
+    }
+
+    // The vision goes on with the Stand recalled: whole, at the opacity of its user's Stand.
+    private static StandVisualContext withoutStand(
+            AbstractClientPlayer player) {
+        ClientModSettings.Settings settings =
+                ClientModSettings.getSettingsReadOnly();
+        float alpha = StandOpacityPolicy.apply(1.0F, player);
+        return alpha > 0.0F
+                ? new StandVisualContext(
+                        1.0F,
+                        StandOpacityPolicy.opacityMultiplierForUser(player),
+                        alpha,
+                        StandOpacityPolicy.isOwnStandUser(player),
+                        settings.classicStandObstruction,
+                        settings.classicStandObstruction
+                                && settings.standOutline)
                 : null;
     }
 }

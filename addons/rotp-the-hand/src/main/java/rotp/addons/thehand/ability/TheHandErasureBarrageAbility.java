@@ -18,6 +18,7 @@ import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.thehand.TheHandAddon;
 import net.minecraft.core.BlockPos;
@@ -84,7 +85,7 @@ public final class TheHandErasureBarrageAbility
                 return super.getSpriteName(context) + "_alt";
             }
             LivingEntity user = standPower.getUser();
-            if (user != null && user.isShiftKeyDown()) {
+            if (StandManualInput.isShiftHeld(user)) {
                 return super.getSpriteName(context) + "_alt";
             }
         }
@@ -145,7 +146,7 @@ public final class TheHandErasureBarrageAbility
         @Override
         public void onActionSet(EntityActionInstance previousAction) {
             LivingEntity user = getPowerUser();
-            attract = user != null && user.isShiftKeyDown();
+            attract = StandManualInput.isShiftHeld(user);
             super.onActionSet(previousAction);
         }
 

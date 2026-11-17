@@ -7,6 +7,7 @@ import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
+import rotp.core.util.functions.JojoModUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -49,7 +50,8 @@ public class DbmChopAbility extends DbmStandAction {
         }
     }
 
-    private void dealChopDamage(Level level, StandEntity stand, LivingEntity user) {
+    // public static for the game test of the block rule
+    public static void dealChopDamage(Level level, StandEntity stand, LivingEntity user) {
         boolean inWater = DbmWater.isInWater(user);
         float damage = (float) DarkBlueMoonConfig.getDouble(inWater
                 ? DarkBlueMoonConfig.CHOP_WATER_DAMAGE : DarkBlueMoonConfig.CHOP_LAND_DAMAGE);
@@ -80,6 +82,7 @@ public class DbmChopAbility extends DbmStandAction {
             }
         }
         if (!hitAny && DarkBlueMoonConfig.getBool(DarkBlueMoonConfig.CHOP_BREAK_BLOCKS)
+                && JojoModUtil.breakingBlocksEnabled(level, stand)
                 && breakBlocksInFront(level, stand, look, radius)) {
             hitAny = true;
         }

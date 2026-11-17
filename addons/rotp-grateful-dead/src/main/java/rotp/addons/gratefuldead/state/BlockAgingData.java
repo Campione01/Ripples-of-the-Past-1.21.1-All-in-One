@@ -1,12 +1,10 @@
 package rotp.addons.gratefuldead.state;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -14,6 +12,8 @@ import java.util.UUID;
 import rotp.addons.gratefuldead.GratefulDeadAddon;
 import rotp.addons.gratefuldead.network.BlockAgingPayload;
 import rotp.addons.gratefuldead.service.AgingService;
+import rotp.core.impl.stands.goldexperience.GETreeLeavesDecayState;
+import rotp.core.util.functions.JojoModUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
@@ -24,11 +24,24 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.BambooSaplingBlock;
+import net.minecraft.world.level.block.BambooStalkBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.BushBlock;
+import net.minecraft.world.level.block.CactusBlock;
+import net.minecraft.world.level.block.GrowingPlantBlock;
+import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.block.SugarCaneBlock;
+import net.minecraft.world.level.block.VineBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class BlockAgingData extends SavedData {
@@ -38,6 +51,16 @@ public final class BlockAgingData extends SavedData {
     public static final int MAX_SPREADS_PER_TICK = 24;
     public static final int MAX_PENDING_SPREADS = 4_096;
     public static final int OWNER_FADE_TICKS = 60;
+    // 0.1.11 AgingBlockTracker.BROADCAST_DELTA_THRESHOLD
+    public static final float BROADCAST_DELTA = 0.04F;
+    // 0.1.11 triggerTreeWither: TreeLeavesDecay.startDecay(world, log, 30, 6). The
+    // donor started every tree at once; here one tree starts per interval.
+    public static final int TREE_WITHER_INTERVAL_TICKS = 10;
+    private static final int TREE_DECAY_TICKS = 30;
+    private static final int TREE_DECAY_LEAVES_PER_TICK = 6;
+    private static final int LEAF_LOG_SEARCH_LIMIT = 256;
+    private static final float NEVER_SENT = -1.0F;
+    private static final long NOT_STAMPED = -1L;
     private static final String FILE_NAME =
             "rotp_grateful_dead-block_aging";
     private static final String RECORDS_TAG = "Records";
@@ -54,6 +77,8 @@ public final class BlockAgingData extends SavedData {
             new ArrayDeque<>();
     private final Set<Long> queued = new HashSet<>();
     private final ArrayDeque<Spread> spreadQueue =
+            new ArrayDeque<>();
+    private final ArrayDeque<Long> treeWitherQueue =
             new ArrayDeque<>();
 
     public static BlockAgingData get(ServerLevel level) {
@@ -113,7 +138,9 @@ public final class BlockAgingData extends SavedData {
                     progress,
                     fading,
                     fadePerTick,
-                    fadeTicksLeft);
+                    fadeTicksLeft,
+                    NEVER_SENT,
+                    NOT_STAMPED);
             long chunkKey =
                     new ChunkPos(position).toLong();
             Set<Long> chunkEntries =
@@ -174,6 +201,10 @@ public final class BlockAgingData extends SavedData {
         return entries.size();
     }
 
+    public int tickQueueSize() {
+        return tickQueue.size();
+    }
+
     public boolean age(
             ServerLevel level,
             BlockPos position,
@@ -206,13 +237,24 @@ public final class BlockAgingData extends SavedData {
                 return false;
             }
         }
+        float before = previous != null
+                ? previous.progress()
+                : 0.0F;
         float nextProgress = Mth.clamp(
-                (previous != null
-                                ? previous.progress()
-                                : 0.0F)
-                        + amount,
+                before + amount,
                 0.0F,
                 1.0F);
+        // A fully aged block in a running aura is hit again and again.
+        if (previous != null
+                && !previous.fading()
+                && previous.ownerGeneration() == generation
+                && nextProgress == before) {
+            return true;
+        }
+        float lastSent = previous != null
+                ? previous.lastSent()
+                : NEVER_SENT;
+        boolean send = significant(lastSent, nextProgress);
         Entry next = new Entry(
                 position.immutable(),
                 owner,
@@ -220,10 +262,17 @@ public final class BlockAgingData extends SavedData {
                 nextProgress,
                 false,
                 0.0F,
-                0);
+                0,
+                send ? nextProgress : lastSent,
+                NOT_STAMPED);
         replace(next);
         setDirty();
-        sync(level, next);
+        if (send) {
+            sync(level, next);
+        }
+        if (before < 1.0F && nextProgress >= 1.0F) {
+            reachFullAge(level, next);
+        }
         return true;
     }
 
@@ -270,21 +319,33 @@ public final class BlockAgingData extends SavedData {
                 entry.progress(),
                 true,
                 entry.progress() / duration,
-                duration);
+                duration,
+                entry.lastSent(),
+                level.getGameTime());
         replace(next);
         setDirty();
-        sync(level, next);
         return true;
     }
 
-    public boolean crumbleOnContact(
-            ServerLevel level, BlockPos position) {
-        Entry entry = entries.get(position.asLong());
-        if (entry == null || entry.progress() < 1.0F) {
-            return false;
+    /** 0.1.11 AgedBlockContactHandler.handleEntityContact: a fully aged block touched by a player. */
+    public void crumbleOnContact(
+            ServerLevel level, AABB box) {
+        if (entries.isEmpty()) {
+            return;
         }
-        crumble(level, entry);
-        return true;
+        AABB contact = box.inflate(0.08D);
+        for (BlockPos position : BlockPos.betweenClosed(
+                Mth.floor(contact.minX),
+                Mth.floor(contact.minY - 0.05D),
+                Mth.floor(contact.minZ),
+                Mth.floor(contact.maxX),
+                Mth.floor(contact.maxY + 0.05D),
+                Mth.floor(contact.maxZ))) {
+            Entry entry = entries.get(position.asLong());
+            if (entry != null && entry.progress() >= 1.0F) {
+                crumble(level, entry);
+            }
+        }
     }
 
     public void tick(ServerLevel level) {
@@ -316,12 +377,22 @@ public final class BlockAgingData extends SavedData {
             if (spread == null) {
                 break;
             }
+            // Removal ends the spreading it left queued.
+            if (AgingRemovalData.get(level.getServer())
+                            .generation(spread.owner())
+                    > spread.ownerGeneration()) {
+                continue;
+            }
             age(
                     level,
                     spread.position(),
                     spread.owner(),
                     spread.ownerGeneration(),
                     spread.amount());
+        }
+
+        if (level.getGameTime() % TREE_WITHER_INTERVAL_TICKS == 0L) {
+            witherNextTree(level);
         }
     }
 
@@ -348,12 +419,10 @@ public final class BlockAgingData extends SavedData {
 
     private void tickEntry(
             ServerLevel level, Entry entry) {
-        if (!level.hasChunkAt(entry.position())) {
-            return;
-        }
-        BlockState state =
-                level.getBlockState(entry.position());
-        if (!AgingService.isAgeableBlock(state)) {
+        boolean chunkLoaded = level.hasChunkAt(entry.position());
+        if (chunkLoaded
+                && !AgingService.isAgeableBlock(
+                        level.getBlockState(entry.position()))) {
             remove(level, entry.position());
             return;
         }
@@ -373,6 +442,16 @@ public final class BlockAgingData extends SavedData {
                                 entry.position().getZ() + 0.5D)
                         > AgingService.AURA_RADIUS
                                 * AgingService.AURA_RADIUS;
+        // No client tracks this chunk, so nothing has to be drawn: left alone the record
+        // would never fade, come back with the chunk and count against the cap.
+        if (!chunkLoaded) {
+            if (removalRequested
+                    || outOfRange
+                    || entry.fading()) {
+                remove(level, entry.position());
+            }
+            return;
+        }
         if (removalRequested
                 || outOfRange
                 || entry.fading()) {
@@ -383,17 +462,29 @@ public final class BlockAgingData extends SavedData {
                     ? entry.fadePerTick()
                     : entry.progress()
                             / OWNER_FADE_TICKS;
+            long now = level.getGameTime();
+            // A fade lasts its ticks, however rarely the 128-a-tick budget reaches
+            // this record: per visit, 40000 records would fade for 16 minutes.
+            int elapsed = entry.fadeStamp() != NOT_STAMPED
+                    ? (int) Math.clamp(
+                            now - entry.fadeStamp(),
+                            1L,
+                            (long) OWNER_FADE_TICKS)
+                    : 1 + tickQueue.size()
+                            / MAX_RECORD_TICKS_PER_TICK;
             float nextProgress = Math.max(
                     0.0F,
                     entry.progress()
-                            - fadePerTick);
+                            - fadePerTick * elapsed);
             int nextFadeTicksLeft =
-                    fadeTicksLeft - 1;
+                    fadeTicksLeft - elapsed;
             if (nextProgress <= 0.0F
                     || nextFadeTicksLeft <= 0) {
                 remove(level, entry.position());
                 return;
             }
+            boolean send = significant(
+                    entry.lastSent(), nextProgress);
             Entry next = new Entry(
                     entry.position(),
                     entry.owner(),
@@ -401,62 +492,192 @@ public final class BlockAgingData extends SavedData {
                     nextProgress,
                     true,
                     fadePerTick,
-                    nextFadeTicksLeft);
+                    nextFadeTicksLeft,
+                    send ? nextProgress : entry.lastSent(),
+                    now);
             entries.put(
                     entry.position().asLong(), next);
             setDirty();
-            sync(level, next);
-            return;
-        }
-        if (entry.progress() >= 1.0F) {
-            crumble(level, entry);
+            if (send) {
+                sync(level, next);
+            }
         }
     }
 
+    // 0.1.11 applyTerminalTransform: only trees, flowers and saplings change when
+    // they reach full age; anything else stays until a player touches it.
+    private void reachFullAge(
+            ServerLevel level, Entry entry) {
+        BlockPos position = entry.position();
+        BlockState state = level.getBlockState(position);
+        if (isTreePart(state)) {
+            queueTreeNeighbors(level, entry);
+            if (treeWitherQueue.size() < MAX_PENDING_SPREADS) {
+                treeWitherQueue.addLast(position.asLong());
+            }
+        }
+        else if (state.is(BlockTags.TALL_FLOWERS)
+                && state.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)) {
+            BlockPos lower = state.getValue(
+                            BlockStateProperties.DOUBLE_BLOCK_HALF)
+                    == DoubleBlockHalf.LOWER
+                    ? position
+                    : position.below();
+            BlockPos upper = lower.above();
+            level.setBlock(
+                    upper,
+                    Blocks.AIR.defaultBlockState(),
+                    Block.UPDATE_CLIENTS);
+            level.setBlockAndUpdate(
+                    lower,
+                    Blocks.WITHER_ROSE.defaultBlockState());
+            remove(level, lower);
+            remove(level, upper);
+        }
+        else if (state.is(BlockTags.SMALL_FLOWERS)) {
+            level.setBlockAndUpdate(
+                    position,
+                    Blocks.WITHER_ROSE.defaultBlockState());
+            remove(level, position);
+        }
+        else if (state.is(BlockTags.SAPLINGS)) {
+            level.setBlockAndUpdate(
+                    position,
+                    Blocks.DEAD_BUSH.defaultBlockState());
+            remove(level, position);
+        }
+    }
+
+    private void witherNextTree(ServerLevel level) {
+        Long key;
+        while ((key = treeWitherQueue.pollFirst()) != null) {
+            Entry entry = entries.get(key);
+            if (entry == null
+                    || entry.fading()
+                    || !level.hasChunkAt(entry.position())) {
+                continue;
+            }
+            BlockPos position = entry.position();
+            BlockState state = level.getBlockState(position);
+            if (!isTreePart(state)) {
+                continue;
+            }
+            if (!ownerMayBreakBlocks(level, entry)) {
+                return;
+            }
+            BlockPos log = state.is(BlockTags.LOGS)
+                    ? position
+                    : findNearbyLog(level, position);
+            if (log != null) {
+                GETreeLeavesDecayState.startDecay(
+                        level,
+                        log,
+                        TREE_DECAY_TICKS,
+                        TREE_DECAY_LEAVES_PER_TICK);
+            }
+            else {
+                Block.dropResources(state, level, position);
+                level.destroyBlock(position, false);
+                remove(level, position);
+            }
+            return;
+        }
+    }
+
+    // 0.1.11 findNearbyLog
+    private static BlockPos findNearbyLog(
+            ServerLevel level, BlockPos seed) {
+        Set<BlockPos> visited = new HashSet<>();
+        ArrayDeque<BlockPos> frontier = new ArrayDeque<>();
+        visited.add(seed);
+        frontier.add(seed);
+        while (!frontier.isEmpty()
+                && visited.size() <= LEAF_LOG_SEARCH_LIMIT) {
+            BlockPos current = frontier.poll();
+            for (Direction direction : Direction.values()) {
+                BlockPos next = current.relative(direction);
+                if (visited.contains(next)
+                        || !level.hasChunkAt(next)) {
+                    continue;
+                }
+                BlockState state = level.getBlockState(next);
+                if (state.is(BlockTags.LOGS)) {
+                    return next;
+                }
+                if (state.getBlock() instanceof LeavesBlock) {
+                    visited.add(next);
+                    frontier.add(next);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isTreePart(BlockState state) {
+        return state.is(BlockTags.LOGS)
+                || state.getBlock() instanceof LeavesBlock;
+    }
+
+    // 0.1.11 isAgedSoil, crumblesOnContact and dropPlantAgingDust.
     private void crumble(
             ServerLevel level, Entry entry) {
         BlockPos position = entry.position();
         BlockState state = level.getBlockState(position);
-        if (state.is(BlockTags.LOGS)
-                || state.is(BlockTags.LEAVES)
-                || state.is(BlockTags.REPLACEABLE_BY_TREES)
-                || state.is(Blocks.CACTUS)
-                || state.is(Blocks.SUGAR_CANE)
-                || state.is(Blocks.BAMBOO)
-                || state.is(Blocks.VINE)) {
-            queueLivingNeighbors(level, entry);
-            level.destroyBlock(position, false);
-        }
-        else if (state.is(Blocks.GRASS_BLOCK)
-                || state.is(Blocks.FARMLAND)
-                || state.is(Blocks.DIRT_PATH)) {
+        if (state.is(Blocks.GRASS_BLOCK)
+                || state.is(Blocks.MYCELIUM)) {
             level.setBlockAndUpdate(
                     position,
                     Blocks.DIRT.defaultBlockState());
+            remove(level, position);
         }
-        else {
+        else if (crumblesOnContact(state)
+                && ownerMayBreakBlocks(level, entry)) {
             level.destroyBlock(position, false);
+            if (level.random.nextInt(3) == 0) {
+                ItemEntity dust = new ItemEntity(
+                        level,
+                        position.getX() + 0.5D,
+                        position.getY() + 0.25D,
+                        position.getZ() + 0.5D,
+                        new ItemStack(
+                                GratefulDeadAddon
+                                        .PLANT_AGING_DUST.get()));
+                dust.setDefaultPickUpDelay();
+                level.addFreshEntity(dust);
+            }
+            remove(level, position);
         }
-        if (level.random.nextInt(3) == 0) {
-            net.minecraft.world.Containers.dropItemStack(
-                    level,
-                    position.getX() + 0.5D,
-                    position.getY() + 0.5D,
-                    position.getZ() + 0.5D,
-                    new ItemStack(
-                            GratefulDeadAddon
-                                    .PLANT_AGING_DUST.get()));
-        }
-        remove(level, position);
     }
 
-    private void queueLivingNeighbors(
+    // What aging destroys is the Grateful Dead user's doing: the game rule and his Stand switch decide, as for any
+    // Stand's blocks. An owner who is not online leaves the rule alone.
+    private static boolean ownerMayBreakBlocks(
+            ServerLevel level, Entry entry) {
+        return JojoModUtil.breakingBlocksEnabled(
+                level,
+                level.getServer().getPlayerList().getPlayer(entry.owner()));
+    }
+
+    private static boolean crumblesOnContact(BlockState state) {
+        Block block = state.getBlock();
+        return block instanceof VineBlock
+                || block instanceof SugarCaneBlock
+                || block instanceof CactusBlock
+                || block instanceof BambooStalkBlock
+                || block instanceof BambooSaplingBlock
+                || block instanceof BushBlock
+                || block instanceof GrowingPlantBlock
+                || block == Blocks.PUMPKIN
+                || block == Blocks.MELON;
+    }
+
+    private void queueTreeNeighbors(
             ServerLevel level, Entry source) {
         for (Direction direction : Direction.values()) {
             BlockPos neighbor =
                     source.position().relative(direction);
             if (level.hasChunkAt(neighbor)
-                    && AgingService.isAgeableBlock(
+                    && isTreePart(
                             level.getBlockState(neighbor))
                     && spreadQueue.size()
                             < MAX_PENDING_SPREADS) {
@@ -496,9 +717,10 @@ public final class BlockAgingData extends SavedData {
         }
     }
 
+    // The key stays in tickQueue until its turn: taking it out of queued here
+    // would let a record aged again take a second place in the queue for good.
     private void removeIndexes(Entry entry) {
         long key = entry.position().asLong();
-        queued.remove(key);
         long chunkKey =
                 new ChunkPos(entry.position()).toLong();
         Set<Long> chunkEntries = byChunk.get(chunkKey);
@@ -518,14 +740,17 @@ public final class BlockAgingData extends SavedData {
                 payload(entry));
     }
 
+    // 0.1.11 broadcastIfSignificant
+    private static boolean significant(
+            float lastSent, float progress) {
+        return lastSent < 0.0F
+                || progress >= 1.0F && lastSent < 1.0F
+                || Math.abs(progress - lastSent) >= BROADCAST_DELTA;
+    }
+
     private static BlockAgingPayload payload(Entry entry) {
-        int stage = Mth.clamp(
-                (int) Math.floor(
-                        entry.progress() * 10.0F),
-                0,
-                9);
         return new BlockAgingPayload(
-                entry.position(), entry.progress(), stage);
+                entry.position(), entry.progress());
     }
 
     private static void clearClient(
@@ -533,7 +758,7 @@ public final class BlockAgingData extends SavedData {
         PacketDistributor.sendToPlayersTrackingChunk(
                 level,
                 new ChunkPos(position),
-                new BlockAgingPayload(position, 0.0F, -1));
+                new BlockAgingPayload(position, 0.0F));
     }
 
     public record Entry(
@@ -543,7 +768,9 @@ public final class BlockAgingData extends SavedData {
             float progress,
             boolean fading,
             float fadePerTick,
-            int fadeTicksLeft) {}
+            int fadeTicksLeft,
+            float lastSent,
+            long fadeStamp) {}
 
     private record Spread(
             BlockPos position,

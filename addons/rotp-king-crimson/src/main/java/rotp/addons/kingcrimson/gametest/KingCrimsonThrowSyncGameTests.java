@@ -25,6 +25,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.kingcrimson.KingCrimsonAddon;
 import rotp.core.api.stand.StandPowerTransitions;
+import rotp.core.gametest.GameTestChunkSending;
 import rotp.core.init.ModEntityAttributes;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
@@ -83,8 +84,8 @@ public final class KingCrimsonThrowSyncGameTests {
             chunks.force(origin);
             user.moveTo(origin.x, origin.y, origin.z, 0, 0);
             premise(helper, level.addFreshEntity(user), id, "Stand owner added");
-            // The owner's chunk counts as sent, so the owner tracks its Stand once the Stand is added.
-            connection.chunkSender.dropChunk(user, user.chunkPosition());
+            // The chunks around the owner count as sent, so the owner tracks its Stand once the Stand is added.
+            GameTestChunkSending.markSentAround(user);
             power = PowerClass.STAND.attachGet(user);
             premise(helper, StandPowerTransitions.insert(power, new StandInstance(type)).status()
                     == StandPowerTransitions.Status.APPLIED, id, "Registered KC grant");

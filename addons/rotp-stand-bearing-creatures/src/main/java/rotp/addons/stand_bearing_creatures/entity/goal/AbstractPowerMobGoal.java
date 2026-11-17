@@ -239,7 +239,18 @@ abstract class AbstractPowerMobGoal<P extends Power<P>> extends Goal {
         Map<String, Ability> abilities = new HashMap<>();
         for (Ability ability
                 : MobPowerUtil.availableMobAbilities(power)) {
-            abilities.putIfAbsent(ability.name(), ability);
+            String name = MobPowerUtil.pickName(power, ability);
+            if (name.equals(ability.name())) {
+                abilities.putIfAbsent(name, ability);
+            }
+            else {
+                // the press its key would make now, not whichever later punch came first
+                Ability onTheKey = power.updateAvailableMoves()
+                        .inMovesetAndCanBeUsed.get(name);
+                if (onTheKey != null) {
+                    abilities.put(name, onTheKey);
+                }
+            }
         }
         return abilities;
     }
@@ -303,7 +314,7 @@ abstract class AbstractPowerMobGoal<P extends Power<P>> extends Goal {
             @Nullable ComboStep step,
             LivingEntity target) {
         if (ability == null
-                || cooldownUntil.containsKey(ability.name())
+                || cooldownUntil.containsKey(MobPowerUtil.pickName(power, ability))
                 || !MobPowerUtil.isMobSafeAbility(power, ability)
                 || !MobPowerUtil.grabStateMatches(mob, ability)
                 || isHeldBackByStandAction(ability)
@@ -461,7 +472,7 @@ abstract class AbstractPowerMobGoal<P extends Power<P>> extends Goal {
         if (!check.isPositive() && !check.shouldContinueHold()
                 || MobPowerUtil.resumesOwnTimeStop(mob, ability)) {
             cooldownUntil.put(
-                    ability.name(),
+                    MobPowerUtil.pickName(power, ability),
                     mob.tickCount + cooldown);
             return;
         }
@@ -475,7 +486,7 @@ abstract class AbstractPowerMobGoal<P extends Power<P>> extends Goal {
         // 1.16 set the cooldown after every click, an attack follow-up's
         // too, which the core takes without holding a key.
         cooldownUntil.put(
-                ability.name(),
+                MobPowerUtil.pickName(power, ability),
                 mob.tickCount + cooldown);
         if (held != null) {
             MobPowerUtil.rememberHeldKey(

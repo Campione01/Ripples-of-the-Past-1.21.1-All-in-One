@@ -53,7 +53,9 @@ public final class CatchTheRainbowStandType extends EntityStandType {
                     standPower.getSummonedStandEntity()
                             instanceof CatchTheRainbowEntity summoned
                             ? summoned : null;
-            CatchTheRainbowCleanup.onUnsummon(user, controller);
+            if (controller == null || !controller.recallLeavesSkillsOn(user)) {
+                CatchTheRainbowCleanup.onUnsummon(user, controller);
+            }
         }
         super.forceUnsummon(user, standPower);
     }

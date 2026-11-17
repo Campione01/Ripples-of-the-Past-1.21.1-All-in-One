@@ -1,5 +1,7 @@
 package rotp.addons.diverdown;
 
+import javax.annotation.Nullable;
+
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.util.functions.DamageUtil;
@@ -102,7 +104,7 @@ public final class DiverDownGameEvents {
                             target,
                             DiverDownAuthority.EffectKind
                                     .BONE_SHARD_BOMB);
-            if (owner != null && stand != null) {
+            if (owner != null) {
                 amount *= 2.0F;
                 container.setNewDamage(amount);
                 spawnBoneShards(
@@ -154,7 +156,7 @@ public final class DiverDownGameEvents {
         Player player = event.getEntity();
         if (!player.level().isClientSide()
                 && DiverDownAuthority.ownerHasAuthority(player)
-                && DiverDownAddon.activeStand(player) == null) {
+                && DiverDownAuthority.ownerLostTheStand(player)) {
             DiverDownAuthority.clearOwnedBy(
                     player.getServer(), player.getUUID());
         }
@@ -214,11 +216,6 @@ public final class DiverDownGameEvents {
                                         .BONE_SHARD_BOMB_EFFECT))) {
             DiverDownAuthority.clearEffectAuthority(living);
         }
-        if (entity instanceof DiverDownStandEntity stand
-                && event.getLevel() instanceof ServerLevel level) {
-            DiverDownAuthority.clearForStand(
-                    level, stand.getUUID());
-        }
     }
 
     private static DiverDownStandEntity protectingStand(
@@ -245,7 +242,7 @@ public final class DiverDownGameEvents {
             ServerLevel level,
             LivingEntity origin,
             LivingEntity controller,
-            DiverDownStandEntity stand,
+            @Nullable DiverDownStandEntity stand,
             Entity directAttacker) {
         RandomSource random = origin.getRandom();
         int count = 4 + random.nextInt(12);

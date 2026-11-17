@@ -4,6 +4,7 @@ import rotp.core.customobjects.StatusEffectModified;
 
 import rotp.addons.kingcrimson.KingCrimsonAddon;
 import rotp.addons.kingcrimson.KingCrimsonPhase5Spec;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -13,14 +14,16 @@ import net.minecraft.world.phys.Vec3;
 public final class KingCrimsonTimeEraseEffect
         extends StatusEffectModified {
     public static final int COLOR = 0xFF0000;
+    public static final ResourceLocation MOVEMENT_SPEED_ID =
+            KingCrimsonAddon.id(
+                    "effect.time_erase.movement_speed");
 
     public KingCrimsonTimeEraseEffect() {
         super(MobEffectCategory.BENEFICIAL, COLOR);
         setUncurable();
         addAttributeModifier(
                 Attributes.MOVEMENT_SPEED,
-                KingCrimsonAddon.id(
-                        "effect.time_erase.movement_speed"),
+                MOVEMENT_SPEED_ID,
                 KingCrimsonPhase5Spec
                         .TIME_ERASE_MOVEMENT_MULTIPLIER,
                 AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);

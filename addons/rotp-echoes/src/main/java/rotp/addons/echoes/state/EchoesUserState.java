@@ -27,15 +27,11 @@ public final class EchoesUserState
         HAND_FREEZE_SELF
     }
 
-    // master FreezeSoundHelper: one freeze voice per 30 seconds
-    public static final long FREEZE_VOICE_COOLDOWN_TICKS = 600L;
-
     private static final int SERIALIZATION_VERSION = 1;
 
     private ActiveSkill activeSkill = ActiveSkill.NONE;
     @Nullable
     private UUID frozenTarget;
-    private long skillSoundCooldownUntil;
     private long autoActionCooldownUntil;
     private long lastCommandTime = Long.MIN_VALUE;
     private long lastActiveTalk = Long.MIN_VALUE;
@@ -96,14 +92,6 @@ public final class EchoesUserState
     public void clearActiveSkill() {
         activeSkill = ActiveSkill.NONE;
         frozenTarget = null;
-    }
-
-    public boolean skillSoundReady(long gameTime) {
-        return gameTime >= skillSoundCooldownUntil;
-    }
-
-    public void resetSkillSoundCooldown(long gameTime) {
-        skillSoundCooldownUntil = gameTime + FREEZE_VOICE_COOLDOWN_TICKS;
     }
 
     public boolean autoActionReady(long gameTime) {
@@ -239,7 +227,6 @@ public final class EchoesUserState
         if (frozenTarget != null) {
             tag.putUUID("FrozenTarget", frozenTarget);
         }
-        tag.putLong("SkillSoundCooldownUntil", skillSoundCooldownUntil);
         tag.putLong("AutoActionCooldownUntil", autoActionCooldownUntil);
         tag.putLong("LastCommandTime", lastCommandTime);
         tag.putLong("LastActiveTalk", lastActiveTalk);
@@ -269,7 +256,6 @@ public final class EchoesUserState
     public void deserializeNBT(
             HolderLookup.Provider provider, CompoundTag tag) {
         clearActiveSkill();
-        skillSoundCooldownUntil = 0L;
         autoActionCooldownUntil = 0L;
         lastCommandTime = Long.MIN_VALUE;
         lastActiveTalk = Long.MIN_VALUE;
@@ -300,8 +286,6 @@ public final class EchoesUserState
                 || activeSkill == ActiveSkill.HAND_FREEZE) {
             activeSkill = ActiveSkill.NONE;
         }
-        skillSoundCooldownUntil =
-                Math.max(0L, tag.getLong("SkillSoundCooldownUntil"));
         autoActionCooldownUntil =
                 Math.max(0L, tag.getLong("AutoActionCooldownUntil"));
         lastCommandTime = tag.getLong("LastCommandTime");

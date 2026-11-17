@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.AbilityUsageGroup;
+import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
 import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
@@ -61,6 +62,12 @@ public final class PlantAttackAbility extends StandEntityAbility {
                             stand.getAttackSpeed(),
                             stand.getFinisherMeter()));
         }
+    }
+
+    // 1.16 StandEntityHeavyAttack.Builder: StandPose.HEAVY_ATTACK
+    @Override
+    public ActionAnimIdentifier getEntityAnim(EntityActionInstance action) {
+        return FingerSweepAbility.HEAVY_PUNCH_ANIM;
     }
 
     // 1.16 StandEntityHeavyAttack.canFollowUpBarrage (:222-225), not

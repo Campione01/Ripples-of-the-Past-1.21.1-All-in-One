@@ -1,6 +1,7 @@
 package rotp.addons.nextalbum.client;
 
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import rotp.core.api.client.render.ScopedPlayerModelVisibility;
 import rotp.core.api.client.render.ScopedPlayerModelVisibility.Part;
@@ -14,8 +15,8 @@ import rotp.addons.nextalbum.state.NecklaceBeamService;
 import rotp.core.client.ClientGlobals;
 import rotp.addons.nextalbum.config.NextAlbumClientConfig;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.resources.sounds.SoundInstance;
-import net.minecraft.util.RandomSource;
 import net.neoforged.neoforge.client.event.sound.PlaySoundEvent;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
@@ -148,6 +149,8 @@ public final class NextAlbumClientGameEvents {
 
     // Next Album 0.1.13 SoundEventHandler: a footstep sound heard by a
     // Stand user shows one of the GO / DO / BA words where it plays.
+    // This event can come on a thread other than the client's (the sound
+    // thread, in a pack with C2ME): no world random and no world access here.
     @SubscribeEvent
     public static void onPlaySound(PlaySoundEvent event) {
         SoundInstance sound = event.getSound();
@@ -159,17 +162,21 @@ public final class NextAlbumClientGameEvents {
                 || !ClientGlobals.canSeeStands) {
             return;
         }
-        RandomSource random = minecraft.level.random;
+        ThreadLocalRandom random = ThreadLocalRandom.current();
         var words = List.of(
                 NextAlbumAddon.SOUND_GO_ORANGE.get(),
                 NextAlbumAddon.SOUND_DO_ORANGE.get(),
                 NextAlbumAddon.SOUND_BA_ORANGE.get());
-        minecraft.level.addParticle(
-                words.get(random.nextInt(words.size())), true,
-                sound.getX() + (random.nextDouble() - 0.5D) * 0.3D,
-                sound.getY() + (random.nextDouble() - 0.5D) * 0.3D,
-                sound.getZ() + (random.nextDouble() - 0.5D) * 0.3D,
-                0.0D, 0.0D, 0.0D);
+        var word = words.get(random.nextInt(words.size()));
+        double x = sound.getX() + (random.nextDouble() - 0.5D) * 0.3D;
+        double y = sound.getY() + (random.nextDouble() - 0.5D) * 0.3D;
+        double z = sound.getZ() + (random.nextDouble() - 0.5D) * 0.3D;
+        minecraft.execute(() -> {
+            ClientLevel level = minecraft.level;
+            if (level != null) {
+                level.addParticle(word, true, x, y, z, 0.0D, 0.0D, 0.0D);
+            }
+        });
     }
 
     @SubscribeEvent

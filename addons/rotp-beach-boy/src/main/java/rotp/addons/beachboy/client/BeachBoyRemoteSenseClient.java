@@ -155,7 +155,8 @@ public final class BeachBoyRemoteSenseClient {
             poseStack.pushPose();
             poseStack.translate(label.x - camPos.x, label.y - camPos.y + 0.35, label.z - camPos.z);
             poseStack.mulPose(mc.getEntityRenderDispatcher().cameraOrientation());
-            poseStack.scale(-0.025F, -0.025F, 0.025F);
+            // 1.16's negative x was for its camera; with this one it mirrors the text and culling drops every face.
+            poseStack.scale(0.025F, -0.025F, 0.025F);
             Matrix4f pose = poseStack.last().pose();
             float width = -font.width(label.title) / 2.0F;
             int background = Mth.clamp((int) (mc.options.getBackgroundOpacity(0.25F) * alpha), 0, 255) << 24;

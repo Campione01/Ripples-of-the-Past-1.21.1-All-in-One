@@ -370,6 +370,12 @@ public final class StoneFreeStringEntity
     }
 
     @Override
+    protected boolean runsInOwnerTime() {
+        // Both grapples and the placed barrier keep their separate lifecycles.
+        return !kind().held;
+    }
+
+    @Override
     public int ticksLifespan() {
         return switch (kind()) {
             case STAND_STRING -> standBindTicks() + holdingExtraTicks();
@@ -748,7 +754,7 @@ public final class StoneFreeStringEntity
                 // The port's stun and pull (D-rotp-stone-free-10) end with
                 // the bind's own ticks; the string stays on for the extra.
                 else if (kind() == Kind.STAND_STRING && !capture
-                        && tickCount <= standBindTicks()) {
+                        && ownerTicks() <= standBindTicks()) {
                     stunAndPullStandBindCatch(attached);
                 }
             }
@@ -804,7 +810,7 @@ public final class StoneFreeStringEntity
             if (!level().isClientSide()) {
                 attached.addEffect(new MobEffectInstance(
                         ModStatusEffects.IMMOBILIZE,
-                        ticksLifespan() - tickCount));
+                        serverTicksLeftInLifespan()));
                 entityData.set(CAPTURE_PULLING, false);
             }
             return;
@@ -1032,21 +1038,25 @@ public final class StoneFreeStringEntity
         }
         setRot(owner.getYRot(), owner.getXRot());
         float speed = boundMovementSpeed();
-        int fullLength = boundTimeAtFullLength();
+        int holdTicks = boundTimeAtFullLength();
         double factor = boundSpeedFactor();
         boolean back = entityData.get(GRAPPLE_RETRACTING);
         // 1.16 updateMotionFlags with the same speed out and back: forward
         // until the mark, held at full length for timeAtFullLength, then
         // retracting. Its maxDistance() widened the float to double, so the
         // mark divides in double (18 ticks: 8, where a float division gives 9).
-        double maxDistance = speed * speed * (ticksLifespan() - fullLength) / (speed + speed);
+        double maxDistance = speed * speed * (ticksLifespan() - holdTicks) / (speed + speed);
         int mark = (int) (maxDistance / speed);
-        double distance = back
-                ? (float) (extensionDistance - speed * factor)
-                : tickCount <= mark
-                        ? (float) (extensionDistance + speed * factor)
-                        : (float) extensionDistance;
-        if (!back && tickCount >= mark + fullLength) {
+        int retractMark = mark + holdTicks;
+        double age = ownerTicks();
+        double step = ownerTimeStep();
+        // Only count the portion of a fractional tick in each moving phase.
+        // A hit can also start retraction before its scheduled mark.
+        double movingTicks = back ? -step
+                : Mth.clamp(mark - (age - step), 0.0D, step)
+                        - Mth.clamp(age - retractMark, 0.0D, step);
+        double distance = (float) (extensionDistance + speed * factor * movingTicks);
+        if (!back && age >= retractMark) {
             entityData.set(GRAPPLE_RETRACTING, true);
             back = true;
         }
@@ -1059,8 +1069,8 @@ public final class StoneFreeStringEntity
         extensionDistance = distance;
         setStaticPosition(boundOrigin(owner).add(
                 Vec3.directionFromRotation(
-                                owner.getXRot() + boundXRotOffset(),
-                                owner.getYRot() + boundYRotOffset())
+                                owner.getXRot() + boundXRotOffset((float) age),
+                                owner.getYRot() + boundYRotOffset((float) age))
                         .scale(distance)));
     }
 
@@ -1086,15 +1096,15 @@ public final class StoneFreeStringEntity
     // 1.16 SFUStringSweepEntity.updateDistance turned the sweep's yaw from
     // 67.5 to -67.5 and SFUStringWhipEntity's the whip's pitch from -87.5 to
     // 47.5, by 135 / lifespan on each tick before it moved.
-    private float boundYRotOffset() {
+    private float boundYRotOffset(float age) {
         return kind() == Kind.USER_SWEEP
-                ? Math.max(67.5F - 135.0F / ticksLifespan() * tickCount, -67.5F)
+                ? Math.max(67.5F - 135.0F / ticksLifespan() * age, -67.5F)
                 : entityData.get(Y_ROT_OFFSET);
     }
 
-    private float boundXRotOffset() {
+    private float boundXRotOffset(float age) {
         return kind() == Kind.USER_WHIP
-                ? Math.min(-87.5F + 135.0F / ticksLifespan() * tickCount, 47.5F)
+                ? Math.min(-87.5F + 135.0F / ticksLifespan() * age, 47.5F)
                 : entityData.get(X_ROT_OFFSET);
     }
 
@@ -1290,7 +1300,7 @@ public final class StoneFreeStringEntity
         if (kind() == Kind.USER_STRING) {
             target.addEffect(new MobEffectInstance(
                     ModStatusEffects.IMMOBILIZE,
-                    ticksLifespan() - tickCount));
+                    serverTicksLeftInLifespan()));
         }
         playSound(
                 StoneFreeAddon.STONE_FREE_GRAPPLE_CATCH.get(),

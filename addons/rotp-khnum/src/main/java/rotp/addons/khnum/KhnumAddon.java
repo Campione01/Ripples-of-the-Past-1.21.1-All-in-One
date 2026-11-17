@@ -3,6 +3,8 @@ package rotp.addons.khnum;
 import static rotp.core.init.power.ModStands.SWITCH_SPECIAL;
 import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
+import java.util.function.Supplier;
+
 import rotp.core.api.RotpAddonApi;
 import rotp.core.core.JojoRegistries;
 import rotp.core.powersystem.MovesetBuilder;
@@ -17,6 +19,7 @@ import rotp.core.powersystem.standpower.type.StandType;
 import rotp.addons.khnum.ability.KhnumDisguiseAbility;
 import rotp.addons.khnum.ability.KhnumDisguiseDisableAbility;
 import rotp.addons.khnum.disguise.DisguiseMode;
+import rotp.addons.khnum.disguise.KhnumDisguiseState;
 import rotp.addons.khnum.disguise.KhnumScaleTypes;
 import rotp.addons.khnum.entity.KhnumControllerEntity;
 import rotp.addons.khnum.network.KhnumPayloads;
@@ -30,8 +33,10 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.ModContainer;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(KhnumAddon.MOD_ID)
 public final class KhnumAddon {
@@ -49,6 +54,9 @@ public final class KhnumAddon {
     public static final DeferredRegister<AbilityType<?>>
             ABILITY_TYPES = DeferredRegister.create(
                     JojoRegistries.ABILITY_TYPES_REG, MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>>
+            ATTACHMENT_TYPES = DeferredRegister.create(
+                    NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
     public static final DeferredRegister<EntityType<?>>
             ENTITY_TYPES = DeferredRegister.create(
                     Registries.ENTITY_TYPE, MOD_ID);
@@ -95,6 +103,14 @@ public final class KhnumAddon {
                             .updateInterval(2)
                             .build(key.toString()));
 
+    public static final Supplier<AttachmentType<KhnumDisguiseState>>
+            DISGUISE_STATE = ATTACHMENT_TYPES.register(
+                    "disguise_state",
+                    () -> AttachmentType
+                            .builder(() -> KhnumDisguiseState.NONE)
+                            .sync(KhnumDisguiseState.STREAM_CODEC)
+                            .build());
+
     public static final DeferredHolder<StandType, KhnumStandType>
             KHNUM = STAND_TYPES.register(
                     "khnum", KhnumAddon::createStand);
@@ -117,6 +133,7 @@ public final class KhnumAddon {
         modContainer.registerConfig(
                 ModConfig.Type.COMMON, KhnumConfig.SPEC);
         ABILITY_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
         ENTITY_TYPES.register(modEventBus);
         STAND_TYPES.register(modEventBus);
         modEventBus.addListener(KhnumGameEvents::registerAttributes);
@@ -129,7 +146,9 @@ public final class KhnumAddon {
 
     public static boolean isKhnumUser(LivingEntity user) {
         StandPower power = StandPower.get(user);
-        return power != null && power.getPowerType() == KHNUM.get();
+        return power != null
+                && power.getPowerType() == KHNUM.get()
+                && power.canUsePower();
     }
 
     public static KhnumControllerEntity controller(

@@ -12,9 +12,11 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 public record RevolverChamberControlPayload(int operation)
         implements CustomPacketPayload {
-    public static final int CLOSE_CYLINDER = 0;
+    public static final int TOGGLE_CYLINDER = 0;
     public static final int SWITCH_FORWARD = 1;
     public static final int SWITCH_BACKWARD = 2;
+    public static final int FIRE = 3;
+    public static final int MELEE = 4;
 
     public static final Type<RevolverChamberControlPayload> TYPE =
             new Type<>(SexPistolsIds.id(
@@ -46,21 +48,33 @@ public record RevolverChamberControlPayload(int operation)
     private static void handle(
             RevolverChamberControlPayload payload,
             IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)) {
-            return;
+        if (context.player() instanceof ServerPlayer player) {
+            apply(player, payload.operation());
         }
+    }
+
+    public static void apply(ServerPlayer player, int operation) {
         ItemStack stack = player.getMainHandItem();
-        if (!(stack.getItem() instanceof RevolverItem)
-                || !RevolverItem.state(stack).reloadMode()) {
+        if (!(stack.getItem() instanceof RevolverItem revolver)) {
             return;
         }
-        switch (payload.operation()) {
-            case CLOSE_CYLINDER -> RevolverItem.closeReloadMode(
+        boolean open = RevolverItem.state(stack).reloadMode();
+        switch (operation) {
+            case TOGGLE_CYLINDER -> revolver.toggleReloadMode(
                     player.serverLevel(), player, stack);
-            case SWITCH_FORWARD -> RevolverItem.switchSelectedChamber(
-                    player.serverLevel(), player, stack, true);
-            case SWITCH_BACKWARD -> RevolverItem.switchSelectedChamber(
-                    player.serverLevel(), player, stack, false);
+            case SWITCH_FORWARD, SWITCH_BACKWARD -> {
+                if (open) {
+                    RevolverItem.switchSelectedChamber(
+                            player.serverLevel(),
+                            player,
+                            stack,
+                            operation == SWITCH_FORWARD);
+                }
+            }
+            case FIRE -> revolver.fire(
+                    player.serverLevel(), player, stack);
+            case MELEE -> revolver.meleeAttack(
+                    player.serverLevel(), player, stack);
             default -> {
                 // Unknown operations are intentionally ignored.
             }

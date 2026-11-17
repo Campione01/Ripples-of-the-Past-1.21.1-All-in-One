@@ -8,15 +8,18 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.addons.cmoon.ability.HeartInversionAbility;
 import rotp.addons.cmoon.ability.InversionUtil;
 import rotp.addons.cmoon.entity.CMoonStandEntity;
+import rotp.addons.cmoon.field.GravityField;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingHealEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
 @EventBusSubscriber(modid = CMoonAddon.MOD_ID)
@@ -104,7 +107,7 @@ public final class CMoonEvents {
             return;
         }
 
-        CMoonStandEntity defendingStand = controller(target);
+        CMoonStandEntity defendingStand = CMoonStandEntity.current(target);
         if (defendingStand == null
                 || !defendingStand.isCounterActive()) {
             return;
@@ -147,14 +150,43 @@ public final class CMoonEvents {
         }
     }
 
-    private static CMoonStandEntity controller(
-            LivingEntity entity) {
-        StandPower power = StandPower.get(entity);
-        StandEntity stand =
-                power != null ? power.getSummonedStandEntity() : null;
-        return stand instanceof CMoonStandEntity cMoon
-                ? cMoon
-                : null;
+    @SubscribeEvent
+    public static void onUserTick(EntityTickEvent.Post event) {
+        if (event.getEntity() instanceof LivingEntity user
+                && !user.level().isClientSide()) {
+            CMoonStandEntity.tickRecalled(user);
+            GravityField.tickUser(user);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onFieldPull(EntityTickEvent.Pre event) {
+        GravityField.pullBeforeTick(event.getEntity());
+    }
+
+    @SubscribeEvent
+    public static void onFieldFall(EntityTickEvent.Post event) {
+        if (event.getEntity() instanceof LivingEntity entity) {
+            GravityField.fallAfterTick(entity);
+        }
+        else {
+            GravityField.landAfterTick(event.getEntity());
+        }
+    }
+
+    @SubscribeEvent
+    public static void onLeaveLevel(EntityLeaveLevelEvent event) {
+        if (event.getEntity() instanceof LivingEntity user
+                && !event.getLevel().isClientSide()) {
+            GravityField.endWithUser(user);
+        }
+    }
+
+    // Comes before the player list saves him: see letGoOfLeavingPlayer.
+    @SubscribeEvent
+    public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        CMoonStandEntity.endShiftOf(event.getEntity());
+        GravityField.letGoOfLeavingPlayer(event.getEntity());
     }
 
     private static LivingEntity userOf(LivingEntity entity) {

@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.api.time.LevelTimeRates;
 import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.init.ModDataAttachmentTypes;
@@ -38,11 +39,16 @@ import rotp.addons.ger.network.GerRtzPayloads.StopPayload;
 import rotp.addons.ger.state.GerRtzTimeStopPolicy.GenerationTracker;
 import rotp.addons.ger.state.GerRtzTimeStopPolicy.InstanceKey;
 import rotp.addons.ger.state.GerRtzTimeStopPolicy.InstanceRegion;
+import javax.annotation.Nullable;
+import rotp.addons.kingcrimson.epitaph.api.EpitaphPredictions;
+import rotp.addons.kingcrimson.state.KingCrimsonCreatureErase;
 import rotp.addons.kingcrimson.state.KingCrimsonTemporalStateService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.DoubleTag;
+import net.minecraft.nbt.FloatTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
@@ -58,6 +64,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectCategory;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Entity.RemovalReason;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -98,6 +106,7 @@ public final class GerRtzRewindService {
     public static final int VFX_MODE_NORMAL = 0;
     public static final int VFX_MODE_TIME_ERASE = 1;
     public static final int AUTOMATIC_RTZ_DELAY_TICKS = 1;
+    public static final int ENEMY_AI_PAUSE_TICKS = 10;
     public static final ResourceLocation RETURN_TO_ZERO_SOURCE =
             GoldExperienceRequiemAddon.id("return_to_zero");
 
@@ -110,12 +119,17 @@ public final class GerRtzRewindService {
             new WeakHashMap<>();
     private static final ThreadLocal<Integer> APPLY_DEPTH =
             ThreadLocal.withInitial(() -> 0);
+    /** Whether any server has a mark: with none, no block change is captured. */
+    private static volatile boolean anyMark;
+    /** Block preimages captured since start, read by the game tests. */
+    private static long blockCaptures;
 
     private GerRtzRewindService() {}
 
     public enum Result {
         SUCCESS(""),
         FORCE_CLOSED(""),
+        PREDICTION_BROKEN(""),
         WRONG_DIMENSION(
                 "geraddon.return_to_zero.wrong_dimension"),
         NO_MARK("geraddon.return_to_zero.no_mark"),
@@ -139,7 +153,6 @@ public final class GerRtzRewindService {
     }
 
     public record BlockPreimage(
-            ServerLevel level,
             long tick,
             BlockPos position,
             CompoundTag state,
@@ -147,7 +160,6 @@ public final class GerRtzRewindService {
             boolean restorable) {
         private BlockPreimage copy() {
             return new BlockPreimage(
-                    level,
                     tick,
                     position.immutable(),
                     state.copy(),
@@ -182,6 +194,7 @@ public final class GerRtzRewindService {
         }
         history.pendingAutomaticRtz.remove(owner.getUUID());
         history.marks.put(owner.getUUID(), mark);
+        refreshAnyMark();
         syncMark(owner, true);
         return Result.SUCCESS;
     }
@@ -211,6 +224,49 @@ public final class GerRtzRewindService {
             ServerLevel level,
             LivingEntity eraser,
             Vec3 position) {
+        return summonedRequiemWithin(
+                level,
+                eraser,
+                position,
+                GerReturnToZeroMarkAbility.MARK_CHUNK_RADIUS);
+    }
+
+    /**
+     * The owner, 2026-11-08: an eraser who comes within 4 chunks of a living
+     * user with a summoned Requiem in a running erase is thrown out of it,
+     * where he stands, with Requiem's gold on him ("直接被強制退出時刪並顯示
+     * 黃鎮的歸零特效"). For the handler of the core's event of a running
+     * erase.
+     *
+     * @return the user whose Requiem throws him out, or null
+     */
+    @Nullable
+    public static LivingEntity throwsEraserOut(
+            ServerLevel level, LivingEntity eraser, Vec3 position) {
+        LivingEntity holder = summonedRequiemUserWithin(
+                level, eraser, position, GerCoreSeams.ERASE_NEAR_CHUNKS);
+        if (holder != null) {
+            GerHitAnswerService.showOn(eraser);
+        }
+        return holder;
+    }
+
+    public static boolean summonedRequiemWithin(
+            ServerLevel level,
+            LivingEntity eraser,
+            Vec3 position,
+            int chunkRadius) {
+        return summonedRequiemUserWithin(
+                level, eraser, position, chunkRadius) != null;
+    }
+
+    /** Chunk distance from the real place of a living user whose Requiem is out; never the eraser's own. */
+    @Nullable
+    private static LivingEntity summonedRequiemUserWithin(
+            ServerLevel level,
+            LivingEntity eraser,
+            Vec3 position,
+            int chunkRadius) {
         ChunkPos erased = new ChunkPos(BlockPos.containing(position));
         for (GerStandEntity stand : level.getEntities(
                 EntityTypeTest.forClass(GerStandEntity.class),
@@ -225,16 +281,12 @@ public final class GerRtzRewindService {
                 continue;
             }
             ChunkPos home = user.chunkPosition();
-            if (Math.abs(erased.x - home.x)
-                            <= GerReturnToZeroMarkAbility
-                                    .MARK_CHUNK_RADIUS
-                    && Math.abs(erased.z - home.z)
-                            <= GerReturnToZeroMarkAbility
-                                    .MARK_CHUNK_RADIUS) {
-                return true;
+            if (Math.abs(erased.x - home.x) <= chunkRadius
+                    && Math.abs(erased.z - home.z) <= chunkRadius) {
+                return user;
             }
         }
-        return false;
+        return null;
     }
 
     /**
@@ -328,7 +380,8 @@ public final class GerRtzRewindService {
             float staminaCost) {
         ServerHistory history = history(level.getServer());
         if (history.presentations.containsKey(owner.getUUID())) {
-            closePresentation(history, owner.getUUID(), true);
+            closePresentation(
+                    level.getServer(), history, owner.getUUID(), true);
             return Result.FORCE_CLOSED;
         }
         Mark mark = history.marks.get(owner.getUUID());
@@ -372,6 +425,7 @@ public final class GerRtzRewindService {
             return Result.COMMIT_FAILED;
         }
 
+        pauseEnemies(plan);
         terminatePostMarkTimeStops(history, level, mark);
         terminateTimeStopsHolding(level, owner);
         // Rule G1 (A2-EVENTS): the core ends the stops and the erase add-on
@@ -388,6 +442,7 @@ public final class GerRtzRewindService {
         // mark and goes on, but the lockdown would end its held action.
         Set<UUID> erasingAfterRewind = captureActiveTimeEraseUsers(level);
         history.marks.remove(owner.getUUID());
+        refreshAnyMark();
         history.pendingAutomaticRtz.remove(owner.getUUID());
         syncMark(owner, false);
         int elapsed = (int) Math.min(
@@ -424,6 +479,17 @@ public final class GerRtzRewindService {
         return Result.SUCCESS;
     }
 
+    // The owner, 2026-11-08: "只在歸零瞬間把敵對生物ai暫停0.5s". Their AI only, and not the lockdown's length.
+    private static void pauseEnemies(RewindPlan plan) {
+        for (EntityMutation mutation : plan.entities()) {
+            if (mutation.side() == Side.ENEMY
+                    && mutation.live() instanceof Mob mob
+                    && mob.isAlive()) {
+                GerCoreSeams.pauseAi(mob, ENEMY_AI_PAUSE_TICKS);
+            }
+        }
+    }
+
     public static void tick(MinecraftServer server) {
         ServerHistory history = history(server);
         processAutomaticRtz(server, history);
@@ -452,7 +518,7 @@ public final class GerRtzRewindService {
             }
         }
         for (UUID owner : completed) {
-            closePresentation(history, owner, true);
+            closePresentation(server, history, owner, true);
         }
 
         List<UUID> dueSounds = new ArrayList<>();
@@ -561,6 +627,48 @@ public final class GerRtzRewindService {
         synchronized (HISTORIES) {
             HISTORIES.remove(server);
         }
+        refreshAnyMark();
+    }
+
+    private static void refreshAnyMark() {
+        synchronized (HISTORIES) {
+            boolean any = false;
+            for (ServerHistory history : HISTORIES.values()) {
+                if (!history.marks.isEmpty()) {
+                    any = true;
+                    break;
+                }
+            }
+            anyMark = any;
+        }
+    }
+
+    /** Whether a block change at this place would be journalled: only inside a mark of its dimension. */
+    public static boolean journals(ServerLevel level, BlockPos position) {
+        return journalling(level, position) != null;
+    }
+
+    /** The server's history when a mark of the level's dimension covers the place, else null. */
+    @Nullable
+    private static ServerHistory journalling(
+            ServerLevel level, BlockPos position) {
+        if (!anyMark) {
+            return null;
+        }
+        ServerHistory history;
+        synchronized (HISTORIES) {
+            history = HISTORIES.get(level.getServer());
+        }
+        if (history == null) {
+            return null;
+        }
+        for (Mark mark : history.marks.values()) {
+            if (mark.dimension().equals(level.dimension())
+                    && mark.contains(position)) {
+                return history;
+            }
+        }
+        return null;
     }
 
     public static void syncPlayer(ServerPlayer player) {
@@ -616,10 +724,16 @@ public final class GerRtzRewindService {
 
     public static BlockPreimage captureBlockPreimage(
             Level level, BlockPos position) {
-        if (!(level instanceof ServerLevel serverLevel)
-                || isApplying()) {
-            return null;
-        }
+        return level instanceof ServerLevel serverLevel
+                        && journals(serverLevel, position)
+                        && !isApplying()
+                ? capture(serverLevel, position)
+                : null;
+    }
+
+    private static BlockPreimage capture(
+            ServerLevel serverLevel, BlockPos position) {
+        blockCaptures++;
         BlockState state = serverLevel.getBlockState(position);
         CompoundTag blockEntityTag = null;
         boolean restorable = true;
@@ -636,7 +750,6 @@ public final class GerRtzRewindService {
             }
         }
         return new BlockPreimage(
-                serverLevel,
                 serverLevel.getGameTime(),
                 position.immutable(),
                 NbtUtils.writeBlockState(state),
@@ -645,18 +758,28 @@ public final class GerRtzRewindService {
     }
 
     public static void recordBlockMutation(
-            BlockPreimage preimage) {
+            ServerLevel level, BlockPreimage preimage) {
         if (preimage == null || isApplying()) {
             return;
         }
-        ServerHistory history =
-                history(preimage.level().getServer());
+        ServerHistory history;
+        synchronized (HISTORIES) {
+            history = HISTORIES.get(level.getServer());
+        }
+        if (history != null) {
+            record(level, history, preimage);
+        }
+    }
+
+    private static void record(
+            ServerLevel level,
+            ServerHistory history,
+            BlockPreimage preimage) {
         List<UUID> invalidated = new ArrayList<>();
         for (Map.Entry<UUID, Mark> entry :
                 history.marks.entrySet()) {
             Mark mark = entry.getValue();
-            if (!mark.dimension().equals(
-                            preimage.level().dimension())
+            if (!mark.dimension().equals(level.dimension())
                     || preimage.tick() < mark.tick()
                     || !mark.contains(preimage.position())) {
                 continue;
@@ -665,11 +788,13 @@ public final class GerRtzRewindService {
                 invalidated.add(entry.getKey());
             }
         }
+        if (!invalidated.isEmpty()) {
+            invalidated.forEach(history.marks::remove);
+            refreshAnyMark();
+        }
         for (UUID owner : invalidated) {
-            history.marks.remove(owner);
             history.pendingAutomaticRtz.remove(owner);
-            ServerPlayer player = preimage.level()
-                    .getServer()
+            ServerPlayer player = level.getServer()
                     .getPlayerList()
                     .getPlayer(owner);
             if (player != null) {
@@ -686,8 +811,10 @@ public final class GerRtzRewindService {
 
     public static void recordBlockInteraction(
             ServerLevel level, BlockPos position) {
-        recordBlockMutation(captureBlockPreimage(
-                level, position));
+        ServerHistory history = journalling(level, position);
+        if (history != null && !isApplying()) {
+            record(level, history, capture(level, position));
+        }
     }
 
     public static void recordBlockSnapshot(
@@ -697,8 +824,13 @@ public final class GerRtzRewindService {
                 || isApplying()) {
             return;
         }
-        recordBlockMutation(new BlockPreimage(
-                level,
+        ServerHistory history =
+                journalling(level, snapshot.getPos());
+        if (history == null) {
+            return;
+        }
+        blockCaptures++;
+        record(level, history, new BlockPreimage(
                 level.getGameTime(),
                 snapshot.getPos().immutable(),
                 NbtUtils.writeBlockState(
@@ -769,13 +901,16 @@ public final class GerRtzRewindService {
                     return StageResult.failure(
                             Result.UNSAFE_HISTORY);
                 }
-                if (!isLoadedTarget(
-                        level, target.position())) {
+                Side side = sideOf(owner, live);
+                // His side keeps its place, so only where the others go back to has to be loaded.
+                if (side != Side.FRIEND
+                        && !isLoadedTarget(
+                                level, target.position())) {
                     return StageResult.failure(
                             Result.UNLOADED_TARGET);
                 }
                 entities.add(
-                        EntityMutation.restore(live, target));
+                        EntityMutation.restore(live, target, side));
                 stagedEntities.add(live.getUUID());
                 continue;
             }
@@ -797,7 +932,12 @@ public final class GerRtzRewindService {
                 return StageResult.failure(
                         Result.WRONG_DIMENSION);
             }
-            if (target.living()) {
+            // A creature that died since the mark comes back if it was not
+            // the user's enemy when it died; one whose end nobody saw (it
+            // left, or despawned) is left alone.
+            if (target.living()
+                    && !Boolean.FALSE.equals(
+                            mark.deaths().get(target.uuid()))) {
                 continue;
             }
             if (!isLoadedTarget(level, target.position())) {
@@ -817,9 +957,17 @@ public final class GerRtzRewindService {
         List<PlayerMutation> players = new ArrayList<>();
         for (PlayerSnapshot snapshot :
                 mark.players().values()) {
-            ServerPlayer live = level.getServer()
-                    .getPlayerList()
-                    .getPlayer(snapshot.uuid());
+            ServerPlayer live = snapshot.uuid().equals(owner.getUUID())
+                    ? owner
+                    : level.getServer()
+                            .getPlayerList()
+                            .getPlayer(snapshot.uuid());
+            // A player body the list does not hold was still marked in this level.
+            if (live == null
+                    && level.getEntity(snapshot.uuid())
+                            instanceof ServerPlayer present) {
+                live = present;
+            }
             if (live == null) {
                 continue;
             }
@@ -871,22 +1019,96 @@ public final class GerRtzRewindService {
         Set<UUID> disabledLiving = new HashSet<>();
         for (Entity entity :
                 snapshotEntities(level.getAllEntities())) {
+            // The owner, 2026-11-08: never the user's own power.
             if (entity instanceof LivingEntity
                     && entity != owner
+                    && !(entity instanceof StandEntity stand
+                            && stand.getUser() == owner)
                     && mark.contains(entity.blockPosition())) {
                 disabledLiving.add(entity.getUUID());
             }
         }
         return StageResult.success(new RewindPlan(
                 mark.dayTime(),
-                // Rule G3: Made in Heaven's acceleration keeps the day time.
-                LevelTimeRates.rate(
-                        LevelTimeRates.Channel.TIME, level) <= 1.0F,
+                restoresDayTime(level, owner, mark),
                 List.copyOf(blocks),
                 List.copyOf(entities),
                 List.copyOf(players),
                 List.copyOf(stands),
                 Set.copyOf(disabledLiving)));
+    }
+
+    /**
+     * Rule G3: Made in Heaven's acceleration keeps the day time. The owner,
+     * 2026-11-08: unless the one who accelerates stands inside the rewound
+     * area ("只有和天堂製造使用者在八個區塊內使用才會倒回").
+     */
+    private static boolean restoresDayTime(
+            ServerLevel level, ServerPlayer owner, Mark mark) {
+        return LevelTimeRates.rate(
+                        LevelTimeRates.Channel.TIME, level) <= 1.0F
+                || acceleratingUserInside(level, owner, mark);
+    }
+
+    /**
+     * The core tells how fast a level's time runs, not who runs it. The one
+     * who accelerates is ahead of everyone else in his own time, so he is
+     * read off the core's per-entity rates: a player in the area whose own
+     * time runs faster than the Requiem user's.
+     */
+    private static boolean acceleratingUserInside(
+            ServerLevel level, ServerPlayer owner, Mark mark) {
+        float own = EntityTimeRates.rate(
+                EntityTimeRates.Channel.BEING, owner);
+        for (ServerPlayer player : level.players()) {
+            if (player != owner
+                    && player.isAlive()
+                    && mark.contains(player.blockPosition())
+                    && EntityTimeRates.rate(
+                                    EntityTimeRates.Channel.BEING, player)
+                            > own) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Where a creature stands to the user at the press; a thing is neither. */
+    private static Side sideOf(ServerPlayer owner, Entity entity) {
+        if (!(entity instanceof LivingEntity)) {
+            return Side.THING;
+        }
+        return GerSides.isHostile(owner, entity)
+                ? Side.ENEMY
+                : Side.FRIEND;
+    }
+
+    /** A real death inside a marked area, with whose side the creature was on as it died. */
+    public static void recordDeath(LivingEntity dead) {
+        if (!(dead.level() instanceof ServerLevel level)
+                || dead instanceof Player
+                || !anyMark) {
+            return;
+        }
+        ServerHistory history;
+        synchronized (HISTORIES) {
+            history = HISTORIES.get(level.getServer());
+        }
+        if (history == null || history.marks.isEmpty()) {
+            return;
+        }
+        for (Mark mark : history.marks.values()) {
+            if (mark.dimension().equals(level.dimension())
+                    && mark.entities().containsKey(dead.getUUID())) {
+                mark.deaths().put(
+                        dead.getUUID(),
+                        GerSides.isHostile(
+                                level.getServer()
+                                        .getPlayerList()
+                                        .getPlayer(mark.owner()),
+                                dead));
+            }
+        }
     }
 
     private static boolean commit(
@@ -947,7 +1169,8 @@ public final class GerRtzRewindService {
                     case RESTORE -> applyEntitySnapshot(
                             level,
                             mutation.live(),
-                            mutation.target());
+                            mutation.target(),
+                            mutation.side());
                     case REMOVE -> mutation.live().remove(
                             RemovalReason.DISCARDED);
                     case RECREATE -> {
@@ -963,6 +1186,9 @@ public final class GerRtzRewindService {
                         mutation.live(),
                         mutation.target(),
                         mutation.restorePosition());
+                if (!mutation.restorePosition()) {
+                    restoreOwner(mutation.live(), mutation.target());
+                }
             }
             for (StandMutation mutation : plan.stands()) {
                 applyStandSnapshot(
@@ -1038,7 +1264,7 @@ public final class GerRtzRewindService {
                 applyFullSnapshot(
                         level, entity, inverse.snapshot());
                 relationships.add(EntityMutation.restore(
-                        entity, inverse.snapshot()));
+                        entity, inverse.snapshot(), Side.THING));
             }
             catch (RuntimeException exception) {
                 complete = false;
@@ -1055,6 +1281,8 @@ public final class GerRtzRewindService {
                         inverse.live(),
                         inverse.snapshot(),
                         true);
+                restoreBodyExactly(
+                        inverse.live(), inverse.snapshot());
             }
             catch (RuntimeException exception) {
                 complete = false;
@@ -1229,6 +1457,7 @@ public final class GerRtzRewindService {
     }
 
     private static void closePresentation(
+            MinecraftServer server,
             ServerHistory history,
             UUID owner,
             boolean broadcastStop) {
@@ -1238,17 +1467,15 @@ public final class GerRtzRewindService {
             return;
         }
         ServerPlayer presentationOwner =
-                history.server.getPlayerList()
+                server.getPlayerList()
                         .getPlayer(owner);
         if (presentationOwner != null) {
             GoldExperienceRequiemAddon
                     .playerState(presentationOwner)
                     .setReturnToZeroPresentationActive(false);
         }
-        MinecraftServer server = history.server;
-        ServerLevel level = server != null
-                ? server.getLevel(presentation.dimension())
-                : null;
+        ServerLevel level =
+                server.getLevel(presentation.dimension());
         if (level == null) {
             return;
         }
@@ -1490,11 +1717,79 @@ public final class GerRtzRewindService {
         }
     }
 
-    // Read-only: the presentation's time-erase mode needs to know whether an
-    // erase runs (1.16 CheckTools.isKingCrimsonTimeEraseActive), which no
-    // core event tells; ending the erases is RewindAppliedEvent's.
+    /**
+     * King Crimson's two hooks for a Requiem holder, when it is loaded:
+     * Epitaph tells him of a prediction aimed at him instead of walking him,
+     * and a creature's erase against him (the player it fights, or the one
+     * whose hit would kill it) is returned to zero as it would begin, with
+     * Requiem's effect on the creature (rule C6).
+     */
+    public static void registerKingCrimsonHooks() {
+        if (!ModList.get().isLoaded(KING_CRIMSON_MOD_ID)) {
+            return;
+        }
+        try {
+            KingCrimsonBridge.register();
+        }
+        catch (RuntimeException | LinkageError exception) {
+            LOGGER.warn(
+                    "Could not register GER's answers with King Crimson",
+                    exception);
+        }
+    }
+
+    /**
+     * EPITAPH-ARCH 3.7: whether this press of Return to Zero broke a
+     * prediction aimed at its user; such a press does nothing else.
+     */
+    public static boolean breaksEpitaphPrediction(ServerPlayer owner) {
+        if (!ModList.get().isLoaded(KING_CRIMSON_MOD_ID)) {
+            return false;
+        }
+        try {
+            return KingCrimsonBridge.breakPrediction(owner);
+        }
+        catch (RuntimeException | LinkageError exception) {
+            LOGGER.warn(
+                    "Could not ask King Crimson's Epitaph at a GER press",
+                    exception);
+            return false;
+        }
+    }
+
+    // The presentation's time-erase mode needs to know whether an erase runs
+    // (1.16 CheckTools.isKingCrimsonTimeEraseActive), which no core event
+    // tells; ending the erases is RewindAppliedEvent's. Every class of King
+    // Crimson is named here only, behind ModList.
     private static final class KingCrimsonBridge {
         private KingCrimsonBridge() {}
+
+        private static void register() {
+            EpitaphPredictions.registerExemption(
+                    GoldExperienceRequiemAddon.id("requiem_holder"),
+                    GoldExperienceRequiemAddon::isGerUser);
+            KingCrimsonCreatureErase.registerAnswer(
+                    GoldExperienceRequiemAddon.id("requiem_holder"),
+                    new KingCrimsonCreatureErase.Answer() {
+                        @Override
+                        public boolean answers(
+                                ServerPlayer holder, Mob creature) {
+                            return GoldExperienceRequiemAddon
+                                    .isGerUser(holder);
+                        }
+
+                        @Override
+                        public void show(
+                                ServerPlayer holder, Mob creature) {
+                            GerHitAnswerService.showOn(creature);
+                        }
+                    });
+        }
+
+        private static boolean breakPrediction(ServerPlayer owner) {
+            return EpitaphPredictions.breakPrediction(
+                    owner, RETURN_TO_ZERO_SOURCE);
+        }
 
         private static Set<UUID> capture(ServerLevel level) {
             Set<UUID> active = new HashSet<>();
@@ -1565,23 +1860,100 @@ public final class GerRtzRewindService {
                 Block.UPDATE_CLIENTS);
     }
 
+    /**
+     * The owner, 2026-11-08. An enemy goes back to its place at the mark and
+     * keeps what was done to it: its present health, and the harmful effects
+     * and the fire it carries. One of the user's side keeps its place and
+     * gets back the health it had at the mark, never less than it has now;
+     * its effects and its fire are the mark's.
+     */
     private static void applyEntitySnapshot(
             ServerLevel level,
             Entity entity,
-            EntitySnapshot snapshot) {
-        float health =
-                entity instanceof LivingEntity living
-                        ? living.getHealth()
-                        : 0.0F;
-        float absorption =
-                entity instanceof LivingEntity living
-                        ? living.getAbsorptionAmount()
-                        : 0.0F;
-        applyFullSnapshot(level, entity, snapshot);
-        if (entity instanceof LivingEntity living) {
-            living.setHealth(health);
-            living.setAbsorptionAmount(absorption);
+            EntitySnapshot snapshot,
+            Side side) {
+        if (!(entity instanceof LivingEntity living)) {
+            applyFullSnapshot(level, entity, snapshot);
+            return;
         }
+        float health = living.getHealth();
+        float absorption = living.getAbsorptionAmount();
+        int fire = living.getRemainingFireTicks();
+        if (side == Side.FRIEND) {
+            applyFullSnapshot(
+                    level, entity, snapshot.at(living));
+            health = Math.max(health, living.getHealth());
+            absorption = Math.max(
+                    absorption, living.getAbsorptionAmount());
+        }
+        else {
+            List<MobEffectInstance> harm = new ArrayList<>();
+            for (MobEffectInstance effect : living.getActiveEffects()) {
+                if (effect.getEffect().value().getCategory()
+                        == MobEffectCategory.HARMFUL) {
+                    harm.add(new MobEffectInstance(effect));
+                }
+            }
+            applyFullSnapshot(level, entity, snapshot);
+            // what the rewind puts back itself is no hit for a Requiem to answer
+            GerHitAnswerService.applyingOwnEffects(() -> {
+                for (MobEffectInstance effect : harm) {
+                    living.removeEffect(effect.getEffect());
+                    living.forceAddEffect(effect, null);
+                }
+            });
+            if (fire > living.getRemainingFireTicks()) {
+                living.setRemainingFireTicks(fire);
+            }
+        }
+        living.setHealth(health);
+        living.setAbsorptionAmount(absorption);
+    }
+
+    /**
+     * The user himself: his health back to the mark's where that is more,
+     * and his fire gone. Of the effects he gained since the mark the
+     * harmful ones go and the others stay (Resolve's among them); those he
+     * had at the mark stay as they are now. The coordinator, R772.1.
+     */
+    private static void restoreOwner(
+            ServerPlayer owner, PlayerSnapshot snapshot) {
+        if (snapshot.health() > owner.getHealth()) {
+            owner.setHealth(snapshot.health());
+        }
+        if (snapshot.absorption() > owner.getAbsorptionAmount()) {
+            owner.setAbsorptionAmount(snapshot.absorption());
+        }
+        for (MobEffectInstance effect :
+                List.copyOf(owner.getActiveEffects())) {
+            if (effect.getEffect().value().getCategory()
+                            == MobEffectCategory.HARMFUL
+                    && snapshot.effects().stream().noneMatch(
+                            marked -> marked.getEffect()
+                                    .equals(effect.getEffect()))) {
+                owner.removeEffect(effect.getEffect());
+            }
+        }
+        if (owner.getRemainingFireTicks() > snapshot.fireTicks()) {
+            owner.setRemainingFireTicks(snapshot.fireTicks());
+        }
+    }
+
+    // The inverse journal's side of restoreOwner: everything as it was captured.
+    private static void restoreBodyExactly(
+            ServerPlayer player, PlayerSnapshot snapshot) {
+        player.setHealth(snapshot.health());
+        player.setAbsorptionAmount(snapshot.absorption());
+        player.setRemainingFireTicks(snapshot.fireTicks());
+        for (MobEffectInstance effect :
+                List.copyOf(player.getActiveEffects())) {
+            player.removeEffect(effect.getEffect());
+        }
+        GerHitAnswerService.applyingOwnEffects(() -> {
+            for (MobEffectInstance effect : snapshot.effects()) {
+                player.forceAddEffect(new MobEffectInstance(effect), null);
+            }
+        });
     }
 
     private static void applyFullSnapshot(
@@ -1602,6 +1974,12 @@ public final class GerRtzRewindService {
         tag.remove("id");
         tag.remove("Passengers");
         tag.putUUID("UUID", entity.getUUID());
+        if (entity instanceof LivingEntity living) {
+            // A load only adds effects: the ones gained since the snapshot would stay.
+            for (Holder<MobEffect> effect : oldEffects) {
+                living.removeEffect(effect);
+            }
+        }
         loadKeepingSummonedStand(entity, tag);
         entity.noPhysics = snapshot.noPhysics();
         if (keptNoAi != null && entity instanceof Mob mob) {
@@ -1730,12 +2108,15 @@ public final class GerRtzRewindService {
             if (entity == null) {
                 continue;
             }
-            entity.stopRiding();
-            if (snapshot.vehicle() != null) {
-                Entity vehicle =
-                        level.getEntity(snapshot.vehicle());
-                if (vehicle != null) {
-                    entity.startRiding(vehicle, true);
+            // One of the user's side keeps its place, its seat included.
+            if (mutation.side() != Side.FRIEND) {
+                entity.stopRiding();
+                if (snapshot.vehicle() != null) {
+                    Entity vehicle =
+                            level.getEntity(snapshot.vehicle());
+                    if (vehicle != null) {
+                        entity.startRiding(vehicle, true);
+                    }
                 }
             }
             if (entity instanceof Mob mob) {
@@ -1941,13 +2322,50 @@ public final class GerRtzRewindService {
         }
     }
 
+    // isStopped turns true after the server's last tick and its ServerStoppingEvent, before stopServer saves the
+    // levels and logs the players out (playerLoggedOut lands here). A stopped server gets a history that is not kept.
     private static ServerHistory history(
             MinecraftServer server) {
         synchronized (HISTORIES) {
+            if (server.isStopped()) {
+                HISTORIES.remove(server);
+                return new ServerHistory();
+            }
             return HISTORIES.computeIfAbsent(
                     server,
-                    ignored -> new ServerHistory(server));
+                    ignored -> new ServerHistory());
         }
+    }
+
+    // Read by the game tests.
+    public static boolean hasHistoryForTests(MinecraftServer server) {
+        synchronized (HISTORIES) {
+            return HISTORIES.containsKey(server);
+        }
+    }
+
+    public static long blockCapturesForTests() {
+        return blockCaptures;
+    }
+
+    /** An empty mark of radius 0 around center, as setMark leaves one; for a server that has no players. */
+    public static void markForTests(
+            ServerLevel level, UUID owner, BlockPos center) {
+        history(level.getServer()).marks.put(owner, new Mark(
+                owner, level.dimension(), 0L, 0L, center, 0,
+                Set.of(), Map.of(), Map.of(), Map.of()));
+        refreshAnyMark();
+    }
+
+    /** The block records of the owner's mark, or -1 if it has none. */
+    public static int markedBlocksForTests(
+            MinecraftServer server, UUID owner) {
+        ServerHistory history;
+        synchronized (HISTORIES) {
+            history = HISTORIES.get(server);
+        }
+        Mark mark = history != null ? history.marks.get(owner) : null;
+        return mark != null ? mark.blocks().size() : -1;
     }
 
     private enum EntityOperation {
@@ -1988,6 +2406,42 @@ public final class GerRtzRewindService {
             UUID mobTarget,
             UUID vehicle,
             UUID projectileOwner) {
+        /** The same state at the place where the entity stands now. */
+        private EntitySnapshot at(Entity entity) {
+            CompoundTag placed = tag.copy();
+            Vec3 motion = entity.getDeltaMovement();
+            placed.put("Pos", doubles(
+                    entity.getX(), entity.getY(), entity.getZ()));
+            placed.put("Motion", doubles(
+                    motion.x, motion.y, motion.z));
+            ListTag rotation = new ListTag();
+            rotation.add(FloatTag.valueOf(entity.getYRot()));
+            rotation.add(FloatTag.valueOf(entity.getXRot()));
+            placed.put("Rotation", rotation);
+            placed.putFloat("FallDistance", entity.fallDistance);
+            placed.putBoolean("OnGround", entity.onGround());
+            return new EntitySnapshot(
+                    uuid,
+                    tick,
+                    typeId,
+                    placed,
+                    entity.position(),
+                    noPhysics,
+                    living,
+                    frozen,
+                    mobTarget,
+                    vehicle,
+                    projectileOwner);
+        }
+
+        private static ListTag doubles(double x, double y, double z) {
+            ListTag list = new ListTag();
+            list.add(DoubleTag.valueOf(x));
+            list.add(DoubleTag.valueOf(y));
+            list.add(DoubleTag.valueOf(z));
+            return list;
+        }
+
         private static EntitySnapshot capture(
                 Entity entity, long tick) {
             CompoundTag tag =
@@ -2036,9 +2490,17 @@ public final class GerRtzRewindService {
             float xRot,
             ListTag inventory,
             int selectedSlot,
-            UUID vehicle) {
+            UUID vehicle,
+            float health,
+            float absorption,
+            int fireTicks,
+            List<MobEffectInstance> effects) {
         private static PlayerSnapshot capture(
                 ServerPlayer player) {
+            List<MobEffectInstance> effects = new ArrayList<>();
+            for (MobEffectInstance effect : player.getActiveEffects()) {
+                effects.add(new MobEffectInstance(effect));
+            }
             return new PlayerSnapshot(
                     player.getUUID(),
                     player.position(),
@@ -2049,8 +2511,19 @@ public final class GerRtzRewindService {
                     player.getInventory().selected,
                     player.getVehicle() != null
                             ? player.getVehicle().getUUID()
-                            : null);
+                            : null,
+                    player.getHealth(),
+                    player.getAbsorptionAmount(),
+                    player.getRemainingFireTicks(),
+                    List.copyOf(effects));
         }
+    }
+
+    /** Whose a restored entity is at the press. */
+    private enum Side {
+        THING,
+        FRIEND,
+        ENEMY
     }
 
     private record StandSnapshot(
@@ -2092,6 +2565,8 @@ public final class GerRtzRewindService {
                 blocks = new LinkedHashMap<>();
         private final Map<UUID, Deque<PoseFrame>>
                 poseFrames = new HashMap<>();
+        /** The marked creatures that died since, and whether each was the user's enemy as it died. */
+        private final Map<UUID, Boolean> deaths = new HashMap<>();
         private int recordedBlockOps;
 
         private Mark(
@@ -2301,10 +2776,13 @@ public final class GerRtzRewindService {
         private Map<UUID, Deque<PoseFrame>> poseFrames() {
             return poseFrames;
         }
+
+        private Map<UUID, Boolean> deaths() {
+            return deaths;
+        }
     }
 
     private static final class ServerHistory {
-        private final MinecraftServer server;
         private final Map<UUID, Mark> marks =
                 new HashMap<>();
         private final Map<UUID, PendingAutomaticRtz>
@@ -2316,10 +2794,6 @@ public final class GerRtzRewindService {
                 new HashMap<>();
         private final Map<UUID, PendingEndSound>
                 pendingEndSounds = new HashMap<>();
-
-        private ServerHistory(MinecraftServer server) {
-            this.server = server;
-        }
     }
 
     private record PendingAutomaticRtz(
@@ -2331,14 +2805,16 @@ public final class GerRtzRewindService {
             EntityOperation operation,
             UUID uuid,
             Entity live,
-            EntitySnapshot target) {
+            EntitySnapshot target,
+            Side side) {
         private static EntityMutation restore(
-                Entity live, EntitySnapshot target) {
+                Entity live, EntitySnapshot target, Side side) {
             return new EntityMutation(
                     EntityOperation.RESTORE,
                     live.getUUID(),
                     live,
-                    target);
+                    target,
+                    side);
         }
 
         private static EntityMutation remove(Entity live) {
@@ -2346,7 +2822,8 @@ public final class GerRtzRewindService {
                     EntityOperation.REMOVE,
                     live.getUUID(),
                     live,
-                    null);
+                    null,
+                    Side.THING);
         }
 
         private static EntityMutation recreate(
@@ -2355,7 +2832,8 @@ public final class GerRtzRewindService {
                     EntityOperation.RECREATE,
                     target.uuid(),
                     null,
-                    target);
+                    target,
+                    Side.THING);
         }
     }
 

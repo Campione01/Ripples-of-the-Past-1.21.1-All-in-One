@@ -1,5 +1,6 @@
 package rotp.addons.survivor.event;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +10,9 @@ import rotp.addons.survivor.SurvivorAddon;
 import rotp.addons.survivor.SurvivorConfig;
 import rotp.addons.survivor.util.AngerHelper;
 import rotp.addons.survivor.util.WetHelper;
+import rotp.core.customobjects.DamageSourceModified;
+import rotp.core.powersystem.standpower.StandPower;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -45,16 +49,16 @@ public final class MobAggroHandler {
             return;
         }
         if (entity instanceof Player player) {
-            handlePlayer(player);
+            handlePlayer(player, users);
         } else if (entity instanceof Mob mob) {
             if (!AngerHelper.isAngry(entity)) {
                 return;
             }
-            handleMob(mob, level);
+            handleMob(mob, level, users);
         }
     }
 
-    private static void handlePlayer(Player player) {
+    private static void handlePlayer(Player player, List<LivingEntity> users) {
         if (isOnCooldown(player)) {
             return;
         }
@@ -64,12 +68,13 @@ public final class MobAggroHandler {
         if (!targets.isEmpty()) {
             LivingEntity target = targets.get(player.level().random.nextInt(targets.size()));
             player.swing(InteractionHand.MAIN_HAND, true);
-            target.hurt(player.damageSources().playerAttack(player), SurvivorConfig.HIT_DAMAGE.get().floatValue());
+            target.hurt(byTheStand(player.damageSources().playerAttack(player), player, users),
+                    SurvivorConfig.HIT_DAMAGE.get().floatValue());
             setCooldown(player);
         }
     }
 
-    private static void handleMob(Mob mob, Level level) {
+    private static void handleMob(Mob mob, Level level, List<LivingEntity> users) {
         boolean hasAttackAI = mob instanceof Monster;
         double targetRange = SurvivorConfig.TARGET_RANGE.get();
         double mobHitRange = SurvivorConfig.MOB_HIT_RANGE.get();
@@ -119,10 +124,20 @@ public final class MobAggroHandler {
             }
 
             if (mob.distanceTo(target) < mobHitRange && !isOnCooldown(mob)) {
-                target.hurt(mob.damageSources().mobAttack(mob), SurvivorConfig.HIT_DAMAGE.get().floatValue());
+                target.hurt(byTheStand(mob.damageSources().mobAttack(mob), mob, users),
+                        SurvivorConfig.HIT_DAMAGE.get().floatValue());
                 setCooldown(mob);
             }
         }
+    }
+
+    // the creature strikes because of the Survivor user nearest to it, so the hit is that Stand's work and takes its damage share
+    private static DamageSource byTheStand(DamageSource source, LivingEntity attacker, List<LivingEntity> users) {
+        LivingEntity nearest = users.stream().min(Comparator.comparingDouble(attacker::distanceToSqr)).orElse(null);
+        if (nearest != null && source instanceof DamageSourceModified modified) {
+            modified.jojo_ripples$setStandPower(StandPower.get(nearest));
+        }
+        return source;
     }
 
     private static boolean isValidTarget(LivingEntity attacker, LivingEntity target) {

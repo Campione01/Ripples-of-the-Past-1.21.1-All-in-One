@@ -252,11 +252,8 @@ public final class SilverChariotRequiemEvents {
         if (!(event.getLevel() instanceof ServerLevel level)) {
             return;
         }
+        // A swap under way goes on past its Stand (owner's rule of 2026-11-05): RequiemSoulService.tickTarget asks the owner.
         if (event.getEntity()
-                instanceof SilverChariotRequiemEntity stand) {
-            RequiemSoulService.clearBySource(stand, level);
-        }
-        else if (event.getEntity()
                         instanceof LivingEntity living
                 && !(living instanceof StandEntity)) {
             RequiemSoulService.clearOnDeparture(living, level);

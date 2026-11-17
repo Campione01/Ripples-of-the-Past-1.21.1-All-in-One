@@ -48,5 +48,6 @@
   "rotp_theworld.stand_skins.the_world": "Диего",
   "rotp_theworld.stand_skins.skin_a": "Скин A",
   "rotp_theworld.stand_skins.skin_b": "Скин B",
-  "rotp_theworld.stand_skins.skin_c": "Скин C"
+  "rotp_theworld.stand_skins.skin_c": "Скин C",
+  "jojo_ripples.skill.time_stop.desc": "Мир ненадолго останавливает течение времени, и только вы можете свободно действовать, пока оно застыло.\nУдерживайте, чтобы зарядить: если отпустить раньше половины заряда, ничего не произойдёт. В крайнем случае быстро нажмите дважды, чтобы остановить время сразу, но лишь на мгновение."
 }

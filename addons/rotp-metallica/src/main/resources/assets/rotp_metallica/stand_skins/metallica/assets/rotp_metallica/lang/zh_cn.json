@@ -1,5 +1,5 @@
 {
-  "stand.rotp_metallica.metallica": "金属制造",
+  "stand.rotp_metallica.metallica": "金属制品",
   "rotp_metallica.ability.invisibility": "隐身",
   "rotp_metallica.ability.invisibility_disable": "解除隐身",
   "rotp_metallica.ability.metallica_single_knife_throw": "投掷手术刀",
@@ -13,13 +13,13 @@
   "action.rotp_metallica.create_blades_in_victim": "在敌人身上制造刀片",
   "effect.rotp_metallica.lack_of_iron": "缺铁",
   "item.rotp_metallica.scalpel": "手术刀",
-  "rotp_metallica.subtitle.risotto_nero_metallica": "\"金属制造\"",
+  "rotp_metallica.subtitle.risotto_nero_metallica": "\"金属制品\"",
   "rotp_metallica.subtitle.risotto_nero_invisibility": "\"这个如何?\"",
-  "rotp_metallica.subtitle.risotto_nero_create_blades_in_victim": "\"尝尝这个! 金属制造!\"",
+  "rotp_metallica.subtitle.risotto_nero_create_blades_in_victim": "\"尝尝这个! 金属制品!\"",
   "rotp_metallica.subtitle.heal": "铁疗",
-  "rotp_metallica.subtitle.metallica_summon_stand": "召唤金属制造",
-  "rotp_metallica.subtitle.metallica_unsummon_stand": "收回金属制造",
+  "rotp_metallica.subtitle.metallica_summon_stand": "召唤金属制品",
+  "rotp_metallica.subtitle.metallica_unsummon_stand": "收回金属制品",
   "rotp_metallica.subtitle.metallica_invisibility_on": "隐身激活",
   "rotp_metallica.subtitle.metallica_invisibility_off": "解除隐身",
-  "entity.rotp_metallica.metallica": "金属制造"
+  "entity.rotp_metallica.metallica": "金属制品"
 }

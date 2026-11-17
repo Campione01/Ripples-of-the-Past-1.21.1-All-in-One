@@ -1,10 +1,12 @@
 package rotp.addons.echoes.stand;
 
+import static rotp.addons.echoes.init.EchoesAbilities.ACT3_HEAVY_CHARGED;
 import static rotp.core.init.power.ModStands.SWITCH_SPECIAL;
 import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
 import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.MovesetBuilder;
+import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.standpower.StandStats;
@@ -23,7 +25,11 @@ public final class EchoesAct3Stand {
     public static EntityStandType create(ResourceLocation id) {
         MovesetBuilder moveset = new MovesetBuilder()
                 .addHumanoidStandStuff()
+                // his 1.21.1 AddonStands: four punches, in the order of his clips punch to punch4, the core's light combo
                 .addAbility("punch", ModStandAbilities.PUNCH)
+                .addAbility("punch2", ModStandAbilities.PUNCH)
+                .addAbility("punch3", ModStandAbilities.PUNCH)
+                .addAbility("punch4", ModStandAbilities.PUNCH)
                 // 092: ACT3 voice is the barrage cry; start voice and
                 // silent hits live in EchoesAct3BarrageAbility
                 .addAbility(
@@ -39,8 +45,10 @@ public final class EchoesAct3Stand {
                         heavy -> heavy.heavyPunchPerformSound(EchoesSounds.HEAVY_ATTACK))
                 .addAbility(
                         "heavy_charged",
-                        ModStandAbilities.HEAVY_CHARGED)
+                        ACT3_HEAVY_CHARGED)
                 .addAbility("guard", ModStandAbilities.GUARD)
+                // his 1.21.1 AddonStands: a nugget in ACT3's hand is shot as the core's Star Platinum does
+                .addAbility("bearing_shot", ModStandAbilities.BEARING_SHOT, Ability::useAbilityTypeResourceNamespace)
                 // R772 F13: the author's 1.21.1 ACT3 grabs and plays his grab clips; wired as the core's Star Platinum
                 .addAbility("grab", ModStandAbilities.GRAB)
                 .addAbility("grab_throw", ModStandAbilities.GRAB_THROW)
@@ -128,6 +136,7 @@ public final class EchoesAct3Stand {
                             InputMethod.CLICK)
                     .addHotbarSlotVariation(
                             "gravity_infuse_cancel", "gravity_infuse", InputKey.Modifier.SHIFT, InputMethod.CLICK)
+                    .addToHotbar("bearing_shot", 0, InputMethod.HOLD)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")
                     .bind("punch", InputMethod.CLICK, InputKey.LMB)
@@ -195,7 +204,7 @@ public final class EchoesAct3Stand {
                 .standControlType(StandControlType.CLOSE_RANGE_DIRECT)
                 .manualControl(true)
                 .distanceStrengthDecay(true)
-                .standDimensions(0.5F, 1.5F)
+                .standDimensions(0.65F, 1.95F)
                 // master EchoesEntity: one of the author's ACT3 voices, the ACT3 summon stinger, the recall stinger
                 .summonShout(() -> EchoesSounds.SUMMON_VOICE_ACT3)
                 .summonSound(() -> EchoesSounds.ECHOES_SUMMON_BGM_ACT3)

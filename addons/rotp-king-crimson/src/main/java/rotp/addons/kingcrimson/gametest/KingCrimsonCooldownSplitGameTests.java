@@ -2,6 +2,7 @@ package rotp.addons.kingcrimson.gametest;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.ToIntFunction;
 import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
@@ -34,6 +35,11 @@ import rotp.core.powersystem.standpower.StandPower;
  * :373-375), while the core's standStamina setting did not touch any of them. The time erase's dynamic cooldown was
  * computed into an unused local (KingCrimsonTimeErase.onTaskStopped :245-252), so every erase, short or full, set the
  * builder's timeEraseCooldown (200).
+ * <p>
+ * The owner, 2026-11-11: "時停和時刪在正常cd模式下邏輯趨同，包括cd隨發動時間的延長". Time Erase alone left the donor here: its
+ * cooldown goes by the ticks the erase ran (the donor's own dynamic settings, the multiplier 1 since the owner's word
+ * of 2026-11-12: as many ticks as it ran, at least 120), a third of
+ * it in Resolve as the core's time stop's, and with timeEraseDynamicCooldown off the donor's fixed 200.
  */
 @GameTestHolder(KingCrimsonAddon.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -43,7 +49,12 @@ public final class KingCrimsonCooldownSplitGameTests {
 
     private KingCrimsonCooldownSplitGameTests() {}
 
-    private record Row(String ability, int ticksHeld, int survival) {}
+    private record Row(String ability, int ticksHeld, int survival, int resolve) {
+        // A plain donor cooldown: none in Resolve.
+        private Row(String ability, int ticksHeld, int survival) {
+            this(ability, ticksHeld, survival, 0);
+        }
+    }
 
     @GameTest(template = "empty", timeoutTicks = 40, batch = "kc_cooldown_split")
     public static void everyKingCrimsonCooldownIsAPlainDonorCooldownAsIn116(GameTestHelper helper) {
@@ -61,13 +72,13 @@ public final class KingCrimsonCooldownSplitGameTests {
                     wrong.add(row.ability() + " reports technical " + technical + ", the donor's 0");
                 }
             }
-            collect(power, rows, "in Survival", false, wrong);
+            collect(power, rows, "in Survival", Row::survival, wrong);
             player.addEffect(new MobEffectInstance(ModStatusEffects.RESOLVE, 200, 0, false, false));
-            collect(power, rows, "in Resolve", true, wrong);
+            collect(power, rows, "in Resolve", Row::resolve, wrong);
             player.removeEffect(ModStatusEffects.RESOLVE);
             player.setGameMode(GameType.CREATIVE);
             helper.assertTrue(power.isUserCreative(), "Setup: the King Crimson user is not in Creative");
-            collect(power, rows, "as a Creative user", true, wrong);
+            collect(power, rows, "as a Creative user", row -> 0, wrong);
         } finally {
             helper.getLevel().removePlayerImmediately(player, Entity.RemovalReason.UNLOADED_WITH_PLAYER);
         }
@@ -90,7 +101,7 @@ public final class KingCrimsonCooldownSplitGameTests {
             helper.assertTrue(!JojoModConfig.getCommonConfigInstance(false).standStamina.get()
                             && power.isStaminaInfinite() && !power.isUserCreative(),
                     "Setup: Stand stamina is not switched off for a Survival user");
-            collect(power, rows, "with Stand stamina off", false, wrong);
+            collect(power, rows, "with Stand stamina off", Row::survival, wrong);
         } finally {
             staminaSetting.set(oldStamina);
             helper.getLevel().removePlayerImmediately(player, Entity.RemovalReason.UNLOADED_WITH_PLAYER);
@@ -100,26 +111,50 @@ public final class KingCrimsonCooldownSplitGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty", timeoutTicks = 60, batch = "kc_cooldown_real_erase")
-    public static void aShortTimeEraseSetsTheFixedTimeEraseCooldownAsIn116(GameTestHelper helper) {
+    // The owner's rule of 2026-11-11 for a real erase, and the donor's fixed cooldown behind the setting.
+    @GameTest(template = "empty", timeoutTicks = 80, batch = "kc_cooldown_real_erase")
+    public static void aTimeEraseWaitsByTheTicksItRanAndWithTheDynamicSettingOffItsFixedCooldown(GameTestHelper helper) {
         FakePlayer player = newPlayer(helper, "kc-cooldown-erase");
         StandPower power = kingCrimson(player);
-        helper.assertTrue(KingCrimsonConfig.timeEraseCooldownTicks()
+        boolean dynamic = KingCrimsonConfig.TIME_ERASE_DYNAMIC_COOLDOWN.get();
+        helper.assertTrue(dynamic && KingCrimsonConfig.timeEraseCooldownTicks()
                         == KingCrimsonPhase5Spec.TIME_ERASE_FIXED_COOLDOWN_TICKS,
-                "Setup: timeEraseCooldown is not its default");
+                "Setup: timeEraseCooldown or timeEraseDynamicCooldown is not its default");
         helper.assertTrue(KingCrimsonTemporalStateService.beginTimeErase(player), "Setup: the time erase did not start");
+        int[] byLength = new int[1];
         helper.runAfterDelay(REAL_ERASE_TICKS, () -> {
-            int cooldown;
+            boolean again = false;
             try {
                 KingCrimsonTemporalStateService.terminate(player);
-                cooldown = power.getAbilityCooldown("kingcrimson_timeerase");
+                byLength[0] = power.getAbilityCooldown("kingcrimson_timeerase");
+                power.setAbilityCooldown("kingcrimson_timeerase", 0, 0);
+                KingCrimsonConfig.TIME_ERASE_DYNAMIC_COOLDOWN.set(false);
+                again = KingCrimsonTemporalStateService.beginTimeErase(player);
+                helper.assertTrue(again, "Setup: the second time erase did not start");
             } finally {
+                if (!again) {
+                    KingCrimsonConfig.TIME_ERASE_DYNAMIC_COOLDOWN.set(dynamic);
+                    helper.getLevel().removePlayerImmediately(player, Entity.RemovalReason.UNLOADED_WITH_PLAYER);
+                }
+            }
+        });
+        helper.runAfterDelay(REAL_ERASE_TICKS * 2, () -> {
+            int fixed;
+            try {
+                KingCrimsonTemporalStateService.terminate(player);
+                fixed = power.getAbilityCooldown("kingcrimson_timeerase");
+            } finally {
+                KingCrimsonConfig.TIME_ERASE_DYNAMIC_COOLDOWN.set(dynamic);
                 KingCrimsonTemporalStateService.terminate(player);
                 helper.getLevel().removePlayerImmediately(player, Entity.RemovalReason.UNLOADED_WITH_PLAYER);
             }
-            helper.assertTrue(cooldown == KingCrimsonPhase5Spec.TIME_ERASE_FIXED_COOLDOWN_TICKS,
-                    "1.16 set the builder's timeEraseCooldown after a " + REAL_ERASE_TICKS + "-tick erase: "
-                            + cooldown + " ticks, the donor's " + KingCrimsonPhase5Spec.TIME_ERASE_FIXED_COOLDOWN_TICKS);
+            // Its 10 ticks are under the shortest cooldown of 120.
+            helper.assertTrue(byLength[0] == KingCrimsonPhase5Spec.TIME_ERASE_MINIMUM_COOLDOWN_TICKS,
+                    "after a " + REAL_ERASE_TICKS + "-tick erase Time Erase waits " + byLength[0] + " ticks, not the shortest "
+                            + KingCrimsonPhase5Spec.TIME_ERASE_MINIMUM_COOLDOWN_TICKS + " of a cooldown by its length");
+            helper.assertTrue(fixed == KingCrimsonPhase5Spec.TIME_ERASE_FIXED_COOLDOWN_TICKS,
+                    "with timeEraseDynamicCooldown off, after a " + REAL_ERASE_TICKS + "-tick erase Time Erase waits "
+                            + fixed + " ticks, not the donor's fixed " + KingCrimsonPhase5Spec.TIME_ERASE_FIXED_COOLDOWN_TICKS);
             helper.succeed();
         });
     }
@@ -153,13 +188,22 @@ public final class KingCrimsonCooldownSplitGameTests {
                 new Row("kingcrimson_epitaph", -1, KingCrimsonConfig.epitaphCooldownTicks()),
                 new Row("kingcrimson_desperate_eyejab", -1, KingCrimsonConfig.eyejabCooldownTicks()),
                 new Row("kingcrimson_timeskip", -1, KingCrimsonConfig.timeSkipCooldownTicks()),
-                new Row("kingcrimson_timeerase", SHORT_ERASE_TICKS, erase),
-                new Row("kingcrimson_timeerase", KingCrimsonConfig.timeEraseDurationTicks(), erase));
+                // The owner's rule of 2026-11-11 and 12: as many ticks as it ran, at least 120; a third of that in Resolve.
+                new Row("kingcrimson_timeerase", SHORT_ERASE_TICKS, byLength(SHORT_ERASE_TICKS), byLength(SHORT_ERASE_TICKS) / 3),
+                new Row("kingcrimson_timeerase", KingCrimsonConfig.timeEraseCapTicks(),
+                        byLength(KingCrimsonConfig.timeEraseCapTicks()), byLength(KingCrimsonConfig.timeEraseCapTicks()) / 3),
+                // A length that is not known: the donor's fixed cooldown, and a third of it.
+                new Row("kingcrimson_timeerase", -1, erase, erase / 3));
     }
 
-    private static void collect(StandPower power, List<Row> rows, String when, boolean none, List<String> wrong) {
+    private static int byLength(int ranTicks) {
+        return Math.max(KingCrimsonPhase5Spec.TIME_ERASE_MINIMUM_COOLDOWN_TICKS,
+                Math.round(KingCrimsonPhase5Spec.TIME_ERASE_COOLDOWN_MULTIPLIER * ranTicks));
+    }
+
+    private static void collect(StandPower power, List<Row> rows, String when, ToIntFunction<Row> due, List<String> wrong) {
         for (Row row : rows) {
-            int expected = none ? 0 : row.survival();
+            int expected = due.applyAsInt(row);
             int actual = power.getAbility(row.ability()).getCooldown(power, row.ticksHeld());
             if (actual != expected) {
                 wrong.add(row.ability() + (row.ticksHeld() >= 0 ? " held " + row.ticksHeld() : "") + " takes " + actual

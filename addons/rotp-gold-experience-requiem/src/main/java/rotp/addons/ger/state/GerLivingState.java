@@ -1,5 +1,6 @@
 package rotp.addons.ger.state;
 
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -7,9 +8,10 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.INBTSerializable;
@@ -44,8 +46,6 @@ public final class GerLivingState
     private int rekillDelay;
     private UndiePhase undiePhase = UndiePhase.NONE;
     @Nullable
-    private transient DamageSource undieDeathSource;
-    @Nullable
     private transient Boolean undieStandSummoned;
     @Nullable
     private transient Integer undieStandArms;
@@ -53,6 +53,64 @@ public final class GerLivingState
             returnToZeroDisables = new LinkedHashMap<>();
     private boolean actionsDisabledSent;
     private boolean disablerSent;
+    private transient int untouchableTicks;
+    private transient int fireSample;
+    private transient long answeredTick = Long.MIN_VALUE;
+    private transient int answeredCause;
+    private transient Map<Holder<MobEffect>, Long> answeredEffects;
+
+    /** The Disabler's user for its 9 seconds: every hit on him is returned to zero. */
+    public boolean untouchable() {
+        return untouchableTicks > 0;
+    }
+
+    public void startUntouchable(int ticks) {
+        untouchableTicks = Math.max(untouchableTicks, ticks);
+    }
+
+    /** @return the ticks left */
+    public int tickUntouchable() {
+        return untouchableTicks > 0 ? --untouchableTicks : 0;
+    }
+
+    /** His fire ticks when his last tick ended: what a cause of fire found before it set him alight. */
+    public int fireSample() {
+        return fireSample;
+    }
+
+    public void sampleFire(int fireTicks) {
+        fireSample = fireTicks;
+    }
+
+    public void markAnswered(long gameTime, int causeId) {
+        answeredTick = gameTime;
+        answeredCause = causeId;
+    }
+
+    /** Whether a hit of this cause was returned to zero in this tick already. */
+    public boolean answeredNow(long gameTime, int causeId) {
+        return answeredTick == gameTime && answeredCause == causeId;
+    }
+
+    public boolean answeredAt(long gameTime) {
+        return answeredTick == gameTime;
+    }
+
+    public void markEffectAnswered(Holder<MobEffect> effect, long until) {
+        if (answeredEffects == null) {
+            answeredEffects = new HashMap<>();
+        }
+        answeredEffects.values().removeIf(end -> end < until - 200L);
+        answeredEffects.put(effect, until);
+    }
+
+    /** Whether the same effect was refused so lately that it is still the same harm. */
+    public boolean effectAnswered(Holder<MobEffect> effect, long gameTime) {
+        Long until = answeredEffects != null
+                ? answeredEffects.get(effect)
+                : null;
+        return until != null && gameTime <= until;
+    }
 
     /**
      * 1.16's ger_disabler tag, which the Disabler and Return to Zero's
@@ -95,8 +153,9 @@ public final class GerLivingState
     }
 
     /**
-     * 1.16 UndiePunch only rewrote the caster and the tag: a strike on a
-     * victim already in the loop keeps its death count and rekill timer.
+     * Starts the loop for the victim of a killing Finisher Punch. 1.16
+     * UndiePunch only rewrote the caster and the tag: a strike on a victim
+     * already in the loop keeps its death count and rekill timer.
      */
     public void armUndie(UUID caster) {
         boolean looping = undieActive();
@@ -106,8 +165,14 @@ public final class GerLivingState
             undieDeaths = 0;
             rekillDelay = 0;
             undiePhase = UndiePhase.NONE;
-            undieDeathSource = null;
         }
+    }
+
+    /** Out of the loop for good, with nothing kept of it: a victim the loop may not hold. */
+    public void clearUndie() {
+        markFinalDeath();
+        undieSoulCaster = null;
+        undieDeaths = 0;
     }
 
     public boolean undieActive() {
@@ -137,9 +202,8 @@ public final class GerLivingState
         return undiePhase != UndiePhase.NONE;
     }
 
-    public void acceptUndieDeath(DamageSource source) {
+    public void acceptUndieDeath() {
         undiePhase = UndiePhase.PENDING;
-        undieDeathSource = source;
         rekillDelay = 0;
     }
 
@@ -151,11 +215,6 @@ public final class GerLivingState
         undiePhase = UndiePhase.PULLING;
     }
 
-    /** The source of the death this loop accepted, kept for the rekill. */
-    @Nullable
-    public DamageSource undieDeathSource() {
-        return undieDeathSource;
-    }
 
     /**
      * Whether the victim's Stand was out when this loop death's window was
@@ -196,7 +255,6 @@ public final class GerLivingState
         undieCaster = null;
         rekillDelay = 0;
         undiePhase = UndiePhase.NONE;
-        undieDeathSource = null;
         undieStandSummoned = null;
         undieStandArms = null;
     }
@@ -272,6 +330,7 @@ public final class GerLivingState
         // respawn nor an End return carried over: the new player was free.
         disablerCaster = null;
         disablerTicks = 0;
+        untouchableTicks = 0;
         undieCaster = other.undieCaster;
         // The restriction belongs to the body that died its final death.
         undieSoulCaster = other.undieCaster != null
@@ -280,7 +339,6 @@ public final class GerLivingState
         undieDeaths = other.undieDeaths;
         rekillDelay = other.rekillDelay;
         undiePhase = other.undiePhase;
-        undieDeathSource = other.undieDeathSource;
         returnToZeroDisables.clear();
     }
 
@@ -320,7 +378,6 @@ public final class GerLivingState
         undieDeaths = Math.max(0, tag.getInt("UndieDeaths"));
         rekillDelay = Math.max(0, tag.getInt("RekillDelay"));
         undiePhase = UndiePhase.byOrdinal(tag.getByte("UndiePhase"));
-        undieDeathSource = null;
         returnToZeroDisables.clear();
     }
 

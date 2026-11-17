@@ -17,6 +17,7 @@ import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.addons.ger.GoldExperienceRequiemAddon;
 import rotp.addons.ger.entity.GerFieldEntity;
 import rotp.addons.ger.entity.GerStandEntity;
+import rotp.addons.ger.state.GerHitAnswerService;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -95,11 +96,14 @@ public final class GerDisablerAbility extends StandEntityAbility {
                 return;
             }
 
+            // The owner, 2026-11-08: never the user's own power; the
+            // lifeforms he created stay affected.
             serverLevel.getEntitiesOfClass(
                             LivingEntity.class,
                             owner.getBoundingBox().inflate(
                                     LEGACY_RADIUS),
                             target -> target != owner
+                                    && target != stand
                                     && target.isAlive())
                     .forEach(target ->
                             GoldExperienceRequiemAddon
@@ -107,6 +111,7 @@ public final class GerDisablerAbility extends StandEntityAbility {
                                     .applyDisabler(
                                             owner.getUUID(),
                                             LEGACY_DURATION_TICKS));
+            GerHitAnswerService.startUntouchable(owner);
 
             StandUtil.playStandEntitySound(
                     stand,

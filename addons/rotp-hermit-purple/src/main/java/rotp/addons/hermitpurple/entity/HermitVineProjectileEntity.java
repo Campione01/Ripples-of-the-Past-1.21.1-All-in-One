@@ -159,6 +159,11 @@ public final class HermitVineProjectileEntity
     }
 
     @Override
+    protected boolean runsInOwnerTime() {
+        return ordinaryFrameInitialized;
+    }
+
+    @Override
     public boolean isBodyPart() {
         return true;
     }
@@ -227,11 +232,14 @@ public final class HermitVineProjectileEntity
         float speed = 8.0F / ticksLifespan();
         double maximum = speed * speed * ticksLifespan()
                 / (speed + speed);
-        // The donor advances once more before switching to retraction.
+        int turnAge = (int) (maximum / speed);
+        double step = ownerTimeStep();
         boolean retracting = isRetracting();
-        ordinaryDistance += (retracting ? -speed : speed)
-                * getSpeedFactor();
-        if (!retracting && tickCount >= (int) (maximum / speed)) {
+        // Advance through the donor's turn tick, then spend any remaining time retracting.
+        double forward = retracting ? 0.0D
+                : Math.min(step, Math.max(0.0D, turnAge - (ownerTicks() - step)));
+        ordinaryDistance += speed * (2.0D * forward - step) * getSpeedFactor();
+        if (!retracting && ownerTicks() >= turnAge) {
             setRetracting(true);
             retracting = true;
         }
@@ -363,9 +371,7 @@ public final class HermitVineProjectileEntity
                 setDeltaMovement(Vec3.ZERO);
                 living.addEffect(new MobEffectInstance(
                         ModStatusEffects.STUN,
-                        Math.max(
-                                1,
-                                ticksLifespan() - tickCount),
+                        Math.max(1, serverTicksLeftInLifespan()),
                         0,
                         false,
                         false,

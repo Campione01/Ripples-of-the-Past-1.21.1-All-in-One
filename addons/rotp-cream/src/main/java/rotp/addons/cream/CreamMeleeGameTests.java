@@ -25,6 +25,7 @@ import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.ability.input.AbilityInput;
 import rotp.core.powersystem.ability.input.ActionInputBuffer.BufferingState;
+import rotp.core.impl.stands._entitybase.StandEntityPunchAbility.StandEntityPunch;
 import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
@@ -33,6 +34,7 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
+import rotp.core.powersystem.standpower.StandTuning;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.subsystems.target.ActionTarget;
@@ -83,6 +85,7 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.WallTorchBlock;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
@@ -91,6 +94,7 @@ import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.PlayLevelSoundEvent;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
@@ -490,6 +494,60 @@ public final class CreamMeleeGameTests {
             }
             owner.connection.disconnect(Component.literal(
                     "Cream idle placement GameTest complete"));
+        }
+        helper.succeed();
+    }
+
+    // R772.1 OQ-A08: Cream joins the level at its place behind its user, not on him, so no frame of the summon draws its
+    // body over his eyes in first person (the core places a Stand before it joins since c528a28d); nor do its first ticks.
+    @GameTest(
+            templateNamespace = TEMPLATE_NAMESPACE,
+            template = "empty",
+            timeoutTicks = 60)
+    public static void summonedCreamNeverCoversItsUsersEyes(
+            GameTestHelper helper) {
+        ServerPlayer owner = makeCompatibleMockPlayer(helper, "cream-summon-eyes");
+        Vec3 ownerPos = Vec3.atBottomCenterOf(
+                helper.absolutePos(new BlockPos(1, 12, 1)));
+        owner.setPos(ownerPos.x, ownerPos.y, ownerPos.z);
+        StandPower power = StandPower.get(owner);
+        Vec3[] atJoin = {null};
+        Consumer<EntityJoinLevelEvent> joins = event -> {
+            if (atJoin[0] == null && event.getEntity() instanceof CreamEntity) {
+                atJoin[0] = event.getEntity().position();
+            }
+        };
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, EntityJoinLevelEvent.class, joins);
+        StandEntity stand = null;
+        try {
+            helper.assertTrue(power != null,
+                    "Mock player has no StandPower attachment.");
+            power.setStand(CreamAddon.CREAM.get());
+            helper.assertTrue(CreamAddon.CREAM.get().summon(owner, power),
+                    "Cream could not be summoned.");
+            NeoForge.EVENT_BUS.unregister(joins);
+            stand = power.getSummonedStandEntity();
+            helper.assertTrue(stand instanceof CreamEntity && atJoin[0] != null,
+                    "Setup: Cream did not join the level on its summon.");
+            Vec3 eyes = owner.getEyePosition();
+            AABB joined = stand.getDimensions(stand.getPose()).makeBoundingBox(atJoin[0]);
+            helper.assertTrue(!joined.contains(eyes),
+                    "Cream joined the level with its body over its user's eyes: " + joined + " holds " + eyes);
+            stand.summonLockTicks = 0;
+            for (int tick = 1; tick <= 5; tick++) {
+                stand.tick();
+                helper.assertTrue(!stand.getBoundingBox().contains(eyes),
+                        "Cream's tick " + tick + " of its summon put its body over its user's eyes: "
+                                + stand.getBoundingBox());
+            }
+        }
+        finally {
+            NeoForge.EVENT_BUS.unregister(joins);
+            if (stand != null) {
+                stand.discard();
+            }
+            owner.connection.disconnect(Component.literal(
+                    "Cream summon placement GameTest complete"));
         }
         helper.succeed();
     }
@@ -2107,6 +2165,65 @@ public final class CreamMeleeGameTests {
         });
     }
 
+    // R772.1 (EV-STANDCFG outside_scope): the cancel's 20-tick lock is the void's own timing, so the Stands page's
+    // cooldown share (here 50%) leaves it whole; through a real press of the Ball key.
+    @GameTest(
+            templateNamespace = TEMPLATE_NAMESPACE,
+            template = "empty",
+            timeoutTicks = 100,
+            batch = "cream_void_cancel_lock_share")
+    public static void voidCancelLockIsNotTakenInTheCooldownShare(GameTestHelper helper) {
+        TestContext context = prepareCream(helper, "void-lock-share");
+        context.target().discard();
+        CreamEntity cream = (CreamEntity) context.stand();
+        StandTuning tuning = CreamAddon.CREAM.get().getTuning();
+        JsonObject half = new JsonObject();
+        half.addProperty("cooldowns", 50);
+        tuning.applyConfig(half);
+        short key = 260;
+        int[] ticks = {0};
+        boolean[] closed = {false};
+        Runnable leave = () -> {
+            closed[0] = true;
+            tuning.restoreDefaults();
+            AbilityInput.keyRelease(key, context.owner());
+            cleanup(context, "Cream void lock share GameTest done");
+        };
+        try {
+            Ability ball = context.power().getAbility(CreamAddon.CREAM_VOID_BALL_NAME);
+            helper.assertTrue(ball != null && tuning.cooldown(40) == 20, "Setup: no Ball, or the 50% share is not on");
+            context.power().setStamina(context.power().getMaxStamina());
+            EntityActionInstance running = press(helper, context, ball, ball, InputMethod.HOLD, key);
+            running.setPhase(ActionPhase.PERFORM, 0);
+            AbilityInput.keyRelease(key, context.owner());
+        }
+        catch (RuntimeException | Error failure) {
+            leave.run();
+            throw failure;
+        }
+        helper.onEachTick(() -> {
+            if (closed[0]) {
+                return;
+            }
+            try {
+                context.power().setStamina(context.power().getMaxStamina());
+                if (cream.getVoidMode() != CreamEntity.VoidMode.BALL) {
+                    helper.assertTrue(++ticks[0] <= 5, "the void did not start (mode " + cream.getVoidMode() + ")");
+                    return;
+                }
+                int lock = context.power().getAbilityCooldown(CreamAddon.CREAM_VOID_BALL_CANCEL_NAME);
+                helper.assertTrue(lock >= 19 && lock <= 20,
+                        "the cancel's lock took the 50% cooldown share: " + lock + " ticks, 1.16's timer is 20");
+                leave.run();
+                helper.succeed();
+            }
+            catch (RuntimeException | Error failure) {
+                leave.run();
+                throw failure;
+            }
+        });
+    }
+
     // What the server resolves the base key to now (the moves are cached once a tick, so this asks again).
     private static AbilityConditionCheck resolveKey(TestContext context, Ability base) {
         context.power()._curAvailableMoves.update(context.power(), context.power().getMoveset());
@@ -2474,6 +2591,10 @@ public final class CreamMeleeGameTests {
             helper.assertTrue(bones.has("right_arm") && bones.has("right_arm_bend"),
                     "Cream's heavy_punch (" + skin + ") lost its striking arm: " + bones.keySet());
             for (String bone : bones.keySet()) {
+                // the head is the shared head rule's, on the rig this skin has
+                if (bone.equals("head") || bone.equals("head_rot")) {
+                    continue;
+                }
                 helper.assertTrue(bones.get(bone).equals(coreBones.get(bone)),
                         "Cream's heavy_punch (" + skin + ") must stay the core default's hooking punch: " + bone
                                 + " " + bones.get(bone) + ", core " + coreBones.get(bone));
@@ -2872,6 +2993,267 @@ public final class CreamMeleeGameTests {
         helper.succeed();
     }
 
+    // R772.1 OQ-C04: the HUD lights a slot whose skill goes on with the Stand recalled; the void's slots answer so while
+    // the void runs from the user's tick, and stop when it ends.
+    @GameTest(
+            templateNamespace = TEMPLATE_NAMESPACE,
+            template = "empty",
+            timeoutTicks = 120,
+            batch = "cream_recall_sign")
+    public static void theVoidsSlotsSayItGoesOnWithCreamRecalled(
+            GameTestHelper helper) {
+        TestContext context = prepareCream(helper, "recall-sign");
+        ServerPlayer owner = context.owner();
+        owner.setGameMode(GameType.SURVIVAL);
+        StandPower power = context.power();
+        CreamEntity cream = (CreamEntity) context.stand();
+        Ability ball = power.getAbility(CreamAddon.CREAM_VOID_BALL_NAME);
+        Ability ballCancel = power.getAbility(CreamAddon.CREAM_VOID_BALL_CANCEL_NAME);
+        Ability semi = power.getAbility(CreamAddon.CREAM_SEMI_VOID_NAME);
+        Ability dash = power.getAbility(CreamAddon.CREAM_VOID_DASH_NAME);
+        helper.assertTrue(!ball.cl_runsWithStandRecalled(owner),
+                "Before any void the Ball slot must not say it goes on");
+        installDirect(helper, context, ball);
+        cream.beginVoidMode(CreamEntity.VoidMode.BALL);
+        cream.onUnsummonUserInput();
+        helper.runAfterDelay(cream.getUnsummonDuration() + 3, () -> {
+            try {
+                helper.assertTrue(power.getSummonedStandEntity() == null
+                                && CreamEntity.voidModeOf(owner) == CreamEntity.VoidMode.BALL,
+                        "Fixture: Cream is not recalled with its ball running");
+                helper.assertTrue(ball.cl_runsWithStandRecalled(owner) && ballCancel.cl_runsWithStandRecalled(owner),
+                        "The Ball and its cancel must say the void goes on with Cream recalled");
+                helper.assertTrue(!semi.cl_runsWithStandRecalled(owner) && !dash.cl_runsWithStandRecalled(owner),
+                        "Only the running mode's slots may say so");
+                helper.assertTrue(CreamAddon.CREAM.get().summon(owner, power), "Fixture: no next summon");
+                ((CreamEntity) power.getSummonedStandEntity()).endVoidMode(true);
+                CreamAddon.CREAM.get().forceUnsummon(owner, power);
+                helper.assertTrue(!ball.cl_runsWithStandRecalled(owner),
+                        "An ended void must not light its slot");
+            }
+            finally {
+                cleanup(context, "Cream recall sign GameTest done");
+            }
+            helper.succeed();
+        });
+    }
+
+    // The owner's rule of 2026-11-06, over 1.16's: the void goes on with Cream recalled. The mode, the flight, the
+    // invisibility, VOIDED, what it erases as it moves, all from its user's tick; Cream stays out of sight.
+    @GameTest(
+            templateNamespace = TEMPLATE_NAMESPACE,
+            template = "empty",
+            timeoutTicks = 120,
+            batch = "cream_recall_goes_on")
+    public static void theVoidGoesOnFromTheUsersTickThroughARecall(
+            GameTestHelper helper) {
+        TestContext context = prepareCream(helper, "recall-goes-on");
+        ServerPlayer owner = context.owner();
+        // Creative stamina is infinite, and its flight would not be the void's.
+        owner.setGameMode(GameType.SURVIVAL);
+        StandPower power = context.power();
+        CreamEntity cream = (CreamEntity) context.stand();
+        // The running action, as a press leaves it: the unsummon replaces it, and that must not end the void.
+        installDirect(helper, context, context.power().getAbility(CreamAddon.CREAM_VOID_BALL_NAME));
+        cream.beginVoidMode(CreamEntity.VoidMode.BALL);
+        cream.onUnsummonUserInput();
+        helper.assertTrue(cream.isInVoidState() && cream.isUnsummoning(),
+                "A press of the summon key must not end the void: mode " + cream.getVoidMode());
+        helper.runAfterDelay(cream.getUnsummonDuration() + 3, () -> {
+            helper.assertTrue(power.getSummonedStandEntity() == null && cream.isRemoved(),
+                    "Fixture: the recall left a Stand");
+            helper.assertTrue(CreamEntity.voidModeOf(owner) == CreamEntity.VoidMode.BALL,
+                    "The void ended with the recall: " + CreamEntity.voidModeOf(owner));
+            owner.removeEffect(CreamAddon.VOIDED);
+            owner.removeEffect(ModStatusEffects.FULL_INVISIBILITY);
+            owner.removeEffect(net.minecraft.world.effect.MobEffects.INVISIBILITY);
+            float stamina = power.getStamina();
+            Vec3 at = owner.position();
+            context.target().setPos(at.add(0.5D, 0.0D, 0.0D));
+            helper.runAfterDelay(3, () -> {
+                helper.assertTrue(owner.hasEffect(CreamAddon.VOIDED)
+                                && owner.hasEffect(CreamAddon.TRUE_BLINDNESS)
+                                && owner.hasEffect(ModStatusEffects.FULL_INVISIBILITY)
+                                && owner.hasEffect(net.minecraft.world.effect.MobEffects.INVISIBILITY),
+                        "The user's tick must keep the void's effects up");
+                helper.assertTrue(owner.getAbilities().mayfly && owner.getAbilities().flying,
+                        "The void's flight must go on");
+                helper.assertTrue(power.getStamina() < stamina,
+                        "Stamina must pay for the void with Cream recalled: " + stamina + " then " + power.getStamina());
+                helper.assertTrue(voidHit(context.target()),
+                        "What the void erased as it moved must go on being erased");
+                // A new ServerPlayer's sixty ticks of spawn protection would refuse this blow on their own.
+                setPrivateField(owner, ServerPlayer.class, "spawnInvulnerableTime", 0);
+                owner.invulnerableTime = 0;
+                helper.assertTrue(!owner.hurt(owner.damageSources().generic(), 4.0F),
+                        "The void must go on letting nothing in");
+                net.minecraft.nbt.CompoundTag saved = owner.serializeAttachments(owner.registryAccess());
+                helper.assertTrue(saved == null || !saved.contains("rotp_cream:recalled_void"),
+                        "A relog must not bring the void back: " + saved);
+                helper.assertTrue(helper.getLevel().getEntitiesOfClass(CreamEntity.class,
+                                        owner.getBoundingBox().inflate(8.0D))
+                                .isEmpty(),
+                        "Nothing of Cream may be left floating");
+
+                helper.assertTrue(CreamAddon.CREAM.get().summon(owner, power), "Fixture: no next summon");
+                CreamEntity next = (CreamEntity) power.getSummonedStandEntity();
+                helper.assertTrue(next.getVoidMode() == CreamEntity.VoidMode.BALL,
+                        "The next summon takes the void over: " + next.getVoidMode());
+                helper.assertTrue(!owner.hasData(CreamAddon.RECALLED_VOID),
+                        "The next summon takes the void off the user's attachment");
+                helper.assertTrue(next.hasEffect(ModStatusEffects.FULL_INVISIBILITY),
+                        "A Cream that takes over the ball stays out of sight from its first frame");
+                next.endVoidMode(true);
+                helper.assertTrue(!CreamEntity.isInVoidState(owner)
+                                && !owner.getAbilities().flying
+                                && power.isAbilityOnCooldown(CreamAddon.CREAM_VOID_BALL_NAME),
+                        "After the next summon the void's end works as ever: flying " + owner.getAbilities().flying);
+                CreamAddon.CREAM.get().forceUnsummon(owner, power);
+                cleanup(context, "Cream recall GameTest done");
+                helper.succeed();
+            });
+        });
+    }
+
+    @GameTest(
+            templateNamespace = TEMPLATE_NAMESPACE,
+            template = "empty",
+            timeoutTicks = 80,
+            batch = "cream_recall_stamina")
+    public static void aRecalledVoidIsPaidForAndEndedByStamina(
+            GameTestHelper helper) {
+        TestContext context = prepareCream(helper, "recall-stamina");
+        context.target().discard();
+        ServerPlayer owner = context.owner();
+        owner.setGameMode(GameType.SURVIVAL);
+        StandPower power = context.power();
+        CreamEntity cream = (CreamEntity) context.stand();
+        cream.beginVoidMode(CreamEntity.VoidMode.BALL);
+        CreamAddon.CREAM.get().forceUnsummon(owner, power);
+        helper.assertTrue(CreamEntity.isInVoidState(owner), "The void ended with the recall");
+        helper.assertTrue(CreamAddon.CREAM.get().getStaminaRegen(power) == 0.0F,
+                "A Stand away regains 3 a tick, past what a Resolve 4 void costs: "
+                        + CreamAddon.CREAM.get().getStaminaRegen(power));
+        power.setStamina(8.0F);
+        helper.runAfterDelay(8, () -> {
+            helper.assertTrue(!CreamEntity.isInVoidState(owner),
+                    "An empty bar must end the void, stamina " + power.getStamina());
+            helper.assertTrue(!owner.getAbilities().flying,
+                    "Its end must give the flight back");
+            helper.assertTrue(power.isAbilityOnCooldown(CreamAddon.CREAM_VOID_BALL_NAME),
+                    "An end by stamina sets the void's cooldown as ever");
+            helper.assertTrue(!owner.hasData(CreamAddon.RECALLED_VOID),
+                    "Nothing may be left on the user");
+            cleanup(context, "Cream recall stamina GameTest done");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(
+            templateNamespace = TEMPLATE_NAMESPACE,
+            template = "empty",
+            timeoutTicks = 80,
+            batch = "cream_recall_ends")
+    public static void aRecalledVoidEndsWithItsUserAndALossOfTheStand(
+            GameTestHelper helper) {
+        TestContext context = prepareCream(helper, "recall-ends");
+        context.target().discard();
+        ServerPlayer owner = context.owner();
+        owner.setGameMode(GameType.SURVIVAL);
+        StandPower power = context.power();
+
+        recallInTheVoid(helper, context, (CreamEntity) context.stand());
+        CreamGameEvents.onDeath(new net.neoforged.neoforge.event.entity.living.LivingDeathEvent(
+                owner, owner.damageSources().generic()));
+        assertNoVoidLeft(helper, owner, "Death");
+
+        againInTheVoid(helper, context);
+        CreamGameEvents.onLogout(new net.neoforged.neoforge.event.entity.player.PlayerEvent
+                .PlayerLoggedOutEvent(owner));
+        assertNoVoidLeft(helper, owner, "A logout");
+
+        againInTheVoid(helper, context);
+        CreamGameEvents.onDimensionChange(new net.neoforged.neoforge.event.entity.player.PlayerEvent
+                .PlayerChangedDimensionEvent(owner, net.minecraft.world.level.Level.OVERWORLD,
+                        net.minecraft.world.level.Level.NETHER));
+        assertNoVoidLeft(helper, owner, "A change of level");
+
+        // Taking the Stand away also empties the bar, which ends a void on its own: another Stand does not.
+        againInTheVoid(helper, context);
+        power.setStand(rotp.core.init.power.ModStands.STAR_PLATINUM.get());
+        power.setStamina(power.getMaxStamina());
+        helper.runAfterDelay(2, () -> {
+            assertNoVoidLeft(helper, owner, "Another Stand");
+            power.setStand(CreamAddon.CREAM.get());
+            power.setStamina(power.getMaxStamina());
+            againInTheVoid(helper, context);
+            power.setStand(null);
+            helper.runAfterDelay(2, () -> {
+                assertNoVoidLeft(helper, owner, "The loss of the Stand");
+                cleanup(context, "Cream recall ends GameTest done");
+                helper.succeed();
+            });
+        });
+    }
+
+    private static void againInTheVoid(GameTestHelper helper, TestContext context) {
+        helper.assertTrue(CreamAddon.CREAM.get().summon(context.owner(), context.power()), "Fixture: no summon");
+        recallInTheVoid(helper, context, (CreamEntity) context.power().getSummonedStandEntity());
+    }
+
+    // With the running action a press leaves: a forced unsummon clears it first, and that must not end the void.
+    private static void recallInTheVoid(GameTestHelper helper, TestContext context, CreamEntity cream) {
+        EntityActionType semi = (EntityActionType) context.power().getAbility(CreamAddon.CREAM_SEMI_VOID_NAME);
+        EntityActionInstance action = semi.createActionObj();
+        semi.initActionFromConfig(action, helper.getLevel(), context.owner(), cream);
+        action.setStartingPhase();
+        LivingComponentAction.getComponent(cream).setAction(action, context.owner(), SyncType.NO_SYNC);
+        cream.beginVoidMode(CreamEntity.VoidMode.SEMI);
+        helper.assertTrue(context.owner().getAbilities().flying, "Fixture: the void gave no flight");
+        CreamAddon.CREAM.get().forceUnsummon(context.owner(), context.power());
+        helper.assertTrue(CreamEntity.voidModeOf(context.owner()) == CreamEntity.VoidMode.SEMI,
+                "Fixture: the void did not go on through the recall");
+    }
+
+    private static void assertNoVoidLeft(GameTestHelper helper, ServerPlayer owner, String what) {
+        helper.assertTrue(!CreamEntity.isInVoidState(owner) && !owner.hasData(CreamAddon.RECALLED_VOID),
+                what + " must end the void: " + CreamEntity.voidModeOf(owner));
+        helper.assertTrue(!owner.getAbilities().flying && !owner.getAbilities().mayfly,
+                what + " must give the flight back");
+        helper.assertTrue(!owner.hasEffect(CreamAddon.INSIDE_CREAM) && !owner.hasEffect(CreamAddon.VOIDED)
+                        && !owner.hasEffect(CreamAddon.TRUE_BLINDNESS),
+                what + " must leave no effect of the void");
+    }
+
+    // The dash ends with its own 20-tick action, which a recall takes away: it must not run on for ever on an ignored
+    // payment (CreamEntity.tickVoidState pays the dash's cost with the result ignored).
+    @GameTest(
+            templateNamespace = TEMPLATE_NAMESPACE,
+            template = "empty",
+            timeoutTicks = 80,
+            batch = "cream_recall_dash")
+    public static void aDashRecalledInItsCourseStillLastsItsTwentyTicks(
+            GameTestHelper helper) {
+        TestContext context = prepareCream(helper, "recall-dash");
+        context.target().discard();
+        ServerPlayer owner = context.owner();
+        owner.setGameMode(GameType.SURVIVAL);
+        CreamEntity cream = (CreamEntity) context.stand();
+        cream.beginVoidMode(CreamEntity.VoidMode.DASH);
+        CreamAddon.CREAM.get().forceUnsummon(owner, context.power());
+        helper.assertTrue(CreamEntity.voidModeOf(owner) == CreamEntity.VoidMode.DASH,
+                "Fixture: the dash did not go on through the recall");
+        helper.runAfterDelay(CreamSpec.VOID_DASH_TICKS - 5, () -> helper.assertTrue(
+                CreamEntity.voidModeOf(owner) == CreamEntity.VoidMode.DASH,
+                "The dash ended before its twenty ticks"));
+        helper.runAfterDelay(CreamSpec.VOID_DASH_TICKS + 3, () -> {
+            helper.assertTrue(!CreamEntity.isInVoidState(owner),
+                    "The dash must end at its twenty ticks with no action to end it: " + cream.getVoidTicks());
+            cleanup(context, "Cream recall dash GameTest done");
+            helper.succeed();
+        });
+    }
+
     // The entity Chomp's ability name offers (getName itself loads client
     // classes on a dedicated server).
     private static Entity hudChompTarget(LivingEntity user) {
@@ -3037,6 +3419,63 @@ public final class CreamMeleeGameTests {
                         + dy + ", " + dz + ") with " + when + ", got " + actual
                         + " (offset " + stand.offsetFromUser.getRelativeOffset()
                         + " " + stand.offsetFromUser.getRotations() + ").");
+    }
+
+    // 1.16 CreamClaw kept the light attack's alternating jab, one move mirrored per
+    // hand: a press swings the hand the last one did not and asks for that hand's
+    // clip, which resolves on punch or its mirror. The chop stays on its own clip,
+    // whichever hand punched last.
+    @GameTest(
+            templateNamespace = TEMPLATE_NAMESPACE,
+            template = "empty",
+            timeoutTicks = 200)
+    public static void twoPressesSwingTwoHands(
+            GameTestHelper helper) {
+        TestContext context = prepareCream(helper, "two-hands");
+        placeTarget(context, false);
+        Ability punch = requireAbility(helper, context, "punch");
+        StandEntityPunch first = (StandEntityPunch) press(
+                helper, context, punch, punch, InputMethod.CLICK, (short) 230);
+        AbilityInput.keyRelease((short) 230, context.owner());
+        InteractionHand firstHand = first.getPunchingHand();
+        String firstClip = first.getEntityAnim().name();
+        helper.runAfterDelay(60, () -> {
+            try {
+                helper.assertTrue(first.isOver(),
+                        "setup: the first punch is still on at the second press");
+                synchronizeAim(context);
+                StandEntityPunch second = (StandEntityPunch) press(
+                        helper, context, punch, punch, InputMethod.CLICK, (short) 231);
+                AbilityInput.keyRelease((short) 231, context.owner());
+                InteractionHand secondHand = second.getPunchingHand();
+                String secondClip = second.getEntityAnim().name();
+                helper.assertTrue(firstHand != secondHand,
+                        "Two presses swung the same hand: " + firstHand);
+                HumanoidArm mainArm = context.stand().getMainArm();
+                helper.assertTrue(firstClip.equals(handClip(firstHand, mainArm))
+                                && secondClip.equals(handClip(secondHand, mainArm)),
+                        "Two presses asked for " + firstClip + " and " + secondClip
+                                + " with " + firstHand + " and " + secondHand
+                                + ", main arm " + mainArm);
+
+                clearAction(context.stand());
+                Ability chop = requireAbility(helper, context, CreamAddon.CREAM_CHOP_NAME);
+                EntityActionInstance chopAction = press(
+                        helper, context, chop, chop, InputMethod.CLICK, (short) 232);
+                AbilityInput.keyRelease((short) 232, context.owner());
+                helper.assertTrue(CreamAddon.CREAM_CHOP_NAME.equals(chopAction.getEntityAnim().name()),
+                        "The chop asked for " + chopAction.getEntityAnim().name());
+            }
+            finally {
+                cleanup(context, "Cream two hands GameTest done");
+            }
+            helper.succeed();
+        });
+    }
+
+    private static String handClip(InteractionHand hand, HumanoidArm mainArm) {
+        HumanoidArm arm = hand == InteractionHand.MAIN_HAND ? mainArm : mainArm.getOpposite();
+        return arm == HumanoidArm.LEFT ? "punch_left" : "punch_right";
     }
 
     private static void runClickRoute(

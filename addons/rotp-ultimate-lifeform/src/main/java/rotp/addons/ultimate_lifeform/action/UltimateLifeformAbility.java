@@ -1,9 +1,11 @@
 package rotp.addons.ultimate_lifeform.action;
 
 import rotp.core.powersystem.Power;
+import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.EntityActionAbility;
+import rotp.core.powersystem.ability.condition.AvailableAbilities;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
 import rotp.core.powersystem.entityaction.ActionPhase;
@@ -199,6 +201,31 @@ public final class UltimateLifeformAbility
                 action.phasesLength.put(ActionPhase.BUTTON_CHARGE, 80.0F);
             }
         }
+    }
+
+    // 1.16 isUnlocked of the Light, Wind and Heat moves, through isActionLegalInHud: another mode's moves were off the bar
+    @Override
+    public boolean isAbilityAvailable(Power<?> context) {
+        if (!super.isAbilityAvailable(context)) {
+            return false;
+        }
+        UltimateLifeformData data = data(context);
+        return spec.requiredMode == null
+                || data != null && data.getPreviousMode() == spec.requiredMode;
+    }
+
+    @Override
+    public Ability replaceWithSubAbility(
+            Power<?> context, AvailableAbilities abilities) {
+        UltimateLifeformData data = data(context);
+        UltimateLifeformSpec variation = data != null
+                ? spec.contextVariation(
+                        data.getHamonCharge(), data.getPreviousMode())
+                : null;
+        Ability replacement = variation != null
+                ? context.getMoveset().getAbility(variation.id)
+                : null;
+        return replacement != null ? replacement : this;
     }
 
     @Override

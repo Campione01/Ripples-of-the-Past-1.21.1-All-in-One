@@ -8,6 +8,6 @@
   "death.attack.rotp_harvest_bite.player": "%s 被 %s 咬碎",
   "entity.rotp_harvest.harvest": "『收成者』",
   "entity.rotp_harvest.harvest_stand": "『收成者』",
-  "stand.rotp_harvest.harvest_stand": "收成者",
+  "stand.rotp_harvest.harvest_stand": "『收成者』",
   "rotp_harvest.subtitle.hv_step": "收成者脚步声"
 }

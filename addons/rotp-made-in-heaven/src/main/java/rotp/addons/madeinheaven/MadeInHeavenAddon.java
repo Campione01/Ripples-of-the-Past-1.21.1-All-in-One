@@ -29,6 +29,7 @@ import rotp.addons.madeinheaven.ability.MadeInHeavenChopAbility;
 import rotp.addons.madeinheaven.ability.MadeInHeavenHeavyPunchAbility;
 import rotp.addons.madeinheaven.ability.TimeAuraAbility;
 import rotp.addons.madeinheaven.ability.TimeSystemAbility;
+import rotp.addons.madeinheaven.ability.TimeSystemPauseAbility;
 import rotp.addons.madeinheaven.ability.UniverseResetAbility;
 import rotp.addons.madeinheaven.entity.MadeInHeavenStandEntity;
 import rotp.addons.madeinheaven.network.TimeAccelerationStatePayload;
@@ -71,6 +72,8 @@ public final class MadeInHeavenAddon {
     public static final String TIME_SYSTEM_NAME = "time_system";
     public static final String TIME_SYSTEM_CLEAR_NAME =
             "time_system_clear";
+    public static final String TIME_SYSTEM_PAUSE_NAME =
+            "time_system_pause";
     public static final String UNIVERSE_RESET_NAME =
             "universe_reset";
 
@@ -150,6 +153,11 @@ public final class MadeInHeavenAddon {
                                             type,
                                             abilityId,
                                             true)));
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<TimeSystemPauseAbility>>
+            TIME_SYSTEM_PAUSE = ABILITY_TYPES.register(
+                    TIME_SYSTEM_PAUSE_NAME,
+                    key -> new AbilityType<>(key, TimeSystemPauseAbility::new));
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<UniverseResetAbility>>
             UNIVERSE_RESET = ABILITY_TYPES.register(
@@ -380,6 +388,7 @@ public final class MadeInHeavenAddon {
                 .addAbility(
                         TIME_SYSTEM_CLEAR_NAME,
                         TIME_SYSTEM_CLEAR)
+                .addAbility(TIME_SYSTEM_PAUSE_NAME, TIME_SYSTEM_PAUSE)
                 .addAbility(
                         UNIVERSE_RESET_NAME,
                         UNIVERSE_RESET)
@@ -429,6 +438,9 @@ public final class MadeInHeavenAddon {
                             TIME_SYSTEM_NAME,
                             0,
                             InputMethod.HOLD)
+                    .addHotbarSlotVariation(
+                            TIME_SYSTEM_PAUSE_NAME, TIME_SYSTEM_NAME,
+                            InputKey.Modifier.SHIFT, InputMethod.CLICK)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")
                     .bind(
@@ -506,7 +518,7 @@ public final class MadeInHeavenAddon {
                                 .startingAbility(
                                         TIME_SYSTEM_NAME)
                                 .withAbility(
-                                        TIME_SYSTEM_CLEAR_NAME))
+                                        TIME_SYSTEM_CLEAR_NAME, TIME_SYSTEM_PAUSE_NAME))
                 .addSkill(
                         StandUnlockableSkill
                                 .unlockableAbility(

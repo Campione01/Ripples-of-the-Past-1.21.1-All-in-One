@@ -204,10 +204,6 @@ public final class BoneShardDamageGameTests {
                 DiverDownAuthority.clearOwnedBy(helper.getLevel().getServer(), fixture.owner.getUUID());
                 int left = shards(helper, fixture);
                 helper.assertTrue(left == 0, "The owner clean-up left " + left + " of " + CLEANUP_SHARDS + " shards");
-                spawnShards(helper, fixture, CLEANUP_SHARDS);
-                DiverDownAuthority.clearForStand(helper.getLevel(), fixture.stand.getUUID());
-                left = shards(helper, fixture);
-                helper.assertTrue(left == 0, "The Stand clean-up left " + left + " of " + CLEANUP_SHARDS + " shards");
                 helper.succeed();
             } finally {
                 cleanup(helper, fixture);

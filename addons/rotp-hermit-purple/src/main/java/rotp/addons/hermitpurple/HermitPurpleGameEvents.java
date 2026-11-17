@@ -2,6 +2,7 @@ package rotp.addons.hermitpurple;
 
 import rotp.core.api.stand.AutomatedStandGrantVetoes;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.StandDamageContext;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.impl.powers.hamon.ModHamonSkills;
 
@@ -84,22 +85,26 @@ public final class HermitPurpleGameEvents {
                 && !(attacker instanceof Player player
                         && (player.isCreative()
                                 || player.isSpectator()))) {
-            attacker.hurt(
-                    victim.damageSources().thorns(victim),
-                    HermitPurpleSpec
-                            .THORNS_REFLECT_DAMAGE);
-            if (HermitHamon.hasSkill(
-                            victim,
-                            ModHamonSkills
-                                    .THROWABLES_INFUSION
-                                    .get())
-                    && HermitHamon.hasChargedVines(victim)) {
-                HermitHamon.hurt(
-                        attacker,
-                        victim,
+            // the reflected hit is the Stand's work: it takes the Stand's damage share
+            try (var running = StandDamageContext.enter(
+                    StandPower.get(victim))) {
+                attacker.hurt(
+                        victim.damageSources().thorns(victim),
                         HermitPurpleSpec
-                                .THORNS_HAMON_REFLECT_DAMAGE,
-                        false);
+                                .THORNS_REFLECT_DAMAGE);
+                if (HermitHamon.hasSkill(
+                                victim,
+                                ModHamonSkills
+                                        .THROWABLES_INFUSION
+                                        .get())
+                        && HermitHamon.hasChargedVines(victim)) {
+                    HermitHamon.hurt(
+                            attacker,
+                            victim,
+                            HermitPurpleSpec
+                                    .THORNS_HAMON_REFLECT_DAMAGE,
+                            false);
+                }
             }
         }
     }

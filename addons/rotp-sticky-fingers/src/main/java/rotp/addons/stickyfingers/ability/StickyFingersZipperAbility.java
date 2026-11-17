@@ -22,10 +22,12 @@ import rotp.core.powersystem.entityaction.HeldInput;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.util.functions.JojoModUtil;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.stickyfingers.StickyFingersAddon;
 import rotp.addons.stickyfingers.StickyFingersPhase1Spec;
 import rotp.addons.stickyfingers.block.StickyFingersZipperBlock;
+import rotp.addons.stickyfingers.state.RecallSign;
 import rotp.addons.stickyfingers.state.ZipperInGround;
 import rotp.addons.stickyfingers.state.ZipperLeaseData;
 import net.minecraft.core.BlockPos;
@@ -59,6 +61,12 @@ public final class StickyFingersZipperAbility extends Ability {
             AbilityType<?> abilityType, AbilityId abilityId) {
         super(abilityType, abilityId);
         partsRequired(StandPart.ARMS);
+    }
+
+    // the user's zippers on blocks go on with the Stand recalled: the HUD lights the slot while he has one
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        return RecallSign.has(user, RecallSign.ZIPPERS);
     }
 
     @Override
@@ -95,8 +103,8 @@ public final class StickyFingersZipperAbility extends Ability {
                 && user.level().getBlockState(hit.getBlockPos())
                         .is(StickyFingersAddon
                                 .STICKY_FINGERS_ZIPPER.get())) {
-            // 1.16: plain press removes, Shift toggles
-            return user.isShiftKeyDown()
+            // 1.16: plain press removes, the variation key toggles
+            return StandManualInput.isShiftHeld(user)
                     ? "sticky_fingers_toggle_zipper"
                     : "sticky_fingers_remove_zipper";
         }

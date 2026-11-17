@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-king-crimson`, mod id `rotp_kingcrimson`, version `1.0.3-port.31`.
+- Module: `rotp-king-crimson`, mod id `rotp_kingcrimson`, version `1.0.3-port.32`.
 - Original 1.16.5 add-on: `RotP-绯红之王-1.0.3.jar` (RotP 绯红之王, mod id `rotp_kingcrimson`), by HelloThere, DeezQuartz, StandoByte; declared license: GNU GPL v3.0; SHA-256 `72528112AC68750B0499414626AFEBDF5695F4C554F185FDFE19B5845B60E2F0`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-13); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -67,41 +67,23 @@ core-managed addon post-effect lifecycle. Its only reachable chain is
 chain for Super Resolution's injected-chain blacklist but does not read or
 write Iris or Super Resolution state.
 
-Epitaph's vision (2026-09-15, beyond the donor, which kept only the reaction to
-a foreseen hit): while Epitaph is armed the server predicts where nearby
-creatures will be (navigation path at current speed, otherwise current motion)
-and how nearby projectiles will fly (own gravity and drag, stopped at blocks),
-1, 3, 6 and 10 seconds ahead at resolve levels 1 to 4, and sends the result to
-the Epitaph user alone. The client shows each foreseen creature as a
-half-transparent red afterimage and each flight as red dust, brighter where it
-reaches the user; images are client-only afterimage entities that vanish when
-Epitaph ends or the creature leaves the foreseen future, and fade out near the
-camera.
+Epitaph's estimated vision (2026-09-15, beyond the donor, which kept only the
+reaction to a foreseen hit) drew a dark-red image where each creature was
+expected to be, and from round 24 a fate held creatures to it. The estimated
+vision and the fates are both gone since R772.1, with all their code: the
+server estimates no path or flight, no creature is held to one, and no vision
+image is drawn. The half-transparent drawing of those images (owner decision
+2026-09-23) went with them, so the afterimage entity and its renderer draw Time
+Erase afterimages alone, in the plain buffer under the dark red tint.
 
-The images are truly half-transparent by the owner's decision of 2026-09-23.
-Before it most creature images drew opaque: an image scaled its vertex alpha to
-0.55, but most creatures draw their bodies in cutout or solid entity render
-types, which ignore vertex alpha, so only players, Stands and the few creatures
-drawn translucent anyway (allays, vexes, breezes) showed through. The renderer
-now draws the cutout and solid entity types of the foreseen creature's own
-texture in the translucent entity type of that texture, matched against
-vanilla's cached types, still dark red at 0.55 opacity. Layers with a texture of
-their own (armour, wool, clothing, saddles, collars) and specially rendered
-items such as shields, tridents and mob heads stay opaque, and glowing eyes stay
-additive; held items with ordinary item models already drew translucent through
-the core's alpha buffer. Time Erase afterimages are unchanged.
-
-As in the manga, what Epitaph foresees for a creature is certain (2026-09-15,
-round 24): a navigating mob keeps to the exact path it was foreseen on until it
-arrives, whatever its AI decides; a mob moving without a path keeps its momentum
-for one second. A mob thrown more than six blocks off its course is released
-and foreseen anew after half a second. Other players and Stands keep their own
-will. Letting go of the Epitaph key keeps the vision for the rest of its window
-(the foresight plus two seconds), so Time Erase can follow it; starting Time
-Erase no longer ends Epitaph. Since round 69 the fates persist through Time
-Erase: neither its start nor its end releases them, so what Epitaph foresaw
-still comes true after the erased time. Fates live only on the Epitaph user's
-server-side state and are never saved.
+Since R772.1 Epitaph is a foresight of the owner's own design (2026-11-07 to
+2026-11-11) in own code. At the press the server copies the user and the
+creatures, players and Stands around him into a sealed room that changes
+nothing in the real world, runs that room ahead and shows it to the user. The
+real bodies are then led through what was foreseen, so it comes true; with the
+pull-back setting on, a foreseen player and what he changed meanwhile are first
+put back to the press. A Time Erase begun during that walk takes its user out
+of what was foreseen. The room is never saved.
 
 Phase 4 adds the canonical heavy-punch replacement chain: ordinary Heavy Punch,
 Ground Punch, its Ground Slam finisher, and the low-health Desperate Eyejab
@@ -150,6 +132,18 @@ effect at amplifier 999999, the summoned Stand receives regular invisibility,
 and pre-existing owner and Stand effects are restored on exit. As in the
 donor, sprinting is not cancelled during Time Erase.
 
+Beyond the donor, Time Erase's decoy goes on with what its user's keys did at
+the press (walking, sprinting, sneaking, jumping and the motion he had) and does
+not fight; a killed decoy simply disappears. Since R772.1 (the owner's design
+of 2026-11-07) the decoy also decides at the press whether to carry on, to
+keep its distance from a threat, to flee or to stand, and walks a path of the
+vanilla ground navigation instead of holding a key blindly; it deals no
+damage, picks nothing up and drops nothing. The idea of a decoy that acts out
+the user's input, chooses what to do at the press and follows a path comes
+from the King Crimson clone of Roundabout by Hydraheads
+(https://github.com/Hydraheads/RoundaboutMod). No Roundabout code or asset is
+used: the implementation is this port's own, under this module's license.
+
 The canonical Time Erase sky textures, all sixteen Time Skip frames, default
 ability icons, effect icon, and all 72 packaged sound payloads are restored at
 their original active paths. The canonical
@@ -158,24 +152,34 @@ their original active paths. The canonical
 `diavolo_kingcrimson` event as a recorded fallback. All donor action icons,
 including the thirty per-skin Time Erase and Time Skip variants, now retain
 their original `textures/action` paths and current `textures/ability` aliases.
-The Epitaph future-branch `epitaph_timeskip.ogg` is active and hash-pinned.
-At resolve level 3 or above, a predicted hit with an attacker now consumes the
-donor's additional 150 stamina and enters the bounded current Time Skip state
-toward the attacker. The port advances only the canonical 40 implied age ticks,
-never recursively ticks nearby entities, and falls back to the existing safe
-dodge when the future branch cannot start. As in the donor, a fall or a crash
-into a wall is only the Time Skip flash and the Epitaph sound (no stamina, no
-move), and a hit with no attacker costs the 150 stamina without moving the
-user. Below level 3 every hit except a fall, a wall crash and an explosion is
-dodged, projectiles and attacker-less damage included.
+The Epitaph future-branch `epitaph_timeskip.ogg` stays packaged and
+hash-pinned. Until R772.1 the port restored the donor's reaction to a
+predicted hit: a dodge, and from resolve level 3 the future branch (the
+donor's additional 150 stamina, a bounded Time Skip toward the attacker, the
+canonical 40 implied age ticks). By the owner's decision of 2026-11-07 Epitaph
+no longer dodges. A hit is now answered by a passive skill of this port's own
+design, unlocked with Time Erase and working with or without Epitaph held: a
+hit above a tenth of max health is escaped by a two-second Time Erase (300
+stamina, 30 seconds of cooldown), and a killing hit, or any hit at a tenth of
+health or below, by a four-second one for free, once in ten minutes. The
+donor's numbers of the future branch remain recorded in
+`KingCrimsonDonorGameplaySpec` and in the donor gameplay manifest; no code
+reads them. By the ruling of 2026-11-11 the sound of that branch plays again:
+at the start of a passive erase, to its user alone.
 
 The donor's custom barrage pair is also active. The normal barrage retains
 the donor's half-health gate at resolve level 3 or above and contextually
 switches to the separately registered Doppio barrage while the Stand is
 absent or arms-only. Doppio keeps its own cry, 60-tick cooldown, half-health
 gate, and arms-only auto-summon behavior. The donor registers Bloodthrow only
-as a sound/icon asset and never registers or calls a Bloodthrow action.
-No Bloodthrow gameplay has been invented.
+as a sound/icon asset and never registers or calls a Bloodthrow action, so
+there is no donor Bloodthrow gameplay to port. Blood Throw as this port has it
+since R772.1 is the owner's own design of 2026-11-07, on that sound event and
+icon: during a Time Erase its user flicks blood at whom he aims at (2 health,
+50 stamina, 10 seconds of cooldown), and when the erase ends it lands, over a
+player's screen through the core's `ScreenSplash`, as half blindness on a
+creature. The donor's event had no audio; it now plays the module's own
+`kingcrimson_dash` recording.
 
 The donor also constructs the seven-event `kc_ost` graph and binds it to the
 King Crimson Stand. All seven registrations and their canonical event
@@ -183,10 +187,17 @@ references are restored through the current core `OstSoundList`; the four
 streamed tracks under `sounds/ost/king_crimson_1.ogg` through
 `king_crimson_4.ogg` are byte-exact copies from the hash-pinned donor.
 
-No legacy reflection or donor mixin is copied. The addon's own three mixins,
-added in round 69, only end Time Erase when a Stand punch or barrage reaches
-its perform phase and keep the caster's own Time Erase decoy and its Stand out
-of the caster's targeting; they touch no render state. The addon performs no
+No legacy reflection or donor mixin is copied. The addon's own gameplay mixins
+touch no render state. Two date from round 69: they end Time Erase when a
+Stand punch or barrage reaches its perform phase and keep the caster's own
+Time Erase decoy's Stand out of the caster's pick. R772.1 adds five for the
+rebuilt Time Erase: `TimeEraseReachEntityMixin`, `TimeEraseReachLivingMixin`
+and `TimeEraseReachPlayerMixin` (what the world asks of an entity is answered
+for an erasing user as for nobody there), `TimeEraseShiftLerpMixin` (on the
+erasing user's client another player's entity is put on his shifted image)
+and `LivingLastHurtAccessor` (the passive reads the last hit taken). One more
+runs on the client alone, `TimeEraseOutsideParticleMixin`: it decides which
+particles the erasing user's particle engine lets in. The addon performs no
 framebuffer takeover or global render cancellation, and it copies no static
 player map, Iris mutation, or Super Resolution mutation. No global renderer
 mutation is copied. The donor's owner-only dark-red moving afterimage, tracked
@@ -194,8 +205,9 @@ player-profile decoy and Stand, mob redirection, and lifecycle cleanup are
 restored with module-owned entities and payloads. The donor's delayed entity
 rewind is not restored: by the owner's decision of 2026-09-23 (manga logic,
 where the world simply resumes at the end of the erased time), Time Erase end
-moves no real entity. The donor's full-color stationary afterimage is not
-spawned either. It did two things, for the Time Erase user alone: it marked
+rewinds no real entity (since R772.1 it does put the other players forward,
+onto the images the erasing user saw of them; see the rebuild below). The
+donor's full-color stationary afterimage is not spawned either. It did two things, for the Time Erase user alone: it marked
 where each entity would be rewound to, and, glowing on the red `KC_RedGlow`
 team, it showed an outline of every tracked creature within 192 blocks through
 walls (where the creature stood when the erase began, later trailing it by 60
@@ -209,9 +221,12 @@ outline is drawn only where the afterimage itself renders, about 64 blocks from
 the camera at the default Entity Distance, the same limit as 1.16 (both
 versions size it 0.6x1.8), and only for creatures the owner's client tracks.
 No other player receives these afterimages, so no
-other player sees the outline. Epitaph vision images are never outlined.
-Observer terrain, weather, particle, and block-entity suppression uses the core
-observer policy API and only the local Time Erase observer. Renderers that
+other player sees the outline.
+Observer terrain, weather, and block-entity suppression uses the core
+observer policy API and only the local Time Erase observer. Since R772.1 the
+particle pass is drawn again: the erasing user's own particle engine lets in
+only the particles near creatures and moving things outside the erase, in red
+and capped, and his own thrown blood. Renderers that
 bypass the guarded vanilla methods remain unsupported and fail open; no Iris or
 Sodium equivalence is claimed.
 
@@ -231,7 +246,68 @@ fully equivalent duplicates: every SHA-256 matches an active ability resource
 and none is stranded. `kingcrimson_bloodthrow` and `doppio_damnit` are the only
 proven-inert gameplay registrations; donor evidence records zero action
 registrations and zero runtime call sites while their media bytes remain
-packaged. Exact restoration of the two filenames absent from the canonical
+packaged (Blood Throw's present gameplay is the owner's design recorded above,
+not the donor's). Exact restoration of the two filenames absent from the canonical
 donor and world-pass equivalence in renderers that bypass vanilla guards are
 external-blocked; their active local fallbacks and fail-open boundaries are
 recorded rather than hidden by deletion.
+
+Time Erase's rebuild of R772.1 (2026-11-07 to 2026-11-11, the owner's design)
+is this port's own code throughout: the erase's length by Resolve level and
+setting, the erasing user out of the world's reach, the other players' shifted
+images and their landing at the end, the day's clock moved on by the erased
+time, the creatures' short pause after the end, the erase ended by another
+time ability, the decoy's choices, the passive reflex and last-chance erases,
+Blood Throw, the Time Erase Step and the erasing user's view of what moves
+outside. It uses the core's public `DefencePiercing`, `MobAiPause`,
+`TimeEraseWitnesses`, `TimeEraseRunningEvent`, `TimeEraseStartEvent`,
+`BlinkLanding` and `ScreenSplash`; the step follows the model of the core's
+time-stop blink. No donor code exists for any of it. The Time Erase Step's icon
+is derived by this project's own script from each skin's Time Erase icon (the
+face cut on its trailing side, three speed lines behind it), sixteen files
+named `textures/ability/kingcrimson_timeerase_step.png`; the donor has no such
+icon.
+
+The owner's rules of 2026-11-11 for the erase are own code as well: two erasing
+users who cannot reach each other, the bounded drift of creatures, the erase of
+a creature that carries King Crimson (its own body stays in the world, an
+unseen fake body of its kind hunts the player's drifted place, the entity type
+`time_erase_drift_body` stands there for him, one swap at the strike, a passive
+escape from a killing hit), the unused share of the start's stamina given back
+at an early end, and a cooldown that goes by the ticks the erase ran (as long
+as it ran by default since 2026-11-12; the donor's setting, which the donor
+never applied, said twice). They use
+the core's public `CreeperFuseSuppressionProviders`, `StandAbilityStamina`,
+`TimeStopLearning` and `PerceptionBlockers` besides the classes named above.
+In the mode with no cooldowns the erase and its step meet the core's
+`StandAbilityFatigue` as its time stop does; the reflex is its small practical
+skill and waits for nothing there, and the last chance keeps its own wait in
+both modes.
+Another add-on answers a creature's erase through
+`KingCrimsonCreatureErase.registerAnswer`; King Crimson calls no other add-on.
+
+Time Erase's breaking ground (2026-11-05) is own code. The rising blocks follow an
+idea of Roundabout (https://github.com/Hydraheads/RoundaboutMod), design only: no
+Roundabout code or asset is used. The wind's strip in
+`assets/rotp_kingcrimson/textures/environment/time_erase_crests.png` is own work,
+made by this project's own generator.
+
+The universe of `shaders/core/time_erase_universe.fsh` (2026-11-07) is own work, generated
+from this project's patch for the iterationRP shader pack, not from that pack's code. Its
+display transform carries the minimal AgX fit of Benjamin Wrensch
+(https://iolite-engine.com/blog_posts/minimal_agx_implementation, MIT license), with the
+curve's constants as the pack uses them. `time_erase_halo` and `time_erase_outline` are own
+work; the outline's line expansion follows vanilla's `rendertype_lines` in method.
+
+The look of the erase in R772.1 (2026-11-12) is own code as well: whole blocks of the ground
+that float up off the plates after the crack, as the anime shows the erased world (an idea of
+the anime; no asset of it is used); the floor lines graded by their depth under the feet; the
+crimson halo of the afterimages with no shader pack too, the vanilla red outline staying only as
+its fallback; plate levels above 96 for a pack that declares
+`rotp_kingcrimson:time_erase_plate_light` in its id map; the plates' merged undersides drawn
+with the block's own texture; daylight on the real ground held before the plates and on a pack
+that does not declare the void; a public read-only view of the running erase and the near plan's
+law for a far plan, for the far-terrain add-on. The keys of chop, impale, throw and ground slam
+no longer pass through the bind pose in their first tick (the donor's first pose of each was the
+bind pose; dropped as for the other add-ons' clips). On a pack that does not declare the void the
+universe fades off the returned world over half a second, so that the pack's exposure can follow.

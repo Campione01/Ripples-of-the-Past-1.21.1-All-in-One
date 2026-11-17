@@ -17,6 +17,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.AimingEntity;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import javax.annotation.Nullable;
 
@@ -302,7 +303,7 @@ public final class BadCompanyCommandAbility
             Power<?> context) {
         LivingEntity user = context.getUser();
         boolean unsummon = unit == BadCompanyUnitType.ALL || coordinator == null
-                ? user != null && user.isShiftKeyDown()
+                ? StandManualInput.isShiftHeld(user)
                 : coordinator.isUnitSummoned(unit);
         return translated(unsummon
                 ? "entity.rotp_zbc.unsu"

@@ -26,8 +26,16 @@ public final class CreamStandType extends EntityStandType {
         if (!user.level().isClientSide()
                 && standPower.getSummonedStandEntity()
                         instanceof CreamEntity cream) {
-            cream.endVoidMode(false);
+            cream.markLeaving();
         }
         super.forceUnsummon(user, standPower);
+    }
+
+    // Stamina pays for the void and ends it: a Stand away would otherwise regain 3 a tick, past what a Resolve 4 void costs.
+    @Override
+    protected float getBaseStaminaRegen(StandPower standPower) {
+        return CreamEntity.isInVoidState(standPower.getUser())
+                ? 0.0F
+                : super.getBaseStaminaRegen(standPower);
     }
 }

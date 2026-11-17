@@ -19,6 +19,7 @@ import rotp.addons.d4c.ability.D4CPhase2BAbility;
 import rotp.addons.d4c.block.D4CPortalBlock;
 import rotp.addons.d4c.entity.D4CMarkerEntity;
 import rotp.addons.d4c.travel.D4CDimensionTargets;
+import rotp.addons.d4c.travel.D4CDimensionUnlocks;
 import rotp.core.api.perception.PerceptionBlockers;
 
 /**
@@ -80,6 +81,7 @@ public final class D4CUnseenDoorGameTests {
 
         // a destination this server has (the parallel world may be missing here)
         scene.owner.getPersistentData().putString(SELECTED, D4CDimensionTargets.NETHER.toString());
+        D4CDimensionUnlocks.record(scene.owner, D4CDimensionTargets.NETHER);
         target.addTag(DOOR_TAG);
         unseen.addTag(DOOR_TAG);
         D4CMarkerEntity marker = D4CAddon.FLAG.get().create(helper.getLevel());

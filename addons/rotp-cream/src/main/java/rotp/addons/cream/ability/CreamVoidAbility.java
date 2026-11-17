@@ -1,5 +1,6 @@
 package rotp.addons.cream.ability;
 
+import rotp.core.init.ModSpecialActions;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityId;
@@ -81,6 +82,17 @@ public final class CreamVoidAbility extends StandEntityAbility {
         }
     }
 
+    // R772.1 OQ-C04: the void goes on with Cream recalled (the owner's 收回仍持續), so its slots stay lit on the HUD
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        VoidMode mode = CreamEntity.voidModeOf(user);
+        return switch (kind) {
+            case BALL, CANCEL_BALL -> mode == VoidMode.BALL;
+            case SEMI, CANCEL_SEMI -> mode == VoidMode.SEMI;
+            case DASH -> false;
+        };
+    }
+
     @Override
     public ConditionCheck checkSpecificConditions(
             Power<?> context) {
@@ -90,9 +102,7 @@ public final class CreamVoidAbility extends StandEntityAbility {
         if (!standCheck.isPositive()) {
             return standCheck;
         }
-        VoidMode mode = stand != null
-                ? stand.getVoidMode()
-                : VoidMode.NONE;
+        VoidMode mode = CreamEntity.voidModeOf(user);
         boolean allowed = switch (kind) {
             case BALL, SEMI -> mode == VoidMode.NONE;
             case DASH -> CreamConfig.HAVE_VOID_DASH.get()
@@ -161,10 +171,7 @@ public final class CreamVoidAbility extends StandEntityAbility {
         LivingEntity user = context != null
                 ? context.getUser()
                 : null;
-        CreamEntity stand = CreamEntity.activeFor(user);
-        VoidMode mode = stand != null
-                ? stand.getVoidMode()
-                : VoidMode.NONE;
+        VoidMode mode = CreamEntity.voidModeOf(user);
         String variationName = switch (kind) {
             case BALL -> mode == VoidMode.BALL
                     ? CreamAddon.CREAM_VOID_BALL_CANCEL_NAME
@@ -316,8 +323,9 @@ public final class CreamVoidAbility extends StandEntityAbility {
 
         // 1.16 CreamVoidBall and CreamSemiVoidState.standPerform: setCooldownTimer(cancel, 20), a plain timer that
         // Creative does not skip, so the cancel is refused for the first 20 ticks of the void
+        // a lock of the void's own timing, not a cooldown of the move: the Stands page's cooldown share leaves it at 20
         private static void lockCancel(StandPower power, String cancelName) {
-            power.setAbilityCooldown(cancelName, CreamSpec.VOID_CANCEL_LOCK_TICKS);
+            power.restoreAbilityCooldown(cancelName, CreamSpec.VOID_CANCEL_LOCK_TICKS, CreamSpec.VOID_CANCEL_LOCK_TICKS);
         }
 
         @Override
@@ -347,7 +355,13 @@ public final class CreamVoidAbility extends StandEntityAbility {
                     && newAction.ability
                             instanceof CreamVoidAbility next
                     && next.kind == Kind.DASH;
+            // The owner's rule of 2026-11-06: a recall does not end the void.
+            boolean recalled = stand.isLeaving()
+                    || newAction != null
+                            && newAction.ability
+                                    == ModSpecialActions.STAND_UNSUMMON.get();
             if (!transitioningToDash
+                    && !recalled
                     && (current.kind == Kind.BALL
                             || current.kind == Kind.SEMI
                             || current.kind == Kind.DASH)

@@ -29,6 +29,7 @@ public final class CMoonCooldownTechnicalGameTests {
             new Row(CMoonAddon.GRAVITY_COUNTER, 100, 75),
             new Row(CMoonAddon.CENTER_OF_GRAVITY, 150, 125),
             new Row(CMoonAddon.GRAVITY_SHIFT, 10, 5),
+            new Row(CMoonAddon.GRAVITY_FIELD, 10, 5),
             new Row(CMoonAddon.DESTROY, 10, 10),
             new Row(CMoonAddon.PUNCH, 0, 0),
             new Row(CMoonAddon.BARRAGE, 0, 0),

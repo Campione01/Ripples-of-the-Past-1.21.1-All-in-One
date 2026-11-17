@@ -11,5 +11,22 @@
   "item.rotp_nextalbum.mista_suit_cloth": "Roupa do Mista",
   "item.rotp_nextalbum.mista_suit_pants": "Calças do Mista",
   "item.rotp_nextalbum.mista_suit_boots": "Botas do Mista",
-  "item.nextalbum.mista_suit.tooltips": "Cada peça concede +15%% de proteção contra projéteis e balas."
+  "item.nextalbum.mista_suit.tooltips": "Cada peça concede +15%% de proteção contra projéteis e balas.",
+  "rotp_nextalbum.options.onomatopoeiaParticles": "Partículas de onomatopeia",
+  "rotp_nextalbum.options.onomatopoeiaParticles.tooltip": "Mostra partículas de onomatopeia em certas situações (por enquanto, nos sons de passos). Só os usuários de Stand as veem.",
+  "rotp_nextalbum.options.resolveAura": "Aura de Determinação",
+  "rotp_nextalbum.options.resolveAura.tooltip": "Mostra partículas da aura de Determinação no jogador e no Stand enquanto a Determinação estiver ativa.",
+  "rotp_nextalbum.options.resolveAuraForAll": "Aura de Determinação para todos os Stands",
+  "rotp_nextalbum.options.resolveAuraForAll.tooltip": "Se ativado, a aura de Determinação vale para todos os Stands. Se desativado, só afeta os Stands deste addon.",
+  "rotp_nextalbum.options.resolveAuraOnSummon": "Aura de Determinação ao invocar",
+  "rotp_nextalbum.options.resolveAuraOnSummon.tooltip": "Mostra a aura de Determinação assim que um Stand é invocado, mesmo sem o efeito Determinação.",
+  "rotp_nextalbum.configuration.title": "NextAlbum",
+  "rotp_nextalbum.configuration.section.rotp.nextalbum.client.toml": "Configurações do cliente",
+  "rotp_nextalbum.configuration.section.rotp.nextalbum.client.toml.title": "Configurações do cliente do NextAlbum",
+  "rotp_nextalbum.configuration.Stand Settings": "Configurações do Stand",
+  "rotp_nextalbum.configuration.Stand Settings.tooltip": "Onomatopeia e outros efeitos visuais do Stand.",
+  "rotp_nextalbum.configuration.section.rotp.nextalbum.common.toml": "Configurações comuns",
+  "rotp_nextalbum.configuration.section.rotp.nextalbum.common.toml.title": "Configurações comuns do NextAlbum",
+  "rotp_nextalbum.options.lastActionForAllStands": "Morte adiada por Determinação",
+  "rotp_nextalbum.options.lastActionForAllStands.tooltip": "Se ativado, qualquer usuário de Stand com nível de Determinação acima de 0 pode acionar a morte adiada. As habilidades continuam utilizáveis e o cronômetro se esgota rápido com a stamina gasta."
 }

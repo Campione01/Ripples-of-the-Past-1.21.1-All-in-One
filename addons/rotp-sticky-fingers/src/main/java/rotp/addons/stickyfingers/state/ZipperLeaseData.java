@@ -14,6 +14,7 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import rotp.core.util.functions.JojoModUtil;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.stickyfingers.StickyFingersAddon;
 import rotp.addons.stickyfingers.StickyFingersPhase1Spec;
@@ -308,8 +309,8 @@ public final class ZipperLeaseData extends SavedData {
         }
 
         ZipperLeaseRecord linked = linkedTo(record);
-        // 1.16: a plain press removes, Shift+press (toggle_zipper) toggles.
-        if (!owner.isShiftKeyDown()) {
+        // 1.16: a plain press removes, a press on the variation key (toggle_zipper) toggles.
+        if (!StandManualInput.isShiftHeld(owner)) {
             ZipperLeaseRecord closing = requestClose(
                     record,
                     ZipperCloseReason.MANUAL_CLOSE,
@@ -707,7 +708,7 @@ public final class ZipperLeaseData extends SavedData {
                     ZipperCloseReason.DIMENSION_CHANGE,
                     gameTime);
         }
-        if (!StickyFingersAddon.isStickyFingersActive(owner)) {
+        if (!StickyFingersAddon.holdsStickyFingers(owner)) {
             return requestClose(
                     record,
                     ZipperCloseReason.ABILITY_LOST,
@@ -970,6 +971,10 @@ public final class ZipperLeaseData extends SavedData {
         while (history.size() > MAX_HISTORY) {
             history.removeFirst();
         }
+    }
+
+    public boolean ownsAny(UUID ownerId) {
+        return leasesOwnedBy(ownerId) > 0;
     }
 
     private int leasesOwnedBy(UUID ownerId) {

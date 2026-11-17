@@ -28,7 +28,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.stonefree.StoneFreeAddon;
 import rotp.addons.stonefree.StoneFreeServices;
-import rotp.addons.stonefree.ability.StoneFreeBarrierGameTests.Fixture;
+import rotp.addons.stonefree.ability.StoneFreeActionFixture.Fixture;
 import rotp.addons.stonefree.entity.StoneFreeStandEntity;
 import rotp.addons.stonefree.entity.StoneFreeStringEntity;
 import rotp.addons.stonefree.entity.StoneFreeStringEntity.Kind;
@@ -68,10 +68,10 @@ public final class StoneFreeStringRuleGameTests {
 
     // 1.16 stone_free_barrage registered its cry with the one-argument standSound (playInArmsOnly true): an
     // arms-only Stone Free still cried.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 40)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 40 + GameTestChunkTickets.WAIT_TICKS)
     public static void barrageCriesInArmsOnlyMode(GameTestHelper helper) {
-        Fixture fixture = StoneFreeBarrierGameTests.fixture(helper, true);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        Fixture fixture = StoneFreeActionFixture.fixture(helper, true);
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             Ability barrage = fixture.power.getAbility("barrage");
             helper.assertTrue(barrage instanceof EntityActionType, "Stone Free has no registered barrage");
             EntityActionInstance action = ((EntityActionType) barrage).createActionObj();
@@ -90,21 +90,21 @@ public final class StoneFreeStringRuleGameTests {
             helper.assertTrue(full, "The fully summoned Stone Free does not cry");
             helper.assertTrue(armsOnly,
                     "The arms-only Stone Free barrage stayed silent; 1.16 stone_free_barrage cried there");
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
         });
     }
 
     // 1.16 StringAction.checkSpecificConditions with LivingUtilCap.userString: no user string while one of the
     // user's strings is within 16 blocks, or one of the user's grapple strings within 96.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void aUserStringStillOutRefusesEveryUserString(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             helper.assertTrue(refused(fixture, USER_STRINGS).isEmpty() && usable(fixture, StoneFreeAddon.STRING_BIND_NAME),
                     "The fixture refused a string before any was thrown: " + refused(fixture, USER_STRINGS)
                             + ", Stand bind usable=" + usable(fixture, StoneFreeAddon.STRING_BIND_NAME));
             StoneFreeGrappleGameTests.click(helper, fixture, StoneFreeAddon.USER_STRING_ATTACK_NAME);
-            StoneFreeBarrierGameTests.later(helper, fixture, 3, () -> {
+            StoneFreeActionFixture.later(helper, fixture, 3, () -> {
                 StoneFreeStringEntity attack = StoneFreeGrappleGameTests.find(helper, fixture, Kind.USER_STRING);
                 helper.assertTrue(attack != null && attack.distanceTo(fixture.owner) < 16.0F,
                         "The user's attack string was not out near its user 3 ticks after the press: " + attack);
@@ -117,7 +117,7 @@ public final class StoneFreeStringRuleGameTests {
                                 + warnings(fixture, USER_STRINGS));
                 helper.assertTrue(usable(fixture, StoneFreeAddon.STRING_BIND_NAME),
                         "The Stand's own bind was refused for a user string that is out");
-                StoneFreeBarrierGameTests.later(helper, fixture, 25, () -> {
+                StoneFreeActionFixture.later(helper, fixture, 25, () -> {
                     helper.assertTrue(StoneFreeGrappleGameTests.find(helper, fixture, Kind.USER_STRING) == null
                                     && refused(fixture, USER_STRINGS).isEmpty(),
                             "The user strings did not come back once the attack string was gone: refused "
@@ -125,7 +125,7 @@ public final class StoneFreeStringRuleGameTests {
                     StoneFreeGrappleGameTests.anchorAbove(helper, fixture, 34.0D);
                     StoneFreeGrappleGameTests.click(helper, fixture, StoneFreeAddon.USER_GRAPPLE_NAME);
                     // By now the grapple's end has flown out of the 16 blocks that count for the other strings.
-                    StoneFreeBarrierGameTests.later(helper, fixture, 8, () -> {
+                    StoneFreeActionFixture.later(helper, fixture, 8, () -> {
                         StoneFreeStringEntity grapple =
                                 StoneFreeGrappleGameTests.find(helper, fixture, Kind.USER_GRAPPLE);
                         helper.assertTrue(grapple != null && grapple.distanceTo(fixture.owner) > 18.0F
@@ -136,7 +136,7 @@ public final class StoneFreeStringRuleGameTests {
                         helper.assertTrue(withGrapple.isEmpty(),
                                 "With the user's grapple string still out these user strings could be thrown: "
                                         + withGrapple);
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
                 });
             });
@@ -145,10 +145,10 @@ public final class StoneFreeStringRuleGameTests {
 
     // 1.16 StringAction and StoneFreeGrapple.checkSpecificConditions: placed barriers >= MaxVarietyOfBarriers,
     // which is 100, or 90 under the Mobius Strip effect.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void grapplesAreRefusedWithTheStringLimitMessageAtTheDonorLimit(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeState state = StoneFreeState.get(fixture.owner);
             state.investString(fixture.owner, 99, 100);
             helper.assertTrue(state.placedStrings() == 99 && refused(fixture, GRAPPLES).isEmpty(),
@@ -179,7 +179,7 @@ public final class StoneFreeStringRuleGameTests {
             helper.assertTrue(state.placedStrings() == 89 && refused(fixture, GRAPPLES).isEmpty(),
                     "With 89 strings placed under the Mobius Strip effect these grapples were refused: "
                             + refused(fixture, GRAPPLES));
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
         });
     }
 
@@ -187,10 +187,10 @@ public final class StoneFreeStringRuleGameTests {
     // MaxVarietyOfBarriers (100, 90 under the Mobius Strip effect) and StoneFreeStringBind at a flat 100, whatever
     // the Resolve level; StoneFreeUserBarrier warned 'barrier' at getMaxBarriersPlaceable (Resolve 4 or more:
     // MaxVarietyOfBarriers, else 25). The Mobius mode switch counts only through the effect it brings.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 60)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 60 + GameTestChunkTickets.WAIT_TICKS)
     public static void stringLimitsFollowTheDonorThresholds(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeState state = StoneFreeState.get(fixture.owner);
             helper.assertTrue(fixture.owner.addEffect(new MobEffectInstance(ModStatusEffects.BLEEDING, 600)),
                     "Could not give the user a wound to close");
@@ -217,7 +217,7 @@ public final class StoneFreeStringRuleGameTests {
             fixture.power.setResolveLevel(3);
             setPlaced(state, fixture, 25);
             assertLimits(helper, fixture, "Resolve 3, 25 strings under the Mobius Strip effect", List.of(), true);
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
         });
     }
 
@@ -267,20 +267,20 @@ public final class StoneFreeStringRuleGameTests {
     // 1.16 StoneFreeStringPunch.standTickWindup through the real tick (the hand-driven stringPunchSlidesToItsTargetAndStops
     // in the offset tests checks only the formula): from the press to the end of the action the Stand moves once, by the
     // task target's eyes less the Stand's width at most 1.5, and is left with no velocity.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 200)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 200 + GameTestChunkTickets.WAIT_TICKS)
     public static void stringPunchSlidesOnceToAFarTargetThroughTheRealTick(GameTestHelper helper) {
         runSlide(helper, 5.0D, 1.49D, 1.51D);
     }
 
     // The same toward a target closer than the 1.5 slide: its distance less the Stand's width.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 200)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 200 + GameTestChunkTickets.WAIT_TICKS)
     public static void stringPunchSlidesOnlyToAnArmsLengthTargetThroughTheRealTick(GameTestHelper helper) {
         runSlide(helper, 1.0D, 0.2D, 1.4D);
     }
 
     private static void runSlide(GameTestHelper helper, double eyesAbove, double minSlide, double maxSlide) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             stand.setNoGravity(true);
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
@@ -335,20 +335,20 @@ public final class StoneFreeStringRuleGameTests {
             helper.assertTrue(moved.distanceTo(run.expected) < 0.01D,
                     "1.16 StoneFreeStringPunch.standTickWindup moved the Stand once by " + run.expected + " ("
                             + run.expected.length() + " blocks) over the whole string punch, the port by " + moved + ", task target " + run.held);
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
         helper.assertTrue(ticksLeft > 0, "The string punch did not run out: " + action);
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchSlide(helper, fixture, stand, target, run, minSlide, maxSlide, ticksLeft - 1));
     }
 
     // 1.16 SFUStringEntity.afterEntityHit: the user's bind immobilises its catch for what is left of the string's
     // life, which is 25 ticks longer once it holds a catch, and never pulls it.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userBindImmobilisesItsCatchForTheStringsLifeWithoutPullingIt(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
                     fixture.owner.position().add(0.0D, 8.0D, 0.0D));
             StoneFreeGrappleGameTests.click(helper, fixture, StoneFreeAddon.USER_STRING_BIND_NAME);
@@ -362,14 +362,14 @@ public final class StoneFreeStringRuleGameTests {
                                         + " ticks: effect " + hold + ", string age " + string.tickCount);
                         target.setDeltaMovement(Vec3.ZERO);
                         Vec3 before = target.position();
-                        string.tick();
+                        helper.getLevel().tickNonPassenger(string);
                         helper.assertTrue(string.isAlive() && target.getDeltaMovement().lengthSqr() == 0.0D
                                         && target.position().equals(before),
                                 "The user's bind pulled its catch; 1.16 only held it: motion "
                                         + target.getDeltaMovement() + ", moved "
                                         + target.position().subtract(before));
                         assertHoldingLifespan(helper, string, "The user's bind");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
@@ -377,10 +377,10 @@ public final class StoneFreeStringRuleGameTests {
     // 1.16 SFStringEntity.tick for the strings of StoneFreeStringCapture: the catch is dragged to the Stand at
     // 1.0 a tick; within 4 blocks of a Stand that has a user it is immobilised for what is left of the string's
     // life, and the string then only holds on.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 200)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 200 + GameTestChunkTickets.WAIT_TICKS)
     public static void captureStringDragsItsCatchToTheStandAndImmobilisesItWithinFourBlocks(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
                     stand.position().add(0.0D, 10.0D, 0.0D));
@@ -393,7 +393,7 @@ public final class StoneFreeStringRuleGameTests {
             awaitCatch(helper, fixture, target, 80, string -> {
                 target.setPos(stand.position().add(0.0D, 6.0D, 0.0D));
                 target.setDeltaMovement(Vec3.ZERO);
-                string.tick();
+                helper.getLevel().tickNonPassenger(string);
                 Vec3 unitPull = stand.position().subtract(target.position()).normalize();
                 helper.assertTrue(string.isAlive() && target.getDeltaMovement().distanceTo(unitPull) < 1.0E-6D
                                 && !target.hasEffect(ModStatusEffects.IMMOBILIZE),
@@ -402,14 +402,14 @@ public final class StoneFreeStringRuleGameTests {
                                 + target.getDeltaMovement().length() + "), expected " + unitPull
                                 + ", immobilised=" + target.hasEffect(ModStatusEffects.IMMOBILIZE));
                 target.setPos(stand.position().add(0.0D, 4.1D, 0.0D));
-                string.tick();
+                helper.getLevel().tickNonPassenger(string);
                 helper.assertTrue(Math.abs(target.getDeltaMovement().length() - 1.0D) < 1.0E-6D
                                 && !target.hasEffect(ModStatusEffects.IMMOBILIZE),
                         "A capture string stopped dragging a catch still 4.1 blocks from the Stand: motion "
                                 + target.getDeltaMovement() + ", immobilised="
                                 + target.hasEffect(ModStatusEffects.IMMOBILIZE));
                 target.setPos(stand.position().add(0.0D, 3.9D, 0.0D));
-                string.tick();
+                helper.getLevel().tickNonPassenger(string);
                 MobEffectInstance hold = target.getEffect(ModStatusEffects.IMMOBILIZE);
                 helper.assertTrue(string.isAlive() && hold != null
                                 && hold.getDuration() == DONOR_HOLDING_LIFESPAN - string.tickCount
@@ -419,12 +419,12 @@ public final class StoneFreeStringRuleGameTests {
                                 + ", motion " + target.getDeltaMovement());
                 Vec3 held = stand.position().add(0.0D, 8.0D, 0.0D);
                 target.setPos(held);
-                string.tick();
+                helper.getLevel().tickNonPassenger(string);
                 helper.assertTrue(target.position().equals(held) && target.getDeltaMovement().lengthSqr() == 0.0D,
                         "A capture string went on dragging after it had immobilised its catch: moved "
                                 + target.position().subtract(held) + ", motion " + target.getDeltaMovement());
                 assertHoldingLifespan(helper, string, "A capture string");
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
@@ -435,10 +435,10 @@ public final class StoneFreeStringRuleGameTests {
      * never queued behind it, so the HUD drew it by its own requirements, not with the queued tint. Its press joins the
      * punch at once in the port too (queueCapture), so its slot is not drawn queued either.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void captureSlotIsDrawnUsableDuringTheStringPunchAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             stand.setFinisherMeter(1.0F);
             press(helper, fixture, StoneFreeAddon.STRING_PUNCH_NAME);
@@ -459,24 +459,24 @@ public final class StoneFreeStringRuleGameTests {
                             + "draws its slot " + (drawn == ConditionCheck.NEGATIVE_QUEUED ? "queued (dimmed)"
                                     : drawn.isPositive() ? "usable" : "refused"));
             BufferingState buffering = BufferingState.clickCanBuffer();
-            AbilityInput.keyPress(StoneFreeBarrierGameTests.GRAPPLE_KEY, heavyKey.ability, fixture.owner, null,
+            AbilityInput.keyPress(StoneFreeActionFixture.GRAPPLE_KEY, heavyKey.ability, fixture.owner, null,
                     InputMethod.CLICK, 0.0F, buffering, fixture.power.getAbility("heavy_punch").abilityId);
-            AbilityInput.keyRelease(StoneFreeBarrierGameTests.GRAPPLE_KEY, fixture.owner);
+            AbilityInput.keyRelease(StoneFreeActionFixture.GRAPPLE_KEY, fixture.owner);
             helper.assertTrue(buffering.isActionSuccess && !buffering.shouldBuffer
                             && stand.getCurStandAction() instanceof StoneFreeStringPunchAbility.StringPunchAction running
                             && !running.canQueueCapture(),
                     "Setup: the capture did not join the running string punch at the press: went off "
                             + buffering.isActionSuccess + ", buffered " + buffering.shouldBuffer);
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
         });
     }
 
     // 1.16 SFUStringEntity.shouldHurtThroughInvulTicks is true: a punch just before the bind does not save its
     // target from the catch.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userBindCatchesATargetInsideItsHurtCooldown(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
                     fixture.owner.position().add(0.0D, 8.0D, 0.0D));
             primeHurtCooldown(helper, target, 3.0F);
@@ -484,17 +484,17 @@ public final class StoneFreeStringRuleGameTests {
             awaitCatchInsideCooldown(helper, fixture, target, Kind.USER_STRING, false, 20, string -> {
                 helper.assertTrue(target.hasEffect(ModStatusEffects.IMMOBILIZE),
                         "The user's bind caught a target inside its hurt cooldown without immobilising it");
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
 
     // 1.16 SFStringEntity.shouldHurtThroughInvulTicks is true as well; the Stand's bind does 0 damage, which a
     // hurt cooldown would always refuse.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindCatchesATargetInsideItsHurtCooldown(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
                     stand.position().add(0.0D, 10.0D, 0.0D));
@@ -502,16 +502,16 @@ public final class StoneFreeStringRuleGameTests {
             primeHurtCooldown(helper, target, 3.0F);
             press(helper, fixture, StoneFreeAddon.STRING_BIND_NAME);
             awaitCatchInsideCooldown(helper, fixture, target, Kind.STAND_STRING, false, 30,
-                    string -> StoneFreeBarrierGameTests.succeed(helper, fixture));
+                    string -> StoneFreeActionFixture.succeed(helper, fixture));
         });
     }
 
     // 1.16 SFUStringEntity.hurtTarget: the bind's first contact attaches and returns true without a hurt. The
     // string belonged to the user, not to a Stand, so DamagingEntity.onHitEntity marked nothing either.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userBindCatchesWithoutHurtingOrMarkingItsCatch(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
                     fixture.owner.position().add(0.0D, 8.0D, 0.0D));
             StoneFreeGrappleGameTests.click(helper, fixture, StoneFreeAddon.USER_STRING_BIND_NAME);
@@ -523,33 +523,33 @@ public final class StoneFreeStringRuleGameTests {
                                         + " did: lastHurtByMob=" + target.getLastHurtByMob());
                         helper.assertTrue(target.hasEffect(ModStatusEffects.IMMOBILIZE),
                                 "The user's bind caught a target without immobilising it");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
     // The same contact never asks whether the target can be hurt.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userBindCatchesATargetThatCannotBeHurt(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PolarBear target = unhurtableTarget(helper, fixture, fixture.owner.position().add(0.0D, 8.0D, 0.0D));
             StoneFreeGrappleGameTests.click(helper, fixture, StoneFreeAddon.USER_STRING_BIND_NAME);
             StoneFreeGrappleGameTests.await(helper, fixture, Kind.USER_STRING, 16,
                     string -> string.getEntityAttachedTo() == target, string -> {
                         helper.assertTrue(target.hasEffect(ModStatusEffects.IMMOBILIZE),
                                 "The user's bind caught a target that cannot be hurt without immobilising it");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
     // 1.16 SFStringEntity.hurtTarget: the same for the Stand's string, whose true result made
     // DamagingEntity.onHitEntity mark the catch as hurt by the Stand's user.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindCatchesWithoutHurtingAndMarksItsCatchAsHurtByTheUser(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
                     stand.position().add(0.0D, 10.0D, 0.0D));
@@ -561,22 +561,22 @@ public final class StoneFreeStringRuleGameTests {
                         helper.assertTrue(target.getLastHurtByMob() == fixture.owner,
                                 "The Stand's bind did not mark its catch as last hurt by the Stand's user:"
                                         + " lastHurtByMob=" + target.getLastHurtByMob());
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindCatchesATargetThatCannotBeHurt(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             PolarBear target = unhurtableTarget(helper, fixture, stand.position().add(0.0D, 10.0D, 0.0D));
             LivingComponentAction.getComponent(stand).entityAim.setTarget(new ActionTarget(target));
             press(helper, fixture, StoneFreeAddon.STRING_BIND_NAME);
             StoneFreeGrappleGameTests.await(helper, fixture, Kind.STAND_STRING, 30,
                     string -> string.getEntityAttachedTo() == target,
-                    string -> StoneFreeBarrierGameTests.succeed(helper, fixture));
+                    string -> StoneFreeActionFixture.succeed(helper, fixture));
         });
     }
 
@@ -585,10 +585,10 @@ public final class StoneFreeStringRuleGameTests {
      * the bind task's perform, and addProjectile gave its string the same lifespan. Thrown at nothing, straight up,
      * so neither a catch nor the holding extra comes in.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindLastsItsTicksOverTheStandsAttackSpeedAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             EntityActionType bindType = (EntityActionType) fixture.power.getAbility(StoneFreeAddon.STRING_BIND_NAME);
             var attackSpeed = stand.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_SPEED);
@@ -621,10 +621,10 @@ public final class StoneFreeStringRuleGameTests {
      * OwnerBoundProjectileEntity.writeSpawnData sent it, so a client moved the string at its own speed from its first
      * tick. Here the add sends the synced data as it is when the string joins the level.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 60)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 60 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindStringJoinsTheLevelWithTheBindsTicksAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             int bindTicks = StoneFreeStringAbility.standBindTicks(fixture.stand);
             helper.assertTrue(bindTicks != StoneFreeStringEntity.STAND_STRING_TICKS,
                     "Setup: the Stand's bind lasts the default " + bindTicks + " ticks");
@@ -639,21 +639,16 @@ public final class StoneFreeStringRuleGameTests {
             };
             NeoForge.EVENT_BUS.addListener(net.neoforged.bus.api.EventPriority.NORMAL, false,
                     EntityJoinLevelEvent.class, listener);
-            try {
-                press(helper, fixture, StoneFreeAddon.STRING_BIND_NAME);
-            }
-            catch (RuntimeException e) {
+            fixture.afterwards.add(() -> {
                 listening.set(false);
                 NeoForge.EVENT_BUS.unregister(listener);
-                throw e;
-            }
+            });
+            press(helper, fixture, StoneFreeAddon.STRING_BIND_NAME);
             StoneFreeGrappleGameTests.await(helper, fixture, Kind.STAND_STRING, 5, string -> true, string -> {
-                listening.set(false);
-                NeoForge.EVENT_BUS.unregister(listener);
                 helper.assertTrue(joined.equals(List.of(bindTicks)),
                         "1.16 sent the Stand bind's string with its " + bindTicks + "-tick lifespan; the port's"
                                 + " joined the level (and sent its spawn) living " + joined + " ticks");
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
@@ -663,10 +658,10 @@ public final class StoneFreeStringRuleGameTests {
      * past the bind's own ticks, as a capture string did. The port's stun and pull of that catch
      * (D-rotp-stone-free-10, kept) still end with the bind's own ticks.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindStringHoldsItsCatch25TicksLongerAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             int bindTicks = StoneFreeStringAbility.standBindTicks(stand);
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
@@ -682,8 +677,7 @@ public final class StoneFreeStringRuleGameTests {
                         // StunEffect refuses a mob without AI; the bear does not tick again before the end.
                         target.setNoAi(false);
                         target.removeEffect(ModStatusEffects.STUN);
-                        string.tickCount = bindTicks - 1;
-                        string.tick();
+                        advanceStringToAge(helper, string, bindTicks - 1);
                         helper.assertTrue(string.isAlive() && target.hasEffect(ModStatusEffects.STUN)
                                         && target.getDeltaMovement().lengthSqr() > 0.0D,
                                 "Setup: the Stand bind's string did not stun and pull its catch in its own ticks:"
@@ -691,30 +685,25 @@ public final class StoneFreeStringRuleGameTests {
                                         + target.hasEffect(ModStatusEffects.STUN) + ", motion "
                                         + target.getDeltaMovement());
                         target.removeEffect(ModStatusEffects.STUN);
-                        string.tickCount = bindTicks;
-                        string.tick();
+                        advanceStringToAge(helper, string, bindTicks);
                         target.removeEffect(ModStatusEffects.STUN);
-                        string.tickCount = bindTicks + 1;
-                        string.tick();
+                        advanceStringToAge(helper, string, bindTicks + 1);
                         helper.assertTrue(string.isAlive() && !target.hasEffect(ModStatusEffects.STUN)
                                         && target.getDeltaMovement().lengthSqr() == 0.0D,
                                 "The Stand bind's stun and pull (D-rotp-stone-free-10) went on past the bind's "
                                         + bindTicks + " ticks: alive " + string.isAlive() + ", stunned "
                                         + target.hasEffect(ModStatusEffects.STUN) + ", motion "
                                         + target.getDeltaMovement());
-                        string.tickCount = bindTicks + 10;
-                        string.tick();
+                        advanceStringToAge(helper, string, bindTicks + 10);
                         helper.assertTrue(string.isAlive() && string.getEntityAttachedTo() == target,
                                 "1.16's Stand bind string still held its catch " + (bindTicks + 10) + " ticks in");
-                        string.tickCount = holding;
-                        string.tick();
+                        advanceStringToAge(helper, string, holding);
                         helper.assertTrue(string.isAlive(),
                                 "The Stand bind's string holding a catch ended before its " + holding + "th tick");
-                        string.tickCount = holding + 1;
-                        string.tick();
+                        advanceStringToAge(helper, string, holding + 1);
                         helper.assertTrue(!string.isAlive(),
                                 "The Stand bind's string holding a catch outlived its " + holding + " ticks");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
@@ -725,12 +714,12 @@ public final class StoneFreeStringRuleGameTests {
      * back as fast, gone at the lifespan's end; it reached 8 blocks times its speed factor (the Stand's attack speed
      * / 8), and its ray one step further. A mob beyond that was never caught; one within it was.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindStringGoesOutAndBackAndMissesBeyondItsReachAsIn116(GameTestHelper helper) {
         runBindReach(helper, false, 0.0D);
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindStringCatchesWithinItsReachAsIn116(GameTestHelper helper) {
         runBindReach(helper, true, 0.0D);
     }
@@ -741,7 +730,7 @@ public final class StoneFreeStringRuleGameTests {
      * back by age 16. Its ray ran one step further (11.0), so the bear stands just past that, inside the 12.2 a mark
      * of 9 would reach.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindStringOfANewStoneFreeTurnsBackAfterEightStepsAsIn116(GameTestHelper helper) {
         runBindReach(helper, false, 11.0D);
     }
@@ -755,7 +744,7 @@ public final class StoneFreeStringRuleGameTests {
 
     private static void runBindReach(GameTestHelper helper, boolean within, double attackSpeed) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             if (attackSpeed > 0.0D) {
                 // The Stand takes its attack speed from its user's Stand speed every tick.
@@ -784,10 +773,10 @@ public final class StoneFreeStringRuleGameTests {
 
     // 1.16 OwnerBoundProjectileEntity.afterBlockHit and breakProjectile (1.16 core :262-270): a block the Stand's
     // string met turned it back at once, and nothing it met broke it.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindStringTurnsBackAtABlockAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             int bindTicks = StoneFreeStringAbility.standBindTicks(stand);
             double step = 16.0D / bindTicks * (stand.getAttackSpeed() / 8.0D);
@@ -809,20 +798,20 @@ public final class StoneFreeStringRuleGameTests {
      * 16. Its ray ran one step further, so a bear 10 blocks up was never touched; the port's old straight shot (2.0
      * times the Stand's speed factor, up to 24 blocks) hit it.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userAttackStringGoesOutEightBlocksAndBackAsIn116(GameTestHelper helper) {
         runUserReach(helper, StoneFreeAddon.USER_STRING_ATTACK_NAME, 16, "user attack");
     }
 
     // The same for StoneFreeUserStringBind (:40-42, setLifeSpan(24)): 12 steps of 2/3 of a block, back by age 24.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userBindStringGoesOutEightBlocksAndBackAsIn116(GameTestHelper helper) {
         runUserReach(helper, StoneFreeAddon.USER_STRING_BIND_NAME, 24, "user bind");
     }
 
     private static void runUserReach(GameTestHelper helper, String abilityName, int lifespan, String what) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             helper.assertTrue(fixture.stand.getAttackSpeed() > 8.0D,
                     "Setup: the Stand's attack speed " + fixture.stand.getAttackSpeed() + " gives no speed factor");
             double step = 16.0D / lifespan;
@@ -842,10 +831,10 @@ public final class StoneFreeStringRuleGameTests {
      * at once and, through dealtDamage, hurt nothing more, not even a second target its ray met in the same tick;
      * breakProjectile did nothing, so it came back to the hand.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userAttackStringHurtsOnceAndTurnsBackAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             Vec3 spot = new Vec3(fixture.owner.getX(), fixture.owner.getEyeY() + 4.0D, fixture.owner.getZ());
             List<PolarBear> targets = List.of(StoneFreeGrappleGameTests.target(helper, fixture, spot),
                     StoneFreeGrappleGameTests.target(helper, fixture, spot));
@@ -872,12 +861,12 @@ public final class StoneFreeStringRuleGameTests {
             helper.assertTrue(run.farthest < 6.0D && run.lastAge < 14,
                     "1.16's user attack string turned back from the bear it hurt 4 blocks up; the port's went "
                             + run.farthest + " blocks out and was last seen at age " + run.lastAge);
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
         helper.assertTrue(elapsed < 26, "The user's attack string "
                 + (run.seen ? "outlived 26 ticks: age " + run.lastAge : "never flew"));
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchHitTurnBack(helper, fixture, targets, run, elapsed + 1));
     }
 
@@ -886,10 +875,10 @@ public final class StoneFreeStringRuleGameTests {
      * DamagingEntity's damageFactor stayed 1 (1.16 DamagingEntity :54, :305-311): the user's attack string hit for its
      * own 2.0 whatever the Stand's strength. The port's multiplied it by the Stand's attack damage / 8 (3.75 at 15).
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userAttackStringHurtsForItsOwnTwoAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             helper.assertTrue(fixture.stand.getAttackDamage() != 8.0D,
                     "Setup: the Stand's attack damage " + fixture.stand.getAttackDamage() + " scales nothing");
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
@@ -900,7 +889,7 @@ public final class StoneFreeStringRuleGameTests {
                 helper.assertTrue(Math.abs(taken - 2.0F) < 1.0E-4F,
                         "1.16's user attack string took 2.0 from the bear; the port's took " + taken
                                 + " (Stand attack damage " + fixture.stand.getAttackDamage() + ")");
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
@@ -909,10 +898,10 @@ public final class StoneFreeStringRuleGameTests {
      * 1.16 added every string its user threw with world.addFreshEntity (StoneFreeUserStringAttack :37, Sweep :36,
      * Whip :36, Bind :42, Pick :40, StoneFreeUserGrapple :65): each joins with damage and speed factor 1.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 300)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 300 + GameTestChunkTickets.WAIT_TICKS)
     public static void userStringsJoinWithoutTheStandsStatsAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             helper.assertTrue(fixture.stand.getAttackDamage() != 8.0D && fixture.stand.getAttackSpeed() != 8.0D,
                     "Setup: the Stand's stats scale nothing");
             List<String> stats = new java.util.ArrayList<>();
@@ -928,7 +917,7 @@ public final class StoneFreeStringRuleGameTests {
                 helper.assertTrue(scaled.isEmpty() && stats.size() == throwsInTurn.size(),
                         "1.16 added the user's strings with damage and speed factor 1; the port's joined with "
                                 + stats);
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
@@ -944,7 +933,7 @@ public final class StoneFreeStringRuleGameTests {
         throwString(helper, fixture, abilityName);
         StoneFreeGrappleGameTests.await(helper, fixture, kind, 10, string -> true, string -> {
             stats.add(abilityName + ": damage " + string.getDamageFactor() + ", speed " + string.getSpeedFactor());
-            AbilityInput.keyRelease(StoneFreeBarrierGameTests.GRAPPLE_KEY, fixture.owner);
+            AbilityInput.keyRelease(StoneFreeActionFixture.GRAPPLE_KEY, fixture.owner);
             if (kind == Kind.USER_GRAPPLE) {
                 StoneFreeServices.discardUserGrapples(fixture.owner);
             }
@@ -954,10 +943,10 @@ public final class StoneFreeStringRuleGameTests {
     }
 
     // 1.16 StandEntity.addProjectile gave the Stand's own strings its stats: the bind's string keeps them.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindStringKeepsTheStandsStatsAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             float damage = (float) stand.getAttackDamage() / 8;
             double speed = stand.getAttackSpeed() / 8;
@@ -968,16 +957,16 @@ public final class StoneFreeStringRuleGameTests {
                         "1.16's Stand bind string took the Stand's damage factor " + damage + " and speed factor "
                                 + speed + "; the port's " + string.getDamageFactor() + " and "
                                 + string.getSpeedFactor());
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
 
     // 1.16 SFUStringEntity.knockbackMultiplier (017 :112-114) was 0: the user's attack string's hit pushed nothing.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userAttackStringHitPushesNothingAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
                     new Vec3(fixture.owner.getX(), fixture.owner.getEyeY() + 4.0D, fixture.owner.getZ()));
             List<Float> pushes = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -988,21 +977,15 @@ public final class StoneFreeStringRuleGameTests {
             };
             NeoForge.EVENT_BUS.addListener(net.neoforged.bus.api.EventPriority.LOWEST, false,
                     LivingKnockBackEvent.class, listener);
-            try {
-                StoneFreeGrappleGameTests.click(helper, fixture, StoneFreeAddon.USER_STRING_ATTACK_NAME);
-            }
-            catch (RuntimeException e) {
-                NeoForge.EVENT_BUS.unregister(listener);
-                throw e;
-            }
+            fixture.afterwards.add(() -> NeoForge.EVENT_BUS.unregister(listener));
+            StoneFreeGrappleGameTests.click(helper, fixture, StoneFreeAddon.USER_STRING_ATTACK_NAME);
             afterGone(helper, fixture, Kind.USER_STRING, false, 30, () -> {
-                NeoForge.EVENT_BUS.unregister(listener);
                 helper.assertTrue(target.getHealth() < target.getMaxHealth(),
                         "Setup: the user's attack string did not hit the bear 4 blocks up");
                 helper.assertTrue(pushes.stream().allMatch(strength -> strength <= 0.0F),
                         "1.16's user attack string hurt the bear without pushing it; the port's knocked it back"
                                 + " with strength " + pushes);
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
@@ -1017,16 +1000,16 @@ public final class StoneFreeStringRuleGameTests {
         }
         helper.assertTrue(ticksLeft > 0, "The " + kind + " string " + (string != null
                 ? "was still out at age " + string.tickCount : "never flew"));
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> afterGone(helper, fixture, kind, seen || string != null, ticksLeft - 1, then));
     }
 
     // 1.16 OwnerBoundProjectileEntity.afterBlockHit, which SFUStringEntity kept: the user's bind string met a block,
     // turned back and was not broken (the port's old shot was discarded there).
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userBindStringTurnsBackAtABlockAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             BlockPos roof = BlockPos.containing(fixture.owner.getX(), fixture.owner.getEyeY() + 4.0D,
                     fixture.owner.getZ());
             fixture.setBlock(helper, roof, Blocks.STONE.defaultBlockState());
@@ -1043,7 +1026,7 @@ public final class StoneFreeStringRuleGameTests {
      * user's look so turned, to 7.5 blocks, came back as fast and was gone at age 10. The user looks 80 degrees up,
      * so the swing shows and stays clear of the neighbouring plots.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void userSweepSwingsOutSevenAndAHalfBlocksAndBackAsIn116(GameTestHelper helper) {
         runSwing(helper, StoneFreeAddon.USER_STRING_SWEEP_NAME, Kind.USER_SWEEP, 1.5F, 10, 0);
     }
@@ -1073,7 +1056,7 @@ public final class StoneFreeStringRuleGameTests {
 
     private static void userWhipHurtsOnlyTheFirstMobItMeetsAsIn116Body(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             LivingEntity user = fixture.owner;
             // The whip swings mostly behind the look: the look points along x away from the chunk's middle.
             boolean middleEast = (user.getX() - (user.blockPosition().getX() & ~15)) < 8.0D;
@@ -1095,7 +1078,7 @@ public final class StoneFreeStringRuleGameTests {
                         "1.16's whip hurt the first bear in its swing and nothing more that throw; the port's left"
                                 + " the first at health " + first.getHealth() + " and the second at "
                                 + second.getHealth() + " (of " + second.getMaxHealth() + ")");
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             });
         });
     }
@@ -1107,10 +1090,10 @@ public final class StoneFreeStringRuleGameTests {
      * speed / 8, while the mark stayed (int) (4.5 / 1.5) = 3: three steps out (6.75 blocks at attack speed 12), held
      * there until age 7, back as fast and gone at age 10. The port's went 4 blocks at 1.5 a tick and came back at once.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void extendedPunchGoesOutHoldsAndComesBackAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             double factor = fixture.stand.getAttackSpeed() / 8.0D;
             helper.assertTrue(factor != 1.0D, "Setup: the Stand's attack speed " + fixture.stand.getAttackSpeed()
                     + " gives no speed factor");
@@ -1125,7 +1108,7 @@ public final class StoneFreeStringRuleGameTests {
                                 + " age " + lastAge + ", off 1.16's path at " + run.mismatches.size() + " of "
                                 + run.seen.size() + " ticks: " + run.mismatches.subList(0,
                                         Math.min(4, run.mismatches.size())) + "; distances " + run.seen.values());
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             }, new PunchRun(distances, run -> {}), 30);
         });
     }
@@ -1137,10 +1120,10 @@ public final class StoneFreeStringRuleGameTests {
      * (2.25 out at age 3) and gone at age 4. The bear comes once the punch is out, the Stand then standing where it
      * punches from (standOffsetFront).
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void extendedPunchHitsAMobWithinItsReachAndTurnsBackAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PunchRun run = new PunchRun(List.of(), punchRun -> punchRun.target = StoneFreeGrappleGameTests.target(
                     helper, fixture, donorPunchOrigin(fixture.stand).add(0.0D, 5.6D, 0.0D)));
             press(helper, fixture, StoneFreeAddon.EXTENDED_PUNCH_NAME);
@@ -1152,16 +1135,16 @@ public final class StoneFreeStringRuleGameTests {
                                 + " 4.5 blocks out at most, gone at age 4); the port's left the bear at health "
                                 + target.getHealth() + " of " + target.getMaxHealth() + ", seen after the hit "
                                 + done.seenAfterHurt + ", distances by age " + done.seen);
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             }, run, 30);
         });
     }
 
     // Its ray, from the origin to its end plus its last step, reached 9.0 blocks once: a bear 9.4 up is never touched.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void extendedPunchMissesAMobJustPastItsRayAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PunchRun run = new PunchRun(List.of(), punchRun -> punchRun.target = StoneFreeGrappleGameTests.target(
                     helper, fixture, donorPunchOrigin(fixture.stand).add(0.0D, 9.4D, 0.0D)));
             press(helper, fixture, StoneFreeAddon.EXTENDED_PUNCH_NAME);
@@ -1172,7 +1155,7 @@ public final class StoneFreeStringRuleGameTests {
                         "1.16's extended punch went 6.75 blocks out (its ray 9.0), never touched the bear 9.4 up"
                                 + " and was gone at age 10; the port's left the bear at health " + target.getHealth()
                                 + " of " + target.getMaxHealth() + ", distances by age " + done.seen);
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             }, run, 30);
         });
     }
@@ -1182,10 +1165,10 @@ public final class StoneFreeStringRuleGameTests {
      * broke (hardness up to 5, :54-56): stone 4.6 to 5.6 blocks up is met by the third step's ray, broken, and the
      * punch is seen coming back (2.25 out at age 3), gone at age 4.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void extendedPunchTurnsBackAtABlockItBreaksAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PunchRun run = new PunchRun(List.of(), punchRun -> {
                 punchRun.roof = BlockPos.containing(donorPunchOrigin(fixture.stand).add(0.0D, 5.6D, 0.0D));
                 punchRun.roofHeight = punchRun.roof.getY() - donorPunchOrigin(fixture.stand).y;
@@ -1199,7 +1182,7 @@ public final class StoneFreeStringRuleGameTests {
                         "1.16's extended punch broke the stone " + done.roofHeight + " blocks up and came back from"
                                 + " it, gone at age 4; the port's broke it " + broken + ", distances by age "
                                 + done.seen);
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             }, run, 30);
         });
     }
@@ -1209,24 +1192,24 @@ public final class StoneFreeStringRuleGameTests {
      * punch on every mob it tried to hurt and every block it met, and nothing otherwise: a bear 5.6 blocks up and a stone
      * block as far both make it heard; a bear 9.4 up, past the ray, makes no sound.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void extendedPunchPlaysTheLightPunchSoundOnAMobItMeetsAsIn116(GameTestHelper helper) {
         runPunchSound(helper, 5.6D, false, true);
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void extendedPunchPlaysTheLightPunchSoundOnABlockItMeetsAsIn116(GameTestHelper helper) {
         runPunchSound(helper, 5.6D, true, true);
     }
 
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void extendedPunchMakesNoLightPunchSoundWhenItMeetsNothingAsIn116(GameTestHelper helper) {
         runPunchSound(helper, 9.4D, false, false);
     }
 
     private static void runPunchSound(GameTestHelper helper, double height, boolean block, boolean heard) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             int[] sounds = {0};
             List<String> heardAt = new java.util.ArrayList<>();
             List<String> elsewhere = new java.util.ArrayList<>();
@@ -1277,7 +1260,7 @@ public final class StoneFreeStringRuleGameTests {
                                 + " it met" : "made no light punch sound when it met nothing")
                                 + "; the port's played it " + sounds[0] + " times on its own path " + heardAt
                                 + " (other light punches within 15 blocks: " + elsewhere + ")");
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
             }, run, 30);
         });
     }
@@ -1287,10 +1270,10 @@ public final class StoneFreeStringRuleGameTests {
      * ticks of the action, and SFExtendedPunchEntity did nothing when it went: a punch that hit a bear 5.6 blocks up is
      * back and gone by age 4, and the forearm is still the short one until the action ends.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void extendedPunchForearmComesBackWhenTheActionEndsNotWhenThePunchGoesAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PunchRun run = new PunchRun(List.of(), punchRun -> punchRun.target = StoneFreeGrappleGameTests.target(
                     helper, fixture, donorPunchOrigin(fixture.stand).add(0.0D, 5.6D, 0.0D)));
             press(helper, fixture, StoneFreeAddon.EXTENDED_PUNCH_NAME);
@@ -1313,13 +1296,13 @@ public final class StoneFreeStringRuleGameTests {
                             + " tick " + action.getFullTicksPassed() + " the port's Stand has the forearm "
                             + stand.hasForearm() + " and the short one " + stand.hasShortForearm());
             helper.assertTrue(ticksLeft > 0, "The extended punch's action never ended");
-            StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> awaitForearm(helper, fixture, ticksLeft - 1));
+            StoneFreeActionFixture.later(helper, fixture, 1, () -> awaitForearm(helper, fixture, ticksLeft - 1));
             return;
         }
         helper.assertTrue(stand.hasForearm() && !stand.hasShortForearm(),
                 "1.16 gave the forearm back when the extended punch's action ended; the port's Stand has the forearm "
                         + stand.hasForearm() + " and the short one " + stand.hasShortForearm());
-        StoneFreeBarrierGameTests.succeed(helper, fixture);
+        StoneFreeActionFixture.succeed(helper, fixture);
     }
 
     // A sound the punch plays is at its own position.
@@ -1381,7 +1364,7 @@ public final class StoneFreeStringRuleGameTests {
         }
         helper.assertTrue(ticksLeft > 0, "The extended punch " + (run.seen.isEmpty() ? "never flew"
                 : "was still out at age " + (punch != null ? punch.tickCount : -1)));
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchPunch(helper, fixture, done, run, ticksLeft - 1));
     }
 
@@ -1430,7 +1413,7 @@ public final class StoneFreeStringRuleGameTests {
     private static void runSwing(GameTestHelper helper, String abilityName, Kind kind, float speed, int lifespan,
             int timeAtFullLength) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             LivingEntity user = fixture.owner;
             // Only the plot's chunk ticks entities: the sweep reaches out along the look, the whip mostly behind it,
             // so the look points along x toward, or for the whip away from, the middle of that chunk.
@@ -1453,12 +1436,12 @@ public final class StoneFreeStringRuleGameTests {
             StoneFreeGrappleGameTests.click(helper, fixture, abilityName);
             return;
         }
-        StoneFreeBarrierGameTests.assertTicksEntities(helper, fixture);
+        StoneFreeActionFixture.assertTicksEntities(helper, fixture);
         Ability pick = fixture.power.getAbility(abilityName);
         helper.assertTrue(pick != null && pick.checkConditions(fixture.power).isPositive(),
                 "Registered " + abilityName + " refused the fixture");
         BufferingState buffering = BufferingState.clickOnly();
-        AbilityInput.keyPress(StoneFreeBarrierGameTests.GRAPPLE_KEY, pick, fixture.owner, null, InputMethod.HOLD,
+        AbilityInput.keyPress(StoneFreeActionFixture.GRAPPLE_KEY, pick, fixture.owner, null, InputMethod.HOLD,
                 0.0F, buffering, pick.abilityId);
         helper.assertTrue(buffering.isActionSuccess, "The held pick did not start");
     }
@@ -1468,7 +1451,7 @@ public final class StoneFreeStringRuleGameTests {
      * maxDistance 1.5 * 1.5 * 12 / 3 = 9 and a mark of 6: the pick's spike went out 6 steps to 9 blocks, stayed there
      * until age 10 and came back as fast, gone at age 16 (the port's went 4 blocks and came back at once).
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userPickSpikeGoesOutNineBlocksStaysAndComesBackAsIn116(GameTestHelper helper) {
         runSwing(helper, StoneFreeAddon.USER_STRING_PICK_NAME, Kind.USER_SPIKE, 1.5F, 16, 4);
     }
@@ -1478,10 +1461,10 @@ public final class StoneFreeStringRuleGameTests {
      * plus its last step, reached 10.5 blocks once (the first tick at full length), so a bear 10.9 up is never
      * touched.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userPickSpikeHitsWithinItsReachAndMissesBeyondItsRayAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             Vec3 origin = donorSwingPosition(Kind.USER_SPIKE, fixture.owner, 0, 0.0D);
             PolarBear near = StoneFreeGrappleGameTests.target(helper, fixture, origin.add(0.0D, 8.0D, 0.0D));
             PolarBear far = StoneFreeGrappleGameTests.target(helper, fixture, origin.add(0.0D, 10.9D, 0.0D));
@@ -1505,20 +1488,20 @@ public final class StoneFreeStringRuleGameTests {
                             + " ray reached 10.5) and was back at age 16; the port's went " + run.farthest
                             + " blocks out, last seen at age " + run.lastAge + ": near health " + near.getHealth()
                             + ", far health " + far.getHealth());
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
         helper.assertTrue(elapsed < 40, "The pick's spike " + (run.seen ? "outlived 40 ticks" : "never flew"));
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchSpikeReach(helper, fixture, near, far, run, elapsed + 1));
     }
 
     // 1.16 OwnerBoundProjectileEntity.afterBlockHit and breakProjectile, which SFUStringSpikeEntity kept: a block too
     // hard for it (hardness above 1) turned the spike back, and nothing broke it.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userPickSpikeTurnsBackAtABlockAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             BlockPos roof = BlockPos.containing(fixture.owner.getX(), fixture.owner.getEyeY() + 4.0D,
                     fixture.owner.getZ());
             fixture.setBlock(helper, roof, Blocks.STONE.defaultBlockState());
@@ -1555,13 +1538,13 @@ public final class StoneFreeStringRuleGameTests {
                             + distances + "); the port's was last seen at age " + lastAge + ", off 1.16's path at "
                             + mismatches.size() + " of " + seen.size() + " ticks: "
                             + mismatches.subList(0, Math.min(3, mismatches.size())));
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
         helper.assertTrue(ticksLeft > 0, "The " + kind + " string " + (out || string != null
                 ? "was still out at age " + (string != null ? string.tickCount : -1) : "never flew"));
         boolean nowOut = out || string != null;
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchSwing(helper, fixture, kind, distances, seen, nowOut, ticksLeft - 1));
     }
 
@@ -1570,10 +1553,10 @@ public final class StoneFreeStringRuleGameTests {
      * string's origin); its ray, from the origin to its end plus its last step, reached 9.0 blocks on its turn, so a
      * bear just beyond that is never touched. The port's old sweep stopped 4 blocks out.
      */
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void userSweepHitsWithinItsReachAndMissesBeyondItsRayAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             Vec3 origin = donorSwingPosition(Kind.USER_SWEEP, fixture.owner, 0, 0.0D);
             PolarBear near = StoneFreeGrappleGameTests.target(helper, fixture, origin.add(0.0D, 6.0D, 0.0D));
             PolarBear far = StoneFreeGrappleGameTests.target(helper, fixture, origin.add(0.0D, 9.4D, 0.0D));
@@ -1583,10 +1566,10 @@ public final class StoneFreeStringRuleGameTests {
     }
 
     // 1.16 OwnerBoundProjectileEntity.afterBlockHit, which SFUStringSweepEntity kept: a block turned the sweep back.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 100 + GameTestChunkTickets.WAIT_TICKS)
     public static void userSweepTurnsBackAtABlockAsIn116(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             BlockPos roof = BlockPos.containing(fixture.owner.getX(), fixture.owner.getEyeY() + 4.0D,
                     fixture.owner.getZ());
             fixture.setBlock(helper, roof, Blocks.STONE.defaultBlockState());
@@ -1613,11 +1596,11 @@ public final class StoneFreeStringRuleGameTests {
             helper.assertTrue(Math.abs(run.farthest - 7.5D) <= 0.3D && run.lastAge == 9,
                     "1.16's sweep went on past the bear it hit, 7.5 blocks out, and was back at age 10; the port's"
                             + " went " + run.farthest + " blocks out and was last seen at age " + run.lastAge);
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
         helper.assertTrue(elapsed < 30, "The user's sweep " + (run.seen ? "outlived 30 ticks" : "never flew"));
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchSweepReach(helper, fixture, near, far, run, elapsed + 1));
     }
 
@@ -1634,7 +1617,7 @@ public final class StoneFreeStringRuleGameTests {
                         "1.16's " + kind + " string turned back at the block " + roofDistance + " blocks up; the"
                                 + " port's went " + run.farthest + " blocks out and turned at age "
                                 + string.tickCount);
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
                 return;
             }
             run.seen = true;
@@ -1647,7 +1630,7 @@ public final class StoneFreeStringRuleGameTests {
                     + roofDistance + " blocks up)");
         }
         helper.assertTrue(elapsed < bindTicks + 10, "The " + kind + " string never flew");
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchTurnBack(helper, fixture, kind, roof, startY, bindTicks, step, run, elapsed + 1));
     }
 
@@ -1680,7 +1663,7 @@ public final class StoneFreeStringRuleGameTests {
                                 + (flight.reach + flight.step) + "); the port's got to " + flight.target + " "
                                 + (flight.target.getY() - string.getOriginPoint(1.0F).y) + " blocks above its start, "
                                 + distance + " blocks out at age " + string.tickCount);
-                StoneFreeBarrierGameTests.succeed(helper, fixture);
+                StoneFreeActionFixture.succeed(helper, fixture);
                 return;
             }
         }
@@ -1696,12 +1679,12 @@ public final class StoneFreeStringRuleGameTests {
                     "1.16's " + flight.what + " string came back and was gone by age " + flight.backAt
                             + "; the port's was last seen at age " + run.lastAge + ", " + run.lastDistance
                             + " blocks out");
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
         helper.assertTrue(elapsed < flight.limit, "The " + flight.what + " string "
                 + (run.seen ? "outlived " + flight.limit + " ticks: age " + run.lastAge : "never flew"));
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchReach(helper, fixture, flight, run, elapsed + 1));
     }
 
@@ -1719,21 +1702,21 @@ public final class StoneFreeStringRuleGameTests {
         if (overAt >= 0 && string != null) {
             helper.assertTrue(overAt >= expected && overAt <= expected + 1,
                     "1.16's Stand bind task ended after " + expected + " ticks, the port's after " + overAt);
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
         helper.assertTrue(elapsed < 30, "The Stand bind or its string outlived 30 ticks: bind over at " + overAt
                 + ", string " + (string == null ? "never seen" : "age " + string.tickCount));
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> trackBind(helper, fixture, bind, expected, elapsed + 1, overAt, string));
     }
 
     // 1.16 SFStringEntity always catches (95-100): the Stand's string has no non-binding form, whatever flag a
     // caller sets or leaves unset. The port's old hidden form lived 16 ticks and hurt for 2.0.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standStringAlwaysCatchesWhateverBindingFlagItWasGiven(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             // Within the 8 blocks a Stand string with no speed factor reaches (1.16 SFStringEntity, 24 ticks).
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
@@ -1752,17 +1735,17 @@ public final class StoneFreeStringRuleGameTests {
             StoneFreeGrappleGameTests.await(helper, fixture, Kind.STAND_STRING, 30,
                     caught -> caught.getEntityAttachedTo() == target, caught -> {
                         assertCaughtUnhurt(helper, target, "A Stand string with no binding flag");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
     // A Stand string saved while the hidden non-binding form existed has Binding=false; it loads as the
     // ordinary catching string, with a missing key as well.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 60)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 60 + GameTestChunkTickets.WAIT_TICKS)
     public static void savedNonBindingStandStringLoadsAsTheOrdinaryCatchingString(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStringEntity saved = new StoneFreeStringEntity(Kind.STAND_STRING, fixture.stand, helper.getLevel());
             CompoundTag tag = saved.saveWithoutId(new CompoundTag());
             for (boolean keyPresent : new boolean[] {true, false}) {
@@ -1781,17 +1764,17 @@ public final class StoneFreeStringRuleGameTests {
                                 + loaded.kind() + " living " + loaded.ticksLifespan() + " ticks, not as the"
                                 + " 24 tick catching string");
             }
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
         });
     }
 
     // The ray of an OwnerBoundProjectileEntity returns every target on the string in one tick, and
     // 1.16 SF(U)StringEntity.hurtTarget caught only while nothing was attached yet: the next contact of that
     // tick was refused (dealtDamage). Both targets stand on the same spot, so one tick reaches both.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userBindHoldsOnlyOneOfTwoTargetsReachedInTheSameTick(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             Vec3 spot = fixture.owner.position().add(0.0D, 8.0D, 0.0D);
             PolarBear first = StoneFreeGrappleGameTests.target(helper, fixture, spot);
             PolarBear second = StoneFreeGrappleGameTests.target(helper, fixture, spot);
@@ -1808,16 +1791,16 @@ public final class StoneFreeStringRuleGameTests {
                                         + ", second=" + second.hasEffect(ModStatusEffects.IMMOBILIZE));
                         assertCaughtUnhurt(helper, first, "The user's bind");
                         assertCaughtUnhurt(helper, second, "The user's bind");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
 
     // The same for the Stand's bind, whose true result marks what it caught as hurt by the Stand's user.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void standBindMarksOnlyOneOfTwoTargetsReachedInTheSameTick(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             Vec3 spot = stand.position().add(0.0D, 10.0D, 0.0D);
             PolarBear first = StoneFreeGrappleGameTests.target(helper, fixture, spot);
@@ -1835,7 +1818,7 @@ public final class StoneFreeStringRuleGameTests {
                                         + string.getEntityAttachedTo() + "; 1.16 caught only the first");
                         assertCaughtUnhurt(helper, first, "The Stand's bind");
                         assertCaughtUnhurt(helper, second, "The Stand's bind");
-                        StoneFreeBarrierGameTests.succeed(helper, fixture);
+                        StoneFreeActionFixture.succeed(helper, fixture);
                     });
         });
     }
@@ -1843,10 +1826,10 @@ public final class StoneFreeStringRuleGameTests {
     // 1.16 SFUStringEntity.hurtTarget and afterEntityHit never attach to, nor immobilise, the Stand of the string's
     // user. The port's strings are owned by that Stand, which a projectile never hits, so the guard here is that
     // a bind started inside the Stand never holds it.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 120 + GameTestChunkTickets.WAIT_TICKS)
     public static void userBindNeverHoldsTheUsersOwnStand(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             StoneFreeStandEntity stand = fixture.stand;
             stand.setCanFollowUser(false);
             stand.setNoGravity(true);
@@ -1870,13 +1853,13 @@ public final class StoneFreeStringRuleGameTests {
         helper.assertTrue(!stand.hasEffect(ModStatusEffects.IMMOBILIZE),
                 "The user's bind immobilised the user's own Stand");
         if (string != null && string.getEntityAttachedTo() == beyond) {
-            StoneFreeBarrierGameTests.succeed(helper, fixture);
+            StoneFreeActionFixture.succeed(helper, fixture);
             return;
         }
         helper.assertTrue(ticksLeft > 0, "The user's bind did not get past the user's own Stand: "
                 + (string == null ? "no string" : "age " + string.tickCount + " at " + string.position())
                 + ", Stand at " + stand.position());
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchBindThroughOwnStand(helper, fixture, stand, beyond, ticksLeft - 1));
     }
 
@@ -1898,10 +1881,10 @@ public final class StoneFreeStringRuleGameTests {
 
     // 1.16 SFUStringSweepEntity has no such override: its hit is a plain hurt, which a stronger hit's cooldown
     // refuses. The second sweep, after the cooldown, shows that the first one did reach the target.
-    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160)
+    @GameTest(template = "empty", templateNamespace = "rotp_sf_barrier_review", timeoutTicks = 160 + GameTestChunkTickets.WAIT_TICKS)
     public static void userSweepIsRefusedByTheHurtCooldownOfAStrongerHit(GameTestHelper helper) {
         Fixture fixture = StoneFreeGrappleGameTests.upwardFixture(helper);
-        StoneFreeBarrierGameTests.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
+        StoneFreeActionFixture.later(helper, fixture, fixture.stand.summonLockTicks + 1, () -> {
             PolarBear target = StoneFreeGrappleGameTests.target(helper, fixture,
                     fixture.owner.position().add(0.0D, 3.0D, 0.0D));
             primeHurtCooldown(helper, target, 10.0F);
@@ -1919,7 +1902,7 @@ public final class StoneFreeStringRuleGameTests {
                     helper.assertTrue(target.getHealth() < primed,
                             "The same sweep did not hurt the target once its hurt cooldown was over, so the"
                                     + " refused one proves nothing: health " + target.getHealth());
-                    StoneFreeBarrierGameTests.succeed(helper, fixture);
+                    StoneFreeActionFixture.succeed(helper, fixture);
                 });
             });
         });
@@ -1950,7 +1933,7 @@ public final class StoneFreeStringRuleGameTests {
                         + ", target at " + target.position());
         target.invulnerableTime = 20;
         boolean out = seen || string != null;
-        StoneFreeBarrierGameTests.later(helper, fixture, 1, () -> awaitCatchInsideCooldown(
+        StoneFreeActionFixture.later(helper, fixture, 1, () -> awaitCatchInsideCooldown(
                 helper, fixture, target, kind, out, ticksLeft - 1, assertions));
     }
 
@@ -1968,28 +1951,32 @@ public final class StoneFreeStringRuleGameTests {
             return;
         }
         boolean out = seen || string != null;
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> watchSweep(helper, fixture, target, holdCooldown, out, ticksLeft - 1, done));
     }
 
     private static void assertHoldingLifespan(GameTestHelper helper, StoneFreeStringEntity string, String what) {
-        string.tickCount = DONOR_HOLDING_LIFESPAN;
-        string.tick();
+        advanceStringToAge(helper, string, DONOR_HOLDING_LIFESPAN);
         helper.assertTrue(string.isAlive(), what + " holding a catch ended before its 49th tick");
-        string.tickCount = DONOR_HOLDING_LIFESPAN + 1;
-        string.tick();
+        advanceStringToAge(helper, string, DONOR_HOLDING_LIFESPAN + 1);
         helper.assertTrue(!string.isAlive(), what + " holding a catch outlived its 49 ticks");
     }
 
+    private static void advanceStringToAge(GameTestHelper helper, StoneFreeStringEntity string, int age) {
+        for (int tick = string.tickCount; tick < age && string.isAlive(); tick++) {
+            helper.getLevel().tickNonPassenger(string);
+        }
+    }
+
     private static void press(GameTestHelper helper, Fixture fixture, String abilityName) {
-        StoneFreeBarrierGameTests.assertTicksEntities(helper, fixture);
+        StoneFreeActionFixture.assertTicksEntities(helper, fixture);
         Ability ability = fixture.power.getAbility(abilityName);
         helper.assertTrue(ability != null && ability.checkConditions(fixture.power).isPositive(),
                 "Registered " + abilityName + " refused the fixture");
         BufferingState buffering = BufferingState.clickOnly();
-        AbilityInput.keyPress(StoneFreeBarrierGameTests.GRAPPLE_KEY, ability, fixture.owner, null,
+        AbilityInput.keyPress(StoneFreeActionFixture.GRAPPLE_KEY, ability, fixture.owner, null,
                 InputMethod.CLICK, 0.0F, buffering, ability.abilityId);
-        AbilityInput.keyRelease(StoneFreeBarrierGameTests.GRAPPLE_KEY, fixture.owner);
+        AbilityInput.keyRelease(StoneFreeActionFixture.GRAPPLE_KEY, fixture.owner);
         helper.assertTrue(buffering.isActionSuccess, "Public click of " + abilityName + " did not start");
     }
 
@@ -2011,7 +1998,7 @@ public final class StoneFreeStringRuleGameTests {
                 + ", Stand action " + fixture.stand.getCurStandAction() + ", Stand pitch "
                 + fixture.stand.getXRot() + ", target at " + target.position() + ", Stand at "
                 + fixture.stand.position());
-        StoneFreeBarrierGameTests.later(helper, fixture, 1,
+        StoneFreeActionFixture.later(helper, fixture, 1,
                 () -> awaitCatch(helper, fixture, target, ticksLeft - 1, assertions));
     }
 

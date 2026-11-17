@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import rotp.core.powersystem.standpower.StandDamageContext;
 import rotp.core.powersystem.standpower.StandPower;
 
 import net.minecraft.core.BlockPos;
@@ -285,7 +286,9 @@ public final class MagnetForceHandler {
                 if (!nbt.getBoolean(ITEM_HURT_TAG)) {
                     float damage = getItemDamage(stack, entity);
                     if (damage > 0.0F) {
-                        entity.hurt(entity.damageSources().generic(), damage);
+                        try (var running = StandDamageContext.enter(MagnetizedData.bastetPowerNear(entity))) {
+                            entity.hurt(entity.damageSources().generic(), damage);
+                        }
                         applySharpEnchantEffects(stack, entity);
                         nbt.putBoolean(ITEM_HURT_TAG, true);
                     }
@@ -431,7 +434,9 @@ public final class MagnetForceHandler {
             CompoundTag nbt = entity.getPersistentData();
             String key = IRON_BLOCK_HURT_PREFIX + nearest.getX() + "_" + nearest.getY() + "_" + nearest.getZ();
             if (!nbt.getBoolean(key)) {
-                entity.hurt(entity.damageSources().generic(), 5.0F);
+                try (var running = StandDamageContext.enter(MagnetizedData.bastetPowerNear(entity))) {
+                    entity.hurt(entity.damageSources().generic(), 5.0F);
+                }
                 nbt.putBoolean(key, true);
             }
         }

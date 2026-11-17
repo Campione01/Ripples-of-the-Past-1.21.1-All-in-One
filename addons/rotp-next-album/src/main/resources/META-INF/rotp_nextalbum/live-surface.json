@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "module_id": "rotp_nextalbum",
-  "version": "0.1.13-port.8",
+  "version": "0.1.13-port.9",
   "status": "residual_content_active_after_standalone_split",
   "registered_ids": [
     {

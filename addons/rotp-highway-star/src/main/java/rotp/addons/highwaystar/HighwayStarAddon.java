@@ -23,12 +23,17 @@ import rotp.core.powersystem.standpower.type.StandType;
 
 import rotp.addons.highwaystar.ability.HighwayStarActionBlocker;
 import rotp.addons.highwaystar.ability.HighwayStarDrainAbility;
+import rotp.addons.highwaystar.ability.HighwayStarRoomAbility;
 import rotp.addons.highwaystar.ability.HighwayStarSeizeAbility;
 import rotp.addons.highwaystar.ability.HighwayStarSmellAbility;
 import rotp.addons.highwaystar.ability.HighwayStarUtilityAbility;
 import rotp.addons.highwaystar.ability.HighwayStarUtilityAbility.Mode;
 import rotp.addons.highwaystar.entity.HighwayStarEntity;
 import rotp.addons.highwaystar.entity.HighwayStarSoleEntity;
+import rotp.addons.highwaystar.entity.HighwayStarRoomEntity;
+import rotp.addons.highwaystar.room.HighwayStarRoomState;
+import net.minecraft.core.particles.ParticleType;
+import net.minecraft.core.particles.SimpleParticleType;
 import rotp.addons.highwaystar.network.HighwayStarPayloads;
 import rotp.addons.highwaystar.smell.SmellTargets;
 import net.minecraft.core.registries.Registries;
@@ -65,6 +70,8 @@ public final class HighwayStarAddon {
     public static final String ARM_RETURN = "highway_star_arm_return";
     public static final String DRAIN = "highway_star_drain";
     public static final String FORM_SWITCH = "highway_star_form_switch";
+    public static final String ROOM = "highway_star_room";
+    public static final String ROOM_REMOVE = "highway_star_room_remove";
 
     public static final float ENTITY_WIDTH = 0.7F;
     public static final float ENTITY_HEIGHT = 2.1F;
@@ -79,6 +86,16 @@ public final class HighwayStarAddon {
             DeferredRegister.create(JojoRegistries.DEFAULT_STANDS_REG, MOD_ID);
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
             DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
+    public static final DeferredRegister<ParticleType<?>> PARTICLES =
+            DeferredRegister.create(Registries.PARTICLE_TYPE, MOD_ID);
+    public static final DeferredHolder<ParticleType<?>, SimpleParticleType> ROOM_FOOTPRINT =
+            PARTICLES.register("room_footprint", () -> new SimpleParticleType(false));
+    public static final DeferredHolder<AbilityType<?>, AbilityType<HighwayStarRoomAbility>> ROOM_ABILITY =
+            ABILITY_TYPES.register(ROOM, key -> new AbilityType<>(key,
+                    (type, abilityId) -> new HighwayStarRoomAbility(type, abilityId, false)));
+    public static final DeferredHolder<AbilityType<?>, AbilityType<HighwayStarRoomAbility>> ROOM_REMOVE_ABILITY =
+            ABILITY_TYPES.register(ROOM_REMOVE, key -> new AbilityType<>(key,
+                    (type, abilityId) -> new HighwayStarRoomAbility(type, abilityId, true)));
 
     public static final DeferredHolder<AbilityType<?>, AbilityType<HighwayStarSmellAbility>> SMELL_ABILITY =
             ABILITY_TYPES.register(SMELL, key -> new AbilityType<>(key, HighwayStarSmellAbility::new));
@@ -113,6 +130,11 @@ public final class HighwayStarAddon {
                     .build(key.toString()));
 
     public static final DeferredHolder<SoundEvent, SoundEvent> SUMMON_VOICELINE = sound("summon_voiceline");
+    public static final DeferredHolder<EntityType<?>, EntityType<HighwayStarRoomEntity>> ROOM_ENTITY =
+            ENTITY_TYPES.register("highway_star_room", key -> EntityType.Builder
+                    .<HighwayStarRoomEntity>of(HighwayStarRoomEntity::new, MobCategory.MISC)
+                    .noSummon().sized(1.0F, 2.0F).clientTrackingRange(4).updateInterval(2)
+                    .build(key.toString()));
     public static final DeferredHolder<SoundEvent, SoundEvent> SUMMON = sound("summon");
     public static final DeferredHolder<SoundEvent, SoundEvent> FORM_SWITCH_SOUND = sound("summon2");
     public static final DeferredHolder<SoundEvent, SoundEvent> BARRAGE_VOICE = sound("barrage");
@@ -123,6 +145,9 @@ public final class HighwayStarAddon {
 
     public static final Supplier<AttachmentType<SmellTargets>> SMELL_TARGETS = ATTACHMENT_TYPES.register(
             "smell_targets", () -> AttachmentType.builder(SmellTargets::new).serialize(SmellTargets.CODEC).build());
+    public static final Supplier<AttachmentType<HighwayStarRoomState>> ROOM_STATE = ATTACHMENT_TYPES.register(
+            "room_state", () -> AttachmentType.builder(HighwayStarRoomState::new)
+                    .serialize(HighwayStarRoomState.CODEC, HighwayStarRoomState::hasRoom).build());
 
     public static final DeferredHolder<StandType, EntityStandType> HIGHWAY_STAR =
             STAND_TYPES.register("highway_star", HighwayStarAddon::createStand);
@@ -139,10 +164,12 @@ public final class HighwayStarAddon {
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
         ATTACHMENT_TYPES.register(modEventBus);
+        PARTICLES.register(modEventBus);
         modEventBus.addListener(HighwayStarEvents::registerAttributes);
         modEventBus.addListener(HighwayStarPayloads::register);
         modEventBus.addListener(HighwayStarAddon::commonSetup);
         modContainer.registerConfig(ModConfig.Type.COMMON, HighwayStarConfig.SPEC, "highwaystar-common.toml");
+        modContainer.registerConfig(ModConfig.Type.SERVER, HighwayStarRoomConfig.SPEC, "highwaystar-room-server.toml");
     }
 
     private static void commonSetup(FMLCommonSetupEvent event) {
@@ -171,6 +198,8 @@ public final class HighwayStarAddon {
     private static EntityStandType createStand(ResourceLocation id) {
         MovesetBuilder moveset = new MovesetBuilder()
                 .addHumanoidStandStuff()
+                // the owner decided its second punch: verifyHighwayStarSecondPunch
+                .noPunchCombo()
                 .addAbility(PUNCH, ModStandAbilities.PUNCH)
                 // 1.16 standSound(PERFORM, barrage): the two-argument form played with the arms only too
                 .addAbility(BARRAGE, ModStandAbilities.BARRAGE,
@@ -193,6 +222,8 @@ public final class HighwayStarAddon {
                 .addAbility(DRAIN, DRAIN_ABILITY)
                 .addAbility(SMELL, SMELL_ABILITY)
                 .addAbility(FORM_SWITCH, FORM_SWITCH_ABILITY)
+                .addAbility(ROOM, ROOM_ABILITY)
+                .addAbility(ROOM_REMOVE, ROOM_REMOVE_ABILITY)
                 .makeControlScheme("hotbar")
                     .bind(PUNCH, InputMethod.CLICK, InputKey.LMB)
                     .bind(BARRAGE, InputMethod.HOLD, InputKey.LMB)
@@ -208,6 +239,8 @@ public final class HighwayStarAddon {
                     .addToHotbar(DRAIN, 0, InputMethod.HOLD)
                     .addToHotbar(SMELL, 0, InputMethod.HOLD)
                     .addToHotbar(FORM_SWITCH, 0, InputMethod.CLICK)
+                    .addToHotbar(ROOM, 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(ROOM_REMOVE, ROOM, InputKey.Modifier.SHIFT, InputMethod.CLICK)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")
                     .bind(PUNCH, InputMethod.CLICK, InputKey.LMB)
@@ -229,6 +262,8 @@ public final class HighwayStarAddon {
                 .addSkill(StandUnlockableSkill.startingAbility(DRAIN))
                 .addSkill(StandUnlockableSkill.startingAbility(SMELL))
                 .addSkill(StandUnlockableSkill.startingAbility(FORM_SWITCH))
+                .addSkill(StandUnlockableSkill.startingAbility(ROOM))
+                .addSkill(StandUnlockableSkill.startingAbility(ROOM_REMOVE))
                 .addSkill(StandUnlockableSkill.startingAbility("manual_control"));
 
         // 1.16 tier(6) has no 1.21 counterpart; the other stats are the donor's

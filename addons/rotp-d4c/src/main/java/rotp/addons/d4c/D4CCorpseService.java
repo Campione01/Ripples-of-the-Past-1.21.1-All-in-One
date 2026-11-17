@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 
 import rotp.core.api.RotpAddonApi;
 import rotp.core.api.stand.StandStaminaModifiers;
+import rotp.core.powersystem.standpower.StandDamageContext;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
@@ -256,9 +257,12 @@ public final class D4CCorpseService {
                 punishmentBounds,
                 candidate -> candidate != player
                         && !(candidate instanceof Player))) {
-            living.hurt(
-                    level.damageSources().magic(),
-                    D4CPhase2BSpec.LIGHT_WALL_PUNISH_DAMAGE);
+            // dealt from the user's tick, outside the Stand's code: the user's Stand's damage share applies
+            try (var running = StandDamageContext.enter(d4cStand(player))) {
+                living.hurt(
+                        level.damageSources().magic(),
+                        D4CPhase2BSpec.LIGHT_WALL_PUNISH_DAMAGE);
+            }
             Vec3 direction = living.position()
                     .subtract(player.position())
                     .normalize()
@@ -406,7 +410,7 @@ public final class D4CCorpseService {
             intercepted = true;
         }
         if (intercepted) {
-            redirectMisfortune(level, protectedEntity);
+            redirectMisfortune(level, protectedEntity, owner);
         }
 
         AABB livingBounds =
@@ -499,7 +503,7 @@ public final class D4CCorpseService {
             if (attacker != null
                     && !event.getSource().is(
                             DamageTypeTags.BYPASSES_INVULNERABILITY)) {
-                redirectMisfortune(level, target);
+                redirectMisfortune(level, target, target);
             }
             return;
         }
@@ -513,9 +517,17 @@ public final class D4CCorpseService {
         }
     }
 
-    private static void redirectMisfortune(
+    // The Love Train user's Stand stands behind the misfortune it passes on, so the bystander takes its damage share.
+    @Nullable
+    private static StandPower d4cStand(LivingEntity user) {
+        StandPower power = user != null ? StandPower.get(user) : null;
+        return power != null && power.getPowerType() == D4CAddon.D4C.get() ? power : null;
+    }
+
+    static void redirectMisfortune(
             ServerLevel level,
-            LivingEntity target) {
+            LivingEntity target,
+            @Nullable LivingEntity user) {
         List<LivingEntity> candidates = level.getEntitiesOfClass(
                 LivingEntity.class,
                 target.getBoundingBox().inflate(20.0D),
@@ -529,9 +541,11 @@ public final class D4CCorpseService {
         }
         LivingEntity redirected = candidates.get(
                 target.getRandom().nextInt(candidates.size()));
-        redirected.hurt(
-                redirected.damageSources().magic(),
-                redirected.getMaxHealth() * 0.2F);
+        try (var running = StandDamageContext.enter(d4cStand(user))) {
+            redirected.hurt(
+                    redirected.damageSources().magic(),
+                    redirected.getMaxHealth() * 0.2F);
+        }
     }
 
     public static boolean hasLegs(LivingEntity entity) {

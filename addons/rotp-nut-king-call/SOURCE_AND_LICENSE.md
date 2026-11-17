@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-nut-king-call`, mod id `nutkingcall`, version `1.0.0-port.1`.
+- Module: `rotp-nut-king-call`, mod id `nutkingcall`, version `1.0.0-port.2`.
 - Original 1.16.5 add-on: see the record below (original authors: Grasshopper, Day_GeE).
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-10-29 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-10-29 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -25,3 +25,7 @@ The Java implementation is a clean port to the current ROTP core and NeoForge
 APIs. The donor's model, animations, textures, block state and model,
 language files and logo are redistributed under the donor's GPL-3.0 license;
 port code is provided under GPL-3.0-only.
+
+The skin's animation file adds two clips to the donor's: `punch_right` and
+`punch_left` are exact copies of the donor's `attack1` and `attack2`, written by
+`migration/punch_clips.py`, so that each hand plays its own punch on this core.

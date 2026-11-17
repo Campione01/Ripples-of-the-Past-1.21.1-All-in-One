@@ -1,5 +1,6 @@
 package rotp.addons.reworked;
 
+import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -7,7 +8,11 @@ import java.util.Set;
 
 import javax.annotation.Nullable;
 
+import com.google.common.collect.MapMaker;
+
 import rotp.core.JojoModConfig;
+import rotp.core.api.simulation.EntitySimulations;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.api.power.PowerSkillUnlocks;
 import rotp.core.api.timestop.TimeStopLifecycleEvent;
 import rotp.core.event.RipplesAbilityKeyPressEvent;
@@ -55,6 +60,7 @@ import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingKnockBackEvent;
 import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
@@ -91,10 +97,13 @@ public final class ReworkedGameEvents {
     // had left when it went (0 when it ran out), by entity id.
     private static final Map<Integer, Integer>
             TIME_STOP_EFFECT_TICKS_LEFT = new HashMap<>();
-    // The flame hit whose hurt has not reached onIncomingDamage yet, with the
-    // fire its Slow Burn left (the core flame's own 10 s fire comes after).
-    @Nullable
-    private static FlameHit pendingFlameHit;
+    // The flame hits whose hurt has not reached onIncomingDamage yet, with the
+    // fire their Slow Burn left (the core flame's own 10 s fire comes after),
+    // by the flame object: a copy of an entity (King Crimson's Epitaph) carries
+    // the int id of its body, which must not stand for it. Entity#equals
+    // compares ids, hence the identity keys.
+    private static final Map<MRFlameEntity, FlameHit>
+            PENDING_FLAME_HITS = new MapMaker().weakKeys().makeMap();
 
     private ReworkedGameEvents() {}
 
@@ -104,15 +113,29 @@ public final class ReworkedGameEvents {
     public static void onProjectileImpact(ProjectileImpactEvent event) {
         if (!(event.getProjectile() instanceof MRFlameEntity flame)
                 || flame.level().isClientSide()
+                || EntitySimulations.isSimulated(flame)
                 || !flame.isAlive()
                 || !(event.getRayTraceResult()
                         instanceof EntityHitResult hit)
-                || !(hit.getEntity() instanceof LivingEntity target)) {
+                || !(hit.getEntity() instanceof LivingEntity target)
+                || EntitySimulations.isSimulated(target)) {
             return;
         }
         applyFlameSlowBurn(target, flame);
-        pendingFlameHit = new FlameHit(flame.getId(), target.getId(),
-                target.getRemainingFireTicks());
+        PENDING_FLAME_HITS.put(flame, new FlameHit(target,
+                target.getRemainingFireTicks()));
+    }
+
+    /** The target of the flame's hit that waits for its hurt, or null (read by the game tests). */
+    @Nullable
+    public static LivingEntity pendingFlameTarget(MRFlameEntity flame) {
+        FlameHit hit = PENDING_FLAME_HITS.get(flame);
+        return hit != null ? hit.target() : null;
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        PENDING_FLAME_HITS.clear();
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -125,10 +148,13 @@ public final class ReworkedGameEvents {
         }
         event.setAmount(
                 event.getAmount() * LEGACY_FLAME_DAMAGE);
-        FlameHit hit = pendingFlameHit;
-        if (hit != null && hit.flameId() == flame.getId()
-                && hit.targetId() == event.getEntity().getId()) {
-            pendingFlameHit = null;
+        if (EntitySimulations.isSimulated(flame)
+                || EntitySimulations.isSimulated(event.getEntity())) {
+            return;
+        }
+        FlameHit hit = PENDING_FLAME_HITS.get(flame);
+        if (hit != null && hit.target() == event.getEntity()) {
+            PENDING_FLAME_HITS.remove(flame);
             // The donor's 7 s replace the core flame's 10 s; a failed hurt
             // still puts back the fire Slow Burn left, as 1.16 did.
             event.getEntity().setRemainingFireTicks(hit.fireTicks());
@@ -252,6 +278,10 @@ public final class ReworkedGameEvents {
 
     private static void handleProjectileThreatTimeStop(
             ServerLevel level, LivingEntity entity) {
+        // A copy carries its body's int id: its stop would run under the real user's id.
+        if (EntitySimulations.isSimulated(entity)) {
+            return;
+        }
         StandPower power = StandPower.get(entity);
         boolean starPlatinum = isEligibleStarPlatinum(power, entity);
         boolean theWorld = isEligibleTheWorld(power);
@@ -612,7 +642,8 @@ public final class ReworkedGameEvents {
         MobEffectInstance removed = event.getEffectInstance();
         if (removed != null
                 && removed.getEffect().is(ModStatusEffects.TIME_STOP)
-                && !event.getEntity().level().isClientSide()) {
+                && !event.getEntity().level().isClientSide()
+                && !EntitySimulations.isSimulated(event.getEntity())) {
             TIME_STOP_EFFECT_TICKS_LEFT.put(
                     event.getEntity().getId(), removed.getDuration());
         }
@@ -628,7 +659,8 @@ public final class ReworkedGameEvents {
         MobEffectInstance instance = event.getEffectInstance();
         if (instance != null
                 && instance.getEffect().is(ModStatusEffects.TIME_STOP)
-                && !event.getEntity().level().isClientSide()) {
+                && !event.getEntity().level().isClientSide()
+                && !EntitySimulations.isSimulated(event.getEntity())) {
             TIME_STOP_EFFECT_TICKS_LEFT.put(event.getEntity().getId(), 0);
         }
         if (instance != null
@@ -665,7 +697,18 @@ public final class ReworkedGameEvents {
                 1.75F * multiplier, multiplier);
     }
 
+    // Runs from the stop's end event, outside any press or action: the blink's and
+    // the punch's locks must not count as uses of them in the no-cooldown mode
+    // (the core's own end does the same).
     private static void restoreLegacyTimeStopCooldown(
+            TimeStopState.Instance instance,
+            LivingEntity user,
+            StandPower power) {
+        StandAbilityFatigue.withoutFatigue(
+                () -> setLegacyTimeStopCooldown(instance, user, power));
+    }
+
+    private static void setLegacyTimeStopCooldown(
             TimeStopState.Instance instance,
             LivingEntity user,
             StandPower power) {
@@ -783,7 +826,17 @@ public final class ReworkedGameEvents {
     private record CastSnapshot(
             Vec3 position, float xRot, float yRot) {}
 
-    private record FlameHit(int flameId, int targetId, int fireTicks) {}
+    // The target weakly: through its level it reaches the flame, the weak key, which a strong value would never let go.
+    private record FlameHit(WeakReference<LivingEntity> targetRef, int fireTicks) {
+        private FlameHit(LivingEntity target, int fireTicks) {
+            this(new WeakReference<>(target), fireTicks);
+        }
+
+        @Nullable
+        private LivingEntity target() {
+            return targetRef.get();
+        }
+    }
 
     private enum ProjectileThreat {
         CLEAR,

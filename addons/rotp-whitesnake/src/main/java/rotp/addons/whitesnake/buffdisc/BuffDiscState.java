@@ -2,7 +2,11 @@ package rotp.addons.whitesnake.buffdisc;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.UUID;
 
+import javax.annotation.Nullable;
+
+import rotp.core.powersystem.standpower.StandDamageContext;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -25,6 +29,9 @@ public final class BuffDiscState
     private boolean pendingExplosion;
     private int explosionTimer;
     private float explosionPower;
+    // not saved: the explosion of a world reloaded in between is nobody's
+    @Nullable
+    private UUID explosionOwner;
     private final Set<String> unlockedEffects = new LinkedHashSet<>();
     private int enlightenmentCount;
     // not saved: the one injection the last Inject Effect action allows
@@ -44,6 +51,16 @@ public final class BuffDiscState
         pendingExplosion = true;
         explosionTimer = ticks;
         explosionPower = power;
+        StandDamageContext.Owner running = StandDamageContext.running();
+        explosionOwner = running != null && running.power().getUser() != null ? running.power().getUser().getUUID() : null;
+    }
+
+    /** The user whose Stand's disc set the explosion going (not saved), once; null when none did. */
+    @Nullable
+    public UUID takeExplosionOwner() {
+        UUID owner = explosionOwner;
+        explosionOwner = null;
+        return owner;
     }
 
     public boolean hasPendingExplosion() {

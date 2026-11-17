@@ -48,5 +48,6 @@
   "rotp_theworld.stand_skins.the_world": "迪亚哥",
   "rotp_theworld.stand_skins.skin_a": "皮肤 A",
   "rotp_theworld.stand_skins.skin_b": "皮肤 B",
-  "rotp_theworld.stand_skins.skin_c": "皮肤 C"
+  "rotp_theworld.stand_skins.skin_c": "皮肤 C",
+  "jojo_ripples.skill.time_stop.desc": "『世界』短暂停止时间的流动，使只有你能在冻结的时间中自由行动。\n长按蓄力，蓄力不到一半就松开不会发动。情况紧急时快速连按两次，可以立刻停止时间，但只能停很短一瞬。"
 }

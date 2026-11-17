@@ -5,9 +5,11 @@ import java.lang.reflect.Field;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import com.google.gson.JsonObject;
 import com.mojang.authlib.GameProfile;
 
 import io.netty.buffer.Unpooled;
@@ -31,6 +33,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.server.players.PlayerList;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
@@ -52,15 +55,19 @@ import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.madeinheaven.MadeInHeavenAddon;
+import rotp.addons.madeinheaven.MadeInHeavenServerConfig;
 import rotp.addons.madeinheaven.ability.LightSpeedDashAbility;
 import rotp.addons.madeinheaven.ability.TimeAuraAbility;
 import rotp.addons.madeinheaven.ability.TimeSystemAbility;
 import rotp.addons.madeinheaven.ability.UniverseResetAbility;
+import rotp.core.powersystem.standpower.StandTuning;
 import rotp.addons.madeinheaven.state.TimeAccelerationMode;
 import rotp.addons.madeinheaven.state.TimeAccelerationService;
 import rotp.addons.madeinheaven.state.TimeAccelerationState;
 import rotp.addons.madeinheaven.state.TimeLagRates;
 import rotp.addons.madeinheaven.state.TimeLagService;
+import rotp.core.api.time.EntityTimeRates;
+import rotp.core.api.time.LevelTimeRates;
 import rotp.core.customobjects.AfterimageEntity;
 import rotp.core.JojoModConfig;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
@@ -77,6 +84,7 @@ import rotp.core.powersystem.ability.EntityActionAbility;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.ability.condition.AvailableAbilities.AbilityConditionCheck;
 import rotp.core.powersystem.ability.controls.ControlSchemeTemplate;
+import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.ability.input.AbilityInput;
 import rotp.core.powersystem.ability.input.ActionInputBuffer.BufferingState;
@@ -96,8 +104,8 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
  * 1 generic damage to every other living entity within 2 blocks of it.
  *
  * <p>The acceleration belongs to a player the server's player list knows, so its tick clears a test player's
- * acceleration at the end of the tick. Each case therefore presses and ticks the Stand's action component within
- * one callback; only the afterimage, which no longer needs the acceleration, runs on real server ticks.
+ * acceleration at the end of the tick. The dash cases therefore press and tick the Stand's action component within
+ * one callback. The pause cases bind their own players to the real server lookup and observe elapsed server ticks.
  */
 @GameTestHolder(LightSpeedDashGameTests.NAMESPACE)
 @PrefixGameTestTemplate(false)
@@ -1457,6 +1465,402 @@ public final class LightSpeedDashGameTests {
         });
     }
 
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 40, batch = "mihPauseRollback")
+    public static void timeSystemShiftClickPreservesOtherHoldAndRollsBackPhase(GameTestHelper helper) {
+        PauseFixture test = new PauseFixture(helper);
+        test.step(() -> {
+            test.setUp(TimeAccelerationMode.WORLD_ACCELERATES);
+            test.holdTimeSystem(test.owner, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+        });
+        helper.runAfterDelay(2, () -> test.step(() -> {
+            // The real start already ran. Seed phase 11 four ticks past the previous phase's end, without 1500 world ticks.
+            int seededTicks = 10 * TimeAccelerationService.LEGACY_PHASE_TICKS + 4;
+            while (test.state.tickCounter() < seededTicks) {
+                test.state.advance(1 + test.state.tickCounter() / TimeAccelerationService.LEGACY_PHASE_TICKS);
+            }
+            helper.assertTrue(test.state.phase() == 11 && test.state.tickCounter() == seededTicks
+                            && LevelTimeRates.rate(LevelTimeRates.Channel.RANDOM_TICKS, test.level) == 4.0F,
+                    "Setup: expected native phase 11 with 4x world rates at seeded age " + seededTicks);
+            Ability guard = test.owner.power().getAbility("guard");
+            helper.assertTrue(tryAbility(test.owner, guard, PUNCH_KEY, InputMethod.HOLD),
+                    "Setup: the unrelated Guard hold did not start");
+            EntityActionInstance held = LivingComponentAction.getCurEntityAction(test.owner.stand());
+            helper.assertTrue(held != null && held.ability == guard && !held.isOver(),
+                    "Setup: expected the real installed Guard hold");
+            test.owner.power().setStamina(250.0F);
+            int pausedAt = test.server.getTickCount();
+            test.clickPause(test.owner);
+            test.assertPaused();
+            helper.assertTrue(LivingComponentAction.getCurEntityAction(test.owner.stand()) == held && !held.isOver(),
+                    "Shift-click canceled or replaced a different held action");
+            AbilityInput.keyRelease(PUNCH_KEY, test.owner.player());
+            long rewoundDay = test.level.getDayTime() - 80L;
+            test.level.setDayTime(rewoundDay);
+            helper.runAfterDelay(6, () -> test.step(() -> {
+                test.assertPaused();
+                int elapsed = test.server.getTickCount() - pausedAt;
+                helper.assertTrue(elapsed == 6 && test.level.getDayTime() == rewoundDay + elapsed,
+                        "Paused acceleration still owned the sky: day " + test.level.getDayTime()
+                                + " instead of " + (rewoundDay + elapsed));
+                test.other.power().setStamina(600.0F);
+                helper.assertTrue(!tryAbility(test.other,
+                                test.other.power().getAbility(MadeInHeavenAddon.TIME_SYSTEM_NAME), SYSTEM_KEY, InputMethod.HOLD)
+                                && LivingComponentAction.getCurEntityAction(test.other.stand()) == null,
+                        "Another user's real start hold was admitted while the session was paused");
+                helper.assertTrue(!tryAbility(test.other, test.pauseFromHotbar(test.other), SYSTEM_KEY, InputMethod.CLICK),
+                        "A non-owner's Shift-click was admitted while the session was paused");
+                test.assertPaused();
+
+                MadeInHeavenAddon.MADE_IN_HEAVEN.get().forceUnsummon(test.owner.player(), test.owner.power());
+                helper.assertTrue(!test.owner.power().isSummoned()
+                                && test.owner.power().getStandInstance().orElseThrow().removePart(StandPart.MAIN_BODY),
+                        "Setup: owner should have neither a summoned Stand nor its main body");
+                test.owner.power().setStamina(250.0F);
+                long currentDay = test.level.getDayTime();
+                test.clickPause(test.owner);
+                helper.assertTrue(test.state.isOwner(test.owner.player().getUUID()) && test.state.active()
+                                && test.state.tickCounter() == seededTicks - elapsed && test.state.phase() == 10
+                                && LevelTimeRates.rate(LevelTimeRates.Channel.RANDOM_TICKS, test.level) == 3.0F
+                                && test.state.dayTime() == currentDay && !test.owner.power().isSummoned(),
+                        "Resume must roll back by elapsed server ticks without summoning: t=" + test.state.tickCounter()
+                                + ", phase=" + test.state.phase());
+                dashLog("TIME-PAUSE rollback seeded=" + seededTicks + " elapsed=" + elapsed
+                        + " resumed=" + test.state.tickCounter() + " phase=" + test.state.phase() + " rate=3.0");
+                test.succeed();
+            }));
+        }));
+    }
+
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 55, batch = "mihPauseFloor")
+    public static void timeSystemPauseClampsAtStartAndPlainHoldFinishesPausedSession(GameTestHelper helper) {
+        PauseFixture test = new PauseFixture(helper);
+        test.step(() -> {
+            test.setUp(TimeAccelerationMode.OTHERS_FALL_BEHIND);
+            test.holdTimeSystem(test.owner, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+        });
+        helper.runAfterDelay(4, () -> test.step(() -> {
+            int elapsedAtPause = test.state.tickCounter();
+            helper.assertTrue(elapsedAtPause > 0 && elapsedAtPause < 12 && test.state.phase() == 1
+                            && TimeLagService.mode(test.other.player()) == TimeLagService.Mode.ATTRIBUTE
+                            && EntityTimeRates.rate(EntityTimeRates.Channel.MOTION, test.other.player()) == 0.5F,
+                    "Setup: natural acceleration did not reach the first 2x phase and slow another player");
+            test.clickPause(test.owner);
+            test.assertPaused();
+            int pausedAt = test.server.getTickCount();
+            helper.runAfterDelay(12, () -> test.step(() -> {
+                test.assertPaused();
+                helper.assertTrue(test.server.getTickCount() - pausedAt > elapsedAtPause,
+                        "Setup: the pause must be longer than elapsed acceleration");
+                test.clickPause(test.owner);
+                helper.assertTrue(test.state.isOwner(test.owner.player().getUUID()) && test.state.tickCounter() == 0
+                                && test.state.phase() == 0 && TimeLagService.multiplier(test.level) == 2
+                                && LevelTimeRates.rate(LevelTimeRates.Channel.TIME, test.level) == 2.0F,
+                        "A long pause did not clamp resume to phase 0 at its starting 2x rate");
+                dashLog("TIME-PAUSE floor elapsedBeforePause=" + elapsedAtPause + " resumed=0 phase=0 rate=2.0");
+                helper.runAfterDelay(2, () -> test.step(() -> {
+                    test.clickPause(test.owner);
+                    test.assertPaused();
+                    helper.runAfterDelay(1, () -> test.step(() -> {
+                        test.holdTimeSystem(test.owner, MadeInHeavenAddon.TIME_SYSTEM_CLEAR_NAME, true);
+                        helper.assertTrue(!test.state.hasSession() && !test.state.active(),
+                                "The normal 25-tick finish hold did not release the paused session");
+                        test.succeed();
+                    }));
+                }));
+            }));
+        }));
+    }
+
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 35, batch = "mihPauseOwnerLookup")
+    public static void timeSystemPauseReleasesTheSlotWhenTheOwnerLookupIsLost(GameTestHelper helper) {
+        PauseFixture test = new PauseFixture(helper);
+        test.step(() -> {
+            test.setUp(TimeAccelerationMode.WORLD_ACCELERATES);
+            test.holdTimeSystem(test.owner, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+        });
+        helper.runAfterDelay(2, () -> test.step(() -> {
+            test.clickPause(test.owner);
+            test.assertPaused();
+            test.unbind(test.owner);
+            helper.assertTrue(test.server.getPlayerList().getPlayer(test.owner.player().getUUID()) == null,
+                    "Setup: the actual owner lookup must fail before the next server Post");
+            helper.runAfterDelay(2, () -> test.step(() -> {
+                helper.assertTrue(!test.state.hasSession() && !test.state.active(),
+                        "The next server ticks left a paused session reserved for a missing owner");
+                test.holdTimeSystem(test.other, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+                helper.assertTrue(test.state.isOwner(test.other.player().getUUID()),
+                        "The other player still could not start after invalid-owner cleanup");
+                test.succeed();
+            }));
+        }));
+    }
+
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 35, batch = "mihPauseAvailability")
+    public static void timeSystemPauseIsAvailableOnlyToTheSessionOwner(GameTestHelper helper) {
+        PauseFixture test = new PauseFixture(helper);
+        test.step(() -> {
+            test.setUp(TimeAccelerationMode.WORLD_ACCELERATES);
+            Ability pause = test.owner.power().getAbility(MadeInHeavenAddon.TIME_SYSTEM_PAUSE_NAME);
+            helper.assertTrue(!pause.isAbilityAvailable(test.owner.power()) && !pause.isAbilityAvailable(test.other.power()),
+                    "The pause variation was available with no session, so it would own the modifier's hold of the slot");
+            test.holdTimeSystem(test.owner, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+        });
+        helper.runAfterDelay(2, () -> test.step(() -> {
+            Ability pause = test.owner.power().getAbility(MadeInHeavenAddon.TIME_SYSTEM_PAUSE_NAME);
+            helper.assertTrue(pause.isAbilityAvailable(test.owner.power())
+                            && freshContainer(test.owner.power(), pause) != null,
+                    "The pause variation was not available to the owner of the running acceleration");
+            helper.assertTrue(!pause.isAbilityAvailable(test.other.power())
+                            && freshContainer(test.other.power(), pause) == null,
+                    "Another user was offered the pause variation of someone else's acceleration");
+            test.clickPause(test.owner);
+            test.assertPaused();
+            helper.assertTrue(pause.isAbilityAvailable(test.owner.power()),
+                    "The pause variation was not available to the owner of the paused acceleration, who must resume it");
+            TimeAccelerationService.clear(test.level, TimeAccelerationService.ClearReason.MANUAL);
+            helper.assertTrue(!pause.isAbilityAvailable(test.owner.power()),
+                    "The pause variation stayed available after the acceleration was cleared");
+            test.succeed();
+        }));
+    }
+
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 35, batch = "mihPauseOwnerDeath")
+    public static void timeSystemPausedSessionEndsWithItsOwnersDeath(GameTestHelper helper) {
+        PauseFixture test = new PauseFixture(helper);
+        test.step(() -> {
+            test.setUp(TimeAccelerationMode.WORLD_ACCELERATES);
+            test.holdTimeSystem(test.owner, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+        });
+        helper.runAfterDelay(2, () -> test.step(() -> {
+            test.clickPause(test.owner);
+            test.assertPaused();
+            test.owner.player().kill();
+            helper.assertTrue(!test.owner.player().isAlive() && !test.state.hasSession() && !test.state.active(),
+                    "A paused session outlived the death of its owner");
+            helper.runAfterDelay(2, () -> test.step(() -> {
+                test.holdTimeSystem(test.other, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+                helper.assertTrue(test.state.isOwner(test.other.player().getUUID()),
+                        "The other player could not start once the owner had died while paused");
+                test.succeed();
+            }));
+        }));
+    }
+
+    // No death event: the server tick alone has to see that the owner of a paused session is gone.
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 35, batch = "mihPauseOwnerDead")
+    public static void timeSystemPausedSessionEndsWhenItsOwnerIsNoLongerAlive(GameTestHelper helper) {
+        PauseFixture test = new PauseFixture(helper);
+        test.step(() -> {
+            test.setUp(TimeAccelerationMode.WORLD_ACCELERATES);
+            test.holdTimeSystem(test.owner, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+        });
+        helper.runAfterDelay(2, () -> test.step(() -> {
+            test.clickPause(test.owner);
+            test.assertPaused();
+            test.owner.player().setHealth(0.0F);
+            helper.assertTrue(!test.owner.player().isAlive() && test.state.hasSession(),
+                    "Setup: the owner must be dead with no death event and the session still reserved");
+            helper.runAfterDelay(2, () -> test.step(() -> {
+                helper.assertTrue(!test.state.hasSession() && !test.state.active(),
+                        "The next server ticks left a paused session reserved for an owner who is no longer alive");
+                test.holdTimeSystem(test.other, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+                helper.assertTrue(test.state.isOwner(test.other.player().getUUID()),
+                        "The other player could not start after a dead owner's paused session was cleared");
+                test.succeed();
+            }));
+        }));
+    }
+
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 35, batch = "mihPauseStandLoss")
+    public static void timeSystemPausedSessionEndsWhenTheOwnerLosesTheStand(GameTestHelper helper) {
+        PauseFixture test = new PauseFixture(helper);
+        test.step(() -> {
+            test.setUp(TimeAccelerationMode.WORLD_ACCELERATES);
+            test.holdTimeSystem(test.owner, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+        });
+        helper.runAfterDelay(2, () -> test.step(() -> {
+            test.clickPause(test.owner);
+            test.assertPaused();
+            test.owner.power().setStand(null);
+            helper.assertTrue(test.owner.power().getPowerType() == null && test.state.hasSession(),
+                    "Setup: the owner must have lost the Stand with the session still reserved");
+            helper.runAfterDelay(2, () -> test.step(() -> {
+                helper.assertTrue(!test.state.hasSession() && !test.state.active(),
+                        "The next server ticks left a paused session reserved for an owner who lost Made in Heaven");
+                test.holdTimeSystem(test.other, MadeInHeavenAddon.TIME_SYSTEM_NAME, false);
+                helper.assertTrue(test.state.isOwner(test.other.player().getUUID()),
+                        "The other player could not start after the owner lost the Stand while paused");
+                test.succeed();
+            }));
+        }));
+    }
+
+    private static final class PauseFixture implements GameTestListener {
+        private final GameTestHelper helper;
+        private final MinecraftServer server;
+        private final ServerLevel level;
+        private final TimeAccelerationState state;
+        private final long originalDay;
+        private final boolean originalDaylight;
+        private final boolean originalWeatherCycle;
+        private final TimeAccelerationMode originalMode;
+        private final Map<UUID, ServerPlayer> byUuid;
+        private Fixture owner;
+        private Fixture other;
+        private boolean configured;
+        private boolean closed;
+
+        @SuppressWarnings("unchecked")
+        private PauseFixture(GameTestHelper helper) {
+            this.helper = helper;
+            server = helper.getLevel().getServer();
+            level = server.overworld();
+            state = MadeInHeavenAddon.accelerationState(level);
+            originalDay = level.getDayTime();
+            originalDaylight = level.getGameRules().getBoolean(GameRules.RULE_DAYLIGHT);
+            originalWeatherCycle = level.getGameRules().getBoolean(GameRules.RULE_WEATHER_CYCLE);
+            originalMode = MadeInHeavenServerConfig.accelerationMode();
+            try {
+                // Level.addNewPlayer alone does not populate PlayerList's UUID lookup.
+                Field field = PlayerList.class.getDeclaredField("playersByUUID");
+                field.setAccessible(true);
+                byUuid = (Map<UUID, ServerPlayer>) field.get(server.getPlayerList());
+            }
+            catch (ReflectiveOperationException failure) {
+                throw new IllegalStateException("Could not reach PlayerList.playersByUUID", failure);
+            }
+            helper.testInfo.addListener(this);
+        }
+
+        private void setUp(TimeAccelerationMode mode) {
+            helper.assertTrue(helper.getLevel() == level && !state.hasSession()
+                            && MadeInHeavenServerConfig.SPEC.isLoaded(),
+                    "Setup: isolated Overworld, no existing session, and loaded mode config required");
+            configured = true;
+            MadeInHeavenServerConfig.ACCELERATION_MODE.set(mode);
+            level.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(true, server);
+            level.getGameRules().getRule(GameRules.RULE_WEATHER_CYCLE).set(false, server);
+            level.setDayTime(6000L);
+            owner = user(helper, "mih-pause-owner", true);
+            bind(owner);
+            other = user(helper, "mih-pause-other", true);
+            other.player().setPos(other.player().position().add(3.0D, 0.0D, 0.0D));
+            bind(other);
+        }
+
+        private void bind(Fixture fixture) {
+            ServerPlayer player = fixture.player();
+            helper.assertTrue(byUuid.putIfAbsent(player.getUUID(), player) == null
+                            && server.getPlayerList().getPlayer(player.getUUID()) == player,
+                    "Setup: could not bind the fixture's exact owner UUID to the real lookup");
+        }
+
+        private void unbind(Fixture fixture) {
+            byUuid.remove(fixture.player().getUUID(), fixture.player());
+        }
+
+        private void holdTimeSystem(Fixture fixture, String name, boolean finishing) {
+            fixture.power().setStamina(300.0F);
+            Ability ability = fixture.power().getAbility(name);
+            helper.assertTrue(tryAbility(fixture, ability, SYSTEM_KEY, InputMethod.HOLD),
+                    "The real Time System hold was refused at 300 stamina: " + name);
+            EntityActionInstance action = LivingComponentAction.getCurEntityAction(fixture.stand());
+            helper.assertTrue(action != null && action.ability == ability && action.getPhase() == ActionPhase.WINDUP,
+                    "The real Time System input did not install the 25-tick windup: " + name);
+            for (int i = 1; i <= 25; i++) {
+                tickStand(fixture);
+                helper.assertTrue(state.hasSession() == finishing, "Time System fired during windup: " + name + ", tick=" + i);
+            }
+            helper.assertTrue(action.getPhase() == ActionPhase.PERFORM,
+                    "Time System did not complete its windup in 25 ticks: " + name);
+            tickStand(fixture);
+            helper.assertTrue(finishing ? !state.hasSession()
+                            : state.active() && state.isOwner(fixture.player().getUUID())
+                                    && state.tickCounter() == 0 && state.phase() == 0,
+                    "Time System did not fire on the first perform tick: " + name);
+            AbilityInput.keyRelease(SYSTEM_KEY, fixture.player());
+            tickStand(fixture);
+        }
+
+        private Ability pauseFromHotbar(Fixture fixture) {
+            ControlSchemeTemplate template = fixture.power().getPowerType().makeDefaultControlSchemeTemplate();
+            String name = template.groups.values().stream().flatMap(group -> group.hotbars.stream())
+                    .flatMap(hotbar -> hotbar.slots.stream())
+                    .filter(slot -> MadeInHeavenAddon.TIME_SYSTEM_NAME.equals(slot.getOrDefault(null, Map.of()).get(InputMethod.HOLD)))
+                    .map(slot -> slot.getOrDefault(InputKey.Modifier.SHIFT, Map.of()).get(InputMethod.CLICK))
+                    .filter(MadeInHeavenAddon.TIME_SYSTEM_PAUSE_NAME::equals)
+                    .findFirst().orElse(null);
+            helper.assertTrue(MadeInHeavenAddon.TIME_SYSTEM_PAUSE_NAME.equals(name)
+                            && fixture.power().isAbilityUnlocked(name),
+                    "Time System must keep its plain HOLD and have an unlocked SHIFT+CLICK variation on the same slot");
+            return fixture.power().getAbility(name);
+        }
+
+        private void clickPause(Fixture fixture) {
+            float stamina = storedStamina(fixture);
+            int cooldown = fixture.power().getAbilityCooldown(MadeInHeavenAddon.TIME_SYSTEM_PAUSE_NAME);
+            helper.assertTrue(tryAbility(fixture, pauseFromHotbar(fixture), SYSTEM_KEY, InputMethod.CLICK),
+                    "The owner's registered Time System modifier click was refused");
+            AbilityInput.keyRelease(SYSTEM_KEY, fixture.player());
+            helper.assertTrue(storedStamina(fixture) == stamina
+                            && fixture.power().getAbilityCooldown(MadeInHeavenAddon.TIME_SYSTEM_PAUSE_NAME) == cooldown,
+                    "Pause or resume spent stamina or started a cooldown");
+        }
+
+        private void assertPaused() {
+            UUID id = owner.player().getUUID();
+            helper.assertTrue(state.hasSession() && state.ownsSession(id) && !state.active() && !state.isOwner(id)
+                            && !state.ownsSession(other.player().getUUID()),
+                    "A pause must keep only its owner's reservation without a running acceleration");
+            for (LevelTimeRates.Channel channel : LevelTimeRates.Channel.values()) {
+                helper.assertTrue(LevelTimeRates.rate(channel, level) == 1.0F, "Paused world rate not neutral: " + channel);
+            }
+            helper.assertTrue(TimeLagService.multiplier(level) == 1
+                            && TimeLagService.mode(other.player()) == TimeLagService.Mode.NONE
+                            && EntityTimeRates.rate(EntityTimeRates.Channel.MOTION, other.player()) == 1.0F,
+                    "A paused acceleration still slowed a player");
+        }
+
+        private void step(Runnable step) {
+            guarded(this::close, step);
+        }
+
+        private void succeed() {
+            close();
+            helper.succeed();
+        }
+
+        private void close() {
+            if (closed) return;
+            closed = true;
+            try {
+                if (configured) {
+                    TimeAccelerationService.clear(level, TimeAccelerationService.ClearReason.MANUAL);
+                }
+                for (Fixture fixture : new Fixture[] { owner, other }) {
+                    if (fixture == null) continue;
+                    unbind(fixture);
+                    AbilityInput.keyRelease(SYSTEM_KEY, fixture.player());
+                    AbilityInput.keyRelease(PUNCH_KEY, fixture.player());
+                    cleanup(fixture);
+                }
+            }
+            finally {
+                if (configured) {
+                    level.setDayTime(originalDay);
+                    level.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(originalDaylight, server);
+                    level.getGameRules().getRule(GameRules.RULE_WEATHER_CYCLE).set(originalWeatherCycle, server);
+                    MadeInHeavenServerConfig.ACCELERATION_MODE.set(originalMode);
+                }
+            }
+        }
+
+        @Override public void testStructureLoaded(GameTestInfo info) {}
+        @Override public void testPassed(GameTestInfo info, GameTestRunner runner) { close(); }
+        @Override public void testFailed(GameTestInfo info, GameTestRunner runner) { close(); }
+        @Override public void testAddedForRerun(GameTestInfo oldInfo, GameTestInfo newInfo, GameTestRunner runner) { close(); }
+    }
+
     @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 40, batch = "mihUniverseResetBar")
     public static void universeResetRunsOnAShortBarAndDrainsIt(GameTestHelper helper) {
         helper.runAfterDelay(2, () -> {
@@ -1501,6 +1905,44 @@ public final class LightSpeedDashGameTests {
                 AbilityInput.keyRelease(RESET_KEY, pressed.player());
                 cleanup(pressed);
                 cleanup(automatic);
+            }
+            helper.succeed();
+        });
+    }
+
+    // R772.1 EV-STANDCFG item4: the reset locks every unlocked ability of another Stand for its 1200 ticks, a lock and no
+    // cooldown of that Stand, so the Stands page's cooldown share of its type (here 50 %) leaves it whole.
+    @GameTest(template = "empty", templateNamespace = NAMESPACE, timeoutTicks = 40, batch = "mihUniverseResetLock")
+    public static void universeResetLocksAnotherStandForItsFullLength(GameTestHelper helper) {
+        helper.runAfterDelay(2, () -> {
+            Fixture owner = user(helper, "mih-lock-owner", true);
+            Fixture victim = user(helper, "mih-lock-victim", false);
+            StandTuning tuning = MadeInHeavenAddon.MADE_IN_HEAVEN.get().getTuning();
+            try {
+                owner.power().setStamina(450.0F);
+                JsonObject half = new JsonObject();
+                half.addProperty("cooldowns", 50);
+                tuning.applyConfig(half);
+                helper.assertTrue(UniverseResetAbility.execute(owner.player()), "Setup: the reset did not run");
+                StandPower power = victim.power();
+                String locked = null;
+                for (String name : power.getMoveset().abilities.keySet()) {
+                    if (power.isAbilityUnlocked(name)) {
+                        locked = name;
+                        helper.assertTrue(power.getAbilityCooldown(name) == UniverseResetAbility.RESET_TICKS,
+                                "The reset locks " + name + " of another Stand for " + UniverseResetAbility.RESET_TICKS
+                                        + " ticks whatever its cooldown share (50 %); it is locked for " + power.getAbilityCooldown(name));
+                    }
+                }
+                helper.assertTrue(locked != null, "Setup: the other Stand has no unlocked ability");
+                helper.assertTrue(owner.power().getAbilityCooldown(MadeInHeavenAddon.TIME_SYSTEM_NAME)
+                                == tuning.cooldown(UniverseResetAbility.RESET_TICKS),
+                        "The user's own Time System cooldown stays in his share: "
+                                + owner.power().getAbilityCooldown(MadeInHeavenAddon.TIME_SYSTEM_NAME));
+            } finally {
+                tuning.restoreDefaults();
+                cleanup(owner);
+                cleanup(victim);
             }
             helper.succeed();
         });
@@ -1809,6 +2251,19 @@ public final class LightSpeedDashGameTests {
         @Override public void testPassed(GameTestInfo info,GameTestRunner runner){close();}
         @Override public void testFailed(GameTestInfo info,GameTestRunner runner){close();}
         @Override public void testAddedForRerun(GameTestInfo oldInfo,GameTestInfo newInfo,GameTestRunner runner){close();}
+    }
+
+    // the power resolves its keys once a tick (Power.updateAvailableMoves), and these players are not ticked by a connection
+    private static AbilityConditionCheck freshContainer(StandPower power, Ability ability) {
+        try {
+            Field cached = Power.class.getDeclaredField("cachedMovesThisTick");
+            cached.setAccessible(true);
+            cached.setBoolean(power, false);
+        }
+        catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Power.cachedMovesThisTick is not reachable", e);
+        }
+        return power.updateAvailableMoves().getContextVariationContainer(ability);
     }
 
     private static float effectiveWalkField(Fixture fixture){EntityActionInstance action=LivingComponentAction.getCurEntityAction(fixture.stand());return action==null?1:fixture.stand().getUserWalkSpeed(action.userWalkSpeed);}

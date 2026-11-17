@@ -3,6 +3,8 @@ package rotp.addons.purplehaze;
 import static rotp.core.init.power.ModStands.SWITCH_SPECIAL;
 import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
+import java.util.function.Supplier;
+
 import javax.annotation.Nullable;
 
 import rotp.core.api.RotpAddonApi;
@@ -37,6 +39,7 @@ import rotp.addons.purplehaze.entity.PurpleHazeEntity;
 import rotp.addons.purplehaze.particle.PurpleHazeVirusParticleType;
 import net.minecraft.core.particles.ParticleType;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.effect.MobEffect;
@@ -45,8 +48,10 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(PurpleHazeAddon.MOD_ID)
 public final class PurpleHazeAddon {
@@ -77,6 +82,10 @@ public final class PurpleHazeAddon {
             DeferredRegister.create(
                     JojoRegistries.ABILITY_TYPES_REG,
                     MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
+            DeferredRegister.create(
+                    NeoForgeRegistries.ATTACHMENT_TYPES,
+                    MOD_ID);
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES =
             DeferredRegister.create(
                     Registries.ENTITY_TYPE,
@@ -97,6 +106,15 @@ public final class PurpleHazeAddon {
             DeferredRegister.create(
                     JojoRegistries.DEFAULT_STANDS_REG,
                     MOD_ID);
+
+    // The aura goes on with the Stand recalled while its user holds this. No serializer: a relog does not bring it back.
+    // Synced to its holder alone, for the HUD's mark on the skill while the Stand is away.
+    public static final Supplier<AttachmentType<Boolean>> RECALLED_AURA =
+            ATTACHMENT_TYPES.register(
+                    "recalled_aura",
+                    () -> AttachmentType.builder(() -> Boolean.TRUE)
+                            .sync((holder, player) -> holder == player, ByteBufCodecs.BOOL)
+                            .build());
 
     public static final DeferredHolder<
             AbilityType<?>,
@@ -296,6 +314,7 @@ public final class PurpleHazeAddon {
         }
 
         ABILITY_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
         ENTITY_TYPES.register(modEventBus);
         MOB_EFFECTS.register(modEventBus);
         PARTICLE_TYPES.register(modEventBus);

@@ -67,6 +67,55 @@ public final class DiverDownCleanupGameTests {
         });
     }
 
+    // The owner's rule of 2026-11-05 (13.png), as 1.16 did: what Diver Down did to a target goes on through a recall and
+    // ends when its user loses the Stand. The embedded target (its body) stops.
+    @GameTest(template = "empty", templateNamespace = TEMPLATES, batch = "dd_cleanup_recall",
+            timeoutTicks = GameTestPlacement.WAIT_TEST_TICKS + OWN_TICKS)
+    public static void effectsAndShardsGoOnThroughARecall(GameTestHelper helper) {
+        GameTestPlacement.whenTicking(helper, 3, placement -> {
+            DiverDownWallsGameTests.Scene scene = new DiverDownWallsGameTests.Scene(helper, placement, true);
+            try {
+                Cow cow = EntityType.COW.create(helper.getLevel());
+                helper.assertTrue(cow != null, "Could not create a cow");
+                scene.prepareMob(cow, scene.origin.add(0.0D, 0.0D, 2.0D));
+                helper.assertTrue(DiverDownAuthority.bindEffect(cow, scene.stand, DiverDownAuthority.EffectKind.BONE_SHARD_BOMB,
+                                SpringLegsAbility.DURATION_TICKS, SpringLegsAbility.AMPLIFIER),
+                        "Fixture: the bomb was not bound to the cow");
+                helper.assertTrue(DiverDownAuthority.bindEffect(cow, scene.stand, DiverDownAuthority.EffectKind.SPRING_LEGS,
+                                SpringLegsAbility.DURATION_TICKS, SpringLegsAbility.AMPLIFIER),
+                        "Fixture: Spring Legs was not bound to the cow");
+                BoneShardEntity shard = new BoneShardEntity(cow, scene.owner, scene.stand, helper.getLevel());
+                shard.setNoGravity(true);
+                helper.assertTrue(helper.getLevel().addFreshEntity(shard), "Fixture: the shard was not added");
+                scene.extra.add(shard);
+
+                scene.power.getPowerType().forceUnsummon(scene.owner, scene.power);
+                ((ServerPlayer) scene.owner).doTick();
+                shard.tick();
+                helper.assertTrue(cow.hasEffect(DiverDownAddon.SPRING_LEGS_EFFECT)
+                                && DiverDownAuthority.validateEffect(cow, DiverDownAuthority.EffectKind.SPRING_LEGS),
+                        "Spring Legs ended with the recall");
+                helper.assertTrue(DiverDownAuthority.ownerOf(cow, DiverDownAuthority.EffectKind.BONE_SHARD_BOMB) == scene.owner,
+                        "The bone shard bomb ended with the recall");
+                helper.assertTrue(!shard.isRemoved(), "A flying shard ended with the recall");
+                BoneShardEntity afterRecall = new BoneShardEntity(cow, scene.owner, null, helper.getLevel());
+                helper.assertTrue(!afterRecall.isRemoved() && scene.owner.getUUID().equals(afterRecall.getControllerUuid()),
+                        "A bomb that bursts after the recall must still make shards");
+
+                scene.power.setStand(null);
+                ((ServerPlayer) scene.owner).doTick();
+                shard.tick();
+                helper.assertTrue(!cow.hasEffect(DiverDownAddon.SPRING_LEGS_EFFECT) && shard.isRemoved(),
+                        "The effects and the shards must end when their user loses the Stand: Spring Legs "
+                                + cow.hasEffect(DiverDownAddon.SPRING_LEGS_EFFECT) + ", shard removed " + shard.isRemoved());
+                cow.discard();
+                helper.succeed();
+            } finally {
+                scene.close();
+            }
+        });
+    }
+
     private static void expectCleanupOnlyWhenMarked(GameTestHelper helper, DiverDownWallsGameTests.Scene scene,
             String route, Consumer<LivingEntity> event) {
         LivingEntity owner = scene.owner;

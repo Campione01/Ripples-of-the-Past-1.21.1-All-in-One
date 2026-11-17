@@ -6,7 +6,9 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 
+import rotp.addons.yellowtemperance.disguise.YellowTemperanceDisguiseState;
 import rotp.addons.yellowtemperance.entity.YellowTemperanceControllerEntity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 
@@ -16,6 +18,12 @@ public final class YellowTemperanceToggleDollAbility
             AbilityType<?> abilityType, AbilityId abilityId) {
         super(abilityType, abilityId, ToggleAction::new);
         resolveLevelToUnlock(2);
+    }
+
+    // R772.1 OQ-C04: the doll goes on with the Stand recalled, so the HUD lights this slot while it is on
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        return YellowTemperanceDisguiseState.of(user).doll();
     }
 
     private static final class ToggleAction

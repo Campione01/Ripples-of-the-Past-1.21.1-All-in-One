@@ -11,7 +11,7 @@
   "ability.rotp_ab.ghost_mode": "幽灵模式",
   "ability.rotp_ab.ghost_mode.desc": "按住进入可穿行方块的旁观状态。",
   "ability.rotp_ab.perfect_invisibility": "完美隐身",
-  "ability.rotp_ab.perfect_invisibility.desc": "完全隐藏自身，潜行时可隐藏附近目标。",
+  "ability.rotp_ab.perfect_invisibility.desc": "完全隐藏自身，按住变体键时可隐藏附近目标。",
   "ability.rotp_ab.grant_invisibility": "隐身赋予",
   "ability.rotp_ab.grant_invisibility.desc": "发射赋予隐身与增益效果的符文。",
   "rotp_ab.message.no_item": "请先手持物品。",

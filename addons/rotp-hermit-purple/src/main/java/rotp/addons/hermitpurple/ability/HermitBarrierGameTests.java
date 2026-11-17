@@ -53,6 +53,63 @@ public final class HermitBarrierGameTests {
         begin(helper, Case.FRESH_CONTACT);
     }
 
+    // The owner's rule of 2026-11-05 (13.png), as the core's Hierophant Green: a placed barrier stays through a recall, the
+    // next summon counts it, and it ends with the loss of the Stand; the one still being stretched stops.
+    @GameTest(template = "empty", templateNamespace = "rotp_hp_lash", timeoutTicks = 60, batch = "hp_barrier_recall")
+    public static void placedBarriersStayThroughARecall(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FakePlayer player = new FakePlayer(level, new GameProfile(UUID.randomUUID(), "HPBarrierRecall"));
+        BlockPos origin = helper.absolutePos(new BlockPos(1, 8, 1));
+        player.setPos(origin.getX() + 0.5D, origin.getY(), origin.getZ() + 0.5D);
+        player.setNoGravity(true);
+        level.addNewPlayer(player);
+        StandPower power = PowerClass.STAND.attachGet(player);
+        try {
+            power.setStand(HermitPurpleAddon.HERMIT_PURPLE.get());
+            power.getStandInstance().orElseThrow().addPart(StandPart.ARMS);
+            power.skipProgression();
+            helper.assertTrue(HermitPurpleAddon.HERMIT_PURPLE.get().summon(player, power), "Fixture: the summon failed");
+            HermitPurpleStandEntity first = HermitPurpleAddon.controller(player);
+            first.attachBarrier(origin.north(3));
+            first.attachBarrier(origin.south(3));
+            first.attachBarrier(origin.east(3));
+            helper.assertTrue(first.getPlacedBarrierCount() == 2, "Fixture: placed " + first.getPlacedBarrierCount());
+            List<HermitBarrierVineEntity> strings = level.getEntitiesOfClass(HermitBarrierVineEntity.class,
+                    player.getBoundingBox().inflate(16.0D));
+            List<HermitBarrierVineEntity> placed = strings.stream().filter(HermitBarrierVineEntity::isAttachedToBlock).toList();
+            helper.assertTrue(strings.size() == 3 && placed.size() == 2, "Fixture: " + strings.size() + " strings");
+
+            HermitPurpleAddon.HERMIT_PURPLE.get().forceUnsummon(player, power);
+            placed.forEach(HermitBarrierVineEntity::tick);
+            helper.assertTrue(placed.stream().noneMatch(HermitBarrierVineEntity::isRemoved),
+                    "A placed barrier ended with the recall");
+            helper.assertTrue(strings.stream().filter(string -> !placed.contains(string)).allMatch(HermitBarrierVineEntity::isRemoved),
+                    "The string still being stretched must stop with the recall");
+
+            helper.assertTrue(HermitPurpleAddon.HERMIT_PURPLE.get().summon(player, power), "Fixture: the next summon failed");
+            HermitPurpleStandEntity next = HermitPurpleAddon.controller(player);
+            helper.assertTrue(next != first && next.getPlacedBarrierCount() == 2
+                            && placed.stream().allMatch(barrier -> barrier.getOwner() == next),
+                    "The next summon must take over the barriers still placed: count " + next.getPlacedBarrierCount());
+
+            HermitPurpleAddon.HERMIT_PURPLE.get().forceUnsummon(player, power);
+            power.setStand(null);
+            placed.forEach(HermitBarrierVineEntity::tick);
+            helper.assertTrue(placed.stream().allMatch(HermitBarrierVineEntity::isRemoved),
+                    "The barriers must end when their user loses the Stand");
+            LogUtils.getLogger().info("R765_HP_BARRIER_PASS {}", "recall");
+            helper.succeed();
+        }
+        finally {
+            if (power.hasPower() && power.isSummoned()) {
+                power.getPowerType().forceUnsummon(player, power);
+            }
+            level.getEntitiesOfClass(HermitBarrierVineEntity.class, player.getBoundingBox().inflate(16.0D))
+                    .forEach(HermitBarrierVineEntity::discard);
+            player.discard();
+        }
+    }
+
     private enum Case {
         COOLDOWN_CONTACT("cooldown_contact", 262, true),
         FRESH_CONTACT("fresh_contact", 272, false);

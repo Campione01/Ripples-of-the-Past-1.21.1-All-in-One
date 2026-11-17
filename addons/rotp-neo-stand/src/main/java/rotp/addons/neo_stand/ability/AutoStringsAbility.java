@@ -3,6 +3,7 @@ package rotp.addons.neo_stand.ability;
 import java.util.Random;
 
 import rotp.core.init.ModSoundEvents;
+import rotp.core.powersystem.Power;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.entityaction.ActionPhase;
@@ -11,10 +12,12 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
+import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandEntity;
-import rotp.core.powersystem.standpower.entity.StandEntityAbility;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
+import rotp.core.impl.stands.hierophant.HGBarriersNet;
 import rotp.core.impl.stands.hierophant.HierophantGreenEntity;
 
 import net.minecraft.core.BlockPos;
@@ -23,7 +26,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
-public final class AutoStringsAbility extends StandEntityAbility {
+// 1.16 ab.java built it with StandAction's default pose, StandPose.IDLE: the
+// idle loop ran on through it
+public final class AutoStringsAbility extends NoPoseStandEntityAbility {
     public static final int MAX_PLACEMENTS = 51;
     public static final int PLACEMENTS_PER_TICK = 8;
     public static final float STAMINA_COST = 1200.0F;
@@ -49,6 +54,15 @@ public final class AutoStringsAbility extends StandEntityAbility {
                     Mth.ceil(30.0D / Math.max(
                             stand.getAttackSpeed() / 8.0D, 0.125D)));
         }
+    }
+
+    // taking the net down is no placing: no cooldown
+    @Override
+    public int getCooldown(Power<?> context, int ticksHeld) {
+        LivingEntity user = context != null ? context.getUser() : null;
+        return user != null && StandManualInput.isShiftHeld(user) && HGBarriersNet.of(user).getSize() > 0
+                ? 0
+                : super.getCooldown(context, ticksHeld);
     }
 
     @Override
@@ -101,6 +115,11 @@ public final class AutoStringsAbility extends StandEntityAbility {
             LivingEntity user = getPowerUser();
             if (user == null) {
                 forceStop();
+                return;
+            }
+            // the net goes on through a recall: a press on the variation key takes it down instead of placing a new one
+            if (StandManualInput.isShiftHeld(user) && stand.takeDownPlacedBarriers()) {
+                startRecovery();
                 return;
             }
 

@@ -47,7 +47,7 @@ public final class EchoesStandEntity extends StandEntity {
     }
 
     // R772 F11, master EchoesEntity.tick and EchoesACT2Model.setupAnim: ACT2 is drawn without its tail tip while the
-    // tail is out (on a target, a block or in flight)
+    // tail is out (on a target, a block, the user himself or in flight)
     @Override
     public void tick() {
         super.tick();

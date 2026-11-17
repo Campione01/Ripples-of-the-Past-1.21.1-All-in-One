@@ -45,6 +45,7 @@ import rotp.addons.whitesnake.entity.projectile.DiscProjectile;
 import rotp.addons.whitesnake.entity.projectile.MeltHeartProjectile;
 import rotp.addons.whitesnake.effect.MeltHeartEffect;
 import rotp.addons.whitesnake.memory.MemoryLossState;
+import rotp.addons.whitesnake.disguise.WhitesnakeDisguiseState;
 import rotp.addons.whitesnake.network.DisguiseSelectionPayload;
 import rotp.addons.whitesnake.network.InjectEffectPayload;
 import rotp.addons.whitesnake.standdisc.StandDiscLossState;
@@ -135,6 +136,14 @@ public final class WhitesnakeAddon {
                             .networkSynchronized(
                                     DiscEffectData.STREAM_CODEC)
                             .cacheEncoding());
+    public static final Supplier<AttachmentType<WhitesnakeDisguiseState>>
+            DISGUISE_STATE = ATTACHMENT_TYPES.register(
+                    "disguise_state",
+                    () -> AttachmentType
+                            .builder(() -> WhitesnakeDisguiseState.NONE)
+                            .sync(WhitesnakeDisguiseState.STREAM_CODEC)
+                            .build());
+
     public static final Supplier<AttachmentType<MemoryLossState>>
             MEMORY_LOSS_STATE = ATTACHMENT_TYPES.register(
                     "memory_loss_state",
@@ -426,6 +435,19 @@ public final class WhitesnakeAddon {
                 && power.getPowerType() == WHITESNAKE.get();
     }
 
+    /** For what is already out: it goes on through a recall and ends with its user or his loss of the Stand. */
+    public static boolean holdsWhitesnakeSkill(
+            LivingEntity user, String requiredAbility) {
+        if (user == null || !user.isAlive() || user.isRemoved()) {
+            return false;
+        }
+        StandPower power = StandPower.get(user);
+        return power != null
+                && power.hasPower()
+                && power.getPowerType() == WHITESNAKE.get()
+                && power.isAbilityUnlocked(requiredAbility);
+    }
+
     public static boolean isActiveWhitesnakeUser(
             LivingEntity user, String requiredAbility) {
         if (user == null || !user.isAlive() || user.isRemoved()) {
@@ -623,7 +645,7 @@ public final class WhitesnakeAddon {
         return new EntityStandType(
                 new StandStats.Builder()
                         .power(10.0)
-                        .speed(12.0)
+                        .speed(7.0)
                         .range(20.0, 20.0)
                         .durability(14.0)
                         .precision(14.0)

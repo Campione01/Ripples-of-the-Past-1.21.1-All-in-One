@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-echoes`, mod id `rotp_echoes`, version `1.0.0-act1-3-port.17`.
+- Module: `rotp-echoes`, mod id `rotp_echoes`, version `1.0.0-act1-3-port.18`.
 - Original 1.16.5 add-on: `RotP-EchoesACT1-3Addon-1.0.jar` (Rotp-Echoes, mod id `myrotpaddon`), by Grasshopper,Day_GeE; declared license: GNU GPL v3.0; SHA-256 `C746A7304AF1515F2BD3DC3FFBBFEC6AC73D7EADEE64408EC29F255DBC1D170F`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -13,6 +13,10 @@
 This module ports the Echoes 1.16.5 donor identified below. The
 September 2026 donor update
 records its inventory and freeze-policy differences.
+
+**Day_GeE** is the author of the Echoes add-on and its models, and "the author"
+below means Day_GeE. By the author's agreement, as relayed by the owner of this
+port, the work is used here under GPL v3.
 
 - Source artifact: `RotP-EchoesACT1-3Addon-1.0.jar`
 - Artifact bytes: `844677`
@@ -64,7 +68,7 @@ donors kept: 0.75 behind the user's right shoulder, feet 0.2 above the user's
 feet, turned with the view yaw.
 Donor icons, sounds, and locales are migrated into the current resource layout.
 
-Since R772 the three skins carry the Echoes author's own 1.21.1 models, clips,
+Since R772 the four skins carry the Echoes author's own 1.21.1 models, clips,
 textures and Stand icons, taken from his 1.21.1 Echoes
 (`java-1.21-template-main.zip`, sent with his R772 report) and installed by
 install_author_skins.py,
@@ -72,20 +76,50 @@ which records every input and output in
 author-1211-skins.json.
 They are the rigs of his latest 1.16.5 build (`RotP-EchoesACT-master`, models
 dated 2026-10-25) on the 1.21.1 RotP skeleton, and replace the 2026-09-16
-Blockbench rigs. The clips drive the head themselves, as in his build. ACT1's
-and ACT2's clips (idle, summons, both jabs, heavy punch, finisher, guard and
-ACT2's launch pose for the tail needle and word attach) are his hand-made clips
-of that 1.16.5 build, retargeted onto these rigs by
+Blockbench rigs. Since R772.1, at his request, every ACT plays his 1.21.1 clips,
+which drive the head themselves, at his scale of 0.65 x 1.95, and the Stand
+entities have the same size. The light attack is his four punches, in the order
+of his clips `punch` to `punch4`, as his `AddonStands` declares them, through
+the core's light combo. The installer's changes to his clips are the ones this
+core needs, listed at its head. Each skin's O slot icon is a copy of his Stand
+icon of that ACT, every ACT carries his attack and guard icons, and ACT3 also his
+`heavy_charged`, `gravity_infuse` and `hand_freeze` icons and his charged-heavy
+sound. ACT1's finisher keeps the icon of his 1.16.5 Sound Give Punch and ACT3's
+the donor's freezing one, both finishers of ours whose moves his 1.21.1 icons,
+copies of his heavy punch, do not show.
+
+Since R772.1 ACT3's code also reuses Day_GeE's 1.21.1 code from the same project
+(`java-1.21-template-main.zip`, package `com.grasshopper.rotp_echoes`), sent to
+the owner of this port for that purpose, adapted to this core rather than copied.
+From his `GravityItemHelper` and `GravityItemEvents`: gravity on an item with an
+owner and no timer, an item on the ground losing it when its owner is out of
+range, the throw as a real flight that hits what is in its way, and the particles
+on the item. From his `DisablerTagHandler`: a frozen entity dealing no damage and
+taking no knockback, the self freeze's press to the ground, and the freeze's
+range measured from its user. From his abilities: refusing a press
+with nothing to do, moving a freeze to whoever is in the aim, either cancel key
+lifting either freeze, the cry at the start of the charged heavy, and the bearing
+shot. From his `FreezeSoundHelper`: a voice on every press. From his
+`EchoesClientSoundEvents`: the barrage voice repeating for as long as the barrage
+lasts. The numbers stay those of his 1.16.5 master where it has them. The block
+mark, the finisher's freeze, the hand-freeze restrictions, tick-based timing and
+the restored flight remain this port's. From his 1.16.5 master, by the same
+permission, comes the rule that freezing Killer Queen's Sheer Heart Attack freezes
+its owner's hands, and the self freeze stays that build's toggle, draining stamina.
+
+Two clips are not in his 1.21.1 skins, because our abilities need them and his
+build has no such moves; for the author to replace if he wishes:
 install_master_clips.py
-(inputs, bone map, retiming and playback check in
-master-1165-clips.json);
-as his models did, the head follows the user's look. ACT1's heavy punch, guard
-and jabs end on his ACT1 idle's waist (his clips kept the waist turn of his ACT3
-idle, so they snapped back after the move). ACT1's finisher is the
-forward dive of his 1.16.5 Java model (his Blockbench finisher there is a copy
-of his heavy punch), and ACT3's guard is that build's block clip, the one clip
-his finished 1.21.1 ACT3 lacks. ACT3 has his grab moves; its throw starts from
-his grab's hold pose and shows his grab icon. The ACT3 barrage plays one voice, picked from his two barrage
+retargets them from his 1.16.5 build onto these rigs (inputs, bone map and
+playback check in
+master-1165-clips.json).
+They are ACT2's `launch`, for the tail needle and the word attach, from his
+`forceLaunchPose`, and ACT1's `block`, the guard, whose waist stands on his ACT1
+idle's. ACT3 guards with the core's default clip, which does not fit ACT1's tail.
+ACT2's `block` is this port's own, by the rules of `tools/stand-animation-rules`:
+the default clip's hands do not reach the middle on his short arms. ACT3 has his
+grab moves; its throw starts from
+his grab's hold pose and shows his grab icon. The ACT3 barrage plays one voice at a time, picked from his two barrage
 voices; the donor's third clip, which its sound table never reached, is kept
 under `legacy_archive`. Five locales
 come from the current donor; fifteen earlier translations are retained. Dormant

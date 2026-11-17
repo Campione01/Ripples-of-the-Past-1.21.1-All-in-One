@@ -3,7 +3,7 @@ package rotp.addons.khnum.client;
 import rotp.core.api.client.render.ScopedPlayerModelVisibility;
 import rotp.addons.khnum.KhnumAddon;
 import rotp.addons.khnum.disguise.DisguiseMode;
-import rotp.addons.khnum.entity.KhnumControllerEntity;
+import rotp.addons.khnum.disguise.KhnumDisguiseState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.network.chat.Component;
@@ -29,19 +29,13 @@ public final class KhnumClientGameEvents {
                 instanceof AbstractClientPlayer player)) {
             return;
         }
-        KhnumControllerEntity controller =
-                KhnumAddon.controller(player);
-        if (controller == null) {
-            return;
-        }
-        if (controller.getDisguiseMode()
-                        == DisguiseMode.PLAYER
-                && !controller.getDisguisePlayerName().isBlank()) {
+        KhnumDisguiseState disguise = KhnumDisguiseState.of(player);
+        if (disguise.mode() == DisguiseMode.PLAYER
+                && !disguise.playerName().isBlank()) {
             event.setContent(Component.literal(
-                    controller.getDisguisePlayerName()));
+                    disguise.playerName()));
         }
-        else if (controller.getDisguiseMode()
-                == DisguiseMode.ENTITY) {
+        else if (disguise.mode() == DisguiseMode.ENTITY) {
             event.setCanRender(TriState.FALSE);
         }
     }

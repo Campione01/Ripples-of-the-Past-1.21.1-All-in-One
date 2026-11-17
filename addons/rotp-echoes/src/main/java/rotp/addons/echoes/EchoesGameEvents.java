@@ -1,5 +1,6 @@
 package rotp.addons.echoes;
 
+import rotp.core.powersystem.standpower.StandDamageContext;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
@@ -32,6 +33,7 @@ import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDestroyBlockEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
+import net.neoforged.neoforge.event.entity.living.LivingKnockBackEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
@@ -71,6 +73,7 @@ public final class EchoesGameEvents {
             // 092 carrier drag also ran client-side, where motion is decided
             if (event.getEntity().isLocalPlayer()) {
                 EchoesGravityService.tickLocalCarrier(event.getEntity());
+                EchoesGravityService.tickLocalFreeze(event.getEntity());
             }
             return;
         }
@@ -79,7 +82,8 @@ public final class EchoesGameEvents {
         if (player.hasData(EchoesAttachments.USER_STATE)) {
             EchoesGravityService.tickUser(player);
         }
-        if (!RotpEchoes.isEchoesUser(player)
+        // 016's auto attack and counter belong to its one Stand, ACT3; the author's later builds gave ACT2 neither
+        if (!EchoesChatService.isAct3User(player)
                 || player.getAbilities().instabuild) {
             return;
         }
@@ -190,7 +194,7 @@ public final class EchoesGameEvents {
         if (drop.isEmpty()) {
             return;
         }
-        EchoesGravityService.infuse(drop, level.getGameTime());
+        EchoesGravityService.infuse(drop, player.getUUID());
         level.addFreshEntity(new ItemEntity(
                 level,
                 position.getX() + 0.5D,
@@ -258,12 +262,29 @@ public final class EchoesGameEvents {
         }
     }
 
+    // master DisablerTagHandler.onFrozenAttackerHurt and the author's
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onFrozenAttacker(LivingIncomingDamageEvent event) {
+        if (event.getSource().getEntity() instanceof LivingEntity attacker
+                && EchoesGravityService.isFrozen(attacker)) {
+            event.setCanceled(true);
+        }
+    }
+
+    // the author's DisablerTagHandler.onLivingKnockBack: a frozen entity keeps its place
+    @SubscribeEvent
+    public static void onFrozenKnockBack(LivingKnockBackEvent event) {
+        if (EchoesGravityService.isFrozen(event.getEntity())) {
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onIncomingDamage(
             LivingIncomingDamageEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)
                 || player.getAbilities().instabuild
-                || !RotpEchoes.isEchoesUser(player)) {
+                || !EchoesChatService.isAct3User(player)) {
             return;
         }
         EchoesUserState state = RotpEchoes.userState(player);
@@ -278,8 +299,10 @@ public final class EchoesGameEvents {
         }
         state.resetAutoActionCooldown(gameTime);
         ensureSummoned(player);
-        attacker.hurt(
-                player.damageSources().playerAttack(player), 4.0F);
+        try (var running = StandDamageContext.enter(StandPower.get(player))) {
+            attacker.hurt(
+                    player.damageSources().playerAttack(player), 4.0F);
+        }
         attacker.knockback(
                 1.5D,
                 player.getX() - attacker.getX(),
@@ -299,6 +322,10 @@ public final class EchoesGameEvents {
                 && player.hasData(EchoesAttachments.USER_STATE)) {
             EchoesGravityService.cleanupUser(player, true);
         }
+        EchoesOnomatopoeiaService.endWordOn(entity);
+        if (entity instanceof ServerPlayer player) {
+            EchoesOnomatopoeiaService.endWordsOnOthers(player);
+        }
     }
 
     @SubscribeEvent
@@ -315,6 +342,8 @@ public final class EchoesGameEvents {
         cleanupPlayer(event.getEntity());
         if (event.getEntity() instanceof ServerPlayer player) {
             EchoesSoundService.forget(player);
+            EchoesOnomatopoeiaService.endWordOn(player);
+            EchoesOnomatopoeiaService.endWordsOnOthers(player);
         }
     }
 
@@ -324,6 +353,8 @@ public final class EchoesGameEvents {
         cleanupPlayer(event.getEntity());
         if (event.getEntity() instanceof ServerPlayer player) {
             EchoesSoundService.forget(player);
+            EchoesOnomatopoeiaService.endWordOn(player);
+            EchoesOnomatopoeiaService.endWordsOnOthers(player);
         }
     }
 
@@ -349,6 +380,8 @@ public final class EchoesGameEvents {
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             EchoesSoundService.sync(player);
+            // the way back from the End clones the player too, with no death and no change of level event
+            EchoesOnomatopoeiaService.removeMark(player);
         }
     }
 
@@ -395,8 +428,10 @@ public final class EchoesGameEvents {
         }
         state.resetAutoActionCooldown(gameTime);
         ensureSummoned(player);
-        target.hurt(
-                player.damageSources().playerAttack(player), 6.0F);
+        try (var running = StandDamageContext.enter(StandPower.get(player))) {
+            target.hurt(
+                    player.damageSources().playerAttack(player), 6.0F);
+        }
         target.knockback(
                 2.0D,
                 player.getX() - target.getX(),

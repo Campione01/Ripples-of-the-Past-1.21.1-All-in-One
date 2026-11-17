@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
@@ -31,6 +32,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public final class PurpleHazeEntity extends StandEntity {
@@ -113,7 +115,8 @@ public final class PurpleHazeEntity extends StandEntity {
         }
 
         tickMadnessStaminaReward(power);
-        if (isCloseToUser() && hasAura()) {
+        // The way back of a recall is no reason to end it: the aura goes on from the user.
+        if (isCloseToUser() && hasAura() && !isUnsummoning()) {
             setAuraActive(false);
         }
 
@@ -137,17 +140,11 @@ public final class PurpleHazeEntity extends StandEntity {
 
     private void tickVirusAura(
             ServerLevel level, LivingEntity user) {
-        for (LivingEntity target :
-                level.getEntitiesOfClass(
-                        LivingEntity.class,
-                        getBoundingBox().inflate(AURA_RADIUS),
-                        target -> target != this
-                                && target.isAlive()
-                                && !target.hasEffect(
-                                        PurpleHazeAddon.PH_VIRUS))) {
-            PurpleHazeVirusEffect.applyVirusUnattenuated(
-                    target, 0, AURA_VIRUS_TICKS);
-        }
+        spreadVirus(
+                level,
+                getBoundingBox(),
+                target -> target != this
+                        && (target != user || !isUnsummoning()));
 
         PurpleHazeVirusParticleOptions particles =
                 new PurpleHazeVirusParticleOptions(
@@ -157,6 +154,64 @@ public final class PurpleHazeEntity extends StandEntity {
                 getRandomX(1.0D),
                 getRandomY(),
                 getRandomZ(1.0D),
+                1,
+                0.02D,
+                0.02D,
+                0.02D,
+                0.0D);
+    }
+
+    private static void spreadVirus(
+            ServerLevel level,
+            AABB source,
+            Predicate<LivingEntity> canCatchIt) {
+        for (LivingEntity target :
+                level.getEntitiesOfClass(
+                        LivingEntity.class,
+                        source.inflate(AURA_RADIUS),
+                        target -> canCatchIt.test(target)
+                                && target.isAlive()
+                                && !target.hasEffect(
+                                        PurpleHazeAddon.PH_VIRUS))) {
+            PurpleHazeVirusEffect.applyVirusUnattenuated(
+                    target, 0, AURA_VIRUS_TICKS);
+        }
+    }
+
+    /**
+     * The owner's rule of 2026-11-06: with the Stand recalled the aura spreads from its user, who does not catch it. The
+     * next whole Stand takes it over and stands at his side, where 1.16's rule ends it; arms alone do not count.
+     */
+    public static void tickRecalledAura(LivingEntity user) {
+        if (!(user.level() instanceof ServerLevel level)) {
+            return;
+        }
+        StandPower power = StandPower.get(user);
+        if (!user.isAlive()
+                || user.isRemoved()
+                || power == null
+                || !power.hasPower()
+                || power.getPowerType()
+                        != PurpleHazeAddon.PURPLE_HAZE.get()
+                || !power.canUsePower()) {
+            user.removeData(PurpleHazeAddon.RECALLED_AURA);
+            return;
+        }
+        PurpleHazeEntity stand = PurpleHazeAddon.controller(user);
+        if (stand != null && !stand.isArmsOnlyMode()) {
+            user.removeData(PurpleHazeAddon.RECALLED_AURA);
+            stand.setAuraActive(true);
+            return;
+        }
+        spreadVirus(
+                level,
+                user.getBoundingBox(),
+                target -> target != user && target != stand);
+        level.sendParticles(
+                new PurpleHazeVirusParticleOptions(-1, user.getUUID()),
+                user.getRandomX(1.0D),
+                user.getRandomY(),
+                user.getRandomZ(1.0D),
                 1,
                 0.02D,
                 0.02D,
@@ -464,6 +519,12 @@ public final class PurpleHazeEntity extends StandEntity {
         return entityData.get(AURA_ACTIVE);
     }
 
+    public boolean isUnsummoning() {
+        EntityActionInstance action = getCurStandAction();
+        return action != null
+                && action.ability == ModSpecialActions.STAND_UNSUMMON.get();
+    }
+
     public void setAuraActive(boolean active) {
         if (!level().isClientSide()) {
             entityData.set(AURA_ACTIVE, active && !isMad());
@@ -582,6 +643,15 @@ public final class PurpleHazeEntity extends StandEntity {
 
     @Override
     public void remove(Entity.RemovalReason reason) {
+        LivingEntity user = getUser();
+        if (!level().isClientSide()
+                && hasAura()
+                && user != null
+                && user.isAlive()
+                && !user.isRemoved()
+                && user.level() == level()) {
+            user.setData(PurpleHazeAddon.RECALLED_AURA, Boolean.TRUE);
+        }
         clearRuntimeState();
         super.remove(reason);
     }

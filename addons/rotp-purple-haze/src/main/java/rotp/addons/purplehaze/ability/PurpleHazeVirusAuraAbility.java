@@ -12,6 +12,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.util.functions.JojoModUtil;
 
+import rotp.addons.purplehaze.PurpleHazeAddon;
 import rotp.addons.purplehaze.entity.PurpleHazeEntity;
 import net.minecraft.core.Holder;
 import net.minecraft.sounds.SoundEvent;
@@ -81,6 +82,12 @@ public final class PurpleHazeVirusAuraAbility
             StandEntity standEntity,
             EntityActionInstance action) {
         return false;
+    }
+
+    // the aura goes on from its user with the Stand recalled: the HUD lights the slot while he holds it
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        return user.hasData(PurpleHazeAddon.RECALLED_AURA);
     }
 
     public static final class VirusAuraAction

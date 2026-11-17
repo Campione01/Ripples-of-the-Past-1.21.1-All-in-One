@@ -7,9 +7,9 @@ import rotp.addons.whitesnake.entity.WhitesnakeEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
 @EventBusSubscriber(modid = WhitesnakeAddon.MOD_ID)
 public final class WhitesnakeDisguiseEvents {
@@ -44,12 +44,15 @@ public final class WhitesnakeDisguiseEvents {
         clearForUser(event.getEntity());
     }
 
+    // A recall took the Stand's own tick away: losing the Stand is seen from the user's.
     @SubscribeEvent
-    public static void onEntityLeaveLevel(
-            EntityLeaveLevelEvent event) {
-        if (event.getEntity() instanceof WhitesnakeEntity whitesnake
-                && !whitesnake.level().isClientSide()) {
-            whitesnake.clearDisguiseState();
+    public static void onEntityTick(EntityTickEvent.Post event) {
+        if (event.getEntity() instanceof LivingEntity living
+                && !living.level().isClientSide()
+                && living.hasData(WhitesnakeAddon.DISGUISE_STATE)
+                && !WhitesnakeAddon.holdsWhitesnakeSkill(
+                        living, "disguise")) {
+            clearForUser(living);
         }
     }
 
@@ -63,5 +66,6 @@ public final class WhitesnakeDisguiseEvents {
                         instanceof WhitesnakeEntity whitesnake) {
             whitesnake.clearDisguiseState();
         }
+        WhitesnakeDisguiseState.clear(user);
     }
 }

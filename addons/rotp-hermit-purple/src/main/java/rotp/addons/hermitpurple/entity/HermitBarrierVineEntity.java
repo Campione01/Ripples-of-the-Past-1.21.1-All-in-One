@@ -128,6 +128,9 @@ public final class HermitBarrierVineEntity
                             : owner;
             if (!(owner instanceof HermitPurpleStandEntity)
                     || user == null
+                    || !user.isAlive()
+                    || user.isRemoved()
+                    || user.level() != level()
                     || !HermitPurpleAddon.isHermitPurpleUser(user)
                     || user.distanceToSqr(this)
                             > HermitPurpleSpec.BARRIER_RANGE
@@ -136,6 +139,12 @@ public final class HermitBarrierVineEntity
                 discard();
             }
         }
+    }
+
+    // a placed barrier stays through a recall; the checks in tick end it with its user
+    @Override
+    protected boolean shouldExpire(@Nullable Entity owner) {
+        return !isAttachedToBlock() && super.shouldExpire(owner);
     }
 
     @Override

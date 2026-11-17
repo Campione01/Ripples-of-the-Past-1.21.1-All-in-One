@@ -1,9 +1,8 @@
 package rotp.addons.khnum.client;
 
-import rotp.core.client.entityrender.stand.StandVisualContext;
+import rotp.core.client.entityrender.stand.StandOpacityPolicy;
 
-import rotp.addons.khnum.KhnumAddon;
-import rotp.addons.khnum.entity.KhnumControllerEntity;
+import rotp.addons.khnum.disguise.KhnumDisguiseState;
 import net.minecraft.world.entity.LivingEntity;
 
 final class KhnumVisuals {
@@ -16,21 +15,14 @@ final class KhnumVisuals {
                 || user.isSpectator()) {
             return null;
         }
-        KhnumControllerEntity controller =
-                KhnumAddon.controller(user);
-        if (controller == null || controller.clientStuff == null) {
+        KhnumDisguiseState disguise = KhnumDisguiseState.of(user);
+        if (!disguise.isDisguised()) {
             return null;
         }
-        float lifecycleAlpha = controller.clientStuff.getAlpha(
-                controller, partialTick);
-        StandVisualContext context = StandVisualContext.world(
-                controller, lifecycleAlpha);
-        return context.effectiveAlpha() > 0.0F
-                ? new RenderState(controller, context)
-                : null;
+        // The look outlives the Stand, so it takes nothing from the Stand's fade.
+        float alpha = StandOpacityPolicy.apply(1.0F, user);
+        return alpha > 0.0F ? new RenderState(disguise, alpha) : null;
     }
 
-    record RenderState(
-            KhnumControllerEntity controller,
-            StandVisualContext context) {}
+    record RenderState(KhnumDisguiseState disguise, float alpha) {}
 }

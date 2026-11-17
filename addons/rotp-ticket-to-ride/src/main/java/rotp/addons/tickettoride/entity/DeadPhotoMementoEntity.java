@@ -53,6 +53,7 @@ public final class DeadPhotoMementoEntity
                     EntityDataSerializers.INT);
 
     private int orphanTicks;
+    private boolean loadedFromSave;
 
     public DeadPhotoMementoEntity(
             EntityType<? extends DeadPhotoMementoEntity> type,
@@ -150,6 +151,14 @@ public final class DeadPhotoMementoEntity
     public void tick() {
         setNoGravity(true);
         if (level() instanceof ServerLevel server) {
+            // A relog must not bring it back: it was saved with its chunk and the Stand it left from is gone.
+            if (loadedFromSave) {
+                loadedFromSave = false;
+                if (resolveController() == null) {
+                    discard();
+                    return;
+                }
+            }
             if (tickCount > MAX_LIFETIME_TICKS
                     || !validClosure()) {
                 if (++orphanTicks >= ORPHAN_GRACE_TICKS
@@ -231,21 +240,17 @@ public final class DeadPhotoMementoEntity
                         && target.isAlive()).isEmpty();
     }
 
+    // Once sent it goes on through a recall (owner's rule of 2026-11-05): it answers to its owner and his power.
     private boolean validClosure() {
         LivingEntity owner = resolveOwner();
-        TicketToRideStandEntity controller =
-                resolveController();
         if (owner == null
-                || controller == null
-                || !owner.isAlive()
-                || controller.getUser() != owner) {
+                || !owner.isAlive()) {
             return false;
         }
         StandPower power = StandPower.get(owner);
         return power != null
                 && power.getPowerType()
-                        == TicketToRideAddon.TICKET_TO_RIDE.get()
-                && power.getSummonedStandEntity() == controller;
+                        == TicketToRideAddon.TICKET_TO_RIDE.get();
     }
 
     @Nullable
@@ -434,5 +439,6 @@ public final class DeadPhotoMementoEntity
         entityData.set(CONTROLLER_ID, -1);
         orphanTicks = Math.max(
                 0, tag.getInt("OrphanTicks"));
+        loadedFromSave = true;
     }
 }

@@ -1,0 +1,8 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "rotp.addons.d4c.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": ["MinecraftServerMixin"],
+  "injectors": { "defaultRequire": 1 }
+}

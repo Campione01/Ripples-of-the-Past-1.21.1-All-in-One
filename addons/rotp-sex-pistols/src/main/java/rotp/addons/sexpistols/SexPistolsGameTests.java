@@ -47,6 +47,7 @@ import rotp.addons.sexpistols.content.sexpistols.SexPistolsReloadAbility;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsSpecialShotAbility;
 import rotp.addons.sexpistols.content.sexpistols.SexPistolsTargetMode;
 import rotp.addons.sexpistols.network.RevolverCasingEjectPayload;
+import rotp.addons.sexpistols.network.RevolverChamberControlPayload;
 import rotp.addons.sexpistols.registry.SexPistolsAttachments;
 import rotp.addons.sexpistols.registry.SexPistolsDataComponents;
 import rotp.addons.sexpistols.registry.SexPistolsItems;
@@ -220,7 +221,7 @@ public final class SexPistolsGameTests {
                 owner.isUsingItem()
                         && RevolverItem.state(revolver).aiming(),
                 "The production revolver did not enter aiming state.");
-        owner.releaseUsingItem();
+        revolverItem.fire(level, owner, revolver);
 
         List<RevolverBulletEntity> bullets =
                 level.getEntitiesOfClass(
@@ -537,6 +538,70 @@ public final class SexPistolsGameTests {
     // 1.16 InitEntities: revolver_bullet is 0.25 x 0.25;
     // RevolverItem.shootBulletWithMask spawns it at eye + direction * 0.45.
     // Every test that fires has a batch of its own: a shot leaves the plot.
+    // The owner's rule of 2026-11-05 (13.png), against 1.16: the six come back with a recall, a bullet in flight goes on.
+    @GameTest(
+            templateNamespace = "rotp_addon_api_smoke",
+            template = "empty",
+            batch = "sexPistolsBulletThroughRecall",
+            timeoutTicks = 20 + GameTestChunkTickets.WAIT_TICKS)
+    public static void aFlyingBulletGoesOnThroughARecall(
+            GameTestHelper helper) {
+        GameTestChunkTickets.aroundOrigin(helper)
+                .whenTicking(() -> {}, h -> aFlyingBulletGoesOnThroughARecallBody(h));
+    }
+
+    private static void aFlyingBulletGoesOnThroughARecallBody(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ServerPlayer owner = makeCompatibleMockPlayer(
+                helper, "sex-pistols-bullet-recall");
+        positionPlayer(helper, owner, 1, 2, 1);
+        owner.setGameMode(GameType.SURVIVAL);
+        owner.setNoGravity(true);
+        try {
+            StandPower power = prepareSexPistols(helper, owner);
+            helper.assertTrue(SexPistolsAttachments.coordinator(owner).isSummoned(),
+                    "Fixture: the swarm is not out.");
+            ItemStack revolver = new ItemStack(
+                    SexPistolsItems.REVOLVER.get());
+            owner.setItemSlot(EquipmentSlot.MAINHAND, revolver);
+            owner.getInventory().add(new ItemStack(
+                    SexPistolsItems.REVOLVER_AMMO.get()));
+            helper.assertTrue(
+                    RevolverItem.openForStandReload(
+                                    level, owner, revolver, true, true)
+                            && RevolverItem.loadSelectedChamberIfEmpty(
+                                    owner, revolver)
+                            && RevolverItem.closeReloadMode(
+                                    level, owner, revolver),
+                    "The production revolver could not be loaded.");
+            ((RevolverItem) revolver.getItem()).use(
+                    level, owner, InteractionHand.MAIN_HAND);
+            ((RevolverItem) revolver.getItem()).fire(level, owner, revolver);
+            List<RevolverBulletEntity> bullets =
+                    level.getEntitiesOfClass(
+                            RevolverBulletEntity.class,
+                            new AABB(owner.blockPosition()).inflate(8.0D),
+                            bullet -> bullet.getOwner() == owner);
+            helper.assertTrue(bullets.size() == 1,
+                    "Production fire created " + bullets.size() + " bullets instead of one.");
+            RevolverBulletEntity bullet = bullets.getFirst();
+
+            power.getPowerType().forceUnsummon(owner, power);
+            bullet.tick();
+            helper.assertTrue(!bullet.isRemoved(), "The bullet in flight ended with the recall.");
+            helper.assertTrue(!power.isSummoned(), "Fixture: the swarm is still summoned.");
+
+            power.setStand(null);
+            helper.assertTrue(bullet.isRemoved(), "The bullet must end when its user loses the Stand.");
+            helper.succeed();
+        }
+        finally {
+            RevolverBulletEntity.discardOwnedBy(level, owner.getUUID());
+            owner.connection.disconnect(Component.literal(
+                    "Sex Pistols bullet recall GameTest complete"));
+        }
+    }
+
     @GameTest(
             templateNamespace = "rotp_addon_api_smoke",
             template = "empty",
@@ -580,7 +645,7 @@ public final class SexPistolsGameTests {
             // Recoil turns the shooter after the shot.
             Vec3 donorSpawn = owner.getEyePosition().add(
                     owner.getLookAngle().scale(0.45D));
-            owner.releaseUsingItem();
+            ((RevolverItem) revolver.getItem()).fire(level, owner, revolver);
 
             List<RevolverBulletEntity> bullets =
                     level.getEntitiesOfClass(
@@ -1107,7 +1172,7 @@ public final class SexPistolsGameTests {
                     owner.setXRot(-90.0F);
                     ((RevolverItem) revolver.getItem()).use(
                             level, owner, InteractionHand.MAIN_HAND);
-                    owner.releaseUsingItem();
+                    ((RevolverItem) revolver.getItem()).fire(level, owner, revolver);
                     List<RevolverBulletEntity> bullets =
                             level.getEntitiesOfClass(
                                     RevolverBulletEntity.class,
@@ -1946,18 +2011,20 @@ public final class SexPistolsGameTests {
             item.use(level, owner, InteractionHand.MAIN_HAND);
             owner.setShiftKeyDown(false);
         };
+        Runnable reloadKey = () -> RevolverChamberControlPayload.apply(
+                owner, RevolverChamberControlPayload.TOGGLE_CYLINDER);
         Runnable pullTrigger = () -> {
             owner.setYRot(0.0F);
             owner.setYHeadRot(0.0F);
             owner.setXRot(-10.0F);
-            item.use(level, owner, InteractionHand.MAIN_HAND);
-            owner.releaseUsingItem();
+            RevolverChamberControlPayload.apply(
+                    owner, RevolverChamberControlPayload.FIRE);
             RevolverBulletEntity.discardOwnedBy(level, owner.getUUID());
         };
         List<SoundStep> steps = List.of(
                 new SoundStep(
                         "open the cylinder",
-                        sneakRightClick,
+                        reloadKey,
                         List.of("rotp_sex_pistols:revolver_open@0.85/1.0")),
                 new SoundStep(
                         "load one round",
@@ -1991,8 +2058,7 @@ public final class SexPistolsGameTests {
                         List.of("rotp_sex_pistols:dry_fire@0.45/1.2")),
                 new SoundStep(
                         "close the cylinder",
-                        () -> RevolverItem.closeReloadMode(
-                                level, owner, revolver),
+                        reloadKey,
                         List.of("rotp_sex_pistols:revolver_close@0.85/1.0")),
                 new SoundStep(
                         "dry fire",
@@ -2004,7 +2070,7 @@ public final class SexPistolsGameTests {
                             owner.getInventory().add(new ItemStack(
                                     SexPistolsItems.REVOLVER_AMMO.get(),
                                     5));
-                            sneakRightClick.run();
+                            reloadKey.run();
                             int loaded = RevolverItem
                                     .loadAvailableAmmoIntoEmptyChambers(
                                             owner, revolver, 6, true);
@@ -2020,8 +2086,7 @@ public final class SexPistolsGameTests {
                         List.of("minecraft:block.dispenser.fail@0.45/1.6")),
                 new SoundStep(
                         "fixture: close the cylinder",
-                        () -> RevolverItem.closeReloadMode(
-                                level, owner, revolver),
+                        reloadKey,
                         null),
                 new SoundStep(
                         "fire",
@@ -2029,7 +2094,7 @@ public final class SexPistolsGameTests {
                         List.of("rotp_sex_pistols:fire@0.95/1.0")),
                 new SoundStep(
                         "open the cylinder on a spent casing",
-                        sneakRightClick,
+                        reloadKey,
                         List.of(
                                 "rotp_sex_pistols:"
                                         + "revolver_shellsout@0.75/1.0",
@@ -2185,7 +2250,7 @@ public final class SexPistolsGameTests {
         for (int shot = 0; shot < firedRounds; shot++) {
             ((RevolverItem) revolver.getItem()).use(
                     level, owner, InteractionHand.MAIN_HAND);
-            owner.releaseUsingItem();
+            ((RevolverItem) revolver.getItem()).fire(level, owner, revolver);
             RevolverBulletEntity.discardOwnedBy(level, owner.getUUID());
         }
         RevolverState state = RevolverItem.state(revolver);
@@ -2202,7 +2267,7 @@ public final class SexPistolsGameTests {
         return revolver;
     }
 
-    private static void pressReload(
+    static void pressReload(
             GameTestHelper helper,
             ServerPlayer owner,
             StandPower power,
@@ -2233,13 +2298,13 @@ public final class SexPistolsGameTests {
         }
     }
 
-    private static EmbeddedChannel sentPackets(ServerPlayer player) {
+    static EmbeddedChannel sentPackets(ServerPlayer player) {
         return (EmbeddedChannel) player.connection
                 .getConnection()
                 .channel();
     }
 
-    private static void forgetSentPackets(ServerPlayer player) {
+    static void forgetSentPackets(ServerPlayer player) {
         EmbeddedChannel channel = sentPackets(player);
         channel.flushOutbound();
         channel.outboundMessages().clear();
@@ -3262,7 +3327,7 @@ public final class SexPistolsGameTests {
                 "Sex Pistols quick reload GameTest complete"));
     }
 
-    private static StandPower prepareSexPistols(
+    static StandPower prepareSexPistols(
             GameTestHelper helper, ServerPlayer owner) {
         StandPower power = StandPower.get(owner);
         helper.assertTrue(
@@ -3409,7 +3474,7 @@ public final class SexPistolsGameTests {
         return tag.getInt("PiercingTicks");
     }
 
-    private static void positionPlayer(
+    static void positionPlayer(
             GameTestHelper helper,
             ServerPlayer player,
             int x,
@@ -3465,7 +3530,7 @@ public final class SexPistolsGameTests {
                 : offset;
     }
 
-    private static ServerPlayer makeCompatibleMockPlayer(
+    static ServerPlayer makeCompatibleMockPlayer(
             GameTestHelper helper, String playerName) {
         GameProfile profile = new GameProfile(
                 UUID.randomUUID(), playerName);

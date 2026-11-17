@@ -2,6 +2,8 @@ package rotp.addons.diegosworld.block;
 
 import javax.annotation.Nullable;
 
+import rotp.core.powersystem.standpower.StandDamageContext;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.util.functions.DamageUtil;
 import com.mojang.serialization.MapCodec;
 
@@ -40,6 +42,7 @@ public final class BarbedWireBlock
     public static final int CONTROLLER_PART = 4;
 
     private static final float DAMAGE_AMOUNT = 3.0F;
+    private static final double USER_RANGE = 64.0D;
     private static final VoxelShape NORTH_SOUTH_SHAPE =
             Block.box(0.0D, 5.0D, 6.0D, 16.0D, 11.0D, 10.0D);
     private static final VoxelShape EAST_WEST_SHAPE =
@@ -146,6 +149,17 @@ public final class BarbedWireBlock
         return super.playerWillDestroy(level, pos, state, player);
     }
 
+    @Nullable
+    private static StandPower nearestUser(Level level, BlockPos pos) {
+        Player user = level.getNearestPlayer(
+                pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D, USER_RANGE,
+                entity -> {
+                    StandPower power = entity instanceof LivingEntity living ? StandPower.get(living) : null;
+                    return power != null && power.getPowerType() == DiegosTheWorldAddon.THE_WORLD.get();
+                });
+        return user != null ? StandPower.get(user) : null;
+    }
+
     @Override
     protected void entityInside(
             BlockState state,
@@ -156,12 +170,16 @@ public final class BarbedWireBlock
                 || !(entity instanceof LivingEntity living)) {
             return;
         }
-        boolean damaged = living.hurt(
-                DamageUtil.make(
-                        level,
-                        DiegosTheWorldAddon.WIRE_DAMAGE,
-                        Vec3.atCenterOf(pos)),
-                DAMAGE_AMOUNT);
+        boolean damaged;
+        // the wire keeps no owner: the Diego user nearest to it stands for the Stand's damage share
+        try (var running = StandDamageContext.enter(nearestUser(level, pos))) {
+            damaged = living.hurt(
+                    DamageUtil.make(
+                            level,
+                            DiegosTheWorldAddon.WIRE_DAMAGE,
+                            Vec3.atCenterOf(pos)),
+                    DAMAGE_AMOUNT);
+        }
         if (!damaged) {
             return;
         }

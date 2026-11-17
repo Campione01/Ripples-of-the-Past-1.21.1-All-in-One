@@ -1139,7 +1139,8 @@ public final class AquaNecklaceGameTests {
      * punch's finisher variation (an extra unlockable), so it was unlocked with the Stand and StandUtil
      * .isFinisherMechanicUnlocked opened the finisher meter at Resolve 0; AquaNecklaceHeavyPunch
      * .getFinisherVariationIfPresent gave the heavy's key to it at a 0.5 meter only inside a host with a brain.
-     * The port's Host Crush is that heavy punch; the Brain Attack keeps its own H4 wheel slot too.
+     * The port's Host Crush is that heavy punch; the Brain Attack is also the Shift of the punch, as 1.16's
+     * shiftVariationOf(AQUA_NECKLACE_PUNCH) was.
      */
     @GameTest(template = "empty", templateNamespace = AquaNecklaceAddon.MOD_ID, batch = BATCH,
             timeoutTicks = FIXTURE_TIMEOUT_TICKS)
@@ -1244,7 +1245,7 @@ public final class AquaNecklaceGameTests {
                 "1.16 gave the heavy punch's key to " + expected.name() + " " + where + "; the port's Host Crush key"
                         + " gives " + (key != null ? key.ability.name() : "nothing"));
         helper.assertTrue(own != null && brain.name().equals(own.ability.name()),
-                "The Brain Attack's own wheel slot gives " + (own != null ? own.ability.name() : "nothing") + " "
+                "The Brain Attack's Shift + punch gives " + (own != null ? own.ability.name() : "nothing") + " "
                         + where);
     }
 

@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-killer-queen-lion`, mod id `rotp_zkq8`, version `1.0-port.32`.
+- Module: `rotp-killer-queen-lion`, mod id `rotp_zkq8`, version `1.0-port.33`.
 - Original 1.16.5 add-on: `RotP-Killer_Queen_Lion-1.0.jar` (RotP Killer Queen, mod id `rotp_zkq8`), by Makuta Zeml, StandoByte, Model by: Lanostry, StandSkins by: MlgMC; declared license: GNU GPL v3.0; SHA-256 `AB4298324E68B6FAF18236B3256C17F53F3CD82504C3E58327F2959024F66FC2`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

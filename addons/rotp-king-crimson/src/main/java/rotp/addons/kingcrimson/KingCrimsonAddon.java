@@ -6,7 +6,13 @@ import static rotp.core.init.power.ModStands.USE_SPECIAL;
 import java.util.function.Supplier;
 
 import rotp.core.api.RotpAddonApi;
+import rotp.core.api.control.CreeperFuseSuppressionProviders;
+import rotp.core.api.control.PlayerOperationPolicies;
 import rotp.core.api.perception.PerceptionBlockers;
+import rotp.core.api.power.AbilityRefusals;
+import rotp.core.api.simulation.EntitySimulations;
+import rotp.core.api.stand.StandStaminaModifiers;
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.MovesetBuilder;
@@ -25,6 +31,7 @@ import rotp.core.util.sound.OstSoundList;
 
 import rotp.addons.kingcrimson.ability.KingCrimsonChopAbility;
 import rotp.addons.kingcrimson.ability.KingCrimsonBarrageAbility;
+import rotp.addons.kingcrimson.ability.KingCrimsonBloodThrowAbility;
 import rotp.addons.kingcrimson.ability.KingCrimsonDesperateEyejabAbility;
 import rotp.addons.kingcrimson.ability.KingCrimsonEpitaphAbility;
 import rotp.addons.kingcrimson.ability.KingCrimsonGroundPunchAbility;
@@ -32,7 +39,11 @@ import rotp.addons.kingcrimson.ability.KingCrimsonGroundSlamAbility;
 import rotp.addons.kingcrimson.ability.KingCrimsonHeavyPunchAbility;
 import rotp.addons.kingcrimson.ability.KingCrimsonImpaleAbility;
 import rotp.addons.kingcrimson.ability.KingCrimsonProjectileThrowAbility;
+import rotp.addons.kingcrimson.ability.KingCrimsonPassiveEraseAbility;
 import rotp.addons.kingcrimson.ability.KingCrimsonTimeEraseAbility;
+import rotp.addons.kingcrimson.ability.KingCrimsonTimeEraseStepAbility;
+import rotp.addons.kingcrimson.state.KingCrimsonCreatureErase;
+import rotp.addons.kingcrimson.state.KingCrimsonReflexErase;
 import rotp.addons.kingcrimson.ability.KingCrimsonTimeSkipAbility;
 import rotp.addons.kingcrimson.ability.KingCrimsonTripleProjectileThrowAbility;
 import rotp.addons.kingcrimson.effect.KingCrimsonBleedingEffect;
@@ -41,19 +52,37 @@ import rotp.addons.kingcrimson.effect.KingCrimsonHalfBlindnessEffect;
 import rotp.addons.kingcrimson.effect.KingCrimsonMangledBodyEffect;
 import rotp.addons.kingcrimson.effect.KingCrimsonTimeEraseEffect;
 import rotp.addons.kingcrimson.entity.KingCrimsonAfterimageEntity;
+import rotp.addons.kingcrimson.entity.KingCrimsonDriftBodyEntity;
+import rotp.addons.kingcrimson.entity.KingCrimsonPhantomCarrierEntity;
 import rotp.addons.kingcrimson.entity.KingCrimsonTimeEraseDecoyEntity;
-import rotp.addons.kingcrimson.network.EpitaphForesightPayload;
-import rotp.addons.kingcrimson.network.EpitaphStateSyncPayload;
+import rotp.addons.kingcrimson.epitaph.EpitaphSessions;
+import rotp.addons.kingcrimson.epitaph.human.ForcedWalk;
+import rotp.addons.kingcrimson.epitaph.human.PhantomBrain;
+import rotp.addons.kingcrimson.epitaph.window.WindowBoundary;
+import rotp.addons.kingcrimson.epitaph.window.WindowCover;
+import rotp.addons.kingcrimson.network.BloodThrowSplashPayload;
+import rotp.addons.kingcrimson.network.EpitaphForcedWalkPayload;
+import rotp.addons.kingcrimson.network.EpitaphNoticePayload;
+import rotp.addons.kingcrimson.network.EpitaphPhantomFramePayload;
+import rotp.addons.kingcrimson.network.EpitaphSessionPayload;
+import rotp.addons.kingcrimson.network.EpitaphShortcutPayload;
 import rotp.addons.kingcrimson.network.TemporalStateSyncPayload;
 import rotp.addons.kingcrimson.network.TimeEraseAfterimageRemovePayload;
 import rotp.addons.kingcrimson.network.TimeEraseAfterimageSpawnPayload;
+import rotp.addons.kingcrimson.network.TimeEraseShiftPayload;
 import rotp.addons.kingcrimson.network.TimeEraseTransitionPayload;
-import rotp.addons.kingcrimson.state.EpitaphState;
+import rotp.addons.kingcrimson.stand.KingCrimsonStandType;
+import rotp.addons.kingcrimson.state.KingCrimsonBloodThrowService;
 import rotp.addons.kingcrimson.state.KingCrimsonTemporalState;
+import rotp.addons.kingcrimson.state.KingCrimsonTimeEraseStepService;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.util.Unit;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -63,6 +92,8 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.attachment.AttachmentType;
+import net.neoforged.neoforge.attachment.IAttachmentHolder;
+import net.neoforged.neoforge.attachment.IAttachmentSerializer;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -89,14 +120,31 @@ public final class KingCrimsonAddon {
             ATTACHMENT_TYPES = DeferredRegister.create(
                     NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
 
-    public static final Supplier<AttachmentType<EpitaphState>>
-            EPITAPH_STATE = ATTACHMENT_TYPES.register(
-                    "epitaph_state",
-                    () -> AttachmentType.serializable(
-                                    holder -> holder instanceof Player
-                                            ? new EpitaphState()
-                                            : null)
-                            .build());
+    // Epitaph: the one who foresees is marked for the length of his prediction, so that others see the face on him.
+    // Not saved. Told to everybody who sees him but a player his prediction is aimed at.
+    public static final Supplier<AttachmentType<Unit>> EPITAPH_FORESEEING = ATTACHMENT_TYPES.register(
+            "epitaph_foreseeing",
+            () -> AttachmentType.builder(() -> Unit.INSTANCE)
+                    .sync(EpitaphSessions::showsFaceTo, StreamCodec.unit(Unit.INSTANCE))
+                    .build());
+
+    // Saves of before R772.1 hold the state of the old Epitaph under this id. It is read into nothing and never written
+    // again: such a save loads without an error line and has lost the entry after its next save.
+    public static final Supplier<AttachmentType<Unit>> RETIRED_EPITAPH_STATE = ATTACHMENT_TYPES.register(
+            "epitaph_state",
+            () -> AttachmentType.builder(() -> Unit.INSTANCE)
+                    .serialize(new IAttachmentSerializer<Tag, Unit>() {
+                        @Override
+                        public Unit read(IAttachmentHolder holder, Tag tag, HolderLookup.Provider provider) {
+                            return Unit.INSTANCE;
+                        }
+
+                        @Override
+                        public Tag write(Unit attachment, HolderLookup.Provider provider) {
+                            return null;
+                        }
+                    })
+                    .build());
     public static final Supplier<AttachmentType<KingCrimsonTemporalState>>
             TEMPORAL_STATE = ATTACHMENT_TYPES.register(
                     "temporal_state",
@@ -149,6 +197,34 @@ public final class KingCrimsonAddon {
                             .clientTrackingRange(32)
                             .updateInterval(2)
                             .build(key.toString()));
+    // Epitaph: what a phantom is drawn through on the client of the one who foresees. No server ever makes one.
+    public static final DeferredHolder<EntityType<?>, EntityType<KingCrimsonPhantomCarrierEntity>> PHANTOM_CARRIER_ENTITY =
+            ENTITY_TYPES.register("epitaph_phantom_carrier", key -> EntityType.Builder
+                    .<KingCrimsonPhantomCarrierEntity>of(KingCrimsonPhantomCarrierEntity::new, MobCategory.MISC)
+                    .noSave()
+                    .noSummon()
+                    .sized(0.6F, 1.8F)
+                    .setShouldReceiveVelocityUpdates(false)
+                    .setUpdateInterval(Integer.MAX_VALUE)
+                    .build(key.toString()));
+    // Epitaph: the mind of a human phantom. It is never in a world, on either side.
+    public static final DeferredHolder<EntityType<?>, EntityType<PhantomBrain>> PHANTOM_BRAIN_ENTITY =
+            ENTITY_TYPES.register("epitaph_phantom_mind", key -> EntityType.Builder
+                    .<PhantomBrain>of(PhantomBrain::new, MobCategory.MISC)
+                    .noSave()
+                    .noSummon()
+                    .sized(0.6F, 1.8F)
+                    .clientTrackingRange(0)
+                    .build(key.toString()));
+    // The erase of a creature: where its fake body sees a player. On the server alone; no client is told of one.
+    public static final DeferredHolder<EntityType<?>, EntityType<KingCrimsonDriftBodyEntity>> TIME_ERASE_DRIFT_BODY_ENTITY =
+            ENTITY_TYPES.register("time_erase_drift_body", key -> EntityType.Builder
+                    .<KingCrimsonDriftBodyEntity>of(KingCrimsonDriftBodyEntity::new, MobCategory.MISC)
+                    .noSave()
+                    .noSummon()
+                    .sized(0.6F, 1.8F)
+                    .clientTrackingRange(0)
+                    .build(key.toString()));
 
     public static final DeferredHolder<SoundEvent, SoundEvent>
             KINGCRIMSON_SUMMON = sound("kingcrimson_summon");
@@ -367,6 +443,25 @@ public final class KingCrimsonAddon {
                             key -> new AbilityType<>(
                                     key,
                                     KingCrimsonTimeEraseAbility::new));
+    // Owner 2026-11-07: the Time Erase step, a regular skill on a slot of its own.
+    public static final DeferredHolder<AbilityType<?>, AbilityType<KingCrimsonTimeEraseStepAbility>>
+            KING_CRIMSON_TIME_ERASE_STEP_ABILITY = ABILITY_TYPES.register(
+                    KingCrimsonTimeEraseStepService.ABILITY,
+                    key -> new AbilityType<>(key, KingCrimsonTimeEraseStepAbility::new));
+    // Owner 2026-11-07: Blood Throw, the variation of Time Erase's slot, on the donor's unused sound and icon.
+    public static final DeferredHolder<AbilityType<?>, AbilityType<KingCrimsonBloodThrowAbility>>
+            KING_CRIMSON_BLOOD_THROW_ABILITY = ABILITY_TYPES.register(
+                    KingCrimsonBloodThrowService.ABILITY,
+                    key -> new AbilityType<>(key, KingCrimsonBloodThrowAbility::new));
+    // Owner 2026-11-07: the passive that took the place of Epitaph's dodge, as two skills with a cooldown each.
+    public static final DeferredHolder<AbilityType<?>, AbilityType<KingCrimsonPassiveEraseAbility>>
+            KING_CRIMSON_REFLEX_ERASE_ABILITY = ABILITY_TYPES.register(
+                    KingCrimsonReflexErase.REFLEX,
+                    key -> new AbilityType<>(key, KingCrimsonPassiveEraseAbility::new));
+    public static final DeferredHolder<AbilityType<?>, AbilityType<KingCrimsonPassiveEraseAbility>>
+            KING_CRIMSON_LAST_CHANCE_ERASE_ABILITY = ABILITY_TYPES.register(
+                    KingCrimsonReflexErase.LAST_CHANCE,
+                    key -> new AbilityType<>(key, KingCrimsonPassiveEraseAbility::new));
 
     public static final DeferredHolder<StandType, EntityStandType>
             KING_CRIMSON = STAND_TYPES.register(
@@ -432,6 +527,18 @@ public final class KingCrimsonAddon {
                 id("time_erase"),
                 (viewer, target, sight) -> KingCrimsonTimeEraseDecoyEntity
                         .blocksPerception(viewer, target, sight));
+        // The erase of a creature: the fake body of a creeper never goes off.
+        CreeperFuseSuppressionProviders.register(id("creature_erase_fake_body"), KingCrimsonCreatureErase::isFakeBody);
+        // Epitaph: a phantom is a copy outside the world that shares its body's int id; the core's own state leaves it out.
+        EntitySimulations.register(id("epitaph_phantoms"), EpitaphSessions::simulates);
+        EntityTimeRates.register(id("epitaph"), EpitaphSessions::rate);
+        // The bar of a user who is walked in the slow phase fills at the pace of his track.
+        StandStaminaModifiers.registerTickGain(id("epitaph_walk"), EpitaphSessions::staminaGain);
+        // A player who is walked along his foreseen track uses no ability but the erase that frees him.
+        AbilityRefusals.register(id("epitaph_forced_walk"), ForcedWalk::refuse);
+        // In the window of a prediction a participant opens no container and takes no crafting result.
+        PlayerOperationPolicies.register(id("epitaph_window"), WindowBoundary::decide);
+        WindowCover.check();
         // 1.16 KCConfig: COMMON, rotp_kingcrimson.toml
         modContainer.registerConfig(
                 ModConfig.Type.COMMON,
@@ -443,10 +550,6 @@ public final class KingCrimsonAddon {
         return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
     }
 
-    public static EpitaphState epitaphState(Player player) {
-        return player.getData(EPITAPH_STATE);
-    }
-
     public static KingCrimsonTemporalState temporalState(
             Player player) {
         return player.getData(TEMPORAL_STATE);
@@ -456,24 +559,6 @@ public final class KingCrimsonAddon {
         StandPower power = StandPower.get(player);
         return power != null
                 && power.getPowerType() == KING_CRIMSON.get();
-    }
-
-    public static void syncEpitaphState(Player player) {
-        if (player.level().isClientSide()) {
-            return;
-        }
-        PacketDistributor.sendToPlayersTrackingEntityAndSelf(
-                player,
-                EpitaphStateSyncPayload.from(
-                        player, epitaphState(player)));
-    }
-
-    public static void syncEpitaphState(
-            ServerPlayer observer, Player target) {
-        PacketDistributor.sendToPlayer(
-                observer,
-                EpitaphStateSyncPayload.from(
-                        target, epitaphState(target)));
     }
 
     public static void syncTemporalState(Player player) {
@@ -496,16 +581,9 @@ public final class KingCrimsonAddon {
 
     private static void registerPayloads(
             RegisterPayloadHandlersEvent event) {
-        event.registrar("1").playToClient(
-                EpitaphStateSyncPayload.TYPE,
-                EpitaphStateSyncPayload.STREAM_CODEC,
-                EpitaphStateSyncPayload::handle);
-        event.registrar("1").playToClient(
-                EpitaphForesightPayload.TYPE,
-                EpitaphForesightPayload.STREAM_CODEC,
-                EpitaphForesightPayload::handle);
-        // "2" since R772 added the time-stop pause flag: an older client is refused at login.
-        event.registrar("2").playToClient(
+        // "3" since R772.1 added the erase's kind and its key-up flag ("2": R772's time-stop pause flag): an older
+        // client is refused at login.
+        event.registrar("3").playToClient(
                 TemporalStateSyncPayload.TYPE,
                 TemporalStateSyncPayload.STREAM_CODEC,
                 TemporalStateSyncPayload::handle);
@@ -522,6 +600,26 @@ public final class KingCrimsonAddon {
                 TimeEraseTransitionPayload.TYPE,
                 TimeEraseTransitionPayload.STREAM_CODEC,
                 TimeEraseTransitionPayload::handle);
+        event.registrar("1").playToClient(
+                BloodThrowSplashPayload.TYPE,
+                BloodThrowSplashPayload.STREAM_CODEC,
+                BloodThrowSplashPayload::handle);
+        event.registrar("1").playToClient(
+                TimeEraseShiftPayload.TYPE,
+                TimeEraseShiftPayload.STREAM_CODEC,
+                TimeEraseShiftPayload::handle);
+        // Epitaph (R772.1): to the one who foresees alone.
+        event.registrar("1").playToClient(EpitaphSessionPayload.TYPE, EpitaphSessionPayload.STREAM_CODEC,
+                EpitaphSessionPayload::handle);
+        event.registrar("1").playToClient(EpitaphPhantomFramePayload.TYPE, EpitaphPhantomFramePayload.STREAM_CODEC,
+                EpitaphPhantomFramePayload::handle);
+        event.registrar("1").playToClient(EpitaphForcedWalkPayload.TYPE, EpitaphForcedWalkPayload.STREAM_CODEC,
+                EpitaphForcedWalkPayload::handle);
+        event.registrar("1").playToClient(EpitaphShortcutPayload.TYPE, EpitaphShortcutPayload.STREAM_CODEC,
+                EpitaphShortcutPayload::handle);
+        // To a player a prediction is aimed at whom a rule of another add-on exempts, and to nobody else.
+        event.registrar("1").playToClient(EpitaphNoticePayload.TYPE, EpitaphNoticePayload.STREAM_CODEC,
+                EpitaphNoticePayload::handle);
     }
 
     private static DeferredHolder<SoundEvent, SoundEvent> sound(String name) {
@@ -638,6 +736,23 @@ public final class KingCrimsonAddon {
                         "kingcrimson_timeerase",
                         KING_CRIMSON_TIME_ERASE_ABILITY,
                         ability -> ability.resolveLevelToUnlock(3))
+                .addAbility(
+                        KingCrimsonTimeEraseStepService.ABILITY,
+                        KING_CRIMSON_TIME_ERASE_STEP_ABILITY,
+                        ability -> ability.resolveLevelToUnlock(
+                                KingCrimsonPhase5Spec.TIME_ERASE_STEP_UNLOCK_RESOLVE_LEVEL))
+                .addAbility(
+                        KingCrimsonBloodThrowService.ABILITY,
+                        KING_CRIMSON_BLOOD_THROW_ABILITY,
+                        ability -> ability.resolveLevelToUnlock(KingCrimsonPhase5Spec.TIME_ERASE_UNLOCK_RESOLVE_LEVEL))
+                .addAbility(
+                        KingCrimsonReflexErase.REFLEX,
+                        KING_CRIMSON_REFLEX_ERASE_ABILITY,
+                        ability -> ability.resolveLevelToUnlock(KingCrimsonPhase5Spec.TIME_ERASE_UNLOCK_RESOLVE_LEVEL))
+                .addAbility(
+                        KingCrimsonReflexErase.LAST_CHANCE,
+                        KING_CRIMSON_LAST_CHANCE_ERASE_ABILITY,
+                        ability -> ability.resolveLevelToUnlock(KingCrimsonPhase5Spec.TIME_ERASE_UNLOCK_RESOLVE_LEVEL))
                 .makeControlScheme("hotbar")
                     .bind("punch", InputMethod.CLICK, InputKey.LMB)
                     .bind("barrage", InputMethod.HOLD, InputKey.LMB)
@@ -660,22 +775,24 @@ public final class KingCrimsonAddon {
                             "kingcrimson_chop",
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             "kingcrimson_impale",
-                            0,
+                            "kingcrimson_chop",
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             "kingcrimson_projectile_throw",
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             "kingcrimson_projectile_throw_tripple",
-                            0,
+                            "kingcrimson_projectile_throw",
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             "kingcrimson_epitaph",
                             0,
-                            InputMethod.HOLD)
+                            InputMethod.CLICK)
                     .addToHotbar(
                             "kingcrimson_timeskip",
                             0,
@@ -684,6 +801,15 @@ public final class KingCrimsonAddon {
                             "kingcrimson_timeerase",
                             0,
                             InputMethod.HOLD)
+                    .addHotbarSlotVariation(
+                            KingCrimsonBloodThrowService.ABILITY,
+                            "kingcrimson_timeerase",
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
+                    .addToHotbar(
+                            KingCrimsonTimeEraseStepService.ABILITY,
+                            0,
+                            InputMethod.CLICK)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")
                     .bind("punch", InputMethod.CLICK, InputKey.LMB)
@@ -754,9 +880,15 @@ public final class KingCrimsonAddon {
                                 "kingcrimson_timeerase",
                                 (int) KingCrimsonPhase5Spec
                                         .TIME_ERASE_ACTIVATION_STAMINA)
-                        .prerequisiteSkill("kingcrimson_timeskip"));
+                        .withAbility(KingCrimsonBloodThrowService.ABILITY)
+                        .prerequisiteSkill("kingcrimson_timeskip"))
+                .addSkill(StandUnlockableSkill.unlockableAbility(
+                                KingCrimsonTimeEraseStepService.ABILITY,
+                                (int) (KingCrimsonPhase5Spec.TIME_ERASE_STEP_COST_SHARE
+                                        * KingCrimsonPhase5Spec.TIME_ERASE_ACTIVATION_STAMINA))
+                        .prerequisiteSkill("kingcrimson_epitaph"));
 
-        return new EntityStandType(
+        return new KingCrimsonStandType(
                 new StandStats.Builder()
                         .power(KingCrimsonPhase1Spec.POWER)
                         .speed(KingCrimsonPhase1Spec.SPEED)

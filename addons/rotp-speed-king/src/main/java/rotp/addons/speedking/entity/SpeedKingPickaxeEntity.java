@@ -5,6 +5,7 @@ import java.util.Comparator;
 
 import rotp.core.customobjects.entity_projectile.ModdedProjectileEntity;
 import rotp.core.subsystems.target.ActionTarget.TargetType;
+import rotp.core.util.functions.JojoModUtil;
 
 import rotp.addons.speedking.SpeedKingAddon;
 import net.minecraft.core.BlockPos;
@@ -78,6 +79,13 @@ public final class SpeedKingPickaxeEntity
         super.readAdditionalSaveData(tag);
         durability = tag.contains("Durability")
                 ? tag.getFloat("Durability") : 100.0F;
+    }
+
+    // the core asks the rule and the switch only of an owner, and a pickaxe reloaded in flight has none
+    @Override
+    protected boolean canBreakBlock(BlockPos pos, BlockState state) {
+        return JojoModUtil.breakingBlocksEnabled(level(), getOwner())
+                && super.canBreakBlock(pos, state);
     }
 
     @Override

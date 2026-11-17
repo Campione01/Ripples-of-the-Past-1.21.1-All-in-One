@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "rotp.addons.spin.mixin",
+  "plugin": "rotp.addons.spin.compat.SpinMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "SpinBracePlayerMixin",
+    "SpinLoveTrainDamageMixin",
+    "SpinLoveTrainEffectsMixin",
+    "SpinLoveTrainPurgeMixin",
+    "SpinLoveTrainProjectileMixin",
+    "SpinLoveTrainEffectInstanceMixin"
+  ],
+  "injectors": {"defaultRequire": 1}
+}

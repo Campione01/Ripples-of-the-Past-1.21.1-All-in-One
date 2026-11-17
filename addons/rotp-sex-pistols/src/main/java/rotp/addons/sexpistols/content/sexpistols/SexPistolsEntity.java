@@ -6,6 +6,7 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import rotp.core.init.ModEntityDataSerializers;
+import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandLinkDamageSource;
@@ -107,6 +108,24 @@ public final class SexPistolsEntity extends StandEntity {
             SynchedEntityData.defineId(
                     SexPistolsEntity.class,
                     EntityDataSerializers.ITEM_STACK);
+    // 1.16 rolled the idle choice on every client by itself; the server
+    // picks it here, so every viewer sees the same (SexPistolsIdleChoice).
+    public static final EntityDataAccessor<Byte> IDLE_VARIANT =
+            SynchedEntityData.defineId(
+                    SexPistolsEntity.class,
+                    EntityDataSerializers.BYTE);
+    public static final EntityDataAccessor<Byte> IDLE_RANDOM_TICKS =
+            SynchedEntityData.defineId(
+                    SexPistolsEntity.class,
+                    EntityDataSerializers.BYTE);
+    public static final EntityDataAccessor<Byte> IDLE_RANDOM_VARIANT =
+            SynchedEntityData.defineId(
+                    SexPistolsEntity.class,
+                    EntityDataSerializers.BYTE);
+    public static final EntityDataAccessor<Byte> IDLE_RECOVERY_TICKS =
+            SynchedEntityData.defineId(
+                    SexPistolsEntity.class,
+                    EntityDataSerializers.BYTE);
 
     @Nullable
     private UUID ownerUuid;
@@ -125,6 +144,8 @@ public final class SexPistolsEntity extends StandEntity {
     // 0.1.13 itemRetrieveKeepRemote: a fixed member that picks an item up
     // stays where it picked it up.
     private boolean retrieveKeepRemote;
+    private final SexPistolsIdleChoice idleChoice =
+            new SexPistolsIdleChoice();
 
     public SexPistolsEntity(
             EntityType<? extends SexPistolsEntity> type,
@@ -241,6 +262,39 @@ public final class SexPistolsEntity extends StandEntity {
         builder.define(SELECTED_SKIN, Optional.empty());
         builder.define(IDLE_OFFSET, new Vector3f());
         builder.define(CARRIED_ITEM, ItemStack.EMPTY);
+        builder.define(IDLE_VARIANT, (byte) 0);
+        builder.define(IDLE_RANDOM_TICKS, (byte) 0);
+        builder.define(IDLE_RANDOM_VARIANT, (byte) 0);
+        builder.define(IDLE_RECOVERY_TICKS, (byte) 0);
+    }
+
+    public int getIdleVariant() {
+        return Byte.toUnsignedInt(entityData.get(IDLE_VARIANT));
+    }
+
+    public int getIdleRandomTicks() {
+        return Byte.toUnsignedInt(entityData.get(IDLE_RANDOM_TICKS));
+    }
+
+    public int getIdleRandomVariant() {
+        return Byte.toUnsignedInt(entityData.get(IDLE_RANDOM_VARIANT));
+    }
+
+    public int getIdleRecoveryTicks() {
+        return Byte.toUnsignedInt(entityData.get(IDLE_RECOVERY_TICKS));
+    }
+
+    void setIdleVariant(int variant) {
+        entityData.set(IDLE_VARIANT, (byte) variant);
+    }
+
+    void setIdleRandom(int ticks, int variant) {
+        entityData.set(IDLE_RANDOM_TICKS, (byte) ticks);
+        entityData.set(IDLE_RANDOM_VARIANT, (byte) variant);
+    }
+
+    void setIdleRecoveryTicks(int ticks) {
+        entityData.set(IDLE_RECOVERY_TICKS, (byte) ticks);
     }
 
     public int getMemberNumber() {
@@ -427,6 +481,7 @@ public final class SexPistolsEntity extends StandEntity {
                 (byte) variants[random.nextInt(variants.length)]);
         entityData.set(
                 SUMMON_TICKS, (byte) SUMMON_ANIMATION_TICKS);
+        idleChoice.onSummon(this, random);
     }
 
     @Nullable
@@ -467,6 +522,7 @@ public final class SexPistolsEntity extends StandEntity {
                         SexPistolsMemberState.FORMATION);
             }
         }
+        idleChoice.tick(this, random, isInIdlePose());
 
         LivingEntity owner = getSwarmOwner();
         if (!hasValidOwner(owner)) {
@@ -876,6 +932,14 @@ public final class SexPistolsEntity extends StandEntity {
                 .add(0.0D, height, 0.0D);
     }
 
+    // 1.16 StandPose.IDLE: no summon, kick, pick_item or action pose.
+    public boolean isInIdlePose() {
+        return getSummonTicks() <= 0
+                && getKickTicks() <= 0
+                && getEatingTicks() <= 0
+                && LivingComponentAction.getCurEntityAction(this) == null;
+    }
+
     private void tickAnimationCounters() {
         int summon = getSummonTicks();
         if (summon > 0) {
@@ -1137,6 +1201,9 @@ public final class SexPistolsEntity extends StandEntity {
         tag.putByte(
                 "SexPistolsKickVariant",
                 entityData.get(KICK_VARIANT));
+        tag.putByte(
+                "SexPistolsIdleVariant",
+                entityData.get(IDLE_VARIANT));
         getStandSkin().ifPresent(skin ->
                 tag.putString("SexPistolsSkin", skin.toString()));
     }
@@ -1232,6 +1299,9 @@ public final class SexPistolsEntity extends StandEntity {
                         tag.getByte("SexPistolsKickVariant"),
                         1,
                         4));
+        setIdleVariant(Math.floorMod(
+                tag.getByte("SexPistolsIdleVariant"),
+                SexPistolsIdleChoice.IDLE_VARIANTS));
         ResourceLocation skin = tag.contains("SexPistolsSkin")
                 ? ResourceLocation.tryParse(
                         tag.getString("SexPistolsSkin"))

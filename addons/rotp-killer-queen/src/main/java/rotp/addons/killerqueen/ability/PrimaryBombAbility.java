@@ -94,9 +94,10 @@ public final class PrimaryBombAbility extends StandEntityAbility {
         // owner T2: past its user's reach the plant reaches out as far
         // as Killer Queen's punch does, which bounds it instead of 1.16's
         // 8 blocks
+        boolean holderMelee = reachesOutFrom(stand, user);
         boolean reachingOut = false;
         if (pressed.getType() == ActionTarget.TargetType.EMPTY
-                && reachesOutFrom(stand, user)) {
+                && holderMelee) {
             pressed = entityPastUsersReach(user, stand)
                     .resolveEntityId(level);
             reachingOut =
@@ -107,6 +108,11 @@ public final class PrimaryBombAbility extends StandEntityAbility {
                 : null;
         if (entity == null || entity.isRemoved()) {
             return ConditionCheck.NEGATIVE;
+        }
+        if (!reachingOut && holderMelee) {
+            reachingOut = StandMeleeReach.userDistance(user, entity) <= StandMeleeReach.maxReach(stand, user, false)
+                    && StandMeleeReach.onUserLook(stand, user, entity)
+                    && StandMeleeReach.userSees(user, entity);
         }
         LivingEntity performer = stand != null ? stand : user;
         if (!reachingOut && !ActionTargetRange.isEntityWithinRange(
@@ -147,7 +153,7 @@ public final class PrimaryBombAbility extends StandEntityAbility {
         }
         if (target.getType() == ActionTarget.TargetType.EMPTY
                 && aiming == user && stand != null) {
-            double reach = StandPrecisionRay.reach(user, stand);
+            double reach = StandEntityPunchAbility.userAimReach(user, stand);
             boolean wallsHideEntities =
                     StandSkillWalls.wallsHideEntities(level, this);
             target = StandEntityPunchAbility.aimAssist(user)
@@ -179,8 +185,10 @@ public final class PrimaryBombAbility extends StandEntityAbility {
             LivingEntity user, StandEntity stand) {
         double userReach = StandEntityPunchAbility.userAimReach(user, stand);
         double reach = StandMeleeReach.maxReach(stand, user, false);
-        Predicate<Entity> pastUserReach = candidate ->
-                StandMeleeReach.userDistance(user, candidate) > userReach;
+        Predicate<Entity> pastUserReach = candidate -> {
+            double distance = StandMeleeReach.userDistance(user, candidate);
+            return distance > userReach && distance <= reach;
+        };
         ActionTarget far = StandEntityPunchAbility.aimAssist(user)
                 ? StandPrecisionRay.trace(user, stand, reach, 0.0D,
                         true, true, pastUserReach)

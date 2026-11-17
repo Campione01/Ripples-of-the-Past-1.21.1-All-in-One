@@ -3,6 +3,8 @@ package rotp.addons.cmoon;
 import static rotp.core.init.power.ModStands.SWITCH_SPECIAL;
 import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
+import java.util.function.Supplier;
+
 import rotp.core.api.RotpAddonApi;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.ModSoundEvents;
@@ -24,11 +26,13 @@ import rotp.addons.cmoon.ability.CMoonPunchAbility;
 import rotp.addons.cmoon.ability.CenterOfGravityAbility;
 import rotp.addons.cmoon.ability.DestroyAbility;
 import rotp.addons.cmoon.ability.GravityCounterAbility;
+import rotp.addons.cmoon.ability.GravityFieldAbility;
 import rotp.addons.cmoon.ability.GravityShiftAbility;
 import rotp.addons.cmoon.ability.HeartInversionAbility;
 import rotp.addons.cmoon.effect.InversionEffect;
 import rotp.addons.cmoon.effect.ShiftEffect;
 import rotp.addons.cmoon.entity.CMoonStandEntity;
+import rotp.addons.cmoon.field.GravityField;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.particles.ParticleType;
 import net.minecraft.core.particles.SimpleParticleType;
@@ -41,8 +45,10 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(CMoonAddon.MOD_ID)
 public final class CMoonAddon {
@@ -70,6 +76,7 @@ public final class CMoonAddon {
     public static final String CENTER_OF_GRAVITY =
             "center_of_gravity";
     public static final String GRAVITY_SHIFT = "gravity_shift";
+    public static final String GRAVITY_FIELD = "gravity_field";
     public static final String DESTROY = "destroy";
     public static final String DESTROY_BARRAGE_COMPAT =
             "cm_destroy_barrage";
@@ -94,6 +101,28 @@ public final class CMoonAddon {
     public static final DeferredRegister<StandType>
             STAND_TYPES = DeferredRegister.create(
                     JojoRegistries.DEFAULT_STANDS_REG, MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>>
+            ATTACHMENT_TYPES = DeferredRegister.create(
+                    NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
+
+    // None of these has a serializer: each dies with its entity, so a
+    // recalled Stand or a field holds no level or player past him.
+    public static final Supplier<AttachmentType<CMoonStandEntity.Recalled>>
+            RECALLED_STAND = ATTACHMENT_TYPES.register(
+                    "recalled_stand",
+                    () -> AttachmentType.builder(
+                            () -> new CMoonStandEntity.Recalled()).build());
+    // Both are only ever set and removed, never made by getData.
+    public static final Supplier<AttachmentType<GravityField>>
+            USER_GRAVITY_FIELD = ATTACHMENT_TYPES.register(
+                    "user_gravity_field",
+                    () -> AttachmentType.<GravityField>builder(() -> null)
+                            .sync(GravityField.CLIENT_VIEW).build());
+    public static final Supplier<AttachmentType<GravityField>>
+            HELD_BY_GRAVITY_FIELD = ATTACHMENT_TYPES.register(
+                    "held_by_gravity_field",
+                    () -> AttachmentType.<GravityField>builder(() -> null)
+                            .sync(GravityField.CLIENT_VIEW).build());
 
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<CMoonPunchAbility>>
@@ -137,6 +166,12 @@ public final class CMoonAddon {
                     GRAVITY_SHIFT,
                     key -> new AbilityType<>(
                             key, GravityShiftAbility::new));
+    public static final DeferredHolder<
+            AbilityType<?>, AbilityType<GravityFieldAbility>>
+            C_MOON_GRAVITY_FIELD = ABILITY_TYPES.register(
+                    GRAVITY_FIELD,
+                    key -> new AbilityType<>(
+                            key, GravityFieldAbility::new));
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<DestroyAbility>>
             C_MOON_DESTROY = ABILITY_TYPES.register(
@@ -227,6 +262,7 @@ public final class CMoonAddon {
         PARTICLE_TYPES.register(modEventBus);
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
         modEventBus.addListener(CMoonModEvents::registerAttributes);
         modContainer.registerConfig(
                 ModConfig.Type.COMMON, CMoonConfig.SPEC);
@@ -304,6 +340,9 @@ public final class CMoonAddon {
                 .addAbility(
                         GRAVITY_SHIFT,
                         C_MOON_GRAVITY_SHIFT)
+                .addAbility(
+                        GRAVITY_FIELD,
+                        C_MOON_GRAVITY_FIELD)
                 .addAbility(DESTROY, C_MOON_DESTROY)
                 .makeControlScheme("hotbar")
                     .bind(PUNCH, InputMethod.CLICK, InputKey.LMB)
@@ -331,6 +370,10 @@ public final class CMoonAddon {
                             DESTROY, 0, InputMethod.HOLD)
                     .addToHotbar(
                             GRAVITY_SHIFT,
+                            0,
+                            InputMethod.HOLD)
+                    .addToHotbar(
+                            GRAVITY_FIELD,
                             0,
                             InputMethod.HOLD)
                 .finalizeControlScheme()
@@ -373,6 +416,9 @@ public final class CMoonAddon {
                 .addSkill(
                         StandUnlockableSkill.startingAbility(
                                 GRAVITY_SHIFT))
+                .addSkill(
+                        StandUnlockableSkill.startingAbility(
+                                GRAVITY_FIELD))
                 .addSkill(
                         StandUnlockableSkill.startingAbility(DESTROY))
                 .addHumanoidStandSkills();

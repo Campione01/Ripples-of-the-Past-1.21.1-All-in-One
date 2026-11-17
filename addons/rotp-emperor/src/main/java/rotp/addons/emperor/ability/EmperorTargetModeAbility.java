@@ -5,6 +5,7 @@ import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.emperor.EmperorAddon;
 import rotp.addons.emperor.item.EmperorItem;
@@ -66,7 +67,7 @@ public final class EmperorTargetModeAbility extends Ability {
             return;
         }
         EmperorMode next = EmperorAddon.modeState(player).mode()
-                .cycle(player.isShiftKeyDown());
+                .cycle(StandManualInput.isShiftHeld(player));
         EmperorAddon.modeState(player).setMode(next);
         EmperorAddon.syncMode(player);
     }

@@ -119,6 +119,14 @@ public final class HighwayStarUtilityAbility extends StandEntityAbility {
             }
         }
 
+        public boolean isSplitting() {
+            return formAnim == SPLIT_ANIM;
+        }
+
+        public boolean isComingBack() {
+            return formAnim == RECOVERY_ANIM;
+        }
+
         @Override
         public void actionPerformStart() {
             Level level = level();

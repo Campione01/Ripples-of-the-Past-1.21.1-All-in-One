@@ -12,12 +12,13 @@ import net.minecraft.client.model.geom.builders.LayerDefinition;
 
 public final class GerStandModelValidator {
     // Cube inventory of the default geraddon:ger_stand skin, not a runtime geometry
-    // limit. It became 65 on 2026-09-12, when the user moved the default back to the
-    // model migrated from the 1.16.5 source: that model's 65 donor cubes are carried
-    // over unchanged and the 09-12 improvement is painted (a repainted atlas plus the
-    // face UVs that point at it), so no geometry was added or removed. The previous
-    // 113-cube default is kept byte-identically as the ger_classic skin.
-    public static final int EXPECTED_CUBE_COUNT = 65;
+    // limit: the anime build of the new model (rig 2), the default since 2026-11-14.
+    // The manga build (ger_manga) has 72 cubes. The player's "Model Optimization"
+    // pack (ger_pack, 75 cubes, migration/pack-model-optimization) was the default
+    // from 2026-11-05 to 2026-11-14; earlier skins are backed up, see
+    // SOURCE_AND_LICENSE.md.
+    public static final int DEFAULT_SKIN_CUBE_COUNT = 71;
+    public static final int DEFAULT_SKIN_BONE_COUNT = 29;
     private static final float TRANSFORM_EPSILON = 0.00001F;
     public static final List<String> REQUIRED_BONES = List.of(
             "stand_pos",
@@ -50,7 +51,13 @@ public final class GerStandModelValidator {
             "left_leg",
             "right_leg");
 
-    private static final List<BoneRest> APPROVED_RIG = humanoidRig(12.0F, 6.0F);
+    private static final float PACK_LEG_X = 1.9F;
+    private static final List<BoneRest> APPROVED_RIG = humanoidRig(12.0F, 6.0F, 2.0F);
+    private static final List<BoneRest> PACK_RIG = humanoidRig(12.0F, 6.0F, PACK_LEG_X);
+    // Rig 2 (2026-11-13): everything above the hips 2 units higher than the pack rig,
+    // hips at y 14, knees at y 7, item points 0.5 nearer the body (z -1.5).
+    private static final List<BoneRest> RIG_2 =
+            humanoidRig(10.0F, 7.0F, PACK_LEG_X, -1.5F);
     private static final List<BoneRest> DONOR_RIG = decoratedRig(12.0F, 6.0F);
     private static final List<BoneRest> LEGACY_RIG = decoratedRig(10.0F, 7.0F);
     public static final List<String> APPROVED_BONES = APPROVED_RIG.stream()
@@ -98,20 +105,42 @@ public final class GerStandModelValidator {
         }
     }
 
+    /**
+     * Names of the bones whose cubes the core never draws: HumanoidPart makes only the
+     * subtrees of head, torso_no_arms, torso_lower, the arms and the legs visible.
+     */
+    public static List<String> bonesWithUndrawnCubes(ModelPart root) {
+        List<String> undrawn = new ArrayList<>();
+        root.children.forEach((name, child) ->
+                collectUndrawnCubes(name, child, undrawn));
+        return undrawn;
+    }
+
+    private static void collectUndrawnCubes(
+            String name, ModelPart part, List<String> undrawn) {
+        if (VISIBLE_ROOT_BONES.contains(name)) {
+            return;
+        }
+        if (!part.cubes.isEmpty()) {
+            undrawn.add(name);
+        }
+        part.children.forEach((childName, child) ->
+                collectUndrawnCubes(childName, child, undrawn));
+    }
+
     private static void validateCanonicalRootTransform(
             ModelPart root) {
         ModelPart body = directChild(directChild(
                 directChild(root, "stand_pos"), "body_rot"), "body");
         List<BoneRest> rig;
         if (near(body.y, 12.0F)) {
-            ModelPart torsoBend = directChild(
-                    directChild(body, "torso"), "torso_bend");
-            ModelPart mask = directChild(directChild(
-                    directChild(torsoBend, "head"), "head_rot"), "mask");
-            rig = mask.children.containsKey("spike") ? DONOR_RIG : APPROVED_RIG;
+            rig = maskOf(body).children.containsKey("spike") ? DONOR_RIG
+                    : near(directChild(body, "left_leg_xrot").x, PACK_LEG_X)
+                    ? PACK_RIG : APPROVED_RIG;
         }
         else if (near(body.y, 10.0F)) {
-            rig = LEGACY_RIG;
+            rig = maskOf(body).children.containsKey("spike") ? LEGACY_RIG
+                    : RIG_2;
         }
         else {
             throw new IllegalStateException(
@@ -136,7 +165,19 @@ public final class GerStandModelValidator {
 
     // Baked parent-relative poses. GENERIC flips X/Y positions and X/Y rotations;
     // these values are derived from the approved 29-group authoring model.
-    private static List<BoneRest> humanoidRig(float bodyY, float kneeY) {
+    private static ModelPart maskOf(ModelPart body) {
+        ModelPart torsoBend = directChild(
+                directChild(body, "torso"), "torso_bend");
+        return directChild(directChild(
+                directChild(torsoBend, "head"), "head_rot"), "mask");
+    }
+
+    private static List<BoneRest> humanoidRig(float bodyY, float kneeY, float legX) {
+        return humanoidRig(bodyY, kneeY, legX, -2.0F);
+    }
+
+    private static List<BoneRest> humanoidRig(
+            float bodyY, float kneeY, float legX, float itemZ) {
         return List.of(
                 bone("stand_pos", null, 0, 24, 0),
                 bone("body_rot", "stand_pos", 0, -24, 0),
@@ -150,27 +191,27 @@ public final class GerStandModelValidator {
                 bone("right_arm_xrot", "torso_bend", -6, -4, 0),
                 bone("right_arm", "right_arm_xrot", 0, 0, 0),
                 bone("right_arm_bend", "right_arm", 0, 4, 0),
-                bone("right_item", "right_arm_bend", 0, 3.75F, -2),
+                bone("right_item", "right_arm_bend", 0, 3.75F, itemZ),
                 bone("right_arm_joint", "right_arm", 0, 4, 0),
                 bone("left_arm_xrot", "torso_bend", 6, -4, 0),
                 bone("left_arm", "left_arm_xrot", 0, 0, 0),
                 bone("left_arm_bend", "left_arm", 0, 4, 0),
-                bone("left_item", "left_arm_bend", 0, 3.75F, -2),
+                bone("left_item", "left_arm_bend", 0, 3.75F, itemZ),
                 bone("left_arm_joint", "left_arm", 0, 4, 0),
                 bone("torso_lower", "torso", 0, -6, 0),
                 bone("the_thing", "torso_lower", 0, 5, -2.25F),
-                bone("right_leg_xrot", "body", -2, 0, 0),
+                bone("right_leg_xrot", "body", -legX, 0, 0),
                 bone("right_leg", "right_leg_xrot", 0, 0, 0),
                 bone("right_leg_joint", "right_leg", 0, kneeY, 0),
                 bone("right_leg_bend", "right_leg", 0, kneeY, 0),
-                bone("left_leg_xrot", "body", 2, 0, 0),
+                bone("left_leg_xrot", "body", legX, 0, 0),
                 bone("left_leg", "left_leg_xrot", 0, 0, 0),
                 bone("left_leg_joint", "left_leg", 0, kneeY, 0),
                 bone("left_leg_bend", "left_leg", 0, kneeY, 0));
     }
 
     private static List<BoneRest> decoratedRig(float bodyY, float kneeY) {
-        List<BoneRest> bones = new ArrayList<>(humanoidRig(bodyY, kneeY));
+        List<BoneRest> bones = new ArrayList<>(humanoidRig(bodyY, kneeY, 2.0F));
         bones.addAll(List.of(
                 rotatedBone("spike", "mask", 0, -10.5F, -2.25F, -25, 0, 0),
                 rotatedBone("spike2", "mask", 3.5F, -9, -2,

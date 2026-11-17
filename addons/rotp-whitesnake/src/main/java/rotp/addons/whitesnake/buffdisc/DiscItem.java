@@ -3,7 +3,10 @@ package rotp.addons.whitesnake.buffdisc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
+import rotp.core.powersystem.standpower.StandDamageContext;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.util.functions.ItemUtil;
 
 import rotp.addons.whitesnake.WhitesnakeAddon;
@@ -217,6 +220,15 @@ public final class DiscItem extends Item {
         if (power < 0.0F) {
             return;
         }
+        // the explosion is the work of the Stand whose disc set it going: its damage takes that Stand's damage share
+        UUID owner = state.takeExplosionOwner();
+        Player user = owner != null ? entity.level().getPlayerByUUID(owner) : null;
+        try (var running = StandDamageContext.enter(WhitesnakeAddon.hasWhitesnakePower(user) ? StandPower.get(user) : null)) {
+            explode(entity, power);
+        }
+    }
+
+    private static void explode(LivingEntity entity, float power) {
         DamageSource source = entity.damageSources().generic();
         entity.hurt(source, power * 3.0F);
         entity.setDeltaMovement(new Vec3(

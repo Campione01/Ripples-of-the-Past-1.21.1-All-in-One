@@ -13,10 +13,12 @@ import rotp.addons.beachboy.item.BeachBoyRodItem;
 import rotp.addons.beachboy.network.BeachBoyPayloads;
 import rotp.addons.beachboy.util.BeachBoyStandUtil;
 import rotp.core.client.input.InputHandler;
+import rotp.core.client.input.controlscheme.ClientControlScheme;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.subsystems.entityglow.EntityGlowChannel;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.util.Mth;
@@ -53,12 +55,13 @@ public final class BeachBoyClientEvents {
 
     private BeachBoyClientEvents() {}
 
-    // the wheel over the rod pays out or reels in the line (the core's hotbar scroll goes first and keeps its wheel)
-    @SubscribeEvent(priority = EventPriority.HIGH)
+    // The wheel over the rod pays out or reels in the line, unless the player is picking an ability (1.16 isJojoActionScrollActive).
+    // Below the core's HIGH handler: this class registers first, so at one priority it took the wheel from the selection.
+    @SubscribeEvent
     public static void onMouseScroll(InputEvent.MouseScrollingEvent event) {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
-        if (player == null || mc.screen != null || !isStandHudActive()
+        if (player == null || mc.screen != null || !isStandHudActive() || isPickingAbility()
                 || !BeachBoyStandUtil.isHoldingRod(player) || !BeachBoyStandUtil.isBeachBoySummoned(player)) {
             return;
         }
@@ -80,6 +83,20 @@ public final class BeachBoyClientEvents {
             stand.adjustMaxLineLength(lengthen ? step : -step);
         }
         event.setCanceled(true);
+    }
+
+    private static boolean isPickingAbility() {
+        InputHandler input = InputHandler.getInstance();
+        ClientControlScheme scheme = input != null ? input.getActiveControlScheme() : null;
+        if (scheme == null) {
+            return false;
+        }
+        for (ClientControlScheme.Hotbar hotbar : scheme.getCurGroup().hotbars) {
+            if (input.isSelectingAbility(hotbar)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isStandHudActive() {
@@ -300,9 +317,11 @@ public final class BeachBoyClientEvents {
         }
     }
 
+    // This event can come off the client thread; the labels and the hook lookup belong to that thread.
     @SubscribeEvent
     public static void onPlaySound(PlaySoundEvent event) {
-        BeachBoyRemoteSenseClient.onSound(event.getSound());
+        SoundInstance sound = event.getSound();
+        Minecraft.getInstance().execute(() -> BeachBoyRemoteSenseClient.onSound(sound));
     }
 
     private static void tickHookedLifeDetect(Minecraft mc) {

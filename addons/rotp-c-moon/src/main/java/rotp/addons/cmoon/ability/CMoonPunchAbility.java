@@ -3,20 +3,16 @@ package rotp.addons.cmoon.ability;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
-import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
 import rotp.core.powersystem.entityaction.ActionPhase;
-import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 
-import net.minecraft.world.InteractionHand;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
@@ -24,25 +20,10 @@ import net.minecraft.world.phys.Vec3;
 public final class CMoonPunchAbility
         extends StandEntityPunchAbility {
     public static final float CANONICAL_DAMAGE = 1.0F;
-    private static final ActionAnimIdentifier ANIMATION =
-            ActionAnimIdentifier.getOrCreate("punch", false);
 
     public CMoonPunchAbility(
             AbilityType<?> abilityType, AbilityId abilityId) {
         super(abilityType, abilityId, CMoonPunch::new);
-    }
-
-    @Override
-    public ActionAnimIdentifier getEntityAnim(
-            EntityActionInstance action) {
-        if (action instanceof StandEntityPunch punch
-                && action.getPerformer() instanceof StandEntity stand) {
-            HumanoidArm side = punch.getPunchingHand() == InteractionHand.MAIN_HAND
-                    ? stand.getMainArm() : stand.getMainArm().getOpposite();
-            return ActionAnimIdentifier.getOrCreate(
-                    side == HumanoidArm.LEFT ? "punch2" : "punch", false);
-        }
-        return ANIMATION;
     }
 
     public static final class CMoonPunch

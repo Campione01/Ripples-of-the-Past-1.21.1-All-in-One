@@ -10,9 +10,12 @@ import org.slf4j.Logger;
 import rotp.core.client.entityrender.stand.StandEntityModel;
 import rotp.core.client.entityrender.stand.StandEntityRenderer;
 import rotp.core.client.entityrender.stand.StandEntityRenderState.ObstructionRenderMode;
+import rotp.core.client.entityrender.stand.StandOpacityPolicy;
 import rotp.core.client.entityrender.stand.StandVisualContext;
 import rotp.core.client.rendertype.AlphaMultiBufferSource;
 import rotp.core.compat.v1_21_4.renderstate.RenderStateCrutches;
+import rotp.core.config.client.PlayerClientBroadcastedSettings;
+import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.logging.LogUtils;
 
@@ -20,6 +23,7 @@ import rotp.addons.whitesnake.disguise.DisguiseTypePolicy;
 import rotp.addons.whitesnake.entity.WhitesnakeEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -28,6 +32,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
 
 public final class WhitesnakeRenderer extends StandEntityRenderer<
         WhitesnakeEntity,
@@ -36,6 +41,9 @@ public final class WhitesnakeRenderer extends StandEntityRenderer<
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final float TRANSFORM_TICKS = 20.0F;
     private static final int MAX_PREVIEW_CACHE = 32;
+    // StandOffsetFromUser.createDefault: where the Stand itself stands, behind its user's right.
+    private static final Vec3 STAND_PLACE = new Vec3(-0.75D, 0.2D, -0.75D);
+    private static WhitesnakeRenderer current;
 
     private final Map<ResourceLocation, LivingEntity> previewEntities =
             new LinkedHashMap<>(16, 0.75F, true);
@@ -47,6 +55,26 @@ public final class WhitesnakeRenderer extends StandEntityRenderer<
     public WhitesnakeRenderer(EntityRendererProvider.Context context) {
         super(context);
         addLayer(new WhitesnakeGlintLayer(this));
+        current = this;
+    }
+
+    /** The pose stack is at the camera's origin, as the level's entities get it. */
+    static void renderWithoutStand(
+            AbstractClientPlayer user,
+            ResourceLocation typeId,
+            PoseStack poseStack,
+            MultiBufferSource bufferSource,
+            Vec3 camera,
+            float partialTick) {
+        if (current != null) {
+            current.renderBesideUser(
+                    user,
+                    typeId,
+                    poseStack,
+                    bufferSource,
+                    camera,
+                    partialTick);
+        }
     }
 
     @Override
@@ -73,6 +101,12 @@ public final class WhitesnakeRenderer extends StandEntityRenderer<
             PoseStack poseStack,
             MultiBufferSource bufferSource,
             int packedLight) {
+        // The look goes on at the Stand's place as the Stand goes: WhitesnakeRecalledDisguiseEvents draws it, with no fade.
+        if (entity.isDisguised()
+                && entity.isUnsummoning()
+                && !entity.isArmsOnlyMode()) {
+            return;
+        }
         WhitesnakeRenderState renderState =
                 createRenderState(entity, partialTick);
         StandVisualContext visualContext =
@@ -119,33 +153,11 @@ public final class WhitesnakeRenderer extends StandEntityRenderer<
             return false;
         }
 
-        Minecraft minecraft = Minecraft.getInstance();
-        ClientLevel level = minecraft.level;
         ResourceLocation typeId =
                 renderState.disguiseType.orElse(null);
-        if (level == null
-                || typeId == null
-                || rejectedRenderers.contains(typeId)) {
-            return false;
-        }
-        if (previewLevel != level) {
-            clearPreviewCache();
-            previewLevel = level;
-        }
-
-        LivingEntity preview = previewEntities.get(typeId);
+        LivingEntity preview = previewOf(typeId);
         if (preview == null) {
-            EntityType<?> entityType =
-                    BuiltInRegistries.ENTITY_TYPE
-                            .getOptional(typeId)
-                            .orElse(null);
-            preview = DisguiseTypePolicy.createAllowedInstance(
-                    entityType, level);
-            if (preview == null) {
-                rejectedRenderers.add(typeId);
-                return false;
-            }
-            cachePreview(typeId, preview);
+            return false;
         }
         copyRenderPose(whitesnake, preview);
 
@@ -194,6 +206,86 @@ public final class WhitesnakeRenderer extends StandEntityRenderer<
         }
     }
 
+    private void renderBesideUser(
+            AbstractClientPlayer user,
+            ResourceLocation typeId,
+            PoseStack poseStack,
+            MultiBufferSource bufferSource,
+            Vec3 camera,
+            float partialTick) {
+        float alpha = StandOpacityPolicy.apply(1.0F, user);
+        LivingEntity preview = alpha > 0.0F ? previewOf(typeId) : null;
+        if (preview == null) {
+            return;
+        }
+        float yRot = user.getViewYRot(partialTick);
+        Vec3 position = user.getPosition(partialTick).add(
+                StandOffsetFromUser.relativeToAbsolute(
+                        STAND_PLACE,
+                        StandOffsetFromUser.Rotations.HEAD,
+                        yRot,
+                        user.getViewXRot(partialTick),
+                        PlayerClientBroadcastedSettings
+                                .getPlayerSettings(user),
+                        true));
+        copyRenderPose(user, preview);
+        poseStack.pushPose();
+        try {
+            poseStack.translate(
+                    position.x - camera.x,
+                    position.y - camera.y,
+                    position.z - camera.z);
+            renderEntity(
+                    preview,
+                    yRot,
+                    partialTick,
+                    poseStack,
+                    AlphaMultiBufferSource.wrap(bufferSource, alpha),
+                    Minecraft.getInstance()
+                            .getEntityRenderDispatcher()
+                            .getPackedLightCoords(user, partialTick));
+        }
+        catch (RuntimeException | LinkageError exception) {
+            rejectedRenderers.add(typeId);
+            previewEntities.remove(typeId);
+            LOGGER.warn(
+                    "Whitesnake disguise renderer rejected entity type {}.",
+                    typeId,
+                    exception);
+        }
+        finally {
+            poseStack.popPose();
+        }
+    }
+
+    private LivingEntity previewOf(ResourceLocation typeId) {
+        ClientLevel level = Minecraft.getInstance().level;
+        if (level == null
+                || typeId == null
+                || rejectedRenderers.contains(typeId)) {
+            return null;
+        }
+        if (previewLevel != level) {
+            clearPreviewCache();
+            previewLevel = level;
+        }
+        LivingEntity preview = previewEntities.get(typeId);
+        if (preview == null) {
+            EntityType<?> entityType =
+                    BuiltInRegistries.ENTITY_TYPE
+                            .getOptional(typeId)
+                            .orElse(null);
+            preview = DisguiseTypePolicy.createAllowedInstance(
+                    entityType, level);
+            if (preview == null) {
+                rejectedRenderers.add(typeId);
+                return null;
+            }
+            cachePreview(typeId, preview);
+        }
+        return preview;
+    }
+
     private void clearPreviewCache() {
         for (LivingEntity preview : previewEntities.values()) {
             preview.remove(
@@ -221,23 +313,23 @@ public final class WhitesnakeRenderer extends StandEntityRenderer<
     }
 
     private static void copyRenderPose(
-            WhitesnakeEntity whitesnake, LivingEntity preview) {
+            LivingEntity source, LivingEntity preview) {
         preview.setPos(
-                whitesnake.getX(),
-                whitesnake.getY(),
-                whitesnake.getZ());
-        preview.setYRot(whitesnake.getYRot());
-        preview.setXRot(whitesnake.getXRot());
-        preview.xRotO = whitesnake.xRotO;
-        preview.yBodyRot = whitesnake.yBodyRot;
-        preview.yBodyRotO = whitesnake.yBodyRotO;
-        preview.yHeadRot = whitesnake.yHeadRot;
-        preview.yHeadRotO = whitesnake.yHeadRotO;
-        preview.tickCount = whitesnake.tickCount;
-        preview.hurtTime = whitesnake.hurtTime;
-        preview.deathTime = whitesnake.deathTime;
-        preview.setPose(whitesnake.getPose());
-        preview.setDeltaMovement(whitesnake.getDeltaMovement());
+                source.getX(),
+                source.getY(),
+                source.getZ());
+        preview.setYRot(source.getYRot());
+        preview.setXRot(source.getXRot());
+        preview.xRotO = source.xRotO;
+        preview.yBodyRot = source.yBodyRot;
+        preview.yBodyRotO = source.yBodyRotO;
+        preview.yHeadRot = source.yHeadRot;
+        preview.yHeadRotO = source.yHeadRotO;
+        preview.tickCount = source.tickCount;
+        preview.hurtTime = source.hurtTime;
+        preview.deathTime = source.deathTime;
+        preview.setPose(source.getPose());
+        preview.setDeltaMovement(source.getDeltaMovement());
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

@@ -8,6 +8,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 
+import javax.annotation.Nullable;
+
+import com.google.gson.JsonObject;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
@@ -26,6 +29,8 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.level.block.Block;
@@ -33,14 +38,20 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.WallTorchBlock;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
+import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.speedking.entity.SpeedKingEntity;
+import rotp.core.config.client.PlayerClientBroadcastedSettings;
+import rotp.core.init.ModDataAttachmentTypes;
+import rotp.core.init.ModGamerules;
+import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.addons.speedking.entity.SpeedKingPickaxeEntity;
 import rotp.addons.speedking.state.SpeedKingState;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.powersystem.PowerClass;
+import rotp.core.powersystem.standpower.StandTuning;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.EntityActionAbility;
 import rotp.core.powersystem.ability.condition.AvailableAbilities.AbilityConditionCheck;
@@ -292,6 +303,112 @@ public final class SpeedKingGameTests {
                     "The ended hold still threw the pickaxe");
             helper.succeed();
         }
+    }
+
+    // R772.1 EV-STANDCFG item3: with Speed King recalled the trap goes off from the user's own tick and its blast names
+    // the user, not the Stand's body; the share still reaches it (a #can_hurt_stands type of the Stand's user): 8 at the
+    // default damage share, 4 at 50 % to mobs.
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void aHeatTrapSetOffWithTheStandRecalledTakesTheDamageShare(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        StandTuning tuning = SpeedKingAddon.SPEED_KING.get().getTuning();
+        try (Scene scene = new Scene(helper, "SkTrapShare")) {
+            SpeedKingAddon.SPEED_KING.get().forceUnsummon(scene.owner, scene.power);
+            helper.assertTrue(SpeedKingService.activeStand(scene.owner) == null,
+                    "Setup: Speed King is still out");
+            BlockPos trap = BlockPos.containing(helper.absoluteVec(new Vec3(4.5D, 2.0D, 4.5D)));
+            Cow cow = EntityType.COW.create(level);
+            cow.setNoAi(true);
+            cow.setNoGravity(true);
+            cow.moveTo(trap.getX() + 0.5D, trap.getY() + 1.0D, trap.getZ() + 0.5D, 0.0F, 0.0F);
+            helper.assertTrue(level.addFreshEntity(cow), "Setup: the cow was not added");
+            try {
+                float whole = trapDamage(scene.owner, level, trap, cow);
+                helper.assertTrue(Math.abs(whole - 8.0F) < 1.0E-4F,
+                        "At the default share the heat trap deals 8; it dealt " + whole);
+                JsonObject half = new JsonObject();
+                half.addProperty("damageVsMobs", 50);
+                tuning.applyConfig(half);
+                float halved = trapDamage(scene.owner, level, trap, cow);
+                helper.assertTrue(Math.abs(halved - 4.0F) < 1.0E-4F,
+                        "At 50 % damage to mobs the heat trap deals 4; it dealt " + halved);
+            }
+            finally {
+                tuning.restoreDefaults();
+                cow.discard();
+            }
+            helper.succeed();
+        }
+    }
+
+    // the user's trap at the block, set off with the Stand recalled; what the cow lost
+    private static float trapDamage(FakePlayer owner, ServerLevel level, BlockPos trap, Cow cow) {
+        SpeedKingAddon.state(owner).setHeatTrap(trap, level.dimension().location().toString());
+        cow.setHealth(cow.getMaxHealth());
+        cow.invulnerableTime = 0;
+        float before = cow.getHealth();
+        SpeedKingService.triggerHeatTrap(owner);
+        return before - cow.getHealth();
+    }
+
+    // R772.1 OQ-B01: the pickaxe breaks the block in its way only with jojoAbilitiesBreakBlocks on and, when its Stand
+    // shot it, the user's "breaks blocks" Stand switch on. The core asks only an owner; a pickaxe reloaded in flight
+    // has none, and then the rule alone decides. The rule is set only around each hit.
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void pickaxeBreaksBlocksOnlyWhereTheRuleAndTheUsersSwitchAllow(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        boolean ruleBefore = level.getGameRules().getBoolean(ModGamerules.BREAK_BLOCKS);
+        try (Scene scene = new Scene(helper, "SkPickaxeBreak")) {
+            PlayerClientBroadcastedSettings switches =
+                    scene.owner.getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get());
+            BlockPos block = BlockPos.containing(helper.absoluteVec(new Vec3(4.5D, 2.5D, 4.5D)));
+            level.setBlockAndUpdate(block, Blocks.STONE.defaultBlockState());
+            try {
+                helper.assertTrue(!pickaxeHits(level, block, null, false, ruleBefore),
+                        "An ownerless pickaxe broke a block with jojoAbilitiesBreakBlocks off");
+                helper.assertTrue(!pickaxeHits(level, block, scene.stand, false, ruleBefore)
+                                && level.getBlockState(block).is(Blocks.STONE),
+                        "A pickaxe shot by a Stand broke a block with jojoAbilitiesBreakBlocks off");
+                switches.standBreaksBlocks = false;
+                helper.assertTrue(!pickaxeHits(level, block, scene.stand, true, ruleBefore)
+                                && level.getBlockState(block).is(Blocks.STONE),
+                        "A pickaxe broke a block with its user's Stand switch off");
+                switches.standBreaksBlocks = true;
+                helper.assertTrue(pickaxeHits(level, block, null, true, ruleBefore),
+                        "An ownerless pickaxe must break the block with the rule on");
+                level.setBlockAndUpdate(block, Blocks.STONE.defaultBlockState());
+                helper.assertTrue(pickaxeHits(level, block, scene.stand, true, ruleBefore),
+                        "A pickaxe shot by a Stand must break the block with the rule and the switch on");
+            }
+            finally {
+                switches.standBreaksBlocks = true;
+                level.setBlockAndUpdate(block, Blocks.AIR.defaultBlockState());
+                level.getEntitiesOfClass(ItemEntity.class, new AABB(block).inflate(4.0D))
+                        .forEach(net.minecraft.world.entity.Entity::discard);
+            }
+            helper.succeed();
+        }
+    }
+
+    // flies a pickaxe at the block, a block ahead of it, under the rule given; whether the block is gone afterwards
+    private static boolean pickaxeHits(ServerLevel level, BlockPos block, @Nullable StandEntity shooter, boolean rule,
+            boolean ruleBefore) {
+        SpeedKingPickaxeEntity pickaxe = shooter != null
+                ? new SpeedKingPickaxeEntity(shooter, level)
+                : new SpeedKingPickaxeEntity(SpeedKingAddon.PICKAXE_ENTITY.get(), level);
+        pickaxe.setPos(block.getX() - 0.5D, block.getY() + 0.5D, block.getZ() + 0.5D);
+        pickaxe.setDeltaMovement(1.0D, 0.0D, 0.0D);
+        level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS).set(rule, level.getServer());
+        try {
+            for (int tick = 0; tick < 4 && pickaxe.isAlive() && !level.getBlockState(block).isAir(); tick++) {
+                pickaxe.tick();
+            }
+        }
+        finally {
+            level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS).set(ruleBefore, level.getServer());
+            pickaxe.discard();
+        }
+        return level.getBlockState(block).isAir();
     }
 
     // 1.16 StandEntityLightAttack:53, StandEntityMeleeBarrage:65 and StandEntityHeavyAttack:125 refused the press of a
@@ -658,6 +775,49 @@ public final class SpeedKingGameTests {
         return "windup " + action.phasesLength.getFloat(ActionPhase.WINDUP) + ", perform "
                 + action.phasesLength.getFloat(ActionPhase.PERFORM) + ", recovery "
                 + action.phasesLength.getFloat(ActionPhase.RECOVERY);
+    }
+
+    // The owner's rule of 2026-11-05 (13.png), against 1.16 that kept them on the Stand: a recall leaves the heat trap and
+    // the heat vision and stops the grab; removing the Stand takes the trap.
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void heatTrapAndHeatVisionGoOnThroughARecall(GameTestHelper helper) {
+        try (Scene scene = new Scene(helper, "SkRecall")) {
+            SpeedKingState state = SpeedKingAddon.state(scene.owner);
+            String dimension = helper.getLevel().dimension().location().toString();
+            BlockPos trap = helper.absolutePos(new BlockPos(6, 2, 5));
+            Cow cow = helper.spawn(EntityType.COW, new Vec3(1.5D, 2.0D, 4.0D));
+            cow.setNoAi(true);
+            scene.extra = cow;
+            state.setHeatTrap(trap, dimension);
+            state.setGrabbedTargetId(7);
+            SpeedKingService.heatVision(scene.owner);
+            helper.assertTrue(state.heatVisionLeaseId() != null, "Setup: the heat vision did not start");
+
+            SpeedKingAddon.SPEED_KING.get().forceUnsummon(scene.owner, scene.power);
+            EventHooks.firePlayerTickPost(scene.owner);
+            helper.assertTrue(state.hasHeatTrap(), "the heat trap ended with the recall");
+            helper.assertTrue(state.heatVisionLeaseId() != null, "the heat vision ended with the recall");
+            helper.assertTrue(state.grabbedTargetId() == -1, "the grab is the Stand's body: it must stop with the recall");
+
+            float health = cow.getHealth();
+            cow.setPos(Vec3.atCenterOf(trap));
+            EventHooks.firePlayerTickPost(scene.owner);
+            helper.assertTrue(cow.getHealth() < health && !state.hasHeatTrap(),
+                    "the heat trap of a recalled Speed King must still fire: cow health " + cow.getHealth() + " of " + health);
+            helper.assertTrue(cow.getLastHurtByMob() == scene.owner, "the trap's hit is its user's: " + cow.getLastHurtByMob());
+
+            state.setHeatTrap(trap, dimension);
+            EventHooks.firePlayerLoggedOut(scene.owner);
+            helper.assertTrue(!state.hasHeatTrap(), "a logout must end the heat trap: it is saved and would come back");
+            state.setHeatTrap(trap, dimension);
+            EventHooks.firePlayerChangedDimensionEvent(scene.owner, Level.OVERWORLD, Level.NETHER);
+            helper.assertTrue(!state.hasHeatTrap(), "a change of level must end the heat trap");
+
+            state.setHeatTrap(trap, dimension);
+            scene.power.setStand(null);
+            helper.assertTrue(!state.hasHeatTrap(), "the heat trap must go with the Stand itself");
+            helper.succeed();
+        }
     }
 
     private static final class Scene implements AutoCloseable {

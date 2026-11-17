@@ -6,9 +6,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.power.ModPlayerPowers;
 import rotp.core.powersystem.playerpower.PlayerPower;
+import rotp.core.powersystem.standpower.StandDamageContext;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.subsystems.timestop.TimeStopState;
 import rotp.core.util.functions.DamageUtil;
 
@@ -91,6 +95,9 @@ public final class GreenDayMoldState
     private int deathMoldTailTicks;
     private final Map<UUID, Long> sources =
             new LinkedHashMap<>();
+    // the last source of the mold, kept (not saved) for the user whose mold still kills after it ended
+    @Nullable
+    private UUID lastSource;
 
     public static GreenDayMoldState get(LivingEntity entity) {
         return entity.getData(GreenDayAddon.MOLD_STATE);
@@ -149,6 +156,7 @@ public final class GreenDayMoldState
         }
         deathMoldTailTicks = 0;
         sources.put(source, gameTime);
+        lastSource = source;
         target.addEffect(new MobEffectInstance(
                 GreenDayAddon.MOLD_UTIL,
                 SOURCE_TIMEOUT_TICKS,
@@ -276,17 +284,38 @@ public final class GreenDayMoldState
                 ? Integer.MAX_VALUE
                 : Math.max(1, 200 * (10 - amplifier) / 3);
         if (ticksInMold >= ticksToDie) {
-            target.hurt(
-                    DamageUtil.make(
-                            level,
-                            GreenDayDamageTypes.MOLD),
-                    target.getMaxHealth());
+            // the mold is dealt from the effect's tick: the Green Day user it grew from is whose work it is
+            try (var running = StandDamageContext.enter(moldsStand(level, target))) {
+                target.hurt(
+                        DamageUtil.make(
+                                level,
+                                GreenDayDamageTypes.MOLD),
+                        target.getMaxHealth());
+            }
         }
         if (ticksInMold % 20 == 0
                 || ticksInMold == ticksToDie
                 || (deathTail && deathMoldTailTicks == 0)) {
             sync(target);
         }
+    }
+
+    @Nullable
+    private StandPower moldsStand(
+            ServerLevel level, LivingEntity target) {
+        for (UUID source : sources.isEmpty()
+                ? (lastSource != null ? Set.of(lastSource) : Set.<UUID>of())
+                : sources.keySet()) {
+            if (level.getEntity(source) instanceof LivingEntity user
+                    && user != target) {
+                StandPower power = StandPower.get(user);
+                if (power != null
+                        && power.getPowerType() == GreenDayAddon.GREEN_DAY.get()) {
+                    return power;
+                }
+            }
+        }
+        return null;
     }
 
     public boolean removeSource(

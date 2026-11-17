@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-diegos-the-world`, mod id `rotp_theworld`, version `1.2.1-mc1.21.1-phase12`.
+- Module: `rotp-diegos-the-world`, mod id `rotp_theworld`, version `1.2.1-mc1.21.1-phase13`.
 - Original 1.16.5 add-on: `RotP-The-World-Alternative-Universe-1.2.1.jar` (RotP THE WORLD, mod id `rotp_theworld`), by Solkree, August_dr feat.Pr1tcha, StandoByte; declared license: GNU GPL v3.0; SHA-256 `17D2C9DDE44928BEA726FBCD883731C74C336D2BD899DC6DF52D114160719B52`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -30,10 +30,15 @@ Only resource paths were adapted where the current skin loader requires
 `skin_a`, `skin_b`, and `skin_c`. The donor has no packaged logo despite its
 legacy metadata reference, so the current metadata intentionally has no logo.
 
-The H1 geometry and animation resources are retained from the existing
-1.21.1 conversion of the same donor model source. Their geometry and animation
-hashes are `B2B96017455F8EF5D05047E16D10D7FA951D058676E91B7DC51F860AA3D16667`
-and `4EA30BA8CA1F425816DB6DEB352827834C865BD05D0F5137ADAAE976E4E392F1`.
+The default skin's geometry is the donor's own `THEWORLDModel` on the core's Stand
+skeleton (`migration/diego_donor_rig.py`, from `migration/donor-model-theworld.json`):
+only the trunk and the two boxes across the waist are cut at the core's bend plane.
+The idle, the three summons, the heavy, the knockback and the time stop are the
+donor's own poses (`migration/diego_donor_poses.py`, THEWORLDModel's numbers); the
+other clips are retained from the existing 1.21.1 conversion and are the core
+The World's poses. Their geometry and animation
+hashes are `B686F9DA4350FD0F2781DCFEBB48A3BBB9F87147588E4E2210023EA78AC17222`
+and `79B981C53490F28C9B44DEDB65FE1F9DE0AAE556FD5C63E9F19A0FFFD5D0A3AF`.
 The idle clip carries the donor renderer's idle sway on `stand_pos` with the
 core's `idleSway = legacy` mark, in place of the conversion's body bob.
 Time-stop shaders and sound substitutions remain skin-scoped and use the

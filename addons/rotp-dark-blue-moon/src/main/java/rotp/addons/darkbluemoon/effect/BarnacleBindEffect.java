@@ -3,6 +3,7 @@ package rotp.addons.darkbluemoon.effect;
 import rotp.addons.darkbluemoon.DarkBlueMoonAddon;
 import rotp.addons.darkbluemoon.DarkBlueMoonConfig;
 import rotp.addons.darkbluemoon.entity.BarnacleEntity;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import net.minecraft.util.RandomSource;
@@ -48,9 +49,13 @@ public class BarnacleBindEffect extends MobEffect {
         if (entity instanceof Player player) {
             StandPower power = StandPower.get(player);
             if (power != null && power.hasPower() && power.getPowerType() == DarkBlueMoonAddon.DARK_BLUE_MOON.get()) {
-                for (String ability : DarkBlueMoonAddon.BARNACLE_BIND_COOLDOWN_ABILITIES) {
-                    power.setAbilityCooldown(ability, 20);
-                }
+                // an effect tick runs outside any press or action: these are locks, no use of the abilities
+                // in the no-cooldown mode
+                StandAbilityFatigue.withoutFatigue(() -> {
+                    for (String ability : DarkBlueMoonAddon.BARNACLE_BIND_COOLDOWN_ABILITIES) {
+                        power.setAbilityCooldown(ability, 20);
+                    }
+                });
             }
         }
         int maxBarnacles = DarkBlueMoonConfig.getInt(DarkBlueMoonConfig.BARNACLE_MAX_COUNT);

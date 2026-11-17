@@ -9,6 +9,7 @@ import rotp.core.core.JojoRegistries;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
+import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
 
 import rotp.addons.neo_stand.ability.AutoStringsAbility;
@@ -158,10 +159,12 @@ public final class NeoStandAddon {
                                     FINGER_SWEEP_ABILITY)
                             .addSkill(StandSkill.startingAbility(
                                     FINGER_SWEEP))
-                            .appendToHotbar(
+                            .addHotbarSlotVariation(
                                     "hotbar",
                                     0,
+                                    "star_finger",
                                     FINGER_SWEEP,
+                                    InputKey.Modifier.SHIFT,
                                     InputMethod.CLICK)
                             .addAbility(
                                     BULLET_TIME,

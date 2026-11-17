@@ -32,8 +32,10 @@ import net.minecraft.world.entity.MobCategory;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(CMoonAddon.MOD_ID)
 public final class CMoonAddon {
@@ -74,6 +76,18 @@ public final class CMoonAddon {
     public static final DeferredRegister<StandType>
             STAND_TYPES = DeferredRegister.create(
                     JojoRegistries.DEFAULT_STANDS_REG, MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>>
+            ATTACHMENT_TYPES = DeferredRegister.create(
+                    NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
+
+    public static final DeferredHolder<
+            AttachmentType<?>,
+            AttachmentType<CMoonStandEntity.Recalled>>
+            RECALLED_STAND = ATTACHMENT_TYPES.register(
+                    "recalled_stand",
+                    () -> AttachmentType.builder(
+                            () -> new CMoonStandEntity.Recalled())
+                            .build());
 
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<CMoonPunchAbility>>
@@ -144,6 +158,7 @@ public final class CMoonAddon {
         MOB_EFFECTS.register(modEventBus);
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
         modEventBus.addListener(CMoonModEvents::registerAttributes);
         modEventBus.addListener(CMoonAddon::commonSetup);
     }

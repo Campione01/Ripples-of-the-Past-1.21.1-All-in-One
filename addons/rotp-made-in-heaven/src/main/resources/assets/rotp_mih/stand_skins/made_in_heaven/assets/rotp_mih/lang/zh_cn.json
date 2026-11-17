@@ -16,6 +16,8 @@
   "rotp_mih.ability.time_aura": "时间之环",
   "rotp_mih.ability.time_system": "时间加速",
   "rotp_mih.ability.time_system_clear": "解除时间加速",
+  "rotp_mih.ability.time_system_pause": "暂停时间加速",
+  "rotp_mih.ability.time_system_pause.resume": "继续时间加速",
   "rotp_mih.ability.universe_reset": "宇宙重置",
   "rotp_mih.subtitle.made_in_heaven_summon": "天堂制造显现",
   "jojo.message.action_condition.cant_use_without_acceleration": "需要时间加速才可使用该技能",
@@ -26,5 +28,8 @@
   "rotp_mih.configuration.Client config": "客户端设置",
   "rotp_mih.configuration.Client config.tooltip": "只影响本客户端显示内容的设置。",
   "rotp_mih.config.client.enableNewTSIcons": "新版时间系统图标",
-  "rotp_mih.config.client.enableNewTSIcons.tooltip": "时间系统的“增加”与“清除”使用新版时钟图标。"
+  "rotp_mih.config.client.enableNewTSIcons.tooltip": "时间系统的“增加”与“清除”使用新版时钟图标。",
+  "rotp_mih.configuration.timeAcceleration": "时间加速",
+  "rotp_mih.config.server.accelerationMode": "加速模式",
+  "rotp_mih.config.server.accelerationMode.tooltip": "世界加速：生物保有自己的时间；投射物、掉落物、下落的方块、作物、流体、熔炉与天气快 m 倍，本体以同样的速度攻击、挖掘、使用物品与替身。他人落后：本体保持正常速度，其他所有生物慢 m 倍。每次加速沿用开始时的模式。"
 }

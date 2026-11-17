@@ -16,6 +16,8 @@
   "rotp_mih.ability.time_aura": "Time Aura",
   "rotp_mih.ability.time_system": "Time Acceleration",
   "rotp_mih.ability.time_system_clear": "Clear Time Acceleration",
+  "rotp_mih.ability.time_system_pause": "Pause Time Acceleration",
+  "rotp_mih.ability.time_system_pause.resume": "Resume Time Acceleration",
   "rotp_mih.ability.universe_reset": "Universe Reset",
   "rotp_mih.subtitle.made_in_heaven_summon": "Made in Heaven manifests",
   "jojo.message.action_condition.cant_use_without_acceleration": "You can not use this action without time acceleration",
@@ -26,5 +28,8 @@
   "rotp_mih.configuration.Client config": "Client Settings",
   "rotp_mih.configuration.Client config.tooltip": "Settings that only change what this game client shows.",
   "rotp_mih.config.client.enableNewTSIcons": "New Time System Icons",
-  "rotp_mih.config.client.enableNewTSIcons.tooltip": "Use the new clock icons for the Time System's Acceleration and Clear."
+  "rotp_mih.config.client.enableNewTSIcons.tooltip": "Use the new clock icons for the Time System's Acceleration and Clear.",
+  "rotp_mih.configuration.timeAcceleration": "Time Acceleration",
+  "rotp_mih.config.server.accelerationMode": "Acceleration Mode",
+  "rotp_mih.config.server.accelerationMode.tooltip": "The World Accelerates: living beings keep their own time; projectiles, items, falling blocks, crops, fluids, furnaces and the weather run m times faster, and the user attacks, mines, uses items and his Stand at that pace. Others Fall Behind: the user keeps normal speed and every other living being runs m times slower. An acceleration keeps the mode it started with."
 }

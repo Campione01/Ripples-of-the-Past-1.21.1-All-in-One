@@ -1,0 +1,19 @@
+{
+  "entity.rotp_tog.tower_of_gray": "灰色之塔",
+  "stand.rotp_tog.tower_of_gray": "灰色之塔",
+  "action.rotp_tog.dash": "塔之针",
+  "action.rotp_tog.fly": "飞行",
+  "action.rotp_tog.quick_reposition": "快速归位",
+  "action.rotp_tog.needle_pursuit": "针刺追击",
+  "action.rotp_tog.gray_stinger": "灰之刺",
+  "action.rotp_tog.gray_swarm": "灰色虫群",
+  "action.rotp_tog.dodge": "闪避",
+  "rotp_tog.ability.dash": "塔之针",
+  "rotp_tog.ability.fly": "飞行",
+  "rotp_tog.ability.quick_reposition": "快速归位",
+  "rotp_tog.ability.needle_pursuit": "针刺追击",
+  "rotp_tog.ability.gray_stinger": "灰之刺",
+  "rotp_tog.ability.gray_swarm": "灰色虫群",
+  "rotp_tog.ability.dodge": "闪避",
+  "rotp_tog.ability.manual_control": "手动控制"
+}

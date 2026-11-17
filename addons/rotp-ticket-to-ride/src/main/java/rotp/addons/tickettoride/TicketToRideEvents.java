@@ -6,6 +6,8 @@ import java.util.Locale;
 
 import rotp.core.init.ModParticles;
 import rotp.core.init.ModStatusEffects;
+import rotp.core.powersystem.standpower.StandDamageContext;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.util.functions.DamageUtil;
 
@@ -182,8 +184,10 @@ public final class TicketToRideEvents {
         if (event.getSource().getEntity() instanceof LivingEntity marked
                 && TearsWoundService.isMarked(marked)
                 && marked.getRandom().nextFloat() < WOUND_RECOIL_CHANCE) {
-            marked.hurt(marked.damageSources().generic(),
-                    event.getAmount() * WOUND_RECOIL_MULTIPLIER);
+            try (var running = StandDamageContext.enter(TearsHazardService.markersStand(marked))) {
+                marked.hurt(marked.damageSources().generic(),
+                        event.getAmount() * WOUND_RECOIL_MULTIPLIER);
+            }
             marked.playSound(
                     SoundEvents.PLAYER_HURT,
                     1.0F,
@@ -203,7 +207,7 @@ public final class TicketToRideEvents {
             Entity trueSource = event.getSource().getEntity();
             if (trueSource != null
                     && target.level() instanceof ServerLevel level) {
-                performRandomCounterAttack(level, target, trueSource);
+                performRandomCounterAttack(level, target, trueSource, protector);
             }
             return;
         }
@@ -419,7 +423,8 @@ public final class TicketToRideEvents {
     static void performRandomCounterAttack(
             ServerLevel level,
             LivingEntity protectedEntity,
-            Entity attacker) {
+            Entity attacker,
+            LivingEntity protector) {
         List<LivingEntity> candidates = level.getEntitiesOfClass(
                 LivingEntity.class,
                 protectedEntity.getBoundingBox()
@@ -437,8 +442,13 @@ public final class TicketToRideEvents {
         float damage = protectedEntity.getMaxHealth()
                 * REFLECT_BASE_FACTOR
                 * (0.8F + level.getRandom().nextFloat() * 1.2F);
-        if (!victim.hurt(
-                DamageUtil.make(level, LOVE_TRAIN_REFLECT), damage)) {
+        // the reflected hit is the Love Train user's Stand work: it takes the Stand's damage share
+        boolean hurt;
+        try (var running = StandDamageContext.enter(StandPower.get(protector))) {
+            hurt = victim.hurt(
+                    DamageUtil.make(level, LOVE_TRAIN_REFLECT), damage);
+        }
+        if (!hurt) {
             return;
         }
         spawnReflectParticles(

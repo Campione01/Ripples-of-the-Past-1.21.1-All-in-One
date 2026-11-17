@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "gBg",
+    "BsB",
+    "gBg"
+  ],
+  "key": {
+    "g": {
+      "tag": "c:ingots/gold"
+    },
+    "B": {
+      "tag": "c:storage_blocks/iron"
+    },
+    "s": {
+      "item": "rotp_spin:steel_ball"
+    }
+  },
+  "result": {
+    "id": "rotp_spin:wrecking_ball"
+  }
+}

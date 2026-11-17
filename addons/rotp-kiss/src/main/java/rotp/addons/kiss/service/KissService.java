@@ -15,7 +15,6 @@ import net.minecraft.network.protocol.game.ClientboundMoveVehiclePacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.BlockHitResult;
@@ -26,6 +25,11 @@ public final class KissService {
     public static final double DIRECT_STICKER_RANGE = 8.0D;
     public static final double PULL_SPEED = 0.6D;
     public static final double PULL_STOP_DISTANCE = 1.0D;
+
+    // the entities' tracking range at most, what a client can know of
+    private static final double MARKER_SIGN_RANGE = 64.0D;
+
+    private static int ownerWalks;
 
     private KissService() {}
 
@@ -50,6 +54,18 @@ public final class KissService {
                 && standUuid.equals(stand.getUUID());
     }
 
+    /** For what is already out: it answers to its owner and his power, not to the Stand that was out when it left. */
+    public static boolean validOwner(ServerLevel level, UUID ownerUuid) {
+        if (ownerUuid == null) {
+            return false;
+        }
+        ServerPlayer owner = level.getServer().getPlayerList().getPlayer(ownerUuid);
+        return owner != null
+                && owner.isAlive()
+                && owner.level() == level
+                && KissAddon.isKissUser(owner);
+    }
+
     public static void attachFromAim(
             ServerPlayer owner, StandEntity stand, ActionTarget target) {
         if (!(owner.level() instanceof ServerLevel level)
@@ -68,7 +84,6 @@ public final class KissService {
                     KissAddon.STICKER_ENTITY.get(), level);
             marker.attachLiving(owner, stand, living, living.getEyePosition());
             level.addFreshEntity(marker);
-            play(owner, KissAddon.STICKER_SOUND.get());
             return;
         }
 
@@ -87,7 +102,6 @@ public final class KissService {
                     KissAddon.STICKER_ENTITY.get(), level);
             marker.attachBlock(owner, stand, blockPos, face);
             level.addFreshEntity(marker);
-            play(owner, KissAddon.STICKER_SOUND.get());
         }
     }
 
@@ -100,7 +114,6 @@ public final class KissService {
                 KissAddon.STICKER_ENTITY.get(), level);
         marker.launch(owner, stand);
         level.addFreshEntity(marker);
-        play(owner, KissAddon.STICKER_SOUND.get());
     }
 
     public static boolean pullLatest(ServerPlayer owner) {
@@ -124,7 +137,6 @@ public final class KissService {
             removeMatchingStickers(
                     level, owner.getUUID(), token.entityUuid(), null);
             token.consume();
-            play(owner, KissAddon.PULL_SOUND.get());
             return true;
         }
 
@@ -136,7 +148,6 @@ public final class KissService {
             removeMatchingStickers(
                     level, owner.getUUID(), null, token.blockPos());
             token.consume();
-            play(owner, KissAddon.PULL_SOUND.get());
             return true;
         }
         double distance = delta.length();
@@ -190,10 +201,31 @@ public final class KissService {
         }
     }
 
+    /**
+     * Whether a sticker (or a bomb) of the user's is in his level near him: what goes on with Kiss recalled, for the HUD's
+     * sign on its slot. On a client it sees what the client tracks.
+     */
+    public static boolean hasMarkerNear(LivingEntity user, boolean bomb) {
+        if (user == null) {
+            return false;
+        }
+        UUID owner = user.getUUID();
+        var box = user.getBoundingBox().inflate(MARKER_SIGN_RANGE);
+        return bomb
+                ? !user.level().getEntitiesOfClass(KissBombEntity.class, box, b -> b.isOwnedBy(owner)).isEmpty()
+                : !user.level().getEntitiesOfClass(KissStickerEntity.class, box, s -> s.isOwnedBy(owner)).isEmpty();
+    }
+
+    /** How many times cleanupOwner has walked the levels, read by the game test of its cost. */
+    public static int ownerWalks() {
+        return ownerWalks;
+    }
+
     public static void cleanupOwner(MinecraftServer server, UUID ownerUuid) {
         if (server == null || ownerUuid == null) {
             return;
         }
+        ownerWalks++;
         for (ServerLevel level : server.getAllLevels()) {
             for (Entity entity : level.getAllEntities()) {
                 if (entity instanceof KissStickerEntity marker
@@ -204,11 +236,6 @@ public final class KissService {
                 }
             }
         }
-    }
-
-    private static void play(ServerPlayer owner, net.minecraft.sounds.SoundEvent sound) {
-        owner.level().playSound(
-                null, owner.blockPosition(), sound, SoundSource.PLAYERS, 1.0F, 1.0F);
     }
 
     private static Vec3 pullPoint(BlockPos position, Direction face) {

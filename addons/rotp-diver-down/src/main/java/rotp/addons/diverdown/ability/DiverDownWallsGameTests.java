@@ -301,7 +301,7 @@ public final class DiverDownWallsGameTests {
     @GameTest(template = "empty", templateNamespace = TEMPLATES, batch = "dd_reach_phasing",
             timeoutTicks = GameTestPlacement.WAIT_TEST_TICKS + OWN_TICKS)
     public static void entityPhasingReachesFiveBlocks(GameTestHelper helper) {
-        GameTestPlacement.whenTicking(helper, 8, placement -> {
+        GameTestPlacement.whenTicking(helper, 12, placement -> {
             Scene scene = new Scene(helper, placement, true);
             try {
                 scene.look(0.0F);
@@ -314,9 +314,22 @@ public final class DiverDownWallsGameTests {
                 phasing.onClick(helper.getLevel(), scene.owner, null);
                 helper.assertTrue(scene.stand.getEmbeddedTarget() == far,
                         "Fixture: Diver Down did not dive into a cow 4 blocks away");
-                scene.stand.clearEmbeddedTarget();
-                scene.close();
-                helper.succeed();
+                helper.assertTrue(scene.stand.getEffectiveRange() == 2.0D && scene.stand.getMaxRange() == 3.0D,
+                        "Fixture: Diver Down's registered ranges are not 2 and 3");
+                far.moveTo(scene.origin.x, scene.origin.y + 0.5D, scene.origin.z + 9.5D, 0.0F, 0.0F);
+                helper.runAfterDelay(2, () -> {
+                    try {
+                        helper.assertTrue(scene.stand.getEmbeddedTarget() == far
+                                        && scene.stand.position().distanceToSqr(far.position()) < 1.0E-6D,
+                                "Diver Down did not stay embedded as its target moved 9.5 blocks from its user");
+                        far.moveTo(scene.origin.x, scene.origin.y + 0.5D, scene.origin.z + 10.5D, 0.0F, 0.0F);
+                        scene.poll(0, 8, () -> helper.assertTrue(!scene.stand.isEmbedded(),
+                                "Diver Down stayed embedded after the target moved past 10 blocks"));
+                    } catch (Throwable error) {
+                        scene.close();
+                        throw error;
+                    }
+                });
             } catch (Throwable error) {
                 scene.close();
                 throw error;
@@ -671,8 +684,8 @@ public final class DiverDownWallsGameTests {
                             helper.fail("Watching the trap with Diver Down unsummoned");
                         }
                         if (scene.owner instanceof ServerPlayer player) {
-                            helper.assertFalse(DiverDownAuthority.ownerHasAuthority(player),
-                                    "Fixture: the player tick did not run the cleanup for a player without a Stand");
+                            helper.assertTrue(DiverDownAuthority.ownerHasAuthority(player),
+                                    "The player tick cleaned up after a recall; the owner's rule of 2026-11-05 keeps it");
                             helper.assertTrue(player.level() == helper.getLevel() && !set.isRemoved(),
                                     "The kinetic trap went with the player tick cleanup; 1.16 kept it");
                             ResourceKey<Level> from = helper.getLevel().dimension();

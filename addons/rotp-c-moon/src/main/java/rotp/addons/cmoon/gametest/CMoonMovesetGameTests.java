@@ -61,7 +61,8 @@ public final class CMoonMovesetGameTests {
                 Map.of(InputMethod.CLICK, CMoonAddon.GRAVITY_COUNTER),
                 Map.of(InputMethod.HOLD, CMoonAddon.CENTER_OF_GRAVITY),
                 Map.of(InputMethod.HOLD, CMoonAddon.DESTROY),
-                Map.of(InputMethod.HOLD, CMoonAddon.GRAVITY_SHIFT));
+                Map.of(InputMethod.HOLD, CMoonAddon.GRAVITY_SHIFT),
+                Map.of(InputMethod.HOLD, CMoonAddon.GRAVITY_FIELD));
         if (!wheel.equals(expected)) {
             failures.add("hotbar wheel " + wheel + " instead of " + expected);
         }

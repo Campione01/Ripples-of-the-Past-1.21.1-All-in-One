@@ -1,0 +1,7 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "rotp_spin:item/stand_disc_ball_breaker",
+    "layer1": "rotp_spin:item/stand_disc_ball_breaker"
+  }
+}

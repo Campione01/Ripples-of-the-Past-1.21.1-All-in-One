@@ -386,7 +386,7 @@ public final class RhcpAddon {
         RhcpStandType stand = new RhcpStandType(
                 new StandStats.Builder()
                         .power(14.0D, 19.0D)
-                        .speed(14.0D, 19.0D)
+                        .speed(16.0D, 21.0D)
                         .range(EFFECTIVE_RANGE, MAX_RANGE)
                         .durability(14.0D)
                         .precision(8.5D, 9.0D)

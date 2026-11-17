@@ -12,6 +12,7 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.achtungbaby.AchtungBabyAddon;
 import rotp.addons.achtungbaby.AchtungBabyService;
@@ -255,7 +256,7 @@ public final class AchtungBabyAbilities {
             if (!(getPowerUser() instanceof ServerPlayer player)) {
                 return;
             }
-            if (player.isCrouching()) {
+            if (StandManualInput.isShiftHeld(player)) {
                 Entity target = getActionTargetSnapshot(level())
                         .getMainEntity();
                 if (target instanceof LivingEntity living

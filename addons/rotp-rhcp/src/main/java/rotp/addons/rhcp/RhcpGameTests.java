@@ -38,11 +38,13 @@ import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandTuning;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.subsystems.entity_puppetcontrol.EntityComponentController;
 import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.util.functions.DamageUtil;
+import com.google.gson.JsonObject;
 import com.mojang.authlib.GameProfile;
 
 import rotp.addons.rhcp.ability.RhcpAbility;
@@ -67,6 +69,7 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.damagesource.DamageSource;
@@ -81,7 +84,9 @@ import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
+import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.init.ModDataAttachmentTypes;
+import rotp.core.init.ModGamerules;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
@@ -1382,6 +1387,190 @@ public final class RhcpGameTests {
                                         + " (no free side, the user not sneaking): it moved "
                                         + stand.position().subtract(inLamp) + ", recent block "
                                         + stand.recentBlock() + ", the lamp " + lamp + ".");
+                    }
+                    finally {
+                        leave.run();
+                    }
+                })
+                .thenSucceed();
+    }
+
+    // R772.1 OQ-B01: Beta2 RHCPSelfDestruct breaks the gadget block RHCP is in and its small blast breaks blocks: both
+    // only with jojoAbilitiesBreakBlocks on and the user's "breaks blocks" Stand switch on. The rule is set only
+    // around each self destruct.
+    @GameTest(template = "empty", batch = "rhcp_self_destruct_rule", timeoutTicks = 60)
+    public static void aSelfDestructBreaksItsGadgetOnlyWhereTheRuleAndTheSwitchAllow(GameTestHelper helper) {
+        ServerPlayer user = mockPlayer(helper, "rhcp-self-destruct-rule", new BlockPos(1, 2, 1));
+        StandPower power = summonRhcp(helper, user);
+        ServerLevel level = helper.getLevel();
+        boolean ruleBefore = level.getGameRules().getBoolean(ModGamerules.BREAK_BLOCKS);
+        PlayerClientBroadcastedSettings switches =
+                user.getData(ModDataAttachmentTypes.PLAYER_BROADCASTED_SETTINGS.get());
+        BlockPos[] lamp = {null};
+        Runnable leave = () -> {
+            switches.standBreaksBlocks = true;
+            RhcpAddon.state(user).leaveConductor();
+            if (lamp[0] != null) {
+                level.setBlockAndUpdate(lamp[0], Blocks.AIR.defaultBlockState());
+            }
+            cleanup(user, power, "RHCP self destruct rule GameTest complete");
+        };
+        helper.startSequence()
+                .thenWaitUntil(() -> standTicking(helper, user))
+                .thenIdle(3)
+                .thenExecute(() -> {
+                    try {
+                        lamp[0] = user.blockPosition().offset(4, 1, 0);
+                        level.setBlockAndUpdate(lamp[0], Blocks.REDSTONE_LAMP.defaultBlockState());
+                        helper.assertTrue(RhcpService.isGadget(level.getBlockState(lamp[0])),
+                                "Setup: a redstone lamp is no gadget block.");
+                        helper.assertTrue(!selfDestructBreaksTheLamp(user, level, lamp[0], false, ruleBefore),
+                                "A self destruct broke its gadget block with jojoAbilitiesBreakBlocks off.");
+                        switches.standBreaksBlocks = false;
+                        helper.assertTrue(!selfDestructBreaksTheLamp(user, level, lamp[0], true, ruleBefore),
+                                "A self destruct broke its gadget block with its user's Stand switch off.");
+                        switches.standBreaksBlocks = true;
+                        helper.assertTrue(selfDestructBreaksTheLamp(user, level, lamp[0], true, ruleBefore),
+                                "With the rule and the switch on a self destruct must still break its gadget block.");
+                    }
+                    finally {
+                        leave.run();
+                    }
+                })
+                .thenSucceed();
+    }
+
+    // RHCP is put in the lamp, and the self destruct run under the rule given; whether the lamp is gone
+    private static boolean selfDestructBreaksTheLamp(ServerPlayer user, ServerLevel level, BlockPos lamp, boolean rule,
+            boolean ruleBefore) {
+        RhcpStandEntity stand = RhcpService.activeStand(user);
+        RhcpAddon.state(user).enterConductor(lamp);
+        RhcpService.teleportStand(stand, new Vec3(lamp.getX() + 0.5D, lamp.getY() + 0.01D, lamp.getZ() + 0.5D));
+        level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS).set(rule, level.getServer());
+        try {
+            RhcpService.selfDestruct(user);
+        }
+        finally {
+            level.getGameRules().getRule(ModGamerules.BREAK_BLOCKS).set(ruleBefore, level.getServer());
+        }
+        return level.getBlockState(lamp).isAir();
+    }
+
+    // R772.1 EV-STANDCFG item3: the self destruct's blast is called from the ability but is no hit of the Stand's body,
+    // so its share of the Stands page (damage to mobs) is asked of the blast itself: 50 % halves what a cow takes, 100 % is
+    // Beta2's 0.2 * (3 * 1.5^2 - distance^2).
+    @GameTest(template = "empty", batch = "rhcp_self_destruct_share", timeoutTicks = 60)
+    public static void aSelfDestructBlastTakesTheStandsDamageShare(GameTestHelper helper) {
+        ServerPlayer user = mockPlayer(helper, "rhcp-self-destruct-share", new BlockPos(1, 2, 1));
+        StandPower power = summonRhcp(helper, user);
+        ServerLevel level = helper.getLevel();
+        StandTuning tuning = RhcpAddon.RHCP.get().getTuning();
+        BlockPos[] lamp = {null};
+        Cow[] cow = {null};
+        Runnable leave = () -> {
+            tuning.restoreDefaults();
+            RhcpAddon.state(user).leaveConductor();
+            if (cow[0] != null) {
+                cow[0].discard();
+            }
+            if (lamp[0] != null) {
+                level.setBlockAndUpdate(lamp[0], Blocks.AIR.defaultBlockState());
+            }
+            cleanup(user, power, "RHCP self destruct share GameTest complete");
+        };
+        helper.startSequence()
+                .thenWaitUntil(() -> standTicking(helper, user))
+                .thenIdle(3)
+                .thenExecute(() -> {
+                    try {
+                        lamp[0] = user.blockPosition().offset(4, 1, 0);
+                        level.setBlockAndUpdate(lamp[0], Blocks.REDSTONE_LAMP.defaultBlockState());
+                        cow[0] = EntityType.COW.create(level);
+                        cow[0].setNoAi(true);
+                        cow[0].moveTo(lamp[0].getX() + 1.7D, lamp[0].getY(), lamp[0].getZ() + 0.5D, 0.0F, 0.0F);
+                        helper.assertTrue(level.addFreshEntity(cow[0]), "Setup: the cow was not added.");
+                        float full = selfDestructDamageToTheCow(user, level, lamp[0], cow[0]);
+                        Vec3 center = Vec3.atCenterOf(lamp[0]);
+                        float expected = 0.2F * (3.0F * 1.5F * 1.5F - (float) cow[0].distanceToSqr(center));
+                        helper.assertTrue(expected > 0.3F && Math.abs(full - expected) < 1.0E-4F,
+                                "At the default share Beta2's 0.2 * (3 * 1.5^2 - distance^2) = " + expected
+                                        + " reaches the cow unchanged; it took " + full);
+                        JsonObject half = new JsonObject();
+                        half.addProperty("damageVsMobs", 50);
+                        tuning.applyConfig(half);
+                        float halved = selfDestructDamageToTheCow(user, level, lamp[0], cow[0]);
+                        helper.assertTrue(Math.abs(halved - expected / 2.0F) < 1.0E-4F,
+                                "At 50 % damage to mobs the self destruct's blast deals half of " + expected
+                                        + ", it dealt " + halved);
+                    }
+                    finally {
+                        leave.run();
+                    }
+                })
+                .thenSucceed();
+    }
+
+    // RHCP is put in the lamp and self destructs; what the cow lost
+    private static float selfDestructDamageToTheCow(ServerPlayer user, ServerLevel level, BlockPos lamp, Cow cow) {
+        RhcpStandEntity stand = RhcpService.activeStand(user);
+        RhcpAddon.state(user).enterConductor(lamp);
+        RhcpService.teleportStand(stand, new Vec3(lamp.getX() + 0.5D, lamp.getY() + 0.01D, lamp.getZ() + 0.5D));
+        level.setBlockAndUpdate(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+        cow.setHealth(cow.getMaxHealth());
+        cow.invulnerableTime = 0;
+        RhcpService.selfDestruct(user);
+        return cow.getMaxHealth() - cow.getHealth();
+    }
+
+    // R772.1 EV-STANDCFG item4: a dash pressed while the last one still runs adds its distance's cooldown to what is left,
+    // and what is left is already in the Stands page's cooldown share, so only the added part is put in it: at 50 % a
+    // cooldown of 40 left plus the dash's distance (halved once) is 40 + half, not half of the sum.
+    @GameTest(template = "empty", batch = "rhcp_dash_cooldown_share", timeoutTicks = 60)
+    public static void aStackedDashCooldownTakesTheCooldownShareOnce(GameTestHelper helper) {
+        ServerPlayer user = mockPlayer(helper, "rhcp-dash-share", new BlockPos(1, 2, 1));
+        StandPower power = summonRhcp(helper, user);
+        StandTuning tuning = RhcpAddon.RHCP.get().getTuning();
+        Runnable leave = () -> {
+            tuning.restoreDefaults();
+            cleanup(user, power, "RHCP dash cooldown share GameTest complete");
+        };
+        helper.startSequence()
+                .thenWaitUntil(() -> standTicking(helper, user))
+                .thenIdle(3)
+                .thenExecute(() -> {
+                    try {
+                        RhcpStandEntity stand = RhcpService.activeStand(user);
+                        Vec3 start = stand.position();
+                        float yaw = stand.getYRot();
+                        power.restoreAbilityCooldown("rhcp_electric_dash", 0);
+                        helper.assertTrue(RhcpService.dash(user), "Setup: RHCP did not dash.");
+                        int whole = power.getAbilityCooldown("rhcp_electric_dash");
+                        helper.assertTrue(whole >= 40, "Setup: the dash's cooldown is only " + whole);
+                        stand.moveTo(start.x, start.y, start.z, yaw, 0.0F);
+                        power.restoreAbilityCooldown("rhcp_electric_dash", 40);
+                        helper.assertTrue(RhcpService.dash(user), "Setup: RHCP did not dash again.");
+                        int stacked = power.getAbilityCooldown("rhcp_electric_dash");
+                        helper.assertTrue(stacked == 40 + whole,
+                                "At the default share a dash of " + whole + " on 40 left stacks to " + (40 + whole)
+                                        + ", it stacked to " + stacked);
+                        JsonObject half = new JsonObject();
+                        half.addProperty("cooldowns", 50);
+                        tuning.applyConfig(half);
+                        stand.moveTo(start.x, start.y, start.z, yaw, 0.0F);
+                        power.restoreAbilityCooldown("rhcp_electric_dash", 0);
+                        helper.assertTrue(RhcpService.dash(user), "Setup: RHCP did not dash at 50 %.");
+                        int halved = power.getAbilityCooldown("rhcp_electric_dash");
+                        helper.assertTrue(halved == Math.round(whole / 2.0F),
+                                "At 50 % a fresh dash of " + whole + " cools for half, " + Math.round(whole / 2.0F)
+                                        + ", it cooled " + halved);
+                        stand.moveTo(start.x, start.y, start.z, yaw, 0.0F);
+                        power.restoreAbilityCooldown("rhcp_electric_dash", 40);
+                        helper.assertTrue(RhcpService.dash(user), "Setup: RHCP did not dash again at 50 %.");
+                        int stackedHalf = power.getAbilityCooldown("rhcp_electric_dash");
+                        helper.assertTrue(stackedHalf == 40 + halved,
+                                "At 50 % a dash of " + halved + " (its distance's half) on 40 left stacks to "
+                                        + (40 + halved) + ": the 40 is already in the share and is not halved again;"
+                                        + " it stacked to " + stackedHalf);
                     }
                     finally {
                         leave.run();
@@ -2704,10 +2893,10 @@ public final class RhcpGameTests {
 
     private RhcpGameTests() {}
 
-    // 1.16 RHCPDodge: RHCP (speed 14, +1.25 a potency level past the
+    // 1.16 RHCPDodge: RHCP (speed 16, +1.25 a potency level past the
     // first, Resolve adds nothing) only dodges a Stand hit it is at most
     // half a point slower than, and counters only when more than half a
-    // point faster. Star Platinum is 16 (19 at max Resolve), so potency 1-2
+    // point faster. Star Platinum is 18 (23 at max Resolve), so potency 1-2
     // take the hit and potency 4 counters a Resolve 0 Star Platinum.
     @GameTest(template = "empty", timeoutTicks = 40)
     public static void potencyOneDodgeDoesNotCounterStarPlatinum(
@@ -2718,7 +2907,7 @@ public final class RhcpGameTests {
                 helper, "rhcp-dodge-sp", new BlockPos(4, 2, 1));
         user.setGameMode(GameType.SURVIVAL);
         // 1.16 onNewPowerGiven: a creative user (the GameTest default) gets
-        // max Resolve, Star Platinum 19; survival keeps its base 16.
+        // max Resolve, Star Platinum 23; survival keeps its base 18.
         spUser.setGameMode(GameType.SURVIVAL);
         StandPower power = StandPower.get(user);
         StandPower spPower = StandPower.get(spUser);
@@ -3317,7 +3506,7 @@ public final class RhcpGameTests {
 
     // 1.16 RHCPEntity.counterattack: setTask(counter, getStandActionTicks,
     // Phase.WINDUP, target). Both counters wind up for the light attack's
-    // recovery ticks (5 to 3 over RHCP's speed 14 to 19), not the 1-2 ticks
+    // recovery ticks (4 to 2 over RHCP's speed 16 to 21), not the 1-2 ticks
     // of RHCPCounterattack.getStandWindupTicks, which only feeds ticksEvaded.
     @GameTest(template = "empty", batch = "rhcp_counter_windup",
             timeoutTicks = 100)
@@ -3335,7 +3524,7 @@ public final class RhcpGameTests {
         checkCounterWindup(helper, true, RhcpAbility.Mode.BLITZ_ATTACK);
     }
 
-    // RHCP at potency 3 (speed 16.5) dodges the hit of a Resolve 0
+    // RHCP at potency 3 (speed 18.5) dodges the hit of a Resolve 0
     // Magician's Red (speed 11); one sample a tick from the counter's start.
     private static void checkCounterWindup(GameTestHelper helper,
             boolean shift, RhcpAbility.Mode counterMode) {
@@ -3392,12 +3581,12 @@ public final class RhcpGameTests {
                                         + " its windup to its punch: "
                                         + phases);
                         helper.assertTrue(windup == recoveryTicks[0]
-                                        && windup == 4,
+                                        && windup == 3,
                                 "The " + counterMode + " wound up for "
                                         + windup + " ticks; 1.16 winds up"
                                         + " for the light attack's "
                                         + recoveryTicks[0] + " recovery"
-                                        + " ticks (4 at speed 16.5): "
+                                        + " ticks (3 at speed 18.5): "
                                         + phases);
                     }
                     finally {
@@ -3422,11 +3611,11 @@ public final class RhcpGameTests {
         state.setPotency(3);
         String speeds = " RHCP speed " + stand.getAttackSpeed()
                 + ", Magician's Red speed " + attacker.getAttackSpeed() + ".";
-        helper.assertTrue(Math.abs(stand.getAttackSpeed() - 16.5D) < 1.0E-3D
+        helper.assertTrue(Math.abs(stand.getAttackSpeed() - 18.5D) < 1.0E-3D
                         && Math.abs(attacker.getAttackSpeed() - 11.0D)
                                 < 1.0E-3D,
                 "RHCP at potency 3 and a Resolve 0 Magician's Red are not"
-                        + " at speed 16.5 and 11:" + speeds);
+                        + " at speed 18.5 and 11:" + speeds);
         StandEntityManualControlToggle.on(helper.getLevel(), stand);
         StandManualInput.setServerShift(user, shift);
         Ability dodge = power.getAbility("rhcp_dodge");
@@ -3441,7 +3630,7 @@ public final class RhcpGameTests {
                 DamageUtil.type(helper.getLevel(), ModDamageTypes.STAND_ATTACK),
                 attacker);
         helper.assertFalse(stand.hurt(hit, 4.0F),
-                "RHCP took the hit of a Stand it is 5.5 points faster"
+                "RHCP took the hit of a Stand it is 7.5 points faster"
                         + " than:" + speeds);
         helper.assertTrue(RhcpAbility.modeOf(stand.getCurStandAction())
                         == counterMode,

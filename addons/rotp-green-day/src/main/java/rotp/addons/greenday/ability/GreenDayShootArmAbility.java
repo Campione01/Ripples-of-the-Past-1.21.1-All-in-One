@@ -19,6 +19,7 @@ import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.greenday.GreenDayAddon;
 import rotp.addons.greenday.entity.ShootingArmEntity;
@@ -67,7 +68,7 @@ public final class GreenDayShootArmAbility
                 : null;
         if (!right
                 && owner != null
-                && (owner.isShiftKeyDown()
+                && (StandManualInput.isShiftHeld(owner)
                         || owner.hasEffect(
                                 GreenDayAddon.LEFT_ARMLESS))) {
             return abilities.getContextVariationOrDisable(

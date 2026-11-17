@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "jojo_ripples:mr_president",
+      "required": false
+    }
+  ]
+}

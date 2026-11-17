@@ -108,11 +108,11 @@ public final class MetallicaInvisibilityState {
             return;
         }
         StandPower power = StandPower.get(user);
+        // A recall leaves it on (owner's rule of 2026-11-05): it is on the user and pays from his stamina.
         if (!user.isAlive()
                 || power == null
                 || power.getPowerType()
-                        != MetallicaAddon.METALLICA.get()
-                || MetallicaAddon.controller(user) == null) {
+                        != MetallicaAddon.METALLICA.get()) {
             clear(user, ClearReason.STAND_INACTIVE);
             return;
         }

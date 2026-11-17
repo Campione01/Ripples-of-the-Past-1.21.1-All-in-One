@@ -19,6 +19,7 @@ public final class HighwayStarClient {
     public HighwayStarClient(IEventBus modEventBus, ModContainer modContainer) {
         modContainer.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
         modEventBus.addListener(HighwayStarClient::registerRenderers);
+        HighwayStarRoomClient.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, RenderLivingEvent.Pre.class,
                 event -> HighwayStarSmellVision.onRenderLiving(event));
         HighwayStarPayloads.installClientHandlers(
@@ -34,5 +35,6 @@ public final class HighwayStarClient {
     private static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(HighwayStarAddon.HIGHWAY_STAR_ENTITY.get(), HighwayStarRenderer::new);
         event.registerEntityRenderer(HighwayStarAddon.SOLE_ENTITY.get(), HighwayStarSoleRenderer::new);
+        event.registerEntityRenderer(HighwayStarAddon.ROOM_ENTITY.get(), HighwayStarRoomRenderer::new);
     }
 }

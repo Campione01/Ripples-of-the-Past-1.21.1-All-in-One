@@ -24,7 +24,6 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 @OnlyIn(Dist.CLIENT)
 public final class GerRtzNormalRenderer {
     public static final int RTZ_AURA_COLOR = 0xF9F7EE;
-    public static final int STORM_PRIMITIVES_PER_FRAME = 230;
     private static final float[] STORM_RADII = {
             25.0F, 20.0F, 15.0F, 10.0F, 5.0F
     };

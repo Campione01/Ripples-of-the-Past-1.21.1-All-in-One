@@ -1,7 +1,5 @@
 package rotp.addons.nutkingcall.client;
 
-import rotp.core.client.entityrender.stand.StandEntityRenderer;
-
 import rotp.addons.nutkingcall.NutKingCallAddon;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -14,7 +12,7 @@ public final class NutKingCallClientEvents {
 
     @SubscribeEvent
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
-        event.registerEntityRenderer(NutKingCallAddon.NUT_KING_CALL_ENTITY.get(), StandEntityRenderer::new);
+        event.registerEntityRenderer(NutKingCallAddon.NUT_KING_CALL_ENTITY.get(), NutKingCallRenderer::new);
         event.registerEntityRenderer(NutKingCallAddon.NAIL_ENTITY.get(), NutKingCallProjectileRenderers.Nail::new);
         event.registerEntityRenderer(NutKingCallAddon.NUT_ENTITY.get(), NutKingCallProjectileRenderers.Nut::new);
         event.registerEntityRenderer(NutKingCallAddon.ATTACHED_NAIL_ENTITY.get(),

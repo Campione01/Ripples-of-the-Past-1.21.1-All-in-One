@@ -256,6 +256,11 @@ public final class AquaNecklaceAddon {
                             InputMethod.CLICK,
                             InputKey.LMB)
                     .bind(
+                            BRAIN_ATTACK_NAME,
+                            InputMethod.CLICK,
+                            InputKey.LMB.withModifier(
+                                    InputKey.Modifier.SHIFT))
+                    .bind(
                             HOST_CRUSH_NAME,
                             InputMethod.CLICK,
                             InputKey.RMB)
@@ -269,9 +274,10 @@ public final class AquaNecklaceAddon {
                             CHANGE_TO_LIQUID_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             CHANGE_TO_GASEOUS_NAME,
-                            0,
+                            CHANGE_TO_LIQUID_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             ENTER_ENTITY_NAME,
@@ -285,16 +291,17 @@ public final class AquaNecklaceAddon {
                             DROWN_HOST_NAME,
                             0,
                             InputMethod.HOLD)
-                    .addToHotbar(
-                            BRAIN_ATTACK_NAME,
-                            0,
-                            InputMethod.CLICK)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")
                     .bind(
                             HOST_PRESSURE_NAME,
                             InputMethod.CLICK,
                             InputKey.LMB)
+                    .bind(
+                            BRAIN_ATTACK_NAME,
+                            InputMethod.CLICK,
+                            InputKey.LMB.withModifier(
+                                    InputKey.Modifier.SHIFT))
                     .bind(
                             HOST_CRUSH_NAME,
                             InputMethod.CLICK,

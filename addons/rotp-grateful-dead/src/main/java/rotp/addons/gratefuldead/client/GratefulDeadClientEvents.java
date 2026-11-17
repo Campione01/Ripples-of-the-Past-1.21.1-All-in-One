@@ -15,6 +15,7 @@ import rotp.core.api.client.render.PlayerArmModelQuery;
 import rotp.core.api.client.render.PlayerArmPoseProvider;
 import rotp.core.api.client.render.PlayerArmPoseProviders;
 import rotp.core.api.client.render.StandMaterialTintPolicies;
+import rotp.core.client.entityanim.barrage.BarrageSwings;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
@@ -49,6 +50,7 @@ import net.minecraft.world.entity.HumanoidArm;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
@@ -208,6 +210,13 @@ public final class GratefulDeadClientEvents {
     }
 
     @SubscribeEvent
+    public static void clientSetup(FMLClientSetupEvent event) {
+        event.enqueueWork(() -> BarrageSwings.BARRAGE_SWING_TYPES.put(
+                GratefulDeadBarrageSwing.TYPE,
+                GratefulDeadBarrageSwing::addSwings));
+    }
+
+    @SubscribeEvent
     public static void registerParticles(
             RegisterParticleProvidersEvent event) {
         event.registerSpriteSet(
@@ -309,18 +318,6 @@ public final class GratefulDeadClientEvents {
             BlockAgingPayload payload) {
         AgingBlockClientCache.handleUpdate(
                 payload.position(), payload.progress());
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null
-                || minecraft.levelRenderer == null) {
-            return;
-        }
-        int breakerId =
-                0x47440000
-                        ^ payload.position().hashCode();
-        minecraft.levelRenderer.destroyBlockProgress(
-                breakerId,
-                payload.position(),
-                payload.crackStage());
     }
 
     private static int grassColor(

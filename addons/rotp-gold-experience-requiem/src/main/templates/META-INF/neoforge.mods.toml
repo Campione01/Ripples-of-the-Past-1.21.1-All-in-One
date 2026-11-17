@@ -7,7 +7,7 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 authors="Inza"
-credits="Merged NeoForge migration from the canonical GER gameplay and visual donor artifacts"
+credits="Default skin's clips and icons, and the ger_pack skin, by Day_GeE. Merged NeoForge migration from the canonical GER gameplay and visual donor artifacts"
 description='''${mod_description}'''
 
 [[dependencies.${mod_id}]]

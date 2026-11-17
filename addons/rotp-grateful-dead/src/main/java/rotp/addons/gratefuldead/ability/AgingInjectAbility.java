@@ -1,5 +1,6 @@
 package rotp.addons.gratefuldead.ability;
 
+import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -44,8 +45,9 @@ public final class AgingInjectAbility extends Ability {
     // keyed by the punch, not the Stand: client and server copies of a Stand are equal by network id
     private static final Set<EntityActionInstance> INJECTED =
             Collections.newSetFromMap(new WeakHashMap<>());
-    // server: a press made before its punch struck, applied at the strike
-    private static final Map<StandEntity, StandEntityHeavyPunch> PENDING =
+    // server: a press made before its punch struck, applied at the strike. The punch weakly: it holds its Stand, the
+    // key, which a strong value would never let go.
+    private static final Map<StandEntity, WeakReference<StandEntityHeavyPunch>> PENDING =
             new WeakHashMap<>();
 
     public AgingInjectAbility(AbilityType<?> abilityType, AbilityId abilityId) {
@@ -96,7 +98,7 @@ public final class AgingInjectAbility extends Ability {
         }
         else {
             synchronized (PENDING) {
-                PENDING.put(stand, punch);
+                PENDING.put(stand, new WeakReference<>(punch));
             }
         }
     }
@@ -105,7 +107,8 @@ public final class AgingInjectAbility extends Ability {
     public static void tickStand(StandEntity stand) {
         StandEntityHeavyPunch punch;
         synchronized (PENDING) {
-            punch = PENDING.get(stand);
+            WeakReference<StandEntityHeavyPunch> pending = PENDING.get(stand);
+            punch = pending != null ? pending.get() : null;
         }
         if (punch == null) {
             return;
@@ -177,5 +180,15 @@ public final class AgingInjectAbility extends Ability {
     @Override
     public float getStaminaCost(Power<?> context) {
         return STAMINA_COST;
+    }
+
+    /** The session's presses, forgotten when its server has stopped. */
+    public static void forgetSession() {
+        synchronized (PENDING) {
+            PENDING.clear();
+        }
+        synchronized (INJECTED) {
+            INJECTED.clear();
+        }
     }
 }

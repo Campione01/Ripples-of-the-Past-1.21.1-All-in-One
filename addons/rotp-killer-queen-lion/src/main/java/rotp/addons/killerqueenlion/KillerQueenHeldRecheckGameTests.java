@@ -98,6 +98,7 @@ import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.subsystems.target.ActionTarget;
 
 /**
@@ -1644,6 +1645,101 @@ public final class KillerQueenHeldRecheckGameTests {
      * ray met (standKeepsTarget: a block). Its standPerform cast a ray of its own from the user's eyes by block outlines
      * (JojoModUtil.rayTrace, BlockMode.OUTLINE), which met the torch: the bomb went on the torch.
      */
+    // The owner's rule of 2026-11-05 (13.png), against 1.16, whose bomb was the Stand's: a recall keeps the block bomb, with
+    // no Stand out its range runs from the user, and removing the Stand takes it.
+    @GameTest(template = "empty", batch = "kqlBlockBombRecall", timeoutTicks = 40)
+    public static void blockBombStaysThroughARecallAndGoesWithTheStand(GameTestHelper helper) {
+        BlockPos block = helper.absolutePos(new BlockPos(3, 2, 3));
+        try (Scene scene = new Scene(helper, "kql-block-bomb-recall")) {
+            helper.getLevel().setBlock(block, Blocks.STONE.defaultBlockState(), Block.UPDATE_CLIENTS);
+            helper.assertTrue(KillerQueenStateService.markBlockBomb(scene.owner, block),
+                    "fixture: the block bomb was rejected");
+            Vec3 ownerAt = scene.owner.position();
+            scene.unsummon();
+            KillerQueenStateService.validateOwner(scene.owner);
+            helper.assertTrue(block.equals(KillerQueenStateService.blockBombPos(scene.owner))
+                            && KillerQueenLionAddon.state(scene.owner).hasBlockBomb(),
+                    "a recall dropped the block bomb");
+            scene.owner.setPos(Vec3.atLowerCornerOf(block).add(50.01D, 0.0D, 0.0D));
+            helper.assertTrue(KillerQueenStateService.blockBombPos(scene.owner) == null,
+                    "with no Stand out the range must run from the user");
+            scene.owner.setPos(ownerAt);
+            PowerClass.STAND.attachGet(scene.owner).setStand(null);
+            helper.assertTrue(!KillerQueenLionAddon.state(scene.owner).hasBlockBomb(),
+                    "the bomb must go with the Stand itself");
+        } finally {
+            helper.getLevel().setBlockAndUpdate(block, Blocks.AIR.defaultBlockState());
+        }
+        helper.succeed();
+    }
+
+    // The owner's rule of 2026-11-05 (13.png): a Snow Bomb and a Bubble Mark launched with the Stand out go on through a
+    // recall, as the Bubble Bomb did, and end with the user's loss of the Stand.
+    @GameTest(template = "empty", batch = "kqlFlyingBombsThroughARecall", timeoutTicks = 20)
+    public static void flyingBombsAndMarksGoOnThroughARecall(GameTestHelper helper) {
+        try (Scene scene = new Scene(helper, "kql-flying-recall")) {
+            ServerLevel level = helper.getLevel();
+            SnowBombEntity bomb = new SnowBombEntity(scene.owner, scene.stand, level);
+            BubbleMarkEntity mark = new BubbleMarkEntity(scene.owner, scene.stand, level);
+            for (ModdedProjectileEntity flying : List.of(bomb, mark)) {
+                flying.setPos(scene.owner.position().add(0.0D, 4.0D, 0.0D));
+                flying.setDeltaMovement(Vec3.ZERO);
+                helper.assertTrue(!flying.isRemoved() && level.addFreshEntity(flying),
+                        "fixture: the projectile was rejected");
+            }
+            scene.unsummon();
+            for (ModdedProjectileEntity flying : List.of(bomb, mark)) {
+                flying.tick();
+                helper.assertTrue(!flying.isRemoved(), flying.getType() + " ended with the recall");
+            }
+            PowerClass.STAND.attachGet(scene.owner).setStand(null);
+            for (ModdedProjectileEntity flying : List.of(bomb, mark)) {
+                flying.tick();
+                helper.assertTrue(flying.isRemoved(), flying.getType() + " must end with the loss of the Stand");
+            }
+        }
+        helper.succeed();
+    }
+
+    // R772.1 OQ-C04: the HUD marks the Snow Bomb and Bubble Mark slots, by asking the abilities, only while a bomb or a mark
+    // of the user's still flies with the Stand recalled; the Bubble Bomb's slot stays dark, no bubble bomb flying.
+    @GameTest(template = "empty", batch = "kqlFlyingBombsHudSign", timeoutTicks = 20)
+    public static void theHudMarksFlyingBombSlotsOnlyWhileTheyGoOnWithTheStandRecalled(GameTestHelper helper) {
+        try (Scene scene = new Scene(helper, "kql-flying-sign")) {
+            ServerLevel level = helper.getLevel();
+            StandPower power = StandPower.get(scene.owner);
+            Ability snow = power.getAbility(KillerQueenLionAddon.SNOW_BOMB_NAME);
+            Ability bubbleBomb = power.getAbility(KillerQueenLionAddon.BUBBLE_BOMB_NAME);
+            Ability bubbleMark = power.getAbility(KillerQueenLionAddon.BUBBLE_MARK_NAME);
+            helper.assertTrue(snow != null && bubbleBomb != null && bubbleMark != null,
+                    "fixture: Killer Queen lacks a flying-bomb ability");
+            helper.assertTrue(!snow.cl_runsWithStandRecalled(scene.owner)
+                            && !bubbleBomb.cl_runsWithStandRecalled(scene.owner)
+                            && !bubbleMark.cl_runsWithStandRecalled(scene.owner),
+                    "a slot is marked with nothing flying");
+            SnowBombEntity bomb = new SnowBombEntity(scene.owner, scene.stand, level);
+            BubbleMarkEntity mark = new BubbleMarkEntity(scene.owner, scene.stand, level);
+            for (ModdedProjectileEntity flying : List.of(bomb, mark)) {
+                flying.setPos(scene.owner.position().add(0.0D, 4.0D, 0.0D));
+                flying.setDeltaMovement(Vec3.ZERO);
+                helper.assertTrue(!flying.isRemoved() && level.addFreshEntity(flying),
+                        "fixture: the projectile was rejected");
+            }
+            scene.unsummon();
+            helper.assertTrue(snow.cl_runsWithStandRecalled(scene.owner) && bubbleMark.cl_runsWithStandRecalled(scene.owner),
+                    "the Snow Bomb and Bubble Mark slots are not marked while their projectiles fly with the Stand recalled");
+            helper.assertTrue(!bubbleBomb.cl_runsWithStandRecalled(scene.owner),
+                    "the Bubble Bomb slot is marked with no bubble bomb flying");
+            PowerClass.STAND.attachGet(scene.owner).setStand(null);
+            for (ModdedProjectileEntity flying : List.of(bomb, mark)) {
+                flying.tick();
+            }
+            helper.assertTrue(!snow.cl_runsWithStandRecalled(scene.owner) && !bubbleMark.cl_runsWithStandRecalled(scene.owner),
+                    "a slot is still marked after the loss of the Stand ended the projectiles");
+        }
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", batch = "kqlPressedTorchTorchBlockBomb", timeoutTicks = 20)
     public static void blockBombPressedAtATorchBombsTheTorchAsIn116(GameTestHelper helper) {
         List<String> wrong = new ArrayList<>();
@@ -1980,6 +2076,7 @@ public final class KillerQueenHeldRecheckGameTests {
                 StandEntity stand = btdStand(scene, true);
                 stand.setCanFollowUser(false);
                 stand.setManuallyControlled(true);
+                StandManualInput.setServerShift(scene.owner, true);
                 helper.assertTrue(stand.isManuallyControlled(), "fixture: Killer Queen is not manually controlled");
                 stand.moveTo(scene.owner.getX() + 3.0D, scene.owner.getY(), scene.owner.getZ(), 0.0F, 0.0F);
                 stand.setYHeadRot(0.0F);
@@ -1987,6 +2084,7 @@ public final class KillerQueenHeldRecheckGameTests {
                 scene.cow.setPos(stand.getX(), stand.getEyeY() - scene.cow.getBbHeight() / 2.0D, stand.getZ() + 2.0D);
                 putDustRow(scene, "Killer Queen under manual control, looking at the cow 2 blocks ahead of it, its user "
                         + "turned away, nothing under the crosshair", ActionTarget.EMPTY, true, true, key++, wrong);
+                StandManualInput.setServerShift(scene.owner, false);
                 if (scene.power.isSummoned()) {
                     stand.setManuallyControlled(false);
                     stand.setCanFollowUser(true);

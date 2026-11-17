@@ -89,6 +89,9 @@ public final class MandomEffectGameTests {
             user.setInvulnerable(true);
             user.setPos(helper.absoluteVec(new Vec3(1, 2, 1)));
             helper.assertTrue(level.addFreshEntity(user), "Could not add rewind user");
+            // A level keeps a rewind history only while a Mandom user is in it.
+            PowerClass.STAND.attachGet(user).setStand(MandomAddon.MANDOM.get());
+            helper.assertTrue(MandomAddon.isMandomUser(user), "setup: the rewind user has no Mandom");
             target.setNoGravity(true);
             target.setInvulnerable(true);
             target.setPos(user.position().add(2, 0, 0));

@@ -345,6 +345,8 @@ public final class DisguiseLayer extends RenderLayer<
         }
         ENTITY_VISUALS.clear();
         REJECTED_TYPES.clear();
+        // At the title screen a kept level would hold the whole client world until the next one.
+        cachedLevel = null;
     }
 
     private record ArmTransform(

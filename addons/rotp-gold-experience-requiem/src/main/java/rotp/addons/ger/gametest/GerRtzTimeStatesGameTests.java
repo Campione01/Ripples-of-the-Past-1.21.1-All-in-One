@@ -262,6 +262,8 @@ public final class GerRtzTimeStatesGameTests {
         private void press() {
             mob.moveTo(markedMob.x + 1.0D, markedMob.y, markedMob.z);
             TimeStopState.repinOrReleaseOnServer(mob);
+            // one that is after him is his enemy at the press, and goes back; his own side keeps its place
+            mob.setTarget(actor.user());
             stop(LATER_STOP);
             String key = keyAnswer(scene, actor, RTZ);
             float stamina = actor.power().getStamina();
@@ -323,6 +325,8 @@ public final class GerRtzTimeStatesGameTests {
                 }
                 rewound = true;
                 mob.moveTo(markedMob.x + 1.0D, markedMob.y, markedMob.z);
+                // A's enemy at the press: it goes back to where A marked it
+                mob.setTarget(holderA.user());
                 scene.premise(GerRtzRewindService.rewind(scene.level, holderA.user(), holderA.user(), holderA.power(), 0)
                                 == GerRtzRewindService.Result.SUCCESS,
                         "holder A's Return to Zero ran");

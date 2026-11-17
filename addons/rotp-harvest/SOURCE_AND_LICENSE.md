@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-harvest`, mod id `rotp_harvest`, version `1.0.1-1-port.14`.
+- Module: `rotp-harvest`, mod id `rotp_harvest`, version `1.0.1-1-port.15`.
 - Original 1.16.5 add-on: `RotP-收成者-1.0.1-1-250321.jar` (RotP-Harvest, mod id `rotp_harvest`), by Weever; declared license: GNU GPL v3.0; SHA-256 `B9A1E4A47348D8055E7F2CCFA7EBF3E0AB0DE137209500F1EC379AD21639E5B8`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

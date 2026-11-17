@@ -224,6 +224,7 @@ public final class WhiteAlbumGameEvents {
             if (armor != null) {
                 armor.removeModifier(ARMOR_MODIFIER);
             }
+            tickRecalledToggles(user);
             return;
         }
 
@@ -298,6 +299,48 @@ public final class WhiteAlbumGameEvents {
         }
     }
 
+    // The suit, its armor and its guard went with the recall; what the two toggles do goes on, at the same stamina.
+    private static void tickRecalledToggles(Player user) {
+        WhiteAlbumControllerEntity recalled =
+                WhiteAlbumControllerEntity.recalled(user);
+        StandPower power = StandPower.get(user);
+        if (recalled == null || power == null) {
+            return;
+        }
+        if (recalled.isGentlyWeepsActive()
+                && !power.consumeStamina(
+                        WhiteAlbumSpec
+                                .GENTLY_WEEPS_STAMINA_PER_TICK,
+                        true)) {
+            recalled.setGentlyWeepsActive(false);
+        }
+        if (recalled.isFreezeFloorActive()) {
+            if (power.consumeStamina(
+                    WhiteAlbumSpec
+                            .FREEZE_FLOOR_STAMINA_PER_TICK,
+                    true)) {
+                WhiteAlbumIce.freezeFloor(user, user.level());
+            }
+            else {
+                recalled.setFreezeFloorActive(false);
+            }
+        }
+        if (!power.isStaminaInfinite() && power.getStamina() <= 2.0F) {
+            recalled.setGentlyWeepsActive(false);
+            recalled.setFreezeFloorActive(false);
+        }
+        if (!recalled.isGentlyWeepsActive()
+                && !recalled.isFreezeFloorActive()) {
+            WhiteAlbumControllerEntity.forgetRecalled(user);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onLogout(
+            net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent event) {
+        WhiteAlbumControllerEntity.forgetRecalled(event.getEntity());
+    }
+
     @SubscribeEvent
     public static void onProjectileImpact(
             ProjectileImpactEvent event) {
@@ -314,6 +357,9 @@ public final class WhiteAlbumGameEvents {
 
         WhiteAlbumControllerEntity controller =
                 WhiteAlbumAddon.controller(user);
+        if (controller == null) {
+            controller = WhiteAlbumControllerEntity.recalled(user);
+        }
         if (controller == null
                 || !controller.isGentlyWeepsActive()) {
             return;

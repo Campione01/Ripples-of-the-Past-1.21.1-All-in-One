@@ -5,6 +5,7 @@ import java.util.UUID;
 import rotp.addons.bastet.block.BastetOutletBlock;
 import rotp.addons.bastet.magnet.MagnetForceHandler;
 import rotp.addons.bastet.magnet.MagnetizedData;
+import rotp.core.powersystem.standpower.StandDamageContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -70,7 +71,9 @@ public final class BastetEvents {
             CompoundTag nbt = entity.getPersistentData();
             String key = OUTLET_HURT_PREFIX + pos.getX() + "_" + pos.getY() + "_" + pos.getZ();
             if (!nbt.getBoolean(key)) {
-                entity.hurt(entity.damageSources().magic(), OUTLET_DAMAGE);
+                try (var running = StandDamageContext.enter(MagnetizedData.bastetPowerNear(entity))) {
+                    entity.hurt(entity.damageSources().magic(), OUTLET_DAMAGE);
+                }
                 nbt.putBoolean(key, true);
             }
             if (!MagnetizedData.isMagnetized(entity)) {

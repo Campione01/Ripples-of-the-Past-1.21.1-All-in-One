@@ -71,7 +71,7 @@
     "world_context": "core StandVisualContext",
     "buffer": "core AlphaMultiBufferSource",
     "material": "core Stand material",
-    "model": "dedicated donor HumanoidStandModel parity with 14 cubes and reconstructed complete UV surface",
+    "model": "dedicated donor HumanoidStandModel parity with 14 cubes and reconstructed complete UV surface, head from the Lovers power icon",
     "logical_texture_size": [128, 128],
     "physical_texture_size": [256, 256],
     "model_scale": [1.0, 1.0],
@@ -88,12 +88,12 @@
     {
       "source": "assets/rotp_lovers/textures/entity/stand/lovers.png",
       "target": "assets/rotp_lovers/stand_skins/lovers/assets/rotp_lovers/textures/entity/lovers.png",
-      "bytes": 2735,
-      "sha256": "105B70663D876431970002708386430138CCFA1582D21832FF000E8161A00DC3",
+      "bytes": 3903,
+      "sha256": "6DE7343C340C8CA0DBEF7C83DAEE0224FB1FA11EB930187DC1C1A9251DE9CFFC",
       "width": 256,
       "height": 256,
-      "visible_pixels": 8545,
-      "transformation": "All nonzero donor RGB pixels remain byte-exact and visible; the donor-empty torso and limb UV islands are intentionally reconstructed with the donor gold, purple, gray, and charcoal identity palette, directional face shading, and bounded edge contrast"
+      "visible_pixels": 0,
+      "transformation": "Byte copy of the donor's fully transparent texture. Lovers is invisible, as in 1.16 and the manga: the owner's choice on 2026-11-06. An earlier own head cut from the power icon is gone."
     },
     {
       "source": "assets/rotp_lovers/textures/power/lovers.png",

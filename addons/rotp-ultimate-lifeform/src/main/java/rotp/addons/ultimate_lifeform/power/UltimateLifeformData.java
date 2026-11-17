@@ -18,6 +18,7 @@ import rotp.core.subsystems.target.ActionTarget.TargetType;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerData;
 import rotp.core.powersystem.PowerType;
+import rotp.core.powersystem.playerpower.PlayerPower;
 import rotp.core.powersystem.playerpower.PlayerPowerData;
 import rotp.core.impl.powers.hamon.HamonWallClimbingHelper;
 import rotp.core.impl.powers.pillarman.PillarmanData;
@@ -355,11 +356,15 @@ public final class UltimateLifeformData extends PlayerPowerData {
     public void tick(Power<?> userPower) {
         super.tick(userPower);
         LivingEntity user = userPower.getUser();
-        tickCooldowns();
+        tickCooldowns(PlayerPower.cooldownSteps(userPower));
         tickHamonDecay();
         tickDoubleShift(user);
         if (user.level().isClientSide()) {
             tickHamonAura(user);
+            // the regeneration is the server's, synced every ten ticks: the client counts it on between syncs, so that its
+            // check of a press (which decides whether vanilla's click or pick goes off with it) does not refuse a move
+            // the server already has the energy for
+            tickEnergy(user);
             return;
         }
         applyMovementModifier(user);
@@ -707,12 +712,15 @@ public final class UltimateLifeformData extends PlayerPowerData {
         }
     }
 
-    private void tickCooldowns() {
+    private void tickCooldowns(int steps) {
+        if (steps == 0) {
+            return;
+        }
         Iterator<Map.Entry<String, Integer>> iterator =
                 abilityCooldowns.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Integer> entry = iterator.next();
-            int remaining = entry.getValue() - 1;
+            int remaining = entry.getValue() - steps;
             if (remaining > 0) {
                 entry.setValue(remaining);
             }
@@ -1309,6 +1317,12 @@ public final class UltimateLifeformData extends PlayerPowerData {
             }
         }
         guardianEndpointUuid = null;
+    }
+
+    public void syncCooldownsAtRate(ServerPlayer user) {
+        if (!abilityCooldowns.isEmpty()) {
+            syncToPlayer(user);
+        }
     }
 
     public boolean isAbilityOnCooldown(String name) {

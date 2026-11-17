@@ -9,6 +9,7 @@ import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.sexpistols.registry.SexPistolsAttachments;
 import rotp.addons.sexpistols.registry.SexPistolsStands;
@@ -155,7 +156,7 @@ public final class SexPistolsCycleCommandAbility
 
         SexPistolsCoordinator coordinator =
                 SexPistolsAttachments.coordinator(owner);
-        boolean backwards = owner.isShiftKeyDown();
+        boolean backwards = StandManualInput.isShiftHeld(owner);
         boolean changed = switch (command) {
             case SELECT -> coordinator.cycleSelected(
                     serverLevel, owner, backwards);

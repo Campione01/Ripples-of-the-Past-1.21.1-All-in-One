@@ -63,6 +63,7 @@
     "rotp_whitesnake.disguise.empty":  "未找到可用形态。",
     "effect.rotp_whitesnake.melt_heart_effect":  "溶解心智",
     "rotp_whitesnake.glint_config":  "显示白蛇闪光效果",
+    "rotp_whitesnake.glint_config.tooltip":  "在白蛇的身体上绘制类似附魔物品的闪光效果。仅影响外观，闪光速度跟随游戏视频设置中的光效速度。",
     "rotp_whitesnake.subtitle.whitesnake_barrage":  "白蛇连打",
     "rotp_whitesnake.subtitle.whitesnake_ost":  "白蛇主题曲播放",
     "rotp_whitesnake.configuration.title":  "白蛇配置",

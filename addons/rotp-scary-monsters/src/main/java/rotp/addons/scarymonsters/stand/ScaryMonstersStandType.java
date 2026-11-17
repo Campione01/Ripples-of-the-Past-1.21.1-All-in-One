@@ -36,14 +36,6 @@ public final class ScaryMonstersStandType extends EntityStandType {
         enforcePolicy();
     }
 
-    @Override
-    public void forceUnsummon(LivingEntity user, StandPower power) {
-        if (user instanceof ServerPlayer player) {
-            ScaryMonstersService.cleanupAll(player);
-        }
-        super.forceUnsummon(user, power);
-    }
-
     private void enforcePolicy() {
         standControlType(StandControlType.HYBRID_FORM);
         manualControl(false);

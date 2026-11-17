@@ -22,6 +22,9 @@ public final class DimensionSelectorScreen extends Screen {
     private final long expiryGameTick;
     private final List<ResourceLocation> targets;
     private final ResourceLocation selected;
+    private int page;
+    private int pages = 1;
+    private int pageLabelY = -1;
 
     public DimensionSelectorScreen(
             OpenDimensionSelectorPayload payload) {
@@ -36,7 +39,18 @@ public final class DimensionSelectorScreen extends Screen {
     @Override
     protected void init() {
         int columns = width >= BUTTON_WIDTH * 2 + 52 ? 2 : 1;
-        int rows = (targets.size() + columns - 1) / columns;
+        // a pack with many dimensions gets pages instead of running off
+        // the screen
+        int fitRows = Math.max(
+                1,
+                (height - 42 - BUTTON_HEIGHT - GAP * 3)
+                        / (BUTTON_HEIGHT + GAP));
+        int perPage = fitRows * columns;
+        pages = Math.max(1, (targets.size() + perPage - 1) / perPage);
+        page = Math.min(page, pages - 1);
+        int first = page * perPage;
+        int shown = Math.min(perPage, targets.size() - first);
+        int rows = (shown + columns - 1) / columns;
         int totalWidth = columns * BUTTON_WIDTH
                 + (columns - 1) * GAP;
         int startX = (width - totalWidth) / 2;
@@ -44,10 +58,10 @@ public final class DimensionSelectorScreen extends Screen {
                 42,
                 (height - rows * (BUTTON_HEIGHT + GAP)) / 2);
 
-        for (int index = 0; index < targets.size(); index++) {
-            ResourceLocation target = targets.get(index);
-            int column = index % columns;
-            int row = index / columns;
+        for (int slot = 0; slot < shown; slot++) {
+            ResourceLocation target = targets.get(first + slot);
+            int column = slot % columns;
+            int row = slot / columns;
             Component label = target.equals(selected)
                     ? Component.literal("* ").append(
                             D4CDimensionTargets.label(target))
@@ -62,6 +76,30 @@ public final class DimensionSelectorScreen extends Screen {
                             BUTTON_HEIGHT)
                     .build());
         }
+        if (pages > 1) {
+            int y = startY + rows * (BUTTON_HEIGHT + GAP) + GAP;
+            Button previous = addRenderableWidget(Button.builder(
+                            Component.literal("<"),
+                            button -> turn(-1))
+                    .bounds(width / 2 - 52, y, 20, BUTTON_HEIGHT)
+                    .build());
+            Button next = addRenderableWidget(Button.builder(
+                            Component.literal(">"),
+                            button -> turn(1))
+                    .bounds(width / 2 + 32, y, 20, BUTTON_HEIGHT)
+                    .build());
+            previous.active = page > 0;
+            next.active = page < pages - 1;
+            pageLabelY = y + 6;
+        }
+        else {
+            pageLabelY = -1;
+        }
+    }
+
+    private void turn(int delta) {
+        page = Math.max(0, Math.min(pages - 1, page + delta));
+        rebuildWidgets();
     }
 
     @Override
@@ -94,6 +132,14 @@ public final class DimensionSelectorScreen extends Screen {
                 width / 2,
                 30,
                 0xB8C7D9);
+        if (pageLabelY >= 0) {
+            graphics.drawCenteredString(
+                    font,
+                    Component.literal((page + 1) + " / " + pages),
+                    width / 2,
+                    pageLabelY,
+                    0xB8C7D9);
+        }
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 

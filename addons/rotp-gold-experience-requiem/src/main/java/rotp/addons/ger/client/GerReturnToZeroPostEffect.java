@@ -39,14 +39,17 @@ public final class GerReturnToZeroPostEffect {
     private GerReturnToZeroPostEffect() {}
 
     public static void tick() {
-        EFFECT.setPostChainLocation(
-                ClientRenderCompatibility.snapshot()
-                                .irisShaderPackInUse()
-                        ? SHADER_PACK_CHAIN
-                        : DONOR_CHAIN);
-        EFFECT.setActive(
-                GerRtzClientState.activeMode()
-                        == Mode.TIME_ERASE);
+        boolean active = GerRtzClientState.activeMode()
+                == Mode.TIME_ERASE;
+        // The cosmos stands behind the world now, so the chain is only the bad signal; the mix over the image is what is left to a pack
+        // the shell cannot serve.
+        if (active) {
+            EFFECT.setPostChainLocation(
+                    GerRtzVoidShell.needsOldMix()
+                            ? SHADER_PACK_CHAIN
+                            : DONOR_CHAIN);
+        }
+        EFFECT.setActive(active);
     }
 
     public static void reset() {

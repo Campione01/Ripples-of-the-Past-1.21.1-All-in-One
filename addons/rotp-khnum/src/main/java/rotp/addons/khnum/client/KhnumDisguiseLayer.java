@@ -14,7 +14,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import rotp.addons.khnum.disguise.DisguiseMode;
-import rotp.addons.khnum.entity.KhnumControllerEntity;
+import rotp.addons.khnum.disguise.KhnumDisguiseState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.HumanoidModel;
@@ -36,6 +36,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.WalkAnimationState;
 
 public final class KhnumDisguiseLayer extends RenderLayer<
         AbstractClientPlayer,
@@ -85,17 +86,17 @@ public final class KhnumDisguiseLayer extends RenderLayer<
         // layer's pose is already in the player's flipped model space, so a
         // whole mob renderer called here draws the mob upside down.
         if (state == null
-                || state.controller().getDisguiseMode()
+                || state.disguise().mode()
                         != DisguiseMode.PLAYER) {
             return;
         }
         renderPlayer(
-                state.controller(),
+                state.disguise(),
                 player,
                 poseStack,
                 AlphaMultiBufferSource.wrap(
                         buffer,
-                        state.context().effectiveAlpha()),
+                        state.alpha()),
                 packedLight,
                 limbSwing,
                 limbSwingAmount,
@@ -117,12 +118,12 @@ public final class KhnumDisguiseLayer extends RenderLayer<
         KhnumVisuals.RenderState state =
                 KhnumVisuals.resolve(player, partialTick);
         if (state == null
-                || state.controller().getDisguiseMode()
+                || state.disguise().mode()
                         != DisguiseMode.ENTITY) {
             return false;
         }
         EntityVisual visual = entityVisual(
-                state.controller().getDisguiseId().orElse(null));
+                state.disguise().entityId().orElse(null));
         if (visual == null) {
             return false;
         }
@@ -132,7 +133,7 @@ public final class KhnumDisguiseLayer extends RenderLayer<
                 poseStack,
                 AlphaMultiBufferSource.wrap(
                         buffer,
-                        state.context().effectiveAlpha()),
+                        state.alpha()),
                 packedLight,
                 partialTick);
         return true;
@@ -163,14 +164,14 @@ public final class KhnumDisguiseLayer extends RenderLayer<
         KhnumVisuals.RenderState state =
                 KhnumVisuals.resolve(player, partialTick);
         if (state == null
-                || !state.controller().isDisguised()) {
+                || !state.disguise().isDisguised()) {
             return false;
         }
-        return state.controller().getDisguiseMode()
+        return state.disguise().mode()
                         == DisguiseMode.PLAYER
-                ? state.controller().getDisguisePlayer().isPresent()
+                ? state.disguise().playerId().isPresent()
                 : entityVisual(
-                        state.controller().getDisguiseId()
+                        state.disguise().entityId()
                                 .orElse(null)) != null;
     }
 
@@ -184,16 +185,16 @@ public final class KhnumDisguiseLayer extends RenderLayer<
         KhnumVisuals.RenderState state =
                 KhnumVisuals.resolve(player, partialTick);
         if (state == null
-                || !state.controller().isDisguised()) {
+                || !state.disguise().isDisguised()) {
             return false;
         }
         MultiBufferSource alphaBuffer =
                 AlphaMultiBufferSource.wrap(
                         buffer,
-                        state.context().effectiveAlpha());
-        if (state.controller().getDisguiseMode()
+                        state.alpha());
+        if (state.disguise().mode()
                 == DisguiseMode.PLAYER) {
-            PlayerSkin skin = playerSkin(state.controller());
+            PlayerSkin skin = playerSkin(state.disguise());
             PlayerModel<AbstractClientPlayer> model =
                     skin != null
                                     && skin.model()
@@ -216,7 +217,7 @@ public final class KhnumDisguiseLayer extends RenderLayer<
         }
 
         EntityVisual visual = entityVisual(
-                state.controller().getDisguiseId().orElse(null));
+                state.disguise().entityId().orElse(null));
         if (visual == null) {
             return false;
         }
@@ -245,7 +246,7 @@ public final class KhnumDisguiseLayer extends RenderLayer<
     }
 
     private void renderPlayer(
-            KhnumControllerEntity controller,
+            KhnumDisguiseState disguise,
             AbstractClientPlayer wearer,
             PoseStack poseStack,
             MultiBufferSource buffer,
@@ -255,7 +256,7 @@ public final class KhnumDisguiseLayer extends RenderLayer<
             float ageInTicks,
             float netHeadYaw,
             float headPitch) {
-        PlayerSkin skin = playerSkin(controller);
+        PlayerSkin skin = playerSkin(disguise);
         if (skin == null) {
             return;
         }
@@ -284,8 +285,8 @@ public final class KhnumDisguiseLayer extends RenderLayer<
     }
 
     private static PlayerSkin playerSkin(
-            KhnumControllerEntity controller) {
-        UUID uuid = controller.getDisguisePlayer().orElse(null);
+            KhnumDisguiseState disguise) {
+        UUID uuid = disguise.playerId().orElse(null);
         if (uuid == null) {
             return null;
         }
@@ -299,7 +300,7 @@ public final class KhnumDisguiseLayer extends RenderLayer<
                 : minecraft.getSkinManager().getInsecureSkin(
                         new GameProfile(
                                 uuid,
-                                controller.getDisguisePlayerName()));
+                                disguise.playerName()));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -322,13 +323,26 @@ public final class KhnumDisguiseLayer extends RenderLayer<
                 partialTick);
     }
 
+    // The renderer interpolates between the previous and current values, and a
+    // dummy outside the level never ticks: an xRotO left at 0 drew the head's
+    // pitch from level up to the look again on every tick.
     private static void syncDummy(
             LivingEntity dummy,
             AbstractClientPlayer wearer) {
-        boolean newTick = dummy.tickCount != wearer.tickCount;
         dummy.setPose(wearer.getPose());
+        dummy.setShiftKeyDown(wearer.isShiftKeyDown());
+        dummy.setOnGround(wearer.onGround());
+        dummy.setPos(wearer.getX(), wearer.getY(), wearer.getZ());
+        dummy.xo = wearer.xo;
+        dummy.yo = wearer.yo;
+        dummy.zo = wearer.zo;
+        dummy.xOld = wearer.xOld;
+        dummy.yOld = wearer.yOld;
+        dummy.zOld = wearer.zOld;
         dummy.setYRot(wearer.getYRot());
+        dummy.yRotO = wearer.yRotO;
         dummy.setXRot(wearer.getXRot());
+        dummy.xRotO = wearer.xRotO;
         dummy.yBodyRot = wearer.yBodyRot;
         dummy.yBodyRotO = wearer.yBodyRotO;
         dummy.yHeadRot = wearer.yHeadRot;
@@ -337,12 +351,10 @@ public final class KhnumDisguiseLayer extends RenderLayer<
         dummy.swingingArm = wearer.swingingArm;
         dummy.swingTime = wearer.swingTime;
         dummy.hurtTime = wearer.hurtTime;
+        dummy.hurtDuration = wearer.hurtDuration;
         dummy.oAttackAnim = wearer.oAttackAnim;
         dummy.attackAnim = wearer.attackAnim;
-        if (newTick) {
-            dummy.walkAnimation.update(
-                    wearer.walkAnimation.speed(), 1.0F);
-        }
+        copyWalkAnimation(wearer.walkAnimation, dummy.walkAnimation);
         dummy.tickCount = wearer.tickCount;
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             try {
@@ -363,6 +375,17 @@ public final class KhnumDisguiseLayer extends RenderLayer<
         else if (dummy.isUsingItem()) {
             dummy.stopUsingItem();
         }
+    }
+
+    // WalkAnimationState only exposes setSpeed and update; two updates land
+    // its private speedOld, speed and position on the wearer's values.
+    private static void copyWalkAnimation(
+            WalkAnimationState from, WalkAnimationState to) {
+        float speedOld = from.speed(0.0F);
+        float speed = from.speed();
+        to.update(from.position() - speed - to.position(), 1.0F);
+        to.setSpeed(speedOld);
+        to.update(speed, 1.0F);
     }
 
     private static EntityVisual entityVisual(

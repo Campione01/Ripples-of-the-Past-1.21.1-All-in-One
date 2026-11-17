@@ -6,7 +6,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -14,6 +14,7 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.ger.GoldExperienceRequiemAddon;
+import rotp.addons.ger.damage.GerDamageTypes;
 import rotp.addons.ger.gametest.GerMeleeGameTestScene.Actor;
 import rotp.addons.ger.gametest.GerMeleeGameTestScene.ObservedCow;
 import rotp.addons.ger.gametest.GerMeleeGameTestScene.Sequence;
@@ -144,7 +145,10 @@ public final class GerLifeShotGameTests {
                                     + " direct=" + source.getDirectEntity() + " cause=" + source.getEntity()
                                     + " credit=" + cow.getKillCredit());
                             scene.premise(expected > 0, "the Stand has attack damage");
-                            helper.assertTrue(cow.hurts.size() == 1 && source.is(DamageTypes.INDIRECT_MAGIC)
+                            // Requiem's own type since 2026-11-08, with indirect magic's rules and no way round it
+                            helper.assertTrue(cow.hurts.size() == 1 && source.is(GerDamageTypes.REQUIEM_LIFE_SHOT)
+                                            && source.is(DamageTypeTags.BYPASSES_ARMOR)
+                                            && source.is(DamageTypeTags.WITCH_RESISTANT_TO)
                                             && source.getDirectEntity() == actor.stand()
                                             && source.getEntity() == actor.user(),
                                     scene.id + ": 1.16 hurt with indirectMagic(stand, user), the port hurt with "

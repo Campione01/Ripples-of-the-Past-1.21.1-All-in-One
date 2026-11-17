@@ -1020,8 +1020,11 @@ public final class KingCrimsonGameTests {
                     fixture.listener().transitionCount()
                                     == activeTransitionCount + 1
                             && observerFixture.listener()
-                                    .transitionCount() == 1,
-                    "Termination transition did not reach nearby players.");
+                                    .transitionCount() == 0,
+                    "The red flash of an erase's end is its user's alone (owner 2026-11-07): the user got "
+                            + (fixture.listener().transitionCount() - activeTransitionCount)
+                            + " and the player beside him "
+                            + observerFixture.listener().transitionCount() + ".");
             helper.assertTrue(
                     fixture.listener().startSoundStopCount() == 1
                             && observerFixture.listener()

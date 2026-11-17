@@ -13,7 +13,7 @@ public record OpenDimensionSelectorPayload(
         long expiryGameTick,
         List<ResourceLocation> targets,
         ResourceLocation selected) implements CustomPacketPayload {
-    public static final int MAX_TARGETS = 9;
+    public static final int MAX_TARGETS = 256;
     public static final Type<OpenDimensionSelectorPayload> TYPE =
             new Type<>(D4CPayloads.id("open_dimension_selector"));
     public static final StreamCodec<

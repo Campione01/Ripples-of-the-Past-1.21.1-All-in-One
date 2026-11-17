@@ -11,12 +11,15 @@ import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.util.Mth;
 
 public final class TheSunRenderer extends StandEntityRenderer<
         TheSunEntity,
         StandEntityRenderState,
         TheSunModel> {
     public static final float LEGACY_RENDER_SCALE = 3.75F;
+    // 1.16 has no clip for this model, only the climb and the fade; the sun grows in as it starts to climb.
+    public static final int SUMMON_GROW_TICKS = 20;
 
     public TheSunRenderer(
             EntityRendererProvider.Context context) {
@@ -64,10 +67,9 @@ public final class TheSunRenderer extends StandEntityRenderer<
             MultiBufferSource bufferSource,
             int packedLight) {
         poseStack.pushPose();
-        poseStack.scale(
-                LEGACY_RENDER_SCALE,
-                LEGACY_RENDER_SCALE,
-                LEGACY_RENDER_SCALE);
+        float scale = LEGACY_RENDER_SCALE
+                * summonGrowth(entity.tickCount + partialTick);
+        poseStack.scale(scale, scale, scale);
         try {
             super.render(
                     entity,
@@ -80,5 +82,11 @@ public final class TheSunRenderer extends StandEntityRenderer<
         finally {
             poseStack.popPose();
         }
+    }
+
+    static float summonGrowth(float ageTicks) {
+        float progress = Mth.clamp(
+                ageTicks / SUMMON_GROW_TICKS, 0.0F, 1.0F);
+        return progress * (2.0F - progress);
     }
 }

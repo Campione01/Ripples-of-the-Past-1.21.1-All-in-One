@@ -189,6 +189,11 @@ public final class TempHealthAbility extends StandEntityAbility {
         if (controller != null) {
             controller.setTempHealthActive(false);
         }
+        CatchTheRainbowEntity recalled =
+                CatchTheRainbowEntity.recalled(user);
+        if (recalled != null) {
+            recalled.setTempHealthActive(false);
+        }
     }
 
     // A cut left behind by a vanished Stand ends in full, as 1.16

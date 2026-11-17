@@ -1,6 +1,7 @@
 package rotp.addons.echoes;
 
 import rotp.core.api.RotpAddonApi;
+import rotp.core.api.leap.LeapAccessPolicies;
 import rotp.core.powersystem.standpower.StandPower;
 
 import rotp.addons.echoes.init.EchoesAbilities;
@@ -15,6 +16,7 @@ import rotp.addons.echoes.network.EchoesOnomatopoeiaPayloads;
 import rotp.addons.echoes.network.EchoesSelectActPayload;
 import rotp.addons.echoes.network.EchoesSoundPayloads;
 import rotp.addons.echoes.state.EchoesFreezeState;
+import rotp.addons.echoes.state.EchoesGravityService;
 import rotp.addons.echoes.state.EchoesUserState;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
@@ -43,6 +45,8 @@ public final class RotpEchoes {
                             + "and random weights.");
         }
 
+        LeapAccessPolicies.register(id("gravity_leap_access"), query -> query.user() != null
+                && EchoesGravityService.keptFromLeaping(query.user()));
         EchoesAbilities.ABILITY_TYPES.register(modEventBus);
         EchoesAttachments.ATTACHMENT_TYPES.register(modEventBus);
         EchoesBlocks.BLOCKS.register(modEventBus);
@@ -71,6 +75,17 @@ public final class RotpEchoes {
                 && (power.getPowerType() == EchoesStands.ECHOES_ACT2.get()
                         || power.getPowerType()
                                 == EchoesStands.ECHOES_ACT3.get());
+    }
+
+    /**
+     * The Stand power of the online Echoes user with this id: what he does by a word, a thrown item or a counter is his
+     * Stand's work, so it takes the Stand's damage share. Null when he is offline or holds no Echoes.
+     */
+    @javax.annotation.Nullable
+    public static StandPower powerOf(@javax.annotation.Nullable net.minecraft.world.level.Level level,
+            @javax.annotation.Nullable java.util.UUID owner) {
+        Player user = level != null && owner != null ? level.getPlayerByUUID(owner) : null;
+        return isEchoesUser(user) ? StandPower.get(user) : null;
     }
 
     public static EchoesUserState userState(Player player) {

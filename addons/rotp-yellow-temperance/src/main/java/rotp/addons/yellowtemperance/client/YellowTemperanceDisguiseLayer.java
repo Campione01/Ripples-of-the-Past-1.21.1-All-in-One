@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import rotp.core.client.ClientGlobals;
+import rotp.core.client.entityanim.PreFrameEntityAnimCalc;
 import rotp.core.client.entityanim.pose.AnimFramePose;
 import rotp.core.client.entityanim.pose.AnimatedEntity;
 import rotp.core.client.rendertype.AlphaMultiBufferSource;
@@ -15,9 +17,9 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
-import rotp.addons.yellowtemperance.YellowTemperanceAddon;
 import rotp.addons.yellowtemperance.YellowTemperanceConfig;
 import rotp.addons.yellowtemperance.disguise.DisguiseMode;
+import rotp.addons.yellowtemperance.disguise.YellowTemperanceDisguiseState;
 import rotp.addons.yellowtemperance.entity.YellowTemperanceControllerEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
@@ -38,6 +40,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.WalkAnimationState;
+import net.minecraft.world.phys.Vec3;
 
 public final class YellowTemperanceDisguiseLayer extends RenderLayer<
         AbstractClientPlayer,
@@ -45,6 +48,8 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
     private static final Map<VisualKey, LivingEntity> DUMMIES =
             new HashMap<>();
     private static final AnimFramePose WEARER_POSE = new AnimFramePose();
+    // Past any summon clip, which 1.16's disguised Stand never played: it only grew in.
+    private static final int BESIDE_DUMMY_AGE = 1000;
     private static ClientLevel cachedLevel;
 
     private final PlayerModel<AbstractClientPlayer> normalModel;
@@ -77,18 +82,18 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
                 YellowTemperanceVisuals.resolve(
                         player, partialTick);
         if (state == null
-                || state.controller().getDisguiseMode()
+                || state.disguise().mode()
                         != DisguiseMode.PLAYER) {
             return;
         }
         MultiBufferSource alphaBuffer =
                 AlphaMultiBufferSource.wrap(
                         buffer,
-                        state.context().effectiveAlpha());
-        if (state.controller().getDisguiseMode()
+                        state.alpha());
+        if (state.disguise().mode()
                 == DisguiseMode.PLAYER) {
             renderPlayer(
-                    state.controller(),
+                    state.disguise(),
                     player,
                     poseStack,
                     alphaBuffer,
@@ -116,16 +121,95 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
         YellowTemperanceVisuals.RenderState state =
                 YellowTemperanceVisuals.resolve(player, partialTick);
         if (state == null
-                || !state.controller().isDisguised()
-                || state.controller().getDisguiseMode() == DisguiseMode.PLAYER) {
+                || !state.disguise().isDisguised()
+                || state.disguise().mode() == DisguiseMode.PLAYER) {
             return;
         }
-        LivingEntity dummy = dummy(state.controller());
+        LivingEntity dummy = dummy(state.disguise().mode(),
+                state.disguise().disguiseId().orElse(null));
         if (dummy != null) {
-            renderEntity(dummy, player, userModel, poseStack,
-                    AlphaMultiBufferSource.wrap(buffer, state.context().effectiveAlpha()),
+            renderEntity(dummy, state.disguise(), player, userModel, poseStack,
+                    AlphaMultiBufferSource.wrap(buffer, state.alpha()),
                     packedLight, partialTick);
         }
+    }
+
+    /**
+     * 1.16 YellowTemperanceRenderer: the Stand entity, at its usual place behind the user, takes the chosen Stand's
+     * model in its idle pose and looks where the user looks; the user is drawn as he is. No Stand entity is needed for
+     * it, so it goes on with Yellow Temperance recalled. The pose stack is at the camera's origin, as the level's
+     * entities get it.
+     */
+    static void renderBesideStand(
+            AbstractClientPlayer user,
+            PoseStack poseStack,
+            MultiBufferSource buffer,
+            Vec3 camera,
+            float partialTick) {
+        if (!ClientGlobals.canSeeStands) {
+            return;
+        }
+        YellowTemperanceVisuals.RenderState state =
+                YellowTemperanceVisuals.resolve(user, partialTick);
+        if (state == null
+                || !(dummy(DisguiseMode.STAND, state.disguise().besideStand().orElse(null))
+                        instanceof StandEntity dummy)) {
+            return;
+        }
+        float yRot = user.getViewYRot(partialTick);
+        // the same place as the Stand's box, which can be struck there
+        Vec3 position = YellowTemperanceControllerEntity.besidePosition(user, partialTick);
+        placeBeside(dummy, user, position);
+        AnimFramePose pose = PreFrameEntityAnimCalc.getLivingPose(dummy, partialTick, true);
+        AnimatedEntity animated = (AnimatedEntity) dummy;
+        if (pose == null) {
+            animated.jojo_ripples$setModelPose(AnimatedEntity.PoseType.UNMODIFIED, null);
+        }
+        animated.jojo_ripples$setModelPose(AnimatedEntity.PoseType.FINAL, pose);
+
+        EntityRenderDispatcher dispatcher = Minecraft.getInstance().getEntityRenderDispatcher();
+        float scale = standTransition(
+                user.tickCount + partialTick - state.disguise().besideShownTick());
+        poseStack.pushPose();
+        try {
+            poseStack.translate(
+                    position.x - camera.x,
+                    position.y - camera.y,
+                    position.z - camera.z);
+            poseStack.scale(scale, scale, scale);
+            EntityRenderer<? super LivingEntity> renderer = dispatcher.getRenderer(dummy);
+            renderer.render(
+                    dummy,
+                    yRot,
+                    partialTick,
+                    poseStack,
+                    AlphaMultiBufferSource.wrap(buffer, state.alpha()),
+                    dispatcher.getPackedLightCoords(dummy, partialTick));
+        }
+        finally {
+            poseStack.popPose();
+        }
+    }
+
+    // No previous position that differs: 1.16 drew this Stand with no walk or motion of its own.
+    private static void placeBeside(
+            StandEntity dummy, LivingEntity user, Vec3 position) {
+        dummy.setPos(position.x, position.y, position.z);
+        dummy.xo = position.x;
+        dummy.yo = position.y;
+        dummy.zo = position.z;
+        dummy.xOld = position.x;
+        dummy.yOld = position.y;
+        dummy.zOld = position.z;
+        dummy.setYRot(user.getYRot());
+        dummy.yRotO = user.yRotO;
+        dummy.setXRot(user.getXRot());
+        dummy.xRotO = user.xRotO;
+        dummy.yBodyRot = user.yBodyRot;
+        dummy.yBodyRotO = user.yBodyRotO;
+        dummy.yHeadRot = user.yHeadRot;
+        dummy.yHeadRotO = user.yHeadRotO;
+        dummy.tickCount = BESIDE_DUMMY_AGE + user.tickCount;
     }
 
     public static boolean canRender(
@@ -134,13 +218,14 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
                 YellowTemperanceVisuals.resolve(
                         player, partialTick);
         if (state == null
-                || !state.controller().isDisguised()) {
+                || !state.disguise().isDisguised()) {
             return false;
         }
-        return state.controller().getDisguiseMode()
+        return state.disguise().mode()
                         == DisguiseMode.PLAYER
-                ? state.controller().getDisguisePlayer().isPresent()
-                : dummy(state.controller()) != null;
+                ? state.disguise().playerId().isPresent()
+                : dummy(state.disguise().mode(),
+                        state.disguise().disguiseId().orElse(null)) != null;
     }
 
     public static void clearCache() {
@@ -152,7 +237,7 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
     }
 
     private void renderPlayer(
-            YellowTemperanceControllerEntity controller,
+            YellowTemperanceDisguiseState disguise,
             AbstractClientPlayer wearer,
             PoseStack poseStack,
             MultiBufferSource buffer,
@@ -162,7 +247,7 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
             float ageInTicks,
             float netHeadYaw,
             float headPitch) {
-        UUID uuid = controller.getDisguisePlayer().orElse(null);
+        UUID uuid = disguise.playerId().orElse(null);
         if (uuid == null) {
             return;
         }
@@ -176,14 +261,14 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
                 : minecraft.getSkinManager().getInsecureSkin(
                         new GameProfile(
                                 uuid,
-                                controller.getDisguisePlayerName()));
+                                disguise.playerName()));
         PlayerModel<AbstractClientPlayer> model =
                 skin.model() == PlayerSkin.Model.SLIM
                         ? slimModel
                         : normalModel;
         poseStack.pushPose();
         try {
-            float scale = transitionScale(controller, ageInTicks);
+            float scale = transitionScale(disguise, ageInTicks);
             poseStack.scale(scale, scale, scale);
             getParentModel().copyPropertiesTo(model);
             model.setAllVisible(true);
@@ -211,6 +296,7 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
 
     private static void renderEntity(
             LivingEntity dummy,
+            YellowTemperanceDisguiseState disguise,
             AbstractClientPlayer wearer,
             PlayerModel<?> userModel,
             PoseStack poseStack,
@@ -230,7 +316,7 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
         poseStack.pushPose();
         try {
             float scale = transitionScale(
-                    YellowTemperanceAddon.controller(wearer),
+                    disguise,
                     wearer.tickCount + partialTick);
             poseStack.scale(scale, scale, scale);
             EntityRenderer<? super LivingEntity> renderer =
@@ -309,28 +395,25 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
     }
 
     private static float transitionScale(
-            YellowTemperanceControllerEntity controller,
+            YellowTemperanceDisguiseState disguise,
             float ageInTicks) {
-        if (controller == null) {
-            return 1.0F;
-        }
+        return standTransition(
+                ageInTicks - disguise.changedTick());
+    }
+
+    private static float standTransition(float ticksSinceChange) {
         double transitionTicks = YellowTemperanceConfig
                 .DISGUISE_STAND_TRANSITION_TICKS.get();
         return Mth.clamp(
-                (float) ((ageInTicks
-                        - controller.getStateChangedTick())
-                        / transitionTicks),
+                (float) (ticksSinceChange / transitionTicks),
                 0.0F,
                 1.0F);
     }
 
     private static LivingEntity dummy(
-            YellowTemperanceControllerEntity controller) {
+            DisguiseMode mode, ResourceLocation id) {
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
-        ResourceLocation id =
-                controller.getDisguiseId().orElse(null);
-        DisguiseMode mode = controller.getDisguiseMode();
         if (level == null || id == null
                 || mode == DisguiseMode.NONE
                 || mode == DisguiseMode.PLAYER) {
@@ -348,7 +431,7 @@ public final class YellowTemperanceDisguiseLayer extends RenderLayer<
         try {
             LivingEntity created = switch (mode) {
                 case ENTITY -> createEntity(level, id);
-                case STAND -> createStand(level, id);
+                case STAND, STAND_SELF -> createStand(level, id);
                 default -> null;
             };
             if (created != null) {

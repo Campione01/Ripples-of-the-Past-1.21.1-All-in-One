@@ -1,5 +1,7 @@
 package rotp.addons.d4c.travel;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -63,7 +65,21 @@ public final class D4CParallelTerrainMirror {
                     "rotp_d4c_parallel_prewarm",
                     Comparator.comparingLong(ChunkPos::toLong),
                     200);
+    private static final TicketType<ChunkPos> SOURCE_TICKET =
+            TicketType.create(
+                    "rotp_d4c_parallel_mirror_source",
+                    Comparator.comparingLong(ChunkPos::toLong),
+                    200);
+    /** Chunks around the arrival's chunk always copied before the crossing. */
+    static final int NEAR_RADIUS = 1;
+    static final long CROSSING_BUDGET_NANOS = 20_000_000L;
+    static final long TICK_BUDGET_NANOS = 10_000_000L;
+    // ticks a queued copy waits in all for parallel chunks still loading
+    private static final int MAX_WAITS = 200;
+    private static final List<int[]> NEAREST_FIRST = nearestFirst();
+    private static final ArrayDeque<PendingCopy> PENDING = new ArrayDeque<>();
     private static final Set<UUID> PREPARED = new HashSet<>();
+    private static CopyCount lastCopy = new CopyCount();
 
     private D4CParallelTerrainMirror() {}
 
@@ -75,11 +91,15 @@ public final class D4CParallelTerrainMirror {
         MinecraftServer server = player.getServer();
         ResourceLocation destination =
                 D4CDimensionTravelService.selectedDestinationId(player);
+        boolean createdPair = destination != null
+                && D4CParallelLevels.isCreatedPair(
+                        player.level().dimension(),
+                        D4CDimensionTargets.levelKey(destination));
         if (server == null
-                || !D4CParallelMirrorRules.shouldMirror(
+                || !(createdPair || D4CParallelMirrorRules.shouldMirror(
                         Level.OVERWORLD.equals(player.level().dimension()),
                         D4CDimensionTargets.PARALLEL_WORLD.equals(
-                                destination))) {
+                                destination)))) {
             return;
         }
         ServerLevel parallel = server.getLevel(
@@ -123,6 +143,13 @@ public final class D4CParallelTerrainMirror {
                 && copy(from, to, player.blockPosition())) {
             PREPARED.add(player.getUUID());
         }
+        // a ticked dimension and its made parallel, the same way
+        else if (entity instanceof ServerPlayer crosser
+                && D4CParallelLevels.isCreatedPair(
+                        from.dimension(), to.dimension())
+                && copy(from, to, crosser.blockPosition())) {
+            PREPARED.add(crosser.getUUID());
+        }
     }
 
     /** Ends a prepared crossing, whether or not it happened. */
@@ -134,18 +161,20 @@ public final class D4CParallelTerrainMirror {
             ServerPlayer player,
             ResourceKey<Level> from,
             ResourceKey<Level> to) {
+        boolean createdPair = D4CParallelLevels.isCreatedPair(from, to);
         if (PREPARED.remove(player.getUUID())
-                || !D4CParallelMirrorRules.shouldMirror(
+                || !(createdPair || D4CParallelMirrorRules.shouldMirror(
                         Level.OVERWORLD.equals(from),
                         D4CDimensionTargets.PARALLEL_WORLD.equals(
-                                to.location()))) {
+                                to.location())))) {
             return;
         }
         MinecraftServer server = player.getServer();
         if (server == null) {
             return;
         }
-        ServerLevel overworld = server.getLevel(Level.OVERWORLD);
+        ServerLevel overworld = server.getLevel(
+                createdPair ? from : Level.OVERWORLD);
         ServerLevel parallel = server.getLevel(to);
         if (overworld == null
                 || parallel == null
@@ -161,6 +190,7 @@ public final class D4CParallelTerrainMirror {
 
     public static void clear() {
         PREPARED.clear();
+        PENDING.clear();
     }
 
     static boolean isPortal(BlockState state) {
@@ -182,35 +212,130 @@ public final class D4CParallelTerrainMirror {
         int radius = D4CParallelMirrorRules.CHUNK_RADIUS;
         int side = radius * 2 + 1;
         boolean alike = generatesAlike(source, target);
+        lastCopy = new CopyCount();
         // keeps the copy loaded until the player is in and it is relit
         target.getChunkSource().addRegionTicket(
                 MIRROR_TICKET, center, radius, center);
+        // and the origin side until a queued remainder is done
+        source.getChunkSource().addRegionTicket(
+                SOURCE_TICKET, center, radius, center);
         ChunkCopy[] copies = new ChunkCopy[side * side];
         boolean copied = false;
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                int cx = center.x + dx;
-                int cz = center.z + dz;
-                // the player is still there, so these are loaded
-                LevelChunk from = source.getChunkSource().getChunkNow(cx, cz);
-                if (from == null) {
-                    continue;
-                }
-                copied = true;
-                LevelChunk to = target.getChunk(cx, cz);
-                int groundTop = alike ? highest : highestBlockY(to);
-                int minY = alike ? lowest : D4CParallelMirrorRules.lowestY(
-                        feet.getY(), groundTop, lowest);
-                int maxY = alike ? highest : D4CParallelMirrorRules.highestY(
-                        feet.getY(), groundTop, highest);
-                if (maxY >= minY) {
-                    copies[(dx + radius) * side + dz + radius] =
-                            copyChunk(from, to, target, minY, maxY);
-                }
+        long start = System.nanoTime();
+        List<int[]> later = new ArrayList<>();
+        // R772.1: nearest chunks first; the arrival's 3x3 always now, the
+        // rest now while the crossing's budget lasts, else over the next
+        // ticks (a tall world with a large build costs more than a tick)
+        for (int[] offset : NEAREST_FIRST) {
+            int dx = offset[0];
+            int dz = offset[1];
+            int cx = center.x + dx;
+            int cz = center.z + dz;
+            // the player is still there, so these are loaded
+            LevelChunk from = source.getChunkSource().getChunkNow(cx, cz);
+            if (from == null) {
+                continue;
             }
+            copied = true;
+            if (Math.max(Math.abs(dx), Math.abs(dz)) > NEAR_RADIUS
+                    && System.nanoTime() - start > CROSSING_BUDGET_NANOS) {
+                later.add(offset);
+                continue;
+            }
+            copyAt(copies, dx, dz, from, source, target, feet, alike, lowest, highest);
         }
         relight(target, copies, center, radius);
+        lastCopy.deferredChunks = later.size();
+        if (!later.isEmpty()) {
+            PENDING.add(new PendingCopy(source, target, feet, alike, lowest, highest, later));
+        }
         return copied;
+    }
+
+    private static void copyAt(
+            ChunkCopy[] copies, int dx, int dz, LevelChunk from,
+            ServerLevel source, ServerLevel target, BlockPos feet,
+            boolean alike, int lowest, int highest) {
+        int radius = D4CParallelMirrorRules.CHUNK_RADIUS;
+        int side = radius * 2 + 1;
+        ChunkPos center = new ChunkPos(feet);
+        LevelChunk to = target.getChunk(center.x + dx, center.z + dz);
+        int groundTop = alike ? highest : highestBlockY(to);
+        int minY = alike ? lowest : D4CParallelMirrorRules.lowestY(
+                feet.getY(), groundTop, lowest);
+        int maxY = alike ? highest : D4CParallelMirrorRules.highestY(
+                feet.getY(), groundTop, highest);
+        if (maxY >= minY) {
+            copies[(dx + radius) * side + dz + radius] =
+                    copyChunk(from, to, target, minY, maxY);
+        }
+    }
+
+    /**
+     * Copies queued chunks of earlier crossings, nearest first, within a
+     * budget each tick and at least one chunk. A chunk is copied whole in
+     * one tick, and its client update is sent once it is.
+     */
+    public static void tick() {
+        long start = System.nanoTime();
+        while (!PENDING.isEmpty()) {
+            PendingCopy pending = PENDING.peekFirst();
+            int[] offset = pending.chunks.pollFirst();
+            if (offset == null) {
+                PENDING.pollFirst();
+                continue;
+            }
+            int radius = D4CParallelMirrorRules.CHUNK_RADIUS;
+            ChunkPos center = new ChunkPos(pending.feet);
+            LevelChunk from = pending.source.getChunkSource().getChunkNow(
+                    center.x + offset[0], center.z + offset[1]);
+            // never a generation on this thread: a parallel chunk not ready yet waits
+            if (from != null
+                    && pending.target.getChunkSource().getChunkNow(
+                            center.x + offset[0], center.z + offset[1]) == null) {
+                if (++pending.waits[0] <= MAX_WAITS) {
+                    pending.chunks.addLast(offset);
+                }
+                return;
+            }
+            if (from != null) {
+                ChunkCopy[] copies = new ChunkCopy[(radius * 2 + 1) * (radius * 2 + 1)];
+                copyAt(copies, offset[0], offset[1], from, pending.source, pending.target,
+                        pending.feet, pending.alike, pending.lowest, pending.highest);
+                relight(pending.target, copies, center, radius);
+            }
+            if (System.nanoTime() - start > TICK_BUDGET_NANOS) {
+                return;
+            }
+        }
+    }
+
+    /** Whether queued copies are left, read by the game tests. */
+    static boolean pending() {
+        return !PENDING.isEmpty();
+    }
+
+    private record PendingCopy(
+            ServerLevel source, ServerLevel target, BlockPos feet,
+            boolean alike, int lowest, int highest, ArrayDeque<int[]> chunks, int[] waits) {
+        PendingCopy(ServerLevel source, ServerLevel target, BlockPos feet,
+                boolean alike, int lowest, int highest, List<int[]> chunks) {
+            this(source, target, feet, alike, lowest, highest, new ArrayDeque<>(chunks), new int[1]);
+        }
+    }
+
+    private static List<int[]> nearestFirst() {
+        int radius = D4CParallelMirrorRules.CHUNK_RADIUS;
+        List<int[]> offsets = new ArrayList<>();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                offsets.add(new int[] {dx, dz});
+            }
+        }
+        offsets.sort(Comparator.comparingInt((int[] offset) ->
+                        Math.max(Math.abs(offset[0]), Math.abs(offset[1])))
+                .thenComparingInt(offset -> offset[0] * offset[0] + offset[1] * offset[1]));
+        return List.copyOf(offsets);
     }
 
     private static int highestBlockY(LevelChunk chunk) {
@@ -251,6 +376,16 @@ public final class D4CParallelTerrainMirror {
             if (wasEmpty && source.hasOnlyAir()) {
                 continue;
             }
+            // R772.1: generated alike, a section no one changed is the
+            // same on both sides and costs no block-by-block pass; one
+            // with a portal is still passed, its portals become air
+            if (D4CSectionCompare.compare(source, section)
+                            == D4CSectionCompare.Result.EQUAL
+                    && !source.maybeHas(D4CParallelTerrainMirror::isPortal)) {
+                lastCopy.equalSections++;
+                continue;
+            }
+            lastCopy.scannedSections++;
             int bottom = SectionPos.sectionToBlockCoord(sectionY);
             int low = Math.max(minY, bottom);
             int high = Math.min(maxY, bottom + 15);
@@ -267,6 +402,7 @@ public final class D4CParallelTerrainMirror {
                             continue;
                         }
                         section.setBlockState(lx, y & 15, lz, state);
+                        lastCopy.blocks++;
                         cursor.set(
                                 pos.getMinBlockX() + lx,
                                 y,
@@ -289,6 +425,27 @@ public final class D4CParallelTerrainMirror {
         return copy;
     }
 
+    /** What the last copy did, read by the game tests. */
+    static CopyCount lastCopy() {
+        return lastCopy;
+    }
+
+    static final class CopyCount {
+        int equalSections;
+        int scannedSections;
+        int blocks;
+        int blockEntities;
+        int deferredChunks;
+
+        @Override
+        public String toString() {
+            return equalSections + " sections equal, " + scannedSections
+                    + " passed block by block, " + blocks + " blocks and "
+                    + blockEntities + " fresh block entities made, "
+                    + deferredChunks + " chunks queued";
+        }
+    }
+
     private static void afterWrite(
             ServerLevel level,
             LevelChunk chunk,
@@ -309,10 +466,12 @@ public final class D4CParallelTerrainMirror {
             chunk.removeBlockEntity(pos.immutable());
         }
         // a fresh block entity, as 1.16 setBlockState made; contents
-        // are not copied
+        // are not copied (owner's decision of R772.1: copying them would
+        // let a player duplicate what he stores, at every crossing)
         if (state.hasBlockEntity()) {
             chunk.getBlockEntity(
                     pos.immutable(), LevelChunk.EntityCreationType.IMMEDIATE);
+            lastCopy.blockEntities++;
         }
         if (PoiTypes.hasPoi(old) || PoiTypes.hasPoi(state)) {
             level.onBlockStateChange(pos.immutable(), old, state);

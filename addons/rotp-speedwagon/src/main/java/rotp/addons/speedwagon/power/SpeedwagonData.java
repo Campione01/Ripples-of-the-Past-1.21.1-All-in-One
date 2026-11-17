@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerData;
 import rotp.core.powersystem.PowerType;
+import rotp.core.powersystem.playerpower.PlayerPower;
 import rotp.core.powersystem.playerpower.PlayerPowerData;
 
 import rotp.addons.speedwagon.SpeedwagonAddon;
@@ -76,7 +77,7 @@ public final class SpeedwagonData extends PlayerPowerData {
     public void tick(Power<?> userPower) {
         super.tick(userPower);
         LivingEntity user = userPower.getUser();
-        tickCooldowns();
+        tickCooldowns(PlayerPower.cooldownSteps(userPower));
 
         float previousEnergy = energy;
         if (user.getAirSupply() >= user.getMaxAirSupply()) {
@@ -170,6 +171,12 @@ public final class SpeedwagonData extends PlayerPowerData {
                 (cooldown - partialTick) / total,
                 0.0F,
                 1.0F);
+    }
+
+    public void syncCooldownsAtRate(ServerPlayer user) {
+        if (!abilityCooldowns.isEmpty()) {
+            syncToPlayer(user);
+        }
     }
 
     public boolean addPendingLearner(
@@ -317,12 +324,15 @@ public final class SpeedwagonData extends PlayerPowerData {
                 : 0.0F;
     }
 
-    private void tickCooldowns() {
+    private void tickCooldowns(int steps) {
+        if (steps == 0) {
+            return;
+        }
         Iterator<Map.Entry<String, Integer>> iterator =
                 abilityCooldowns.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Integer> entry = iterator.next();
-            int ticks = entry.getValue() - 1;
+            int ticks = entry.getValue() - steps;
             if (ticks > 0) {
                 entry.setValue(ticks);
             }

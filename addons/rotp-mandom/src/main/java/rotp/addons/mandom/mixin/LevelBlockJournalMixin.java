@@ -1,8 +1,9 @@
 package rotp.addons.mandom.mixin;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
+import com.llamalad7.mixinextras.sugar.Share;
+import com.llamalad7.mixinextras.sugar.ref.LocalRef;
 
+import rotp.addons.mandom.state.MandomJournalHolder;
 import rotp.addons.mandom.state.MandomRewindService;
 import rotp.addons.mandom.state.MandomRewindService.BlockPreimage;
 import net.minecraft.core.BlockPos;
@@ -15,14 +16,19 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Level.class)
-public abstract class LevelBlockJournalMixin {
+public abstract class LevelBlockJournalMixin implements MandomJournalHolder {
     @Unique
-    private static final ThreadLocal<Deque<Pending>>
-            ROTP_MANDOM$PENDING =
-            ThreadLocal.withInitial(ArrayDeque::new);
+    private volatile Object rotpMandom$journal;
 
-    @Unique
-    private record Pending(BlockPreimage preimage) {}
+    @Override
+    public Object rotpMandom$journal() {
+        return rotpMandom$journal;
+    }
+
+    @Override
+    public void rotpMandom$setJournal(Object journal) {
+        rotpMandom$journal = journal;
+    }
 
     @Inject(
             method = "setBlock(Lnet/minecraft/core/BlockPos;"
@@ -34,10 +40,13 @@ public abstract class LevelBlockJournalMixin {
             BlockState newState,
             int flags,
             int recursionLeft,
-            CallbackInfoReturnable<Boolean> callback) {
-        ROTP_MANDOM$PENDING.get().push(new Pending(
-                MandomRewindService.captureBlockPreimage(
-                        (Level) (Object) this, position)));
+            CallbackInfoReturnable<Boolean> callback,
+            @Share("rotpMandomPreimage")
+            LocalRef<BlockPreimage> preimage) {
+        if (rotpMandom$journal != null) {
+            preimage.set(MandomRewindService.captureBlockPreimage(
+                    (Level) (Object) this, position));
+        }
     }
 
     @Inject(
@@ -50,17 +59,13 @@ public abstract class LevelBlockJournalMixin {
             BlockState newState,
             int flags,
             int recursionLeft,
-            CallbackInfoReturnable<Boolean> callback) {
-        Deque<Pending> pending =
-                ROTP_MANDOM$PENDING.get();
-        BlockPreimage preimage = pending.isEmpty()
-                ? null
-                : pending.pop().preimage();
-        if (pending.isEmpty()) {
-            ROTP_MANDOM$PENDING.remove();
-        }
-        if (callback.getReturnValueZ()) {
-            MandomRewindService.recordBlockMutation(preimage);
+            CallbackInfoReturnable<Boolean> callback,
+            @Share("rotpMandomPreimage")
+            LocalRef<BlockPreimage> preimage) {
+        BlockPreimage captured = preimage.get();
+        if (captured != null && callback.getReturnValueZ()) {
+            MandomRewindService.recordBlockMutation(
+                    (Level) (Object) this, captured);
         }
     }
 }

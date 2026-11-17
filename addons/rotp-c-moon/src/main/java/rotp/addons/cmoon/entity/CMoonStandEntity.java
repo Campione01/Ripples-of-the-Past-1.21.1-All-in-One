@@ -3,6 +3,8 @@ package rotp.addons.cmoon.entity;
 import java.util.Optional;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import rotp.core.api.gravity.DirectionalGravityApi;
 import rotp.core.api.gravity.DirectionalGravitySource;
 import rotp.core.customobjects.entity_projectile.ModdedProjectileEntity;
@@ -57,10 +59,121 @@ public final class CMoonStandEntity extends StandEntity
     private LivingEntity boundGravityTarget;
     private Direction boundGravityDirection = Direction.DOWN;
 
+    /**
+     * The owner's rule of 2026-11-05: Shift goes on through a recall. It stays on the removed entity, which the user's tick
+     * keeps running, until the next summon takes it over or its user dies, leaves or loses the Stand. Gravity Counter does
+     * not: it is a stance of the Stand's, which ends with its action.
+     */
+    public static final class Recalled {
+        @Nullable
+        CMoonStandEntity stand;
+    }
+
+    @Nullable
+    private static CMoonStandEntity recalledOf(LivingEntity user) {
+        return user.hasData(CMoonAddon.RECALLED_STAND)
+                ? user.getData(CMoonAddon.RECALLED_STAND).stand
+                : null;
+    }
+
     public CMoonStandEntity(
             EntityType<? extends CMoonStandEntity> type,
             Level level) {
         super(type, level);
+    }
+
+    /** The user's summoned C-Moon, or the recalled one whose Shift goes on. */
+    @Nullable
+    public static CMoonStandEntity current(@Nullable LivingEntity user) {
+        if (user == null) {
+            return null;
+        }
+        StandPower power = StandPower.get(user);
+        boolean holdsTheStand = power != null
+                && power.hasPower()
+                && power.getPowerType() == CMoonAddon.C_MOON.get();
+        if (holdsTheStand
+                && power.getSummonedStandEntity()
+                        instanceof CMoonStandEntity stand) {
+            return stand;
+        }
+        CMoonStandEntity recalled = recalledOf(user);
+        if (recalled == null) {
+            return null;
+        }
+        if (!holdsTheStand
+                || recalled.getUser() != user
+                || !user.isAlive()
+                || user.isRemoved()
+                || recalled.level() != user.level()) {
+            recalled.endLastingState();
+            return null;
+        }
+        return recalled;
+    }
+
+    /** From the user's own tick: a recalled C-Moon has no tick of its own. */
+    public static void tickRecalled(LivingEntity user) {
+        if (recalledOf(user) == null) {
+            return;
+        }
+        CMoonStandEntity recalled = current(user);
+        if (recalled != null && recalled.isRemoved()) {
+            recalled.tickGravityShift();
+            recalled.reconcileGravityBinding(user);
+            if (!recalled.isShiftActive()) {
+                recalled.endLastingState();
+            }
+        }
+    }
+
+    /** Before the player list saves a leaving player, in whatever frame his body is. */
+    public static void endShiftOf(LivingEntity user) {
+        CMoonStandEntity stand = current(user);
+        if (stand != null) {
+            stand.endLastingState();
+        }
+    }
+
+    private void endLastingState() {
+        LivingEntity user = getUser();
+        if (user != null && recalledOf(user) == this) {
+            user.getData(CMoonAddon.RECALLED_STAND).stand = null;
+        }
+        setShiftActive(false);
+        clearGravityBinding();
+    }
+
+    private boolean inCharge(StandPower power) {
+        return power != null
+                && (power.getSummonedStandEntity() == this
+                        || isRemoved()
+                                && getUser() != null
+                                && recalledOf(getUser()) == this);
+    }
+
+    private void takeOverRecalled(LivingEntity user) {
+        CMoonStandEntity recalled = recalledOf(user);
+        if (recalled == null) {
+            return;
+        }
+        user.getData(CMoonAddon.RECALLED_STAND).stand = null;
+        if (recalled == this) {
+            return;
+        }
+        if (recalled.getUser() == user && recalled.level() == level()) {
+            entityData.set(
+                    SHIFT_DIRECTION,
+                    recalled.entityData.get(SHIFT_DIRECTION),
+                    true);
+            entityData.set(
+                    SHIFT_ACTIVE, recalled.isShiftActive(), true);
+            // this one's binding replaces it under the same source id
+            recalled.boundGravityTarget = null;
+        }
+        else {
+            recalled.clearGravityBinding();
+        }
     }
 
     @Override
@@ -162,6 +275,9 @@ public final class CMoonStandEntity extends StandEntity
             LivingEntity user, StandPower power) {
         clearGravityBinding();
         super.setUserAndPower(user, power);
+        if (user != null && !level().isClientSide()) {
+            takeOverRecalled(user);
+        }
         reconcileGravityBinding(user);
     }
 
@@ -193,8 +309,7 @@ public final class CMoonStandEntity extends StandEntity
         StandPower power =
                 user != null ? StandPower.get(user) : null;
         if (user == null
-                || power == null
-                || power.getSummonedStandEntity() != this) {
+                || !inCharge(power)) {
             setShiftActive(false);
             return;
         }
@@ -348,22 +463,30 @@ public final class CMoonStandEntity extends StandEntity
     }
 
     @Override
-    protected void startStandUnsummon() {
-        // Ordinary action retraction does not end the persistent Shift toggle.
-        if (!level().isClientSide()) {
+    public void remove(Entity.RemovalReason reason) {
+        clearAutoAttackTarget();
+        setCounterActive(false);
+        if (!level().isClientSide() && recalledWithLastingState()) {
+            getUser().getData(CMoonAddon.RECALLED_STAND).stand = this;
+        }
+        else {
             clearGravityBinding();
             setShiftActive(false);
         }
-        super.startStandUnsummon();
+        super.remove(reason);
     }
 
-    @Override
-    public void remove(Entity.RemovalReason reason) {
-        clearGravityBinding();
-        setShiftActive(false);
-        setCounterActive(false);
-        clearAutoAttackTarget();
-        super.remove(reason);
+    private boolean recalledWithLastingState() {
+        LivingEntity user = getUser();
+        StandPower power = user != null ? StandPower.get(user) : null;
+        return isShiftActive()
+                && user != null
+                && user.isAlive()
+                && !user.isRemoved()
+                && user.level() == level()
+                && power != null
+                && power.hasPower()
+                && power.getPowerType() == CMoonAddon.C_MOON.get();
     }
 
     @Override
@@ -404,8 +527,7 @@ public final class CMoonStandEntity extends StandEntity
 
     private boolean isGravityBindingValid(
             LivingEntity user) {
-        if (isRemoved()
-                || !isShiftActive()
+        if (!isShiftActive()
                 || user == null
                 || user.isRemoved()
                 || !user.isAlive()
@@ -414,8 +536,10 @@ public final class CMoonStandEntity extends StandEntity
             return false;
         }
         StandPower power = StandPower.get(user);
-        return power != null
-                && power.getSummonedStandEntity() == this;
+        return inCharge(power)
+                && (!isRemoved()
+                        || power.hasPower()
+                                && power.getPowerType() == CMoonAddon.C_MOON.get());
     }
 
     private void clearGravityBinding() {

@@ -11,6 +11,7 @@ import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
+import rotp.core.util.functions.JojoModUtil;
 
 import rotp.addons.wonderofu.WonderOfUAddon;
 import rotp.addons.wonderofu.entity.WonderOfUStandEntity;
@@ -101,8 +102,19 @@ public final class ExplosionAbility extends StandEntityAbility {
                     1.0F,
                     1.0F);
 
+            explodeAt(serverLevel, stand, user, target);
+        }
+
+        // Blocks break only where mobGriefing, jojoAbilitiesBreakBlocks and the user's "breaks blocks" Stand switch all
+        // allow; otherwise the TNT and the creeper give way to the harmless blast.
+        public static void explodeAt(
+                ServerLevel serverLevel,
+                WonderOfUStandEntity stand,
+                LivingEntity user,
+                Vec3 target) {
             boolean blockDamageAllowed = serverLevel.getGameRules()
-                    .getBoolean(GameRules.RULE_MOBGRIEFING);
+                            .getBoolean(GameRules.RULE_MOBGRIEFING)
+                    && JojoModUtil.breakingBlocksEnabled(serverLevel, stand);
             switch (stand.getRandom().nextInt(3)) {
                 case 0 -> spawnTntOrFallback(
                         serverLevel,

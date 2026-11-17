@@ -6,9 +6,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import rotp.addons.d4c.travel.D4CDimensionTargets;
+import rotp.addons.d4c.travel.D4CParallelLevels;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -104,8 +105,7 @@ public final class D4CParallelItemService {
             return;
         }
         boolean parallelPlayer = entity instanceof Player
-                && level.dimension().location().equals(
-                        D4CDimensionTargets.PARALLEL_WORLD);
+                && D4CParallelLevels.isParallel(level.dimension().location());
         boolean pulledEntity = !(entity instanceof Player)
                 && entity.getPersistentData().getBoolean(
                         PULLED_BY_D4C_TAG);
@@ -146,8 +146,7 @@ public final class D4CParallelItemService {
 
     public static void onItemJoined(
             ServerLevel level, ItemEntity item) {
-        if (level.dimension().location().equals(
-                        D4CDimensionTargets.PARALLEL_WORLD)
+        if (D4CParallelLevels.isParallel(level.dimension().location())
                 && !item.getPersistentData().getBoolean(
                         PLAYER_TOSSED_TAG)
                 && !isProtectedDeathDrop(level, item)) {
@@ -164,9 +163,12 @@ public final class D4CParallelItemService {
     public static void tick(MinecraftServer server) {
         cleanDeathDropRecords(System.currentTimeMillis());
         for (ServerLevel level : server.getAllLevels()) {
+            // every parallel world and the dimension it copies, as the
+            // Overworld and parallel_world
+            ResourceLocation id = level.dimension().location();
             if (level.dimension() == Level.OVERWORLD
-                    || level.dimension().location().equals(
-                            D4CDimensionTargets.PARALLEL_WORLD)) {
+                    || D4CParallelLevels.isParallel(id)
+                    || D4CParallelLevels.pairedParallel(server, id) != null) {
                 tickItems(level);
             }
         }
@@ -292,8 +294,8 @@ public final class D4CParallelItemService {
     private static boolean annihilateMatchingBlock(
             ServerLevel level, ItemEntity item, boolean parallelItem) {
         ItemStack stack = item.getItem();
-        boolean parallelLevel = level.dimension().location().equals(
-                D4CDimensionTargets.PARALLEL_WORLD);
+        boolean parallelLevel =
+                D4CParallelLevels.isParallel(level.dimension().location());
         boolean playerTossed =
                 item.getPersistentData().getBoolean(PLAYER_TOSSED_TAG);
         // 1.16 scanned only tossed items whose flag fits the level

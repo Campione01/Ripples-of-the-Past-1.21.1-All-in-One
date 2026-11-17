@@ -5,6 +5,7 @@ import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
 import rotp.core.api.RotpAddonApi;
 import rotp.core.api.stand.StandSkillWalls;
+import rotp.core.config.editor.ConfigChoices;
 import rotp.core.core.JojoRegistries;
 import rotp.core.init.ModItems;
 import rotp.core.init.power.ModStandAbilities;
@@ -29,6 +30,11 @@ import rotp.addons.d4c.ability.D4CPhase2BAbility.Mode;
 import rotp.addons.d4c.ability.D4CSaintCorpseXrayAbility;
 import rotp.addons.d4c.ability.D4CSummonKickAbility;
 import rotp.addons.d4c.block.D4CPortalBlock;
+import rotp.addons.d4c.block.D4CPortalBlockEntity;
+import rotp.addons.d4c.travel.D4CDimensionUnlocks;
+import rotp.addons.d4c.travel.D4CParallelLevels;
+import rotp.addons.d4c.world.OriginBiomeView;
+import rotp.addons.d4c.world.OverworldBiomeView;
 import rotp.addons.d4c.effect.D4CMobEffect;
 import rotp.addons.d4c.entity.D4CAnnihilationCloneEntity;
 import rotp.addons.d4c.entity.D4CColtBulletEntity;
@@ -51,8 +57,13 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
+import com.mojang.serialization.MapCodec;
+import net.minecraft.world.level.biome.BiomeSource;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.registries.DeferredBlock;
@@ -88,6 +99,22 @@ public final class D4CAddon {
             DeferredRegister.createBlocks(MOD_ID);
     public static final DeferredRegister.Items ITEMS =
             DeferredRegister.createItems(MOD_ID);
+    public static final DeferredRegister<BlockEntityType<?>>
+            BLOCK_ENTITY_TYPES = DeferredRegister.create(
+                    Registries.BLOCK_ENTITY_TYPE, MOD_ID);
+    // runtime-only views of a live biome source for the parallel worlds;
+    // registered so an accidental encode gives a type instead of failing
+    public static final DeferredRegister<MapCodec<? extends BiomeSource>>
+            BIOME_SOURCES = DeferredRegister.create(
+                    Registries.BIOME_SOURCE, MOD_ID);
+    public static final DeferredHolder<
+            MapCodec<? extends BiomeSource>, MapCodec<OverworldBiomeView>>
+            OVERWORLD_VIEW = BIOME_SOURCES.register(
+                    "overworld_view", () -> OverworldBiomeView.CODEC);
+    public static final DeferredHolder<
+            MapCodec<? extends BiomeSource>, MapCodec<OriginBiomeView>>
+            ORIGIN_VIEW = BIOME_SOURCES.register(
+                    "origin_view", () -> OriginBiomeView.CODEC);
 
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<D4CParallelWorldTravelAbility>>
@@ -289,6 +316,23 @@ public final class D4CAddon {
             TWILIGHT_FOREST_PORTAL = portal(
                     "twilight_forest_portal",
                     D4CDimensionTargets.LEGACY_ORDER.get(8));
+    @SuppressWarnings("DataFlowIssue")
+    public static final DeferredHolder<
+            BlockEntityType<?>, BlockEntityType<D4CPortalBlockEntity>>
+            PORTAL_TARGET = BLOCK_ENTITY_TYPES.register(
+                    "portal_target",
+                    () -> BlockEntityType.Builder.of(
+                                    D4CPortalBlockEntity::new,
+                                    PARALLEL_WORLD_PORTAL.get(),
+                                    NETHER_PORTAL.get(),
+                                    END_PORTAL.get(),
+                                    OVERWORLD_PORTAL.get(),
+                                    ATUM_PORTAL.get(),
+                                    DEEP_DARK_PORTAL.get(),
+                                    LOST_CITY_PORTAL.get(),
+                                    SKYLIGHT_FOREST_PORTAL.get(),
+                                    TWILIGHT_FOREST_PORTAL.get())
+                            .build(null));
 
     public static final DeferredHolder<Item, SaintCorpseHeartItem>
             SAINT_CORPSE_HEART = ITEMS.register(
@@ -437,7 +481,7 @@ public final class D4CAddon {
             STAND_TYPES.register("d4c", D4CAddon::createStand);
     public static final String ANNIHILATION_MARK_NAME = "annihilation_mark";
 
-    public D4CAddon(IEventBus modEventBus) {
+    public D4CAddon(IEventBus modEventBus, ModContainer modContainer) {
         if (!RotpAddonApi.supportsAbi(REQUIRED_CORE_ABI)
                 || !RotpAddonApi.supportsFeature(
                         RotpAddonApi.FEATURE_ABILITY_RESOURCE_NAMESPACE_V1)
@@ -480,6 +524,13 @@ public final class D4CAddon {
         STAND_TYPES.register(modEventBus);
         BLOCKS.register(modEventBus);
         ITEMS.register(modEventBus);
+        BLOCK_ENTITY_TYPES.register(modEventBus);
+        BIOME_SOURCES.register(modEventBus);
+        D4CDimensionUnlocks.ATTACHMENT_TYPES.register(modEventBus);
+        modContainer.registerConfig(ModConfig.Type.COMMON, D4CConfig.SPEC);
+        // one tick box per dimension of the running world on the Stands page
+        ConfigChoices.register(
+                D4CConfig.PARALLEL_DIMENSIONS, D4CParallelLevels::choices);
         modEventBus.addListener(this::commonSetup);
         modEventBus.addListener(this::addCreativeTabContents);
         modEventBus.addListener(D4CPayloads::register);
@@ -762,44 +813,57 @@ public final class D4CAddon {
                             PARALLEL_WORLD_TRAVEL_NAME,
                             0,
                             InputMethod.HOLD)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             DIMENSION_SELECTOR_NAME,
-                            0,
+                            PARALLEL_WORLD_TRAVEL_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar("d4c_rapid_punch", 0, InputMethod.CLICK)
                     .addToHotbar(
                             "summon_player_minion",
                             0,
                             InputMethod.HOLD)
+                    .addHotbarSlotVariation(
+                            "minion_ai_control",
+                            "summon_player_minion",
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             "annihilation_mark",
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar("annihilation", 0, InputMethod.HOLD)
+                    .addHotbarSlotVariation(
+                            "annihilation",
+                            "annihilation_mark",
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.HOLD)
                     .addToHotbar(
                             "flag_parallel_world_travel",
                             0,
                             InputMethod.HOLD)
+                    .addHotbarSlotVariation(
+                            DIMENSION_SELECTOR_NAME,
+                            "flag_parallel_world_travel",
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             "swap_with_minion",
                             0,
                             InputMethod.CLICK)
                     .addToHotbar("love_train", 0, InputMethod.HOLD)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             "love_train_deactivate",
-                            0,
+                            "love_train",
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             "love_train_light_wall",
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             "love_train_light_wall_deactivate",
-                            0,
-                            InputMethod.CLICK)
-                    .addToHotbar(
-                            "minion_ai_control",
-                            0,
+                            "love_train_light_wall",
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             "pullin_parallel_world_travel",

@@ -17,6 +17,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
+import net.neoforged.neoforge.event.level.ChunkEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 
 @EventBusSubscriber(
@@ -152,6 +153,15 @@ public final class GratefulDeadClientGameEvents {
     public static void onLevelUnload(LevelEvent.Unload event) {
         if (event.getLevel().isClientSide()) {
             AgingBlockClientCache.clear();
+        }
+    }
+
+    @SubscribeEvent
+    public static void onChunkUnload(ChunkEvent.Unload event) {
+        if (event.getLevel().isClientSide()) {
+            AgingBlockClientCache.forgetChunk(
+                    event.getChunk().getPos().x,
+                    event.getChunk().getPos().z);
         }
     }
 

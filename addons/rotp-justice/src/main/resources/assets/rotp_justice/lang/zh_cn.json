@@ -1,0 +1,13 @@
+{
+  "entity.rotp_justice.justice": "正义",
+  "stand.rotp_justice.justice": "正义",
+  "action.rotp_justice.fog": "雾",
+  "action.rotp_justice.puppet": "傀儡",
+  "action.rotp_justice.illusion": "幻象",
+  "action.rotp_justice.disguise": "伪装",
+  "rotp_justice.ability.fog": "雾",
+  "rotp_justice.ability.puppet": "傀儡",
+  "rotp_justice.ability.illusion": "幻象",
+  "rotp_justice.ability.disguise": "伪装",
+  "rotp_justice.ability.manual_control": "手动控制"
+}

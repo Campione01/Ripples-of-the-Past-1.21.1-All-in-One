@@ -134,6 +134,11 @@ public final class StickyFingersExtendedPunchEntity
     }
 
     @Override
+    protected boolean runsInOwnerTime() {
+        return true;
+    }
+
+    @Override
     public boolean isBodyPart() {
         return true;
     }
@@ -240,10 +245,10 @@ public final class StickyFingersExtendedPunchEntity
 
     private double updateDistance() {
         if (isRetracting()) {
-            return distance - retractSpeed() * speedFactor;
+            return distance - retractSpeed() * speedFactor * ownerTimeStep();
         }
         if (movingForward) {
-            return distance + movementSpeed() * speedFactor;
+            return distance + movementSpeed() * speedFactor * ownerTimeStep();
         }
         return distance;
     }
@@ -251,11 +256,11 @@ public final class StickyFingersExtendedPunchEntity
     private void updateMotionFlags() {
         int forwardTicks = Math.max(
                 1, (int) (maxDistance() / movementSpeed()));
-        if (movingForward && tickCount >= forwardTicks) {
+        if (movingForward && ownerTicks() >= forwardTicks) {
             movingForward = false;
         }
         if (!isRetracting()
-                && tickCount >= forwardTicks + timeAtFullLength()) {
+                && ownerTicks() >= forwardTicks + timeAtFullLength()) {
             setRetracting(true);
         }
     }

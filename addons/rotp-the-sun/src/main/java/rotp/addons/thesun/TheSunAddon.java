@@ -25,7 +25,7 @@ public final class TheSunAddon {
     public static final String THE_SUN_PATH = "the_sun";
 
     public static final double POWER = 16.0D;
-    public static final double SPEED = 10.0D;
+    public static final double SPEED = 4.0D;
     public static final double EFFECTIVE_RANGE = 500.0D;
     public static final double MAX_RANGE = 500.0D;
     public static final double DURABILITY = 20.0D;

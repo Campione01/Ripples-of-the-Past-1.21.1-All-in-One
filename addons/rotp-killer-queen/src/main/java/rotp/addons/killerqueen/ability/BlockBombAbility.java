@@ -156,7 +156,7 @@ public final class BlockBombAbility
 
         // 1.16 BlockBombAction.standPerform cast its own ray as it
         // performed, whatever the press aimed at: from the user's eyes (the
-        // Stand's under manual control) over the Stand's max range, entities
+        // Stand's under manual control) over the original 8 blocks, entities
         // first and through blocks (JojoModUtil.rayTrace). An entity on it
         // left no bomb; else the bomb went on the block whose outline it met
         // and the Stand to the point it met.
@@ -166,7 +166,7 @@ public final class BlockBombAbility
                     stand.isManuallyControlled() ? stand : user;
             Vec3 eyes = aiming.getEyePosition();
             Vec3 look = aiming.getLookAngle();
-            double range = stand.getMaxRange();
+            double range = KillerQueenPhase1Spec.BLOCK_BOMB_MARK_RANGE;
             if (!HitResultUtil.clipMultipleEntities(
                             eyes, look, range, level(), aiming,
                             entity -> entity != stand

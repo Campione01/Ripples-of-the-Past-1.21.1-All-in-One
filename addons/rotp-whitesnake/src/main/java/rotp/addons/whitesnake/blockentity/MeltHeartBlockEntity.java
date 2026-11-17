@@ -8,11 +8,15 @@ import rotp.addons.whitesnake.WhitesnakeAddon;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -34,6 +38,25 @@ public final class MeltHeartBlockEntity extends BlockEntity {
     public void initialize(UUID ownerId) {
         this.ownerId = ownerId;
         setChanged();
+        if (level != null && !level.isClientSide()) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+        }
+    }
+
+    @Nullable
+    public UUID ownerId() {
+        return ownerId;
+    }
+
+    // the owner's id goes to the client with the chunk and with each update, for the HUD's recall sign (OQ-C04)
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        return saveWithoutMetadata(registries);
+    }
+
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     public static void serverTick(
@@ -55,7 +78,7 @@ public final class MeltHeartBlockEntity extends BlockEntity {
         LivingEntity owner = findOwner(level, ownerId);
         return owner != null
                 && owner.level() == level
-                && WhitesnakeAddon.isActiveWhitesnakeUser(
+                && WhitesnakeAddon.holdsWhitesnakeSkill(
                         owner, ABILITY_NAME);
     }
 

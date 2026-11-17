@@ -497,21 +497,28 @@ public final class WeatherReportAddon {
                             CHANGE_WEATHER_NAME,
                             0,
                             InputMethod.HOLD)
+                    .addHotbarSlotVariation(
+                            FUGU_RAIN_NAME,
+                            CHANGE_WEATHER_NAME,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.HOLD)
                     .addToHotbar(
                             CLOUD_SHIELD_NAME,
                             0,
                             InputMethod.HOLD)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             GIVE_CLOUD_SHIELD_NAME,
-                            0,
+                            CLOUD_SHIELD_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             WIND_NAME,
                             0,
                             InputMethod.HOLD)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             COLD_WIND_NAME,
-                            0,
+                            WIND_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.HOLD)
                     .addToHotbar(
                             LIGHTNING_NAME,
@@ -521,10 +528,6 @@ public final class WeatherReportAddon {
                             ICICLE_STRIKE_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
-                            FUGU_RAIN_NAME,
-                            0,
-                            InputMethod.HOLD)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")
                     .bind("punch", InputMethod.CLICK, InputKey.LMB)

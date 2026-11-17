@@ -6,24 +6,19 @@ import org.joml.Matrix3f;
 import org.joml.Vector3f;
 
 import rotp.core.client.entityrender.stand.StandEntityRenderer;
-import rotp.core.client.rendertype.AlphaMultiBufferSource;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 
-import rotp.addons.kingcrimson.KingCrimsonEpitaphForesightSpec;
 import rotp.addons.kingcrimson.entity.KingCrimsonAfterimageEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public final class KingCrimsonAfterimageRenderer
@@ -40,20 +35,6 @@ public final class KingCrimsonAfterimageRenderer
     public ResourceLocation getTextureLocation(
             KingCrimsonAfterimageEntity entity) {
         return null;
-    }
-
-    /**
-     * A creature foreseen to reach the Epitaph user stands where the user's eyes are; its image fades out as the
-     * camera comes inside it instead of filling the view with the inside of the model.
-     */
-    private static float cameraFade(KingCrimsonAfterimageEntity afterimage, Entity origin) {
-        Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-        AABB foreseenBody = origin.getDimensions(origin.getPose()).makeBoundingBox(afterimage.position());
-        double distance = Math.sqrt(foreseenBody.distanceToSqr(camera));
-        return (float) Mth.clamp(
-                (distance - KingCrimsonEpitaphForesightSpec.VISION_CAMERA_CLEAR_DISTANCE)
-                        / KingCrimsonEpitaphForesightSpec.VISION_CAMERA_FADE_DISTANCE,
-                0.0D, 1.0D);
     }
 
     @Override
@@ -75,10 +56,8 @@ public final class KingCrimsonAfterimageRenderer
             return;
         }
 
-        float visionAlpha = afterimage.isFutureVision()
-                ? KingCrimsonEpitaphForesightSpec.VISION_ALPHA * cameraFade(afterimage, origin)
-                : 1.0F;
-        if (visionAlpha <= 0.0F) {
+        if (afterimage.isMovingThing()
+                && afterimage.getPosition(partialTick).distanceToSqr(origin.getPosition(partialTick)) < 1.0E-4D) {
             return;
         }
 
@@ -87,16 +66,15 @@ public final class KingCrimsonAfterimageRenderer
         try {
             EntityRenderer<? super Entity> renderer =
                     entityRenderDispatcher.getRenderer(origin);
-            // Epitaph vision images are half transparent so the creature they foresee stays visible behind them.
-            MultiBufferSource baseBuffer = afterimage.isFutureVision()
-                    ? AlphaMultiBufferSource.wrap(
-                            translucentBody(buffer, renderer, origin),
-                            visionAlpha)
-                    : buffer;
             // Every afterimage is drawn in the donor's dark red; the full-color, outlined "present" afterimage
             // went with the Time Erase rewind it marked (owner decision 2026-09-23).
-            MultiBufferSource renderBuffer = type -> new RedVertexConsumer(
-                    baseBuffer.getBuffer(type));
+            MultiBufferSource renderBuffer = type -> new RedVertexConsumer(buffer.getBuffer(type));
+            // A shifted player's image is drawn where his entity is drawn this frame, not a tick behind it.
+            Vec3 lead = afterimage.followsOrigin()
+                    ? origin.getPosition(partialTick).subtract(afterimage.getPosition(partialTick))
+                    : Vec3.ZERO;
+            poseStack.pushPose();
+            poseStack.translate(lead.x, lead.y, lead.z);
             if (origin instanceof StandEntity stand
                     && renderer
                             instanceof StandEntityRenderer<?, ?, ?>
@@ -125,6 +103,7 @@ public final class KingCrimsonAfterimageRenderer
                     poseStack,
                     buffer,
                     packedLight);
+            poseStack.popPose();
         }
         finally {
             int depth = RENDER_DEPTH.get() - 1;
@@ -139,43 +118,6 @@ public final class KingCrimsonAfterimageRenderer
     static boolean isRenderingAfterimage() {
         Integer depth = RENDER_DEPTH.get();
         return depth != null && depth > 0;
-    }
-
-    /**
-     * Vertex alpha only shows in a blending render type, and most creatures draw their bodies in cutout or solid
-     * entity types, so their Epitaph vision images came out opaque. The owner asked for them to be truly half
-     * transparent (2026-09-23): the cutout and solid entity types of the creature's own texture are drawn in the
-     * translucent entity type of that texture instead. Vanilla caches one object per type and texture, so they are
-     * matched by identity. Players already draw translucent, and Stands through the core's translucent Stand types.
-     * Layers with a texture of their own (armour, wool, clothing, saddles, collars) stay opaque.
-     */
-    private static MultiBufferSource translucentBody(
-            MultiBufferSource buffer,
-            EntityRenderer<? super Entity> renderer,
-            Entity origin) {
-        ResourceLocation texture = origin instanceof StandEntity
-                ? null
-                : renderer.getTextureLocation(origin);
-        if (texture == null) {
-            return buffer;
-        }
-        RenderType translucent = RenderType.entityTranslucent(texture);
-        RenderType[] opaque = {
-                RenderType.entitySolid(texture),
-                RenderType.entityCutout(texture),
-                RenderType.entityCutoutNoCull(texture),
-                RenderType.entityCutoutNoCull(texture, false),
-                RenderType.entityCutoutNoCullZOffset(texture),
-                RenderType.entityCutoutNoCullZOffset(texture, false),
-                RenderType.entitySmoothCutout(texture)};
-        return type -> {
-            for (RenderType candidate : opaque) {
-                if (type == candidate) {
-                    return buffer.getBuffer(translucent);
-                }
-            }
-            return buffer.getBuffer(type);
-        };
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

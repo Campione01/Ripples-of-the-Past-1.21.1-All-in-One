@@ -169,7 +169,8 @@ public final class KingCrimsonBarrageAbility
                 cooldownSet = false;
                 StandPower power = userPower();
                 if (power != null && ability instanceof Ability barrage) {
-                    power.setAbilityCooldown(barrage.name(),
+                    // As it was, exactly: these ticks were read back and are in the Stand's cooldown share already.
+                    power.restoreAbilityCooldown(barrage.name(),
                             cooldownBeforeClear, cooldownTotalBeforeClear);
                 }
             }

@@ -142,7 +142,8 @@ public final class UniverseResetAbility
                                 .keySet()) {
                     if (targetStandPower
                             .isAbilityUnlocked(abilityName)) {
-                        targetStandPower.setAbilityCooldown(
+                        // a lock of fixed length, not a cooldown of the target: it is not taken in his cooldown share
+                        targetStandPower.restoreAbilityCooldown(
                                 abilityName, RESET_TICKS);
                     }
                 }

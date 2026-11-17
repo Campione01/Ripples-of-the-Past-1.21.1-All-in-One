@@ -13,5 +13,6 @@
   "cmoon_rm.subtitle.unsummon": "C-Moon withdraws",
   "cmoon_rm.subtitle.barrage": "C-Moon attacks",
   "cmoon_rm.subtitle.gravity_shift": "Gravity changes",
+  "jojo_ripples.skill.cmoon.gravity_change.desc": "Press to turn gravity the way you face. Press while holding %s to return to normal gravity.",
   "cmoon_rm.ability.manual_control": "Manual control"
 }

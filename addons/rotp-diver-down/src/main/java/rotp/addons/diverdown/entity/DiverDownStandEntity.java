@@ -22,6 +22,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 public final class DiverDownStandEntity extends StandEntity {
+    private static final double EMBEDDED_TARGET_MAX_DISTANCE = 10.0D;
+
     private static final EntityDataAccessor<Integer>
             EMBEDDED_TARGET_ID = SynchedEntityData.defineId(
                     DiverDownStandEntity.class,
@@ -113,7 +115,8 @@ public final class DiverDownStandEntity extends StandEntity {
                     || !DiverDownAuthority.canAffect(
                             owner, target, this)
                     || target.distanceToSqr(owner)
-                            > getMaxRange() * getMaxRange()
+                            > EMBEDDED_TARGET_MAX_DISTANCE
+                                    * EMBEDDED_TARGET_MAX_DISTANCE
                     || isBeingRetracted()) {
                 clearEmbeddedTarget();
                 target = null;
@@ -135,10 +138,6 @@ public final class DiverDownStandEntity extends StandEntity {
 
     @Override
     public void remove(Entity.RemovalReason reason) {
-        if (level() instanceof ServerLevel serverLevel) {
-            DiverDownAuthority.clearForStand(
-                    serverLevel, getUUID());
-        }
         clearEmbeddedTarget();
         super.remove(reason);
     }

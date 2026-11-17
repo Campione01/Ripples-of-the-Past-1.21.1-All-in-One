@@ -30,6 +30,7 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
+import rotp.core.powersystem.standpower.StandDamageContext;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandStats;
 import rotp.core.powersystem.standpower.StandUtil;
@@ -41,6 +42,7 @@ import rotp.core.subsystems.target.ActionTargetRange;
 import rotp.core.subsystems.target.HitResultUtil;
 import rotp.core.subsystems.target.StandPrecisionRay;
 import rotp.core.util.functions.DamageUtil;
+import rotp.core.util.functions.JojoModUtil;
 
 import rotp.addons.rhcp.ability.RhcpAbility;
 import rotp.addons.rhcp.entity.RhcpStandEntity;
@@ -694,6 +696,13 @@ public final class RhcpService {
      * goes back to the conductor block it came from, if that still is one.
      */
     public static void selfDestruct(ServerPlayer player) {
+        // the blast is the Stand's work whoever calls this (the ability's action, a test), so its damage takes the Stand's share
+        try (var running = StandDamageContext.enter(StandPower.get(player))) {
+            blowUp(player);
+        }
+    }
+
+    private static void blowUp(ServerPlayer player) {
         RhcpStandEntity stand = activeStand(player);
         RhcpState state = RhcpAddon.state(player);
         if (stand == null || !state.inConductor()) {
@@ -702,6 +711,7 @@ public final class RhcpService {
         ServerLevel level = player.serverLevel();
         BlockPos pos = stand.blockPosition();
         float range = 1.5F;
+        boolean breaks = JojoModUtil.breakingBlocksEnabled(level, stand);
         if (!(level.getBlockState(pos).getBlock() instanceof TntBlock)) {
             Vec3 center = Vec3.atCenterOf(pos);
             DamageSource blast = level.damageSources().explosion(null, null);
@@ -710,10 +720,14 @@ public final class RhcpService {
                 entity.hurt(blast, 0.2F * (3.0F * range * range
                         - (float) entity.distanceToSqr(center)));
             }
-            level.destroyBlock(pos, false);
+            if (breaks) {
+                level.destroyBlock(pos, false);
+            }
         }
         level.explode(null, stand.getX(), stand.getY(), stand.getZ(),
-                range / 6.0F, Level.ExplosionInteraction.BLOCK);
+                range / 6.0F, breaks
+                        ? Level.ExplosionInteraction.BLOCK
+                        : Level.ExplosionInteraction.NONE);
         BlockPos previous = stand.previousConductor();
         if (previous != null && isConductor(level.getBlockState(previous))) {
             state.enterConductor(previous);
@@ -1054,8 +1068,8 @@ public final class RhcpService {
             return false;
         }
         if (mode == RhcpAbility.Mode.DODGE) {
-            // 1.16 read the user's sneak; manual control sends it apart.
-            boolean shift = StandManualInput.isShiftHeld(player, stand);
+            // 1.16 read the user's sneak: Shift was its variation key.
+            boolean shift = StandManualInput.isShiftHeld(player);
             float cost = counterCost(stand, attacker);
             if (difference > 3.0D && shift) {
                 stand.setAttackAlternate(true);
@@ -1301,7 +1315,7 @@ public final class RhcpService {
         LivingEntity owner = nearest instanceof ModdedProjectileEntity modded
                 ? modded.getOwner() : integratedStandOwner(nearest);
         float yRot = nearest.getYRot();
-        if (owner != null && StandManualInput.isShiftHeld(player, stand)
+        if (owner != null && StandManualInput.isShiftHeld(player)
                 && owner.position().distanceTo(stand.position())
                         <= dashMaxDistance(stand, RhcpAddon.state(player), 3.0D
                                 * RhcpAddon.state(player).potency())) {
@@ -1573,7 +1587,7 @@ public final class RhcpService {
     // cooldown like the counter dashes.
     public static boolean dash(ServerPlayer player) {
         return electricDash(player, dashAim(player),
-                StandManualInput.isShiftHeld(player, activeStand(player)),
+                StandManualInput.isShiftHeld(player),
                 true);
     }
 
@@ -1615,12 +1629,14 @@ public final class RhcpService {
         Vec3 pos = dashPos(stand, target, maxDistance, shift);
         StandPower power = StandPower.get(player);
         if (pos != null && power != null) {
-            int cooldown = dashCooldown(from.distanceTo(pos),
-                    state.potency(), power.isUserCreative());
+            // the cooldown left is already in the Stand's cooldown share: only the distance's part goes into it, once
+            int cooldown = power.getAbilityCooldownShare(dashCooldown(
+                    from.distanceTo(pos), state.potency(),
+                    power.isUserCreative()));
             int current = power.getAbilityCooldown("rhcp_electric_dash");
             int next = dashCooldownAfter(current, cooldown, stackCooldown);
             if (cooldown > 0 && next != current) {
-                power.setAbilityCooldown("rhcp_electric_dash", next);
+                power.restoreAbilityCooldown("rhcp_electric_dash", next);
             }
         }
         if (pos != null) {

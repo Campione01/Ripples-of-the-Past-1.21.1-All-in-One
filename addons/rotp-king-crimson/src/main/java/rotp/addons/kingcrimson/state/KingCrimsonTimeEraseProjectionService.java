@@ -11,7 +11,6 @@ import rotp.core.powersystem.standpower.StandUtil;
 import com.mojang.logging.LogUtils;
 
 import rotp.addons.kingcrimson.KingCrimsonAddon;
-import rotp.addons.kingcrimson.KingCrimsonConfig;
 import rotp.addons.kingcrimson.KingCrimsonPhase5Spec;
 import rotp.addons.kingcrimson.entity.KingCrimsonAfterimageEntity;
 import rotp.addons.kingcrimson.entity.KingCrimsonTimeEraseDecoyEntity;
@@ -19,8 +18,10 @@ import rotp.addons.kingcrimson.network.TimeEraseAfterimageRemovePayload;
 import rotp.addons.kingcrimson.network.TimeEraseAfterimageSpawnPayload;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.player.Player;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class KingCrimsonTimeEraseProjectionService {
@@ -62,6 +63,32 @@ public final class KingCrimsonTimeEraseProjectionService {
         }
     }
 
+    /**
+     * A creature that turns on this player while his erase runs is turned on his decoy instead, as those were that hunted
+     * him when it began, and loses it with them when the erase ends. False when he has no decoy: nothing is changed then.
+     */
+    public static boolean retarget(ServerPlayer player, Mob mob) {
+        Session session = player.hasData(KingCrimsonAddon.TEMPORAL_STATE)
+                ? KingCrimsonAddon.temporalState(player).projectionSession() : null;
+        if (session == null || session.closed || session.decoy == null || !session.decoy.isAlive() || mob.level() != session.level) {
+            return false;
+        }
+        if (!session.retargetedMobs.contains(mob)) {
+            session.retargetedMobs.add(mob);
+        }
+        mob.setTarget(session.decoy);
+        return true;
+    }
+
+    /** The decoy that stands in the world for this player while he erases; null when he does not, or has none. */
+    @Nullable
+    public static KingCrimsonTimeEraseDecoyEntity decoyOf(ServerPlayer player) {
+        Session session = player.hasData(KingCrimsonAddon.TEMPORAL_STATE)
+                ? KingCrimsonAddon.temporalState(player).projectionSession() : null;
+        return session != null && !session.closed && session.decoy != null && session.decoy.isAlive()
+                ? session.decoy : null;
+    }
+
     public static void finish(ServerPlayer player) {
         Session session = KingCrimsonAddon.temporalState(player)
                 .takeProjectionSession();
@@ -96,10 +123,18 @@ public final class KingCrimsonTimeEraseProjectionService {
 
     private static boolean isAfterimageTarget(
             ServerPlayer player, LivingEntity target) {
+        // A shifted player has no trailing afterimage: the eraser's client draws his image where the server names
+        // it each tick (KingCrimsonShiftedImagesClient). The decoy of another eraser stands for its player here
+        // too, and that eraser and his Stand are not there for anybody.
+        boolean ownDecoy = target instanceof KingCrimsonTimeEraseDecoyEntity decoy && decoy.getOwner() == player;
+        boolean standsForAPlayer = target instanceof Player
+                || target instanceof KingCrimsonTimeEraseDecoyEntity;
         return target.isAlive()
                 && target != player
-                && !(target
-                        instanceof KingCrimsonTimeEraseDecoyEntity)
+                && !ownDecoy
+                && !(standsForAPlayer
+                        && KingCrimsonAddon.temporalState(player).shiftSession() != null)
+                && !KingCrimsonEraseReach.isOutOfReach(target)
                 && StandUtil.getStandUser(target) != player;
     }
 
@@ -117,7 +152,7 @@ public final class KingCrimsonTimeEraseProjectionService {
         afterimage.initialize(
                 target,
                 delayTicks,
-                KingCrimsonConfig.timeEraseDurationTicks());
+                KingCrimsonAddon.temporalState(observer).eraseLengthTicks());
         entityIds.add(afterimage.getId());
         PacketDistributor.sendToPlayer(
                 observer,
@@ -132,10 +167,19 @@ public final class KingCrimsonTimeEraseProjectionService {
         if (decoy == null) {
             return;
         }
+        // Owner 2026-11-07: riding at the press, he leaves the mount and the decoy takes his seat.
+        Entity mount = player.getVehicle();
         decoy.setOwner(player);
+        decoy.setLifespanTicks(KingCrimsonAddon.temporalState(player).eraseLengthTicks());
+        if (mount != null) {
+            player.stopRiding();
+        }
         if (!session.level.addFreshEntity(decoy)) {
             decoy.discard();
             return;
+        }
+        if (mount != null && mount.isAlive()) {
+            decoy.startRiding(mount, true);
         }
         session.decoy = decoy;
         session.retargetedMobs.addAll(

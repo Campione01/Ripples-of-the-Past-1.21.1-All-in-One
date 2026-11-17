@@ -2,6 +2,9 @@
   "stand.rotp_echoes.echoes_act3": "Эхо ACT3",
   "stand.rotp_echoes.echoes_act2": "Эхо ACT2",
   "rotp_echoes.ability.punch": "Удар",
+  "rotp_echoes.ability.punch2": "Удар",
+  "rotp_echoes.ability.punch3": "Удар",
+  "rotp_echoes.ability.punch4": "Удар",
   "rotp_echoes.ability.barrage": "Град ударов",
   "rotp_echoes.ability.heavy_punch": "Тяжелый удар",
   "rotp_echoes.ability.finisher": "Freeze-сокрушение",
@@ -13,6 +16,9 @@
   "rotp_echoes.ability.gravity_infuse": "Гравитационное насыщение",
   "rotp_echoes.ability.gravity_projectile": "Гравитационный снаряд",
   "rotp_echoes.ability.act2_punch": "Легкая атака",
+  "rotp_echoes.ability.act2_punch2": "Легкая атака",
+  "rotp_echoes.ability.act2_punch3": "Легкая атака",
+  "rotp_echoes.ability.act2_punch4": "Легкая атака",
   "rotp_echoes.ability.act2_heavy_punch": "Тяжелая атака",
   "rotp_echoes.ability.act2_finisher": "Финишер",
   "rotp_echoes.ability.act2_guard": "Блок",
@@ -115,5 +121,10 @@
   "rotp_echoes.chat.skill.9": "S.H.I.T. Лети!",
   "rotp_echoes.chat.skill.10": "S.H.I.T. Вперёд!",
   "rotp_echoes.chat.skill.11": "S.H.I.T. Шевелись!",
-  "rotp_echoes.chat.skill.12": "S.H.I.T. Не двигаться!"
+  "rotp_echoes.chat.skill.12": "S.H.I.T. Не двигаться!",
+  "rotp_echoes.message.need_onomatopoeia": "Сначала выберите ономатопею",
+  "rotp_echoes.message.needle_already_fired": "Игла уже выпущена, сначала верните её",
+  "rotp_echoes.message.need_held_item": "Нужно держать предмет в основной или второй руке",
+  "rotp_echoes.message.need_gravity_item": "Нужно держать гравитационный предмет в основной или второй руке",
+  "rotp_echoes.message.need_own_gravity_item": "Нужно держать свой гравитационно-заряженный предмет в основной или второй руке"
 }

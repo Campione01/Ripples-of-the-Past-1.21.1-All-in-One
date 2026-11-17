@@ -25,6 +25,8 @@ public final class YellowTemperanceConfig {
             ENABLE_FOOD_BAR_OVERLAY;
     public static final ModConfigSpec.BooleanValue
             ENABLE_APPLE_SKIN_INTEGRATION;
+    public static final ModConfigSpec.BooleanValue
+            SHOW_MANGA_SLIME;
 
     public static final ModConfigSpec.IntValue
             ATTACK_MAX_EROSION_LEVEL;
@@ -84,6 +86,8 @@ public final class YellowTemperanceConfig {
                 "enableFoodBarOverlay", true);
         ENABLE_APPLE_SKIN_INTEGRATION = builder.define(
                 "enableAppleSkinIntegration", true);
+        SHOW_MANGA_SLIME = builder.define(
+                "showMangaSlime", false);
         STAND_PORTRAIT_NAMESPACES = builder.defineList(
                 "standPortraitNamespaces",
                 List.of("rotp_extra_dg"),

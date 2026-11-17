@@ -71,7 +71,11 @@ public final class EchoesOnomatopoeiaAbility extends Ability {
         if (!base.isPositive()) {
             return base;
         }
-        return isAct2User(context) ? ConditionCheck.POSITIVE : ConditionCheck.NEGATIVE;
+        if (!isAct2User(context)) {
+            return ConditionCheck.NEGATIVE;
+        }
+        // master EchoesOnomatopoeiaSelfAction: refused with the tail out, which the self word itself counts as
+        return mode == Mode.SELF ? wordChosen(context, true) : ConditionCheck.POSITIVE;
     }
 
     @Override
@@ -111,6 +115,21 @@ public final class EchoesOnomatopoeiaAbility extends Ability {
         return context instanceof StandPower power && power.getPowerType() == EchoesStands.ECHOES_ACT2.get();
     }
 
+    // master need_onomatopoeia and needle_already_fired. Only the server knows the word and the tail, so a client lets
+    // the press through and the player reads the server's refusal.
+    static ConditionCheck wordChosen(Power<?> context, boolean tailMustBeIn) {
+        if (!(context.getUser() instanceof ServerPlayer player)) {
+            return ConditionCheck.POSITIVE;
+        }
+        EchoesUserState state = RotpEchoes.userState(player);
+        if (state.onomatopoeia() == null) {
+            return ConditionCheck.createNegative(Component.translatable("rotp_echoes.message.need_onomatopoeia"));
+        }
+        return tailMustBeIn && state.tailOut()
+                ? ConditionCheck.createNegative(Component.translatable("rotp_echoes.message.needle_already_fired"))
+                : ConditionCheck.POSITIVE;
+    }
+
     /**
      * master EchoesOnomatopoeiaAttachAction: staminaCost(30), cooldown(10, 20), the arms, LAUNCH_POSE (ACT2's launch
      * clip); the chosen word lands on the first living target in the user's aim within 5 blocks.
@@ -133,7 +152,7 @@ public final class EchoesOnomatopoeiaAbility extends Ability {
             if (!base.isPositive()) {
                 return base;
             }
-            return isAct2User(context) ? ConditionCheck.POSITIVE : ConditionCheck.NEGATIVE;
+            return isAct2User(context) ? wordChosen(context, true) : ConditionCheck.NEGATIVE;
         }
 
         @Override
@@ -164,7 +183,7 @@ public final class EchoesOnomatopoeiaAbility extends Ability {
             if (!base.isPositive()) {
                 return base;
             }
-            return isAct2User(context) ? ConditionCheck.POSITIVE : ConditionCheck.NEGATIVE;
+            return isAct2User(context) ? wordChosen(context, true) : ConditionCheck.NEGATIVE;
         }
 
         @Override

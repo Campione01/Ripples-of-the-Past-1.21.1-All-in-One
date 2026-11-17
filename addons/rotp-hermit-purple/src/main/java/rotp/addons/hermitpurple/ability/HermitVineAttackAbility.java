@@ -24,6 +24,7 @@ import rotp.addons.hermitpurple.HermitPurpleSpec;
 import rotp.addons.hermitpurple.HermitPurpleSkins;
 import rotp.addons.hermitpurple.entity.HermitPurpleStandEntity;
 import rotp.addons.hermitpurple.entity.HermitVineProjectileEntity;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec2;
 
@@ -124,6 +125,15 @@ public final class HermitVineAttackAbility
                 }
             }
             aimAs = AimingEntity.STAND;
+            // 1.16 hp_vine_attack and hp_vine_shift swingHand(), no hold: the
+            // press that went off swung the user's main arm
+            // (InputHandler.actionSwingsHand) on top of the vine pose.
+            LivingEntity user = getPowerUser();
+            if (!level().isClientSide()
+                    && !isRestoringInputLifecycle()
+                    && user != null) {
+                user.swing(InteractionHand.MAIN_HAND, true);
+            }
         }
 
         private static void playThrowSound(

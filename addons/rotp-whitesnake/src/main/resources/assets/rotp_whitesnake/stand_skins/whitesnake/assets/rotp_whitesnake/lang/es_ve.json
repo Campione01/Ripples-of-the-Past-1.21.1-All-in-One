@@ -63,6 +63,7 @@
     "rotp_whitesnake.disguise.empty":  "No se encontraron formas compatibles.",
     "effect.rotp_whitesnake.melt_heart_effect":  "Derretir el corazón",
     "rotp_whitesnake.glint_config":  "Mostrar brillo de Whitesnake",
+    "rotp_whitesnake.glint_config.tooltip":  "Dibuja un brillo, como el de los objetos encantados, sobre el cuerpo de Whitesnake. Es solo visual; su velocidad sigue el ajuste de velocidad del brillo del juego.",
     "rotp_whitesnake.subtitle.whitesnake_barrage":  "Whitesnake lanza una ráfaga",
     "rotp_whitesnake.subtitle.whitesnake_ost":  "Suena el tema de Whitesnake",
     "rotp_whitesnake.configuration.title":  "Configuración de Whitesnake",

@@ -1,9 +1,10 @@
 package rotp.addons.lovers;
 
+import rotp.core.powersystem.standpower.StandDamageContext;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.util.functions.DamageUtil;
 
-import rotp.addons.lovers.entity.LoversStandEntity;
 import rotp.addons.lovers.state.LoversLinkService;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -50,8 +51,7 @@ public final class LoversEvents {
         }
 
         LivingEntity target = LoversLinkService.validate(owner);
-        if (target == null
-                || LoversAddon.activeStand(owner) == null) {
+        if (target == null) {
             return amount;
         }
 
@@ -61,7 +61,10 @@ public final class LoversEvents {
                 owner);
         float sharedAmount = amount * 0.5F;
         container.setNewDamage(sharedAmount);
-        target.hurt(feedbackSource, LoversConfig.scaleFeedback(amount));
+        // the shared half is dealt from an event handler: the Stand's work all the same, so its damage share applies
+        try (var running = StandDamageContext.enter(StandPower.get(owner))) {
+            target.hurt(feedbackSource, LoversConfig.scaleFeedback(amount));
+        }
         return sharedAmount;
     }
 
@@ -124,8 +127,5 @@ public final class LoversEvents {
         LoversLinkService.clearByTarget(
                 event.getLevel().getServer(),
                 living.getUUID());
-        if (living instanceof LoversStandEntity stand) {
-            LoversLinkService.clearByStand(stand);
-        }
     }
 }

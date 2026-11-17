@@ -24,6 +24,7 @@
   "rotp_mih.config.client.enableNewTSIcons.tooltip": "Usa los nuevos iconos de reloj para Aceleración y Cancelar del Sistema Temporal.",
   "rotp_mih.configuration.section.rotp.mih.server.toml": "Ajustes del servidor",
   "rotp_mih.configuration.section.rotp.mih.server.toml.title": "Configuración de servidor de Made in Heaven",
+  "rotp_mih.configuration.timeAcceleration": "Aceleración temporal",
   "rotp_mih.config.server.timeAcceleration": "Aceleración temporal",
   "rotp_mih.config.server.timeAcceleration.tooltip": "Cómo funciona la aceleración temporal de Made in Heaven en este servidor.",
   "rotp_mih.config.server.accelerationMode": "Modo de aceleración",

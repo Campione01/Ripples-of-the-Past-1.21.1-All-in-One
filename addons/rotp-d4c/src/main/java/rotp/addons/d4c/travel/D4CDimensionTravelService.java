@@ -1,6 +1,5 @@
 package rotp.addons.d4c.travel;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -14,6 +13,7 @@ import rotp.addons.d4c.D4CAddon;
 import rotp.addons.d4c.D4CPhase2ASpec;
 import rotp.addons.d4c.D4CPhase2BSpec;
 import rotp.addons.d4c.D4CRuntimeRules;
+import rotp.addons.d4c.block.D4CPortalBlockEntity;
 import rotp.addons.d4c.network.OpenDimensionSelectorPayload;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -28,12 +28,17 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BushBlock;
+import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.FlowerBlock;
 import net.minecraft.world.level.block.TallGrassBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.border.WorldBorder;
+import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -56,8 +61,7 @@ public final class D4CDimensionTravelService {
             return false;
         }
 
-        List<ResourceLocation> targets =
-                availableTargets(player.getServer());
+        List<ResourceLocation> targets = availableTargets(player);
         if (targets.isEmpty()) {
             player.displayClientMessage(
                     Component.translatable(
@@ -115,7 +119,9 @@ public final class D4CDimensionTravelService {
                 && hasD4CState(
                         player,
                         D4CAddon.DIMENSION_SELECTOR_NAME)
-                && D4CDimensionTargets.isKnown(targetId)
+                // the server's own list: a locked, excluded or foreign
+                // dimension in a crafted packet is refused
+                && availableTargets(player).contains(targetId)
                 && player.getServer().getLevel(
                         D4CDimensionTargets.levelKey(targetId))
                         != null;
@@ -146,9 +152,12 @@ public final class D4CDimensionTravelService {
                     "rotp_d4c.message.not_caught_between");
         }
 
-        ResourceLocation selected = selectedTarget(
-                player,
-                availableTargets(player.getServer()));
+        List<ResourceLocation> available = availableTargets(player);
+        if (available.isEmpty()) {
+            return Component.translatable(
+                    "rotp_d4c.message.no_dimensions_available");
+        }
+        ResourceLocation selected = selectedTarget(player, available);
         ResourceLocation actual = actualDestination(
                 player.level().dimension().location(),
                 selected);
@@ -156,6 +165,10 @@ public final class D4CDimensionTravelService {
             return Component.translatable(
                     "rotp_d4c.message.already_in_dimension",
                     D4CDimensionTargets.label(selected));
+        }
+        Component closed = closedParallel(player.getServer(), actual);
+        if (closed != null) {
+            return closed;
         }
         if (player.getServer().getLevel(
                 D4CDimensionTargets.levelKey(actual)) == null) {
@@ -247,7 +260,7 @@ public final class D4CDimensionTravelService {
 
         ResourceLocation selected = selectedTarget(
                 player,
-                availableTargets(player.getServer()));
+                availableTargets(player));
         ResourceLocation actual = actualDestination(
                 player.level().dimension().location(),
                 selected);
@@ -279,14 +292,33 @@ public final class D4CDimensionTravelService {
     @Nullable
     public static ResourceLocation selectedDestinationId(
             ServerPlayer player) {
-        List<ResourceLocation> available =
-                availableTargets(player.getServer());
+        List<ResourceLocation> available = availableTargets(player);
         if (available.isEmpty()) {
             return null;
         }
         ResourceLocation selected = selectedTarget(player, available);
-        return actualDestination(
+        ResourceLocation actual = actualDestination(
                 player.level().dimension().location(), selected);
+        return actual != null
+                        && closedParallel(player.getServer(), actual) == null
+                ? actual
+                : null;
+    }
+
+    /** A refusal when the destination is a parallel that is turned off. */
+    @Nullable
+    public static Component closedParallel(
+            MinecraftServer server, ResourceLocation destination) {
+        ResourceLocation source = D4CParallelLevels.sourceIdOf(destination);
+        if (source == null
+                || D4CParallelLevels.isOpen(server, destination)
+                || server.getLevel(D4CDimensionTargets.levelKey(destination))
+                        == null) {
+            return null;
+        }
+        return Component.translatable(
+                "rotp_d4c.message.parallel_closed",
+                D4CDimensionTargets.label(source));
     }
 
     public static boolean teleportTarget(
@@ -351,16 +383,39 @@ public final class D4CDimensionTravelService {
     @Nullable
     public static ResourceLocation resolvePulledDestination(
             ServerPlayer owner, ServerLevel sourceLevel) {
-        List<ResourceLocation> available =
-                availableTargets(sourceLevel.getServer());
+        List<ResourceLocation> available = availableTargets(owner);
         if (available.isEmpty()) {
             return null;
         }
         // D-rotp-d4c-06 applies the same destination table to every target kind.
-        return pulledDestination(
+        ResourceLocation destination = pulledDestination(
+                sourceLevel.getServer(),
                 sourceLevel.dimension().location(),
-                selectedTarget(owner, available),
-                false);
+                selectedTarget(owner, available));
+        return closedParallel(sourceLevel.getServer(), destination) == null
+                ? destination
+                : null;
+    }
+
+    // The Overworld pair's rows for every ticked pair: inside a dimension
+    // with a parallel its own selection leads there, inside a parallel it
+    // leads back; elsewhere the table below
+    public static ResourceLocation pulledDestination(
+            MinecraftServer server,
+            ResourceLocation current,
+            ResourceLocation selected) {
+        if (!current.equals(selected)) {
+            return selected;
+        }
+        ResourceLocation source = D4CParallelLevels.sourceIdOf(current);
+        if (source != null) {
+            return source;
+        }
+        ResourceLocation paired =
+                D4CParallelLevels.pairedParallel(server, current);
+        return paired != null
+                ? paired
+                : pulledDestination(current, selected, false);
     }
 
     public static boolean placePulledPortal(
@@ -429,7 +484,8 @@ public final class D4CDimensionTravelService {
             ServerLevel level, BlockPos position,
             ResourceLocation targetId, boolean overwrite) {
         if (level.getServer().getLevel(
-                D4CDimensionTargets.levelKey(targetId)) == null) {
+                D4CDimensionTargets.levelKey(targetId)) == null
+                || closedParallel(level.getServer(), targetId) != null) {
             return false;
         }
         BlockState previous = level.getBlockState(position);
@@ -443,6 +499,12 @@ public final class D4CDimensionTravelService {
         if (!level.setBlockAndUpdate(
                 position, portal.defaultBlockState())) {
             return false;
+        }
+        // a dimension without a portal block of its own rides on one
+        if (!portal.targetDimension().equals(targetId)
+                && level.getBlockEntity(position)
+                        instanceof D4CPortalBlockEntity entity) {
+            entity.setTarget(targetId);
         }
         level.scheduleTick(
                 position,
@@ -479,7 +541,21 @@ public final class D4CDimensionTravelService {
                 sourceLevel.dimension().location(),
                 portalTargetId,
                 entity);
+        // the Overworld pair's row for every ticked pair
+        if (targetId == null
+                && entity instanceof LivingEntity
+                && sourceLevel.dimension().location().equals(portalTargetId)) {
+            targetId = D4CParallelLevels.pairedParallel(
+                    sourceLevel.getServer(), portalTargetId);
+        }
         if (targetId == null) {
+            return false;
+        }
+        Component closed = closedParallel(sourceLevel.getServer(), targetId);
+        if (closed != null) {
+            if (entity instanceof ServerPlayer player) {
+                player.displayClientMessage(closed, true);
+            }
             return false;
         }
         ServerLevel targetLevel = sourceLevel.getServer().getLevel(
@@ -644,14 +720,8 @@ public final class D4CDimensionTravelService {
     }
 
     public static List<ResourceLocation> availableTargets(
-            MinecraftServer server) {
-        List<ResourceLocation> result = new ArrayList<>();
-        for (ResourceLocation id : D4CDimensionTargets.LEGACY_ORDER) {
-            if (server.getLevel(D4CDimensionTargets.levelKey(id)) != null) {
-                result.add(id);
-            }
-        }
-        return List.copyOf(result);
+            ServerPlayer player) {
+        return D4CDimensionTargets.offeredTargets(player);
     }
 
     private static ResourceLocation selectedTarget(
@@ -662,14 +732,17 @@ public final class D4CDimensionTravelService {
         if (selected != null && available.contains(selected)) {
             return selected;
         }
-        if (available.contains(D4CDimensionTargets.PARALLEL_WORLD)) {
-            return D4CDimensionTargets.PARALLEL_WORLD;
+        for (ResourceLocation id : available) {
+            if (D4CParallelLevels.isParallel(id)) {
+                return id;
+            }
         }
         return available.contains(D4CDimensionTargets.OVERWORLD)
                 ? D4CDimensionTargets.OVERWORLD
                 : available.getFirst();
     }
 
+    // inside a parallel its own entry leads back to its source
     @Nullable
     private static ResourceLocation actualDestination(
             ResourceLocation current,
@@ -677,9 +750,7 @@ public final class D4CDimensionTravelService {
         if (!current.equals(selected)) {
             return selected;
         }
-        return selected.equals(D4CDimensionTargets.PARALLEL_WORLD)
-                ? D4CDimensionTargets.OVERWORLD
-                : null;
+        return D4CParallelLevels.sourceIdOf(selected);
     }
 
     private static boolean hasD4CState(
@@ -709,38 +780,73 @@ public final class D4CDimensionTravelService {
     private static BlockPos findSafeDestination(
             ServerLevel target,
             Entity entity) {
+        // the arrival column is the departure's scaled as vanilla portals
+        // scale it (1 between the Overworld and its parallel)
+        double scale = DimensionType.getTeleportationScale(
+                entity.level().dimensionType(), target.dimensionType());
         WorldBorder border = target.getWorldBorder();
         double x = Mth.clamp(
-                entity.getX(),
+                entity.getX() * scale,
                 border.getMinX() + 1.0D,
                 border.getMaxX() - 1.0D);
         double z = Mth.clamp(
-                entity.getZ(),
+                entity.getZ() * scale,
                 border.getMinZ() + 1.0D,
                 border.getMaxZ() - 1.0D);
         int minY = target.getMinBuildHeight() + 1;
-        int maxY = target.getMaxBuildHeight() - 2;
+        int maxY = topFeetY(target);
         int originY = Mth.clamp(Mth.floor(entity.getY()), minY, maxY);
         int xBlock = Mth.floor(x);
         int zBlock = Mth.floor(z);
 
+        // that column first, then rings around it out to the search radius
+        for (int ring = 0; ring <= SAFE_SEARCH_RADIUS; ring++) {
+            for (int dx = -ring; dx <= ring; dx++) {
+                for (int dz = -ring; dz <= ring; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) {
+                        continue;
+                    }
+                    BlockPos found = searchColumn(
+                            target, entity, xBlock + dx, zBlock + dz,
+                            originY, minY, maxY);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Columns searched on each side of the scaled arrival column. */
+    public static final int SAFE_SEARCH_RADIUS = 8;
+
+    // feet may stand up to two blocks under the build or logical top, so
+    // a Nether arrival never lands on its bedrock roof
+    private static int topFeetY(ServerLevel target) {
+        return Math.min(
+                target.getMaxBuildHeight(),
+                target.getMinBuildHeight() + target.getLogicalHeight()) - 2;
+    }
+
+    @Nullable
+    private static BlockPos searchColumn(
+            ServerLevel target, Entity entity, int x, int z,
+            int originY, int minY, int maxY) {
+        if (!target.getWorldBorder().isWithinBounds(x, z)) {
+            return null;
+        }
         for (int offset = 0; offset <= maxY - minY; offset++) {
             int above = originY + offset;
             if (above <= maxY) {
-                BlockPos candidate = new BlockPos(
-                        xBlock,
-                        above,
-                        zBlock);
+                BlockPos candidate = new BlockPos(x, above, z);
                 if (isSafeDestination(target, entity, candidate)) {
                     return candidate;
                 }
             }
             int below = originY - offset;
             if (offset > 0 && below >= minY) {
-                BlockPos candidate = new BlockPos(
-                        xBlock,
-                        below,
-                        zBlock);
+                BlockPos candidate = new BlockPos(x, below, z);
                 if (isSafeDestination(target, entity, candidate)) {
                     return candidate;
                 }
@@ -749,16 +855,29 @@ public final class D4CDimensionTravelService {
         return null;
     }
 
-    private static boolean isSafeDestination(
+    /** Public for the game tests: where findSafeDestination would land. */
+    @Nullable
+    public static BlockPos safeArrival(ServerLevel target, Entity entity) {
+        return findSafeDestination(target, entity);
+    }
+
+    public static boolean isSafeDestination(
             ServerLevel target,
             Entity entity,
             BlockPos feetPos) {
         int entityBlocks = Math.max(
                 1, Mth.ceil(entity.getBbHeight()));
+        if (feetPos.getY() <= target.getMinBuildHeight()
+                || feetPos.getY() > topFeetY(target)
+                || !target.getWorldBorder().isWithinBounds(feetPos)) {
+            return false;
+        }
         BlockPos floorPos = feetPos.below();
         BlockState feet = target.getBlockState(feetPos);
         BlockState floor = target.getBlockState(floorPos);
         if (!feet.getCollisionShape(target, feetPos).isEmpty()
+                || isHazard(feet)
+                || isHazard(floor)
                 || !floor.isFaceSturdy(
                         target,
                         floorPos,
@@ -767,11 +886,15 @@ public final class D4CDimensionTravelService {
         }
         for (int offset = 1; offset < entityBlocks; offset++) {
             BlockPos occupied = feetPos.above(offset);
-            if (!target.getBlockState(occupied)
-                    .getCollisionShape(target, occupied)
-                    .isEmpty()) {
+            BlockState state = target.getBlockState(occupied);
+            if (!state.getCollisionShape(target, occupied).isEmpty()
+                    || isHazard(state)) {
                 return false;
             }
+        }
+        BlockPos head = feetPos.above(entityBlocks - 1);
+        if (!target.getFluidState(head).isEmpty()) {
+            return false;
         }
 
         AABB destinationBounds = entity.getBoundingBox().move(
@@ -779,6 +902,17 @@ public final class D4CDimensionTravelService {
                 feetPos.getY() - entity.getY(),
                 feetPos.getZ() + 0.5D - entity.getZ());
         return target.noCollision(entity, destinationBounds);
+    }
+
+    private static boolean isHazard(BlockState state) {
+        return state.getFluidState().is(FluidTags.LAVA)
+                || state.is(BlockTags.FIRE)
+                || state.is(Blocks.MAGMA_BLOCK)
+                || state.is(Blocks.SWEET_BERRY_BUSH)
+                || state.is(Blocks.WITHER_ROSE)
+                || state.is(Blocks.POWDER_SNOW)
+                || state.is(Blocks.CACTUS)
+                || CampfireBlock.isLitCampfire(state);
     }
 
     public record TravelPlan(

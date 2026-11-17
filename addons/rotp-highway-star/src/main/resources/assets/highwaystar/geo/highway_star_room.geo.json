@@ -1,0 +1,18 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [{
+    "description": {"identifier":"geometry.highway_star_room","texture_width":64,"texture_height":64,"visible_bounds_width":2,"visible_bounds_height":3,"visible_bounds_offset":[0,1,0]},
+    "bones": [
+      {"name":"root","pivot":[0,0,0],"cubes":[
+        {"origin":[-8,0,-1],"size":[2,32,2],"uv":[0,0]},
+        {"origin":[6,0,-1],"size":[2,32,2],"uv":[8,0]},
+        {"origin":[-6,30,-1],"size":[12,2,2],"uv":[0,36]},
+        {"origin":[-6,0,-1],"size":[12,1,2],"uv":[0,42]}
+      ]},
+      {"name":"door","parent":"root","pivot":[-6,1,-0.5],"rotation":[0,75,0],"cubes":[
+        {"origin":[-6,1,-0.5],"size":[12,29,1],"uv":[32,0]},
+        {"origin":[3,14,-1.5],"size":[1,2,1],"uv":[58,0]}
+      ]}
+    ]
+  }]
+}

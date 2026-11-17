@@ -5,6 +5,10 @@ import java.util.UUID;
 import rotp.core.client.entityrender.stand.StandVisualContext;
 import rotp.core.client.rendertype.AlphaMultiBufferSource;
 import rotp.core.client.rendertype.ModRenderTypes;
+import rotp.core.client.standskin.StandSkin;
+import rotp.core.client.standskin.StandSkinsLoader;
+import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.client.util.functions.ClientUtil;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -19,6 +23,7 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.player.Player;
 
 public final class GerFieldRenderer
         extends EntityRenderer<GerFieldEntity> {
@@ -31,6 +36,10 @@ public final class GerFieldRenderer
     private static final ResourceLocation EVOLUTION =
             GoldExperienceRequiemAddon.id(
                     "textures/action/ger_evolution.png");
+    /** The Evolution picture a skin carries, which the field takes before the module's own. */
+    private static final ResourceLocation SKIN_EVOLUTION =
+            GoldExperienceRequiemAddon.id(
+                    "textures/ability/ger_evolution.png");
     private static final int EVOLUTION_SEGMENTS = 24;
     private static final int DOMAIN_LAT = 24;
     private static final int DOMAIN_LON = 36;
@@ -52,8 +61,27 @@ public final class GerFieldRenderer
     public ResourceLocation getTextureLocation(
             GerFieldEntity entity) {
         return entity.getKind() == GerFieldEntity.EVOLUTION
-                ? EVOLUTION
+                ? evolutionTexture(entity)
                 : DISABLER_OUTER;
+    }
+
+    private static ResourceLocation evolutionTexture(GerFieldEntity entity) {
+        UUID ownerUuid = entity.getOwnerUuid();
+        Player owner = ownerUuid != null
+                ? entity.level().getPlayerByUUID(ownerUuid)
+                : null;
+        StandPower power = owner != null ? StandPower.get(owner) : null;
+        if (power == null) {
+            return EVOLUTION;
+        }
+        // the summoned body carries the skin it is drawn with
+        StandSkin skin = power.getSummonedStandEntity()
+                        instanceof StandEntity stand
+                ? StandSkinsLoader.getInstance().getSkin(stand)
+                : StandSkinsLoader.getInstance().getSkin(power);
+        return skin != null
+                ? skin.getTexture(SKIN_EVOLUTION, EVOLUTION)
+                : EVOLUTION;
     }
 
     @Override

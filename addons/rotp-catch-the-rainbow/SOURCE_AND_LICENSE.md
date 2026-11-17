@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-catch-the-rainbow`, mod id `rotp_ctr`, version `1.1-beta-port.18`.
+- Module: `rotp-catch-the-rainbow`, mod id `rotp_ctr`, version `1.1-beta-port.19`.
 - Original 1.16.5 add-on: `RotP-彩虹捕手-1.1-beta.jar` (RotP 彩虹捕手, mod id `rotp_ctr`), by ArchLunatic, StandoByte; declared license: GNU GPL v3.0; SHA-256 `497F1F81FACEA3B359F67CE616141E8972D3918C04C7AD62AF4A311E44B421A5`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

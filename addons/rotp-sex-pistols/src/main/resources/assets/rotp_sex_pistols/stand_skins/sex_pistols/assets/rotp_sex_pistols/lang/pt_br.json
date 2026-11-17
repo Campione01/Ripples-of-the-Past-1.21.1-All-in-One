@@ -12,6 +12,7 @@
   "entity.rotp_sex_pistols.sex_pistols_6": "No.6",
   "entity.rotp_sex_pistols.sex_pistols_7": "No.7",
   "item.rotp_sex_pistols.revolver.reference_quote": "\"Se você não responder em dois segundos... vou meter uma bala em cada um dos seus olhos. Um... dois... Não vou esperar mais.\"",
+  "item.rotp_sex_pistols.revolver.control.own_hand": "Com o Stand invocado, segure %s para devolver o botão de usar à sua própria mão.",
   "rotp_sex_pistols.ability.sex_pistols_target_mode": "Focar em: %s",
   "rotp_sex_pistols.ability.sex_pistols_move_selected": "Mover: %s",
   "rotp_sex_pistols.ability.sex_pistols_select": "Selecionar Nº %s",

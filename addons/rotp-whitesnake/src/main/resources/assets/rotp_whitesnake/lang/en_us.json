@@ -63,6 +63,7 @@
     "rotp_whitesnake.disguise.empty":  "No compatible forms found.",
     "effect.rotp_whitesnake.melt_heart_effect":  "Melt Heart",
     "rotp_whitesnake.glint_config":  "Show Whitesnake glint",
+    "rotp_whitesnake.glint_config.tooltip":  "Draws an enchantment-style glint over Whitesnake\u0027s body. Purely visual; its speed follows the game\u0027s glint speed setting.",
     "rotp_whitesnake.subtitle.whitesnake_barrage":  "Whitesnake barrages",
     "rotp_whitesnake.subtitle.whitesnake_ost":  "Whitesnake theme plays",
     "message.rotp_d4c.memory_extraction_blocked_by_love_train":  "Memory extraction blocked by Love Train protection!",

@@ -7,6 +7,7 @@ import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.sexpistols.registry.SexPistolsAttachments;
 import rotp.addons.sexpistols.registry.SexPistolsStands;
@@ -66,7 +67,7 @@ public final class SexPistolsForcedTargetAbility extends Ability {
         if (owner == null) {
             return super.getName(context);
         }
-        if (owner.isShiftKeyDown()) {
+        if (StandManualInput.isShiftHeld(owner)) {
             return Component.translatable(
                     getTranslationKey(".clear"));
         }
@@ -106,7 +107,7 @@ public final class SexPistolsForcedTargetAbility extends Ability {
         }
         SexPistolsCoordinator coordinator =
                 SexPistolsAttachments.coordinator(owner);
-        if (owner.isShiftKeyDown()) {
+        if (StandManualInput.isShiftHeld(owner)) {
             coordinator.clearForcedTargets(owner);
             setCooldownOnUse(standPower);
             return;

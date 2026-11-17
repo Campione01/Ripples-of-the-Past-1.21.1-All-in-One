@@ -54,7 +54,7 @@
                                                      "name":  "torso_bend",
                                                      "pivot":  [
                                                                    0,
-                                                                   24,
+                                                                   12,
                                                                    0
                                                                ],
                                                      "parent":  "torso"

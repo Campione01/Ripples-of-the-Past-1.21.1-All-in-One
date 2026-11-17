@@ -132,6 +132,8 @@ public final class GuanggunAddon {
     private static EntityStandType createStand(ResourceLocation id) {
         MovesetBuilder moveset = new MovesetBuilder()
                 .addHumanoidStandStuff()
+                // 1.16 drew this Stand with no pose at all
+                .noPunchCombo()
                 .addManualControl()
                 .addAbility(PUNCH, ModStandAbilities.PUNCH)
                 .addAbility(BARRAGE, ModStandAbilities.BARRAGE)

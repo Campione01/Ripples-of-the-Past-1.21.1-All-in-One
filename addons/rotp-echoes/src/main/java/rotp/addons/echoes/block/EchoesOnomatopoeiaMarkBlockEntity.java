@@ -90,6 +90,11 @@ public final class EchoesOnomatopoeiaMarkBlockEntity extends BlockEntity {
     }
 
     @Nullable
+    public static UUID ownerAt(BlockGetter level, BlockPos pos) {
+        return level.getBlockEntity(pos) instanceof EchoesOnomatopoeiaMarkBlockEntity mark ? mark.owner : null;
+    }
+
+    @Nullable
     public static EchoesOnomatopoeia wordAt(BlockGetter level, BlockPos pos) {
         return level.getBlockEntity(pos) instanceof EchoesOnomatopoeiaMarkBlockEntity mark ? mark.word : null;
     }
@@ -116,7 +121,7 @@ public final class EchoesOnomatopoeiaMarkBlockEntity extends BlockEntity {
                 new AABB(worldPosition).inflate(TRIGGER_RANGE), LivingEntity::isAlive);
         if (level.getGameTime() % TRIGGER_INTERVAL_TICKS == 0L) {
             for (LivingEntity entity : entities) {
-                EchoesOnomatopoeiaService.apply(word, entity);
+                EchoesOnomatopoeiaService.applyBy(owner, word, entity);
             }
         }
         Set<UUID> now = new HashSet<>();

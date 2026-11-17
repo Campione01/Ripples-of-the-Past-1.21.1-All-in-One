@@ -6,6 +6,7 @@ import rotp.core.api.client.render.AddonPostEffect;
 
 import rotp.addons.kingcrimson.KingCrimsonAddon;
 import rotp.addons.kingcrimson.KingCrimsonPhase3Spec;
+import rotp.addons.kingcrimson.client.epitaph.EpitaphClientSession;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
@@ -28,12 +29,10 @@ public final class EpitaphPostEffect {
 
     public static void syncFromLocalPlayer() {
         Minecraft minecraft = Minecraft.getInstance();
+        // While the local player's own prediction runs: his client alone knows of it.
         boolean active = minecraft.level != null
                 && minecraft.player != null
-                && minecraft.player.hasData(
-                        KingCrimsonAddon.EPITAPH_STATE)
-                && KingCrimsonAddon.epitaphState(minecraft.player)
-                        .isArmed(minecraft.level.getGameTime());
+                && EpitaphClientSession.isOwn();
         EFFECT.setActive(active);
     }
 }

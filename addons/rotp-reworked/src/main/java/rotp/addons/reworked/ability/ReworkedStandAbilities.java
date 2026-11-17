@@ -83,11 +83,9 @@ public final class ReworkedStandAbilities {
     // staminaCostTick(8.875)
     public static final float TIME_STOP_STAMINA_COST = 300.0F;
     public static final float TIME_STOP_STAMINA_COST_TICK = 8.875F;
-    // 1.16 holdToFire: RE_STAR_PLATINUM_TIME_STOP 30, RE_THE_WORLD_TIME_STOP
-    // 35 (a TheWorldTimeStop, so 20 from Resolve level 4).
-    public static final int STAR_PLATINUM_HOLD_TO_FIRE_TICKS = 30;
-    public static final int THE_WORLD_HOLD_TO_FIRE_TICKS = 35;
-    public static final int THE_WORLD_RESOLVE_HOLD_TO_FIRE_TICKS = 20;
+    // 1.16 holdToFire 30 (RE_STAR_PLATINUM_TIME_STOP) and 35 (RE_THE_WORLD_TIME_STOP) gave way to the owner's rule for
+    // every time stop: the core's charge setting and its minimum. The World's is a TheWorldTimeStop, so the core
+    // shortens it from Resolve 4.
     // The core prices a time stop's start from 225; a Reworked one starts
     // from 300 (scaled like the core cost for a released charge).
     public static final TimeStopBehaviorPolicy TIME_STOP_COST_POLICY =
@@ -143,35 +141,6 @@ public final class ReworkedStandAbilities {
         public ResourceLocation getSpriteId(Power<?> context) {
             return configuredSprite(
                     donorSprite, CORE_NAMESPACE, "time_stop");
-        }
-
-        // The core charge is 40 (Star Platinum) / 30 (The World); in
-        // stopped time it is 0 and stays 0.
-        @Override
-        public void initActionFromConfig(
-                EntityActionInstance action,
-                Level level,
-                LivingEntity powerUser,
-                LivingEntity performer) {
-            super.initActionFromConfig(
-                    action, level, powerUser, performer);
-            if (action.phasesLength.getFloat(
-                    ActionPhase.BUTTON_CHARGE) <= 0.0F) {
-                return;
-            }
-            int chargeTicks = STAR_PLATINUM_HOLD_TO_FIRE_TICKS;
-            if (THE_WORLD_TIME_STOP_NAME.equals(donorSprite)) {
-                StandPower power = powerUser != null
-                        ? PowerClass.STAND.get(powerUser)
-                        : null;
-                // 1.16 TheWorldTimeStop.getHoldDurationToFire: the stored level only
-                chargeTicks = power != null
-                                && power.getResolveLevel() >= 4
-                        ? THE_WORLD_RESOLVE_HOLD_TO_FIRE_TICKS
-                        : THE_WORLD_HOLD_TO_FIRE_TICKS;
-            }
-            action.phasesLength.put(
-                    ActionPhase.BUTTON_CHARGE, chargeTicks);
         }
 
         @Override
@@ -752,7 +721,8 @@ public final class ReworkedStandAbilities {
 
         @Override
         public String getLearningAbilityName() {
-            return name();
+            // Generated combo members still train the registered light-punch skill.
+            return "punch";
         }
 
         @Override

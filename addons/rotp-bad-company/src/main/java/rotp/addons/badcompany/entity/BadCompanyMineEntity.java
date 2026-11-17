@@ -6,6 +6,7 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import rotp.addons.badcompany.BadCompanyAddon;
+import rotp.core.powersystem.standpower.StandPower;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -37,6 +38,7 @@ public final class BadCompanyMineEntity
 
     @Nullable
     private BadCompanyStandEntity cachedCoordinator;
+    private boolean loadedFromSave;
 
     public BadCompanyMineEntity(
             EntityType<? extends BadCompanyMineEntity> type,
@@ -71,15 +73,23 @@ public final class BadCompanyMineEntity
         if (!(level() instanceof ServerLevel serverLevel)) {
             return;
         }
+        // A landed mine goes on through a recall (owner's rule of 2026-11-05): it answers to its owner and his power.
         LivingEntity owner = resolveOwner(serverLevel);
-        BadCompanyStandEntity coordinator =
-                resolveCoordinator();
         if (owner == null
-                || coordinator == null
-                || !coordinator.isActiveFor(owner)
+                || !owner.isAlive()
+                || ownerLostTheStand(owner)
                 || owner.distanceToSqr(this) > 900.0D) {
             discard();
             return;
+        }
+        // A relog must not bring it back: after a load only a live coordinator or the recall that carries it keeps it.
+        if (loadedFromSave) {
+            loadedFromSave = false;
+            if (resolveCoordinator() == null
+                    && !BadCompanyStandEntity.isRecalledMine(owner, getUUID())) {
+                discard();
+                return;
+            }
         }
         if (!entityData.get(ARMED)
                 && tickCount >= ARMING_TICKS) {
@@ -103,6 +113,23 @@ public final class BadCompanyMineEntity
                 .isPresent();
         if (hostilePresent) {
             detonate(owner, CONTACT_EXPLOSION_RADIUS);
+        }
+    }
+
+    private static boolean ownerLostTheStand(LivingEntity owner) {
+        StandPower power = StandPower.get(owner);
+        return power == null
+                || !power.hasPower()
+                || power.getPowerType()
+                        != BadCompanyAddon.BAD_COMPANY.get();
+    }
+
+    public void rebindCoordinator(UUID coordinatorUuid) {
+        if (!level().isClientSide()) {
+            entityData.set(
+                    COORDINATOR_UUID,
+                    Optional.ofNullable(coordinatorUuid));
+            cachedCoordinator = null;
         }
     }
 
@@ -209,6 +236,7 @@ public final class BadCompanyMineEntity
                 ARMED, tag.getBoolean("BadCompanyArmed"));
         tickCount = Math.max(0, tag.getInt("Age"));
         cachedCoordinator = null;
+        loadedFromSave = true;
     }
 
     @Override

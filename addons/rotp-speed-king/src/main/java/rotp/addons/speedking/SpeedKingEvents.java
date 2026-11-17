@@ -39,9 +39,9 @@ public final class SpeedKingEvents {
             }
             return;
         }
-        if (state.heatVisionLeaseId() != null
-                && SpeedKingService.activeStand(player) == null) {
-            SpeedKingService.cleanupHeatVision(player);
+        // with the Stand out the Stand's own tick does this
+        if (SpeedKingService.activeStand(player) == null) {
+            SpeedKingService.tickHeatTrap(player, null);
         }
         if (state.heatVisionExpiresAt() > 0L
                 && player.serverLevel().getGameTime()
@@ -106,6 +106,7 @@ public final class SpeedKingEvents {
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             SpeedKingService.cleanupTransient(player);
+            endHeatTrap(player);
         }
     }
 
@@ -114,6 +115,14 @@ public final class SpeedKingEvents {
             PlayerEvent.PlayerChangedDimensionEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             SpeedKingService.cleanupTransient(player);
+            endHeatTrap(player);
+        }
+    }
+
+    // The trap goes on through a recall; it is saved, so a relog or a way back must not arm it again.
+    private static void endHeatTrap(ServerPlayer player) {
+        if (SpeedKingAddon.state(player).clearHeatTrap()) {
+            SpeedKingService.sync(player);
         }
     }
 

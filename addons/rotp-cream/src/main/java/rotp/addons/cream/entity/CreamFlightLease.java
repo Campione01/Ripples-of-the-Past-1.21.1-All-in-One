@@ -23,6 +23,15 @@ public final class CreamFlightLease {
         previousFlyingSpeed = abilities.getFlyingSpeed();
     }
 
+    /** The next summon of Cream takes the void over: the snapshot of how the user flew before it goes along. */
+    public void takeFrom(CreamFlightLease other) {
+        initialGameType = other.initialGameType;
+        previousMayFly = other.previousMayFly;
+        previousFlying = other.previousFlying;
+        previousFlyingSpeed = other.previousFlyingSpeed;
+        other.clear();
+    }
+
     public boolean restore(GameType gameType, Abilities abilities) {
         if (!isLeased()) {
             return false;

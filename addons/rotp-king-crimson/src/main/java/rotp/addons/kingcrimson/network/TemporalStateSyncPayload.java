@@ -17,7 +17,9 @@ public record TemporalStateSyncPayload(
         int modeOrdinal,
         long startedAt,
         long expiresAt,
-        boolean erasePaused) implements CustomPacketPayload {
+        boolean erasePaused,
+        int eraseKindOrdinal,
+        boolean eraseKeyUp) implements CustomPacketPayload {
     public static final Type<TemporalStateSyncPayload> TYPE =
             new Type<>(KingCrimsonAddon.id("temporal_state_sync"));
 
@@ -34,6 +36,8 @@ public record TemporalStateSyncPayload(
                             buffer.readVarInt(),
                             buffer.readVarLong(),
                             buffer.readVarLong(),
+                            buffer.readBoolean(),
+                            buffer.readVarInt(),
                             buffer.readBoolean());
                 }
 
@@ -47,6 +51,8 @@ public record TemporalStateSyncPayload(
                     buffer.writeVarLong(payload.startedAt());
                     buffer.writeVarLong(payload.expiresAt());
                     buffer.writeBoolean(payload.erasePaused());
+                    buffer.writeVarInt(payload.eraseKindOrdinal());
+                    buffer.writeBoolean(payload.eraseKeyUp());
                 }
             };
 
@@ -58,7 +64,9 @@ public record TemporalStateSyncPayload(
                 state.mode().ordinal(),
                 state.startedAt(),
                 state.expiresAt(),
-                state.isErasePaused());
+                state.isErasePaused(),
+                state.eraseKind().ordinal(),
+                state.isKeyUp());
     }
 
     public static void handle(
@@ -74,7 +82,9 @@ public record TemporalStateSyncPayload(
                             payload.modeOrdinal(),
                             payload.startedAt(),
                             payload.expiresAt(),
-                            payload.erasePaused());
+                            payload.erasePaused(),
+                            payload.eraseKindOrdinal(),
+                            payload.eraseKeyUp());
         }
     }
 

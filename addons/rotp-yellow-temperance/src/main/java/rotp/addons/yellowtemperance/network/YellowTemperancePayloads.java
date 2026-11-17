@@ -11,9 +11,5 @@ public final class YellowTemperancePayloads {
                 DisguiseSelectionPayload.TYPE,
                 DisguiseSelectionPayload.STREAM_CODEC,
                 DisguiseSelectionPayload::handle);
-        registrar.playToClient(
-                ErosionVisualPayload.TYPE,
-                ErosionVisualPayload.STREAM_CODEC,
-                ErosionVisualPayload::handle);
     }
 }

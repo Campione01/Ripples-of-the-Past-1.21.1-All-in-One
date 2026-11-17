@@ -16,8 +16,10 @@ import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 
 import rotp.addons.echoes.RotpEchoes;
 import rotp.addons.echoes.state.EchoesGravityService;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 
 public final class EchoesGravityAbility extends StandEntityAbility {
     public enum Mode {
@@ -77,8 +79,9 @@ public final class EchoesGravityAbility extends StandEntityAbility {
         setDefaultPhaseLength(ActionPhase.RECOVERY, mode.recoveryTicks());
     }
 
-    // 092 GravityProjectileAction has no gravity-item condition: without an
-    // item it throws nothing, and StandEntityTask still pays its cost.
+    // What the master and the author's 1.21.1 ask at the press, so a press with nothing to do costs nothing: a freeze
+    // needs someone in the aim and a user another has not frozen, a throw a gravity item in the hands, an infusion
+    // something to infuse.
     @Override
     public ConditionCheck checkSpecificConditions(Power<?> context) {
         ConditionCheck base = super.checkSpecificConditions(context);
@@ -87,7 +90,33 @@ public final class EchoesGravityAbility extends StandEntityAbility {
                 || !RotpEchoes.isEchoesUser(power.getUser())) {
             return base.isPositive() ? ConditionCheck.NEGATIVE : base;
         }
+        LivingEntity user = power.getUser();
+        switch (mode) {
+            case FREEZE_TARGET, HAND_FREEZE -> {
+                if (EchoesGravityService.isFrozenByAnother(user)) {
+                    return ConditionCheck.NEGATIVE;
+                }
+                if (!EchoesGravityService.hasFreezeTarget(user)) {
+                    return refusal("need_freeze_target");
+                }
+            }
+            case PROJECTILE -> {
+                if (user instanceof Player player && !EchoesGravityService.holdsInfusedItem(player)) {
+                    return refusal("need_gravity_item");
+                }
+            }
+            case INFUSE -> {
+                if (user instanceof Player player && !EchoesGravityService.canInfuse(player)) {
+                    return refusal("need_held_item");
+                }
+            }
+            default -> {}
+        }
         return base;
+    }
+
+    private static ConditionCheck refusal(String message) {
+        return ConditionCheck.createNegative(Component.translatable("rotp_echoes.message." + message));
     }
 
     // the master gave the gravity projectile no pose, so it keeps the idle

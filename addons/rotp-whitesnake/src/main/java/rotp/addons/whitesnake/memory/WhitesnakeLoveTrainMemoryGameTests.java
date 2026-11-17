@@ -9,6 +9,7 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
@@ -20,6 +21,7 @@ import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
@@ -29,6 +31,7 @@ import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -209,6 +212,7 @@ public final class WhitesnakeLoveTrainMemoryGameTests {
         helper.assertTrue(WhitesnakeAddon.WHITESNAKE.get().summon(player, power), "Stand did not summon");
         StandEntity stand = power.getSummonedStandEntity();
         helper.assertTrue(stand != null, "Summoned Stand is absent");
+        player.assertTracks(stand);
         stand.setPos(player.position());
         return stand;
     }
@@ -364,15 +368,32 @@ public final class WhitesnakeLoveTrainMemoryGameTests {
             super.displayClientMessage(message, actionBar);
         }
 
-        // The mock player is not ticked: its tracking is moved to where it stands and its own chunk counts as sent, so
-        // it tracks its Stand and the Stand's sound packets reach it.
+        // The mock player is not ticked: its tracking is moved to where it stands and the chunks around it count as
+        // sent, so it tracks its Stand and the Stand's sound packets reach it. The Stand is added beside its user, in the
+        // next chunk when he stands within a block of a chunk border, and moving it back does not pair it again.
         private void listen(Connection connection, CommonListenerCookie cookie) {
             new Recording(this, connection, cookie);
             serverLevel().getChunkSource().move(this);
-            this.connection.chunkSender.dropChunk(this, chunkPosition());
+            ChunkPos home = chunkPosition();
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    this.connection.chunkSender.dropChunk(this, new ChunkPos(home.x + dx, home.z + dz));
+                }
+            }
         }
 
+        private void assertTracks(StandEntity stand) {
+            ChunkMap.TrackedEntity tracked = serverLevel().getChunkSource().chunkMap.entityMap.get(stand.getId());
+            if (tracked == null || !tracked.seenBy.contains(connection)) {
+                throw new GameTestAssertException("Fixture: " + getGameProfile().getName() + " does not track the Stand"
+                        + " (Stand at " + stand.position() + ", user at " + position()
+                        + "), so no packet of the Stand reaches the recording connection");
+            }
+        }
+
+        // a count read while the user does not track the Stand would be 0 whatever the Stand did
         private int standSounds(StandEntity stand) {
+            assertTracks(stand);
             int count = 0;
             for (Packet<?> packet : List.copyOf(sent)) {
                 if (packet instanceof ClientboundCustomPayloadPacket custom

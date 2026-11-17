@@ -10,6 +10,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 
 import rotp.addons.highwaystar.HighwayStarAddon;
 import rotp.addons.highwaystar.HighwayStarConfig;
+import rotp.addons.highwaystar.ability.HighwayStarUtilityAbility;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -28,11 +29,21 @@ public class HighwayStarEntity extends StandEntity {
             SynchedEntityData.defineId(HighwayStarEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> ARM_MISSING =
             SynchedEntityData.defineId(HighwayStarEntity.class, EntityDataSerializers.BOOLEAN);
+    // 1.16 kept these two on the server, so its HighwayStarModel never saw the split coming and its shrink never drew.
+    private static final EntityDataAccessor<Boolean> PENDING_SPLIT =
+            SynchedEntityData.defineId(HighwayStarEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> SPLIT_SWITCH_TICKS =
+            SynchedEntityData.defineId(HighwayStarEntity.class, EntityDataSerializers.INT);
+    // The division clip's squash is over 0.2917 s in, about 6 of the 10 ticks before the split.
+    public static final int GONE_AT_SWITCH_TICKS = 4;
+    // One second covers a ping of about 500 ms; a press the server refused shows the Stand again after it.
+    private static final int SQUASH_HOLD_TICKS = 20;
 
-    private boolean pendingSplit = false;
-    private int splitSwitchTicks = 0;
     @Nullable private UUID trackingTarget = null;
     @Nullable private UUID remoteSoleUuid = null;
+    // Client: the squash ended here before the server's split arrived. A press runs ahead of the server, and entity data
+    // sent in a tick reaches the client a tick after the soles spawned in it.
+    private int squashHoldTicks = 0;
 
     public HighwayStarEntity(EntityType<? extends HighwayStarEntity> type, Level level) {
         super(type, level);
@@ -44,6 +55,8 @@ public class HighwayStarEntity extends StandEntity {
         builder.define(IS_SKATING, false);
         builder.define(IS_SPLIT, false);
         builder.define(ARM_MISSING, false);
+        builder.define(PENDING_SPLIT, false);
+        builder.define(SPLIT_SWITCH_TICKS, 0);
     }
 
     public boolean isSkating() {
@@ -71,19 +84,38 @@ public class HighwayStarEntity extends StandEntity {
     }
 
     public boolean isPendingSplit() {
-        return pendingSplit;
+        return entityData.get(PENDING_SPLIT);
     }
 
     public void setPendingSplit(boolean pendingSplit) {
-        this.pendingSplit = pendingSplit;
+        entityData.set(PENDING_SPLIT, pendingSplit);
     }
 
     public int getSplitSwitchTicks() {
-        return splitSwitchTicks;
+        return entityData.get(SPLIT_SWITCH_TICKS);
     }
 
     public void setSplitSwitchTicks(int ticks) {
-        this.splitSwitchTicks = ticks;
+        entityData.set(SPLIT_SWITCH_TICKS, ticks);
+    }
+
+    /**
+     * Client: whether nothing of the Stand is drawn. In split form, from the end of the squash until the split reaches this
+     * client, and for the one tick of the way back, whose clip would show a squashed body before the idle at full size.
+     */
+    public boolean isGoneFromSight() {
+        if (isSplit()) {
+            return true;
+        }
+        boolean squashing = false;
+        if (getCurStandAction() instanceof HighwayStarUtilityAbility.UtilityAction action) {
+            if (action.isComingBack()) {
+                return true;
+            }
+            squashing = action.isSplitting();
+        }
+        return !squashing && squashHoldTicks > 0
+                || isPendingSplit() && getSplitSwitchTicks() <= GONE_AT_SWITCH_TICKS;
     }
 
     @Nullable
@@ -135,10 +167,20 @@ public class HighwayStarEntity extends StandEntity {
     public void tick() {
         super.tick();
         if (level().isClientSide()) {
+            if (isSplit()) {
+                squashHoldTicks = 0;
+            }
+            else if (getCurStandAction() instanceof HighwayStarUtilityAbility.UtilityAction action && action.isSplitting()) {
+                squashHoldTicks = SQUASH_HOLD_TICKS;
+            }
+            else if (squashHoldTicks > 0) {
+                squashHoldTicks--;
+            }
             return;
         }
+        int splitSwitchTicks = getSplitSwitchTicks();
         if (splitSwitchTicks > 0) {
-            splitSwitchTicks--;
+            setSplitSwitchTicks(--splitSwitchTicks);
             if (splitSwitchTicks == 1) {
                 performSplitSwitch();
             }
@@ -179,6 +221,7 @@ public class HighwayStarEntity extends StandEntity {
     }
 
     public void performSplitSwitch() {
+        boolean pendingSplit = isPendingSplit();
         if (isSplit() == pendingSplit) {
             return;
         }
@@ -229,16 +272,4 @@ public class HighwayStarEntity extends StandEntity {
         }
     }
 
-    @Override
-    public void remove(Entity.RemovalReason reason) {
-        if (!level().isClientSide()) {
-            LivingEntity user = getUser();
-            if (user != null) {
-                for (HighwayStarSoleEntity sole : ownedSoles(level(), user, 128.0)) {
-                    sole.discard();
-                }
-            }
-        }
-        super.remove(reason);
-    }
 }

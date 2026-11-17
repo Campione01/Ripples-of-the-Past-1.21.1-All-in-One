@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-achtung-baby`, mod id `rotp_ab`, version `1.0.0-port.17`.
+- Module: `rotp-achtung-baby`, mod id `rotp_ab`, version `1.0.0-port.18`.
 - Original 1.16.5 add-on: `RotP-AchtungBaby-1.16.5-1.0.0.jar` (RotP-AchtungBaby, mod id `rotp_ab`), by Weever; declared license: GNU GPL v3.0; SHA-256 `0154BBD0576F2FCF5A5F4DDEA16ADF0DDF6DA502DBDEB5B78CC64AA1EB4801B0`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-10-21); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

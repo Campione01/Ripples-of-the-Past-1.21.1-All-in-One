@@ -235,15 +235,35 @@ public final class ScaryMonstersAddon {
                 .addToHotbar("example_stand_finisher_punchs_wish_its_tail", 0, InputMethod.CLICK)
                 .addToHotbar("slash", 0, InputMethod.CLICK)
                 .addToHotbar("dynamic_vision", 0, InputMethod.CLICK)
-                .addToHotbar("dynamic_vision_close", 0, InputMethod.CLICK)
+                .addHotbarSlotVariation(
+                        "dynamic_vision_close",
+                        "dynamic_vision",
+                        InputKey.Modifier.SHIFT,
+                        InputMethod.CLICK)
                 .addToHotbar("dragon", 0, InputMethod.HOLD)
-                .addToHotbar("dragon_close", 0, InputMethod.CLICK)
+                .addHotbarSlotVariation(
+                        "dragon_close",
+                        "dragon",
+                        InputKey.Modifier.SHIFT,
+                        InputMethod.CLICK)
                 .addToHotbar("dinosaurify", 0, InputMethod.HOLD)
-                .addToHotbar("dinosaurify_revert", 0, InputMethod.HOLD)
+                .addHotbarSlotVariation(
+                        "dinosaurify_revert",
+                        "dinosaurify",
+                        InputKey.Modifier.SHIFT,
+                        InputMethod.HOLD)
                 .addToHotbar("block_to_dinosaur", 0, InputMethod.HOLD)
-                .addToHotbar("revert_block_to_dinosaur", 0, InputMethod.HOLD)
+                .addHotbarSlotVariation(
+                        "revert_block_to_dinosaur",
+                        "block_to_dinosaur",
+                        InputKey.Modifier.SHIFT,
+                        InputMethod.HOLD)
                 .addToHotbar("dinosaur_form", 0, InputMethod.HOLD)
-                .addToHotbar("dinosaur_form_close", 0, InputMethod.HOLD)
+                .addHotbarSlotVariation(
+                        "dinosaur_form_close",
+                        "dinosaur_form",
+                        InputKey.Modifier.SHIFT,
+                        InputMethod.HOLD)
                 .finalizeControlScheme();
         moveset.makeControlScheme("keybinds")
                 .bind("example_stand_punch", InputMethod.CLICK, InputKey.LMB)

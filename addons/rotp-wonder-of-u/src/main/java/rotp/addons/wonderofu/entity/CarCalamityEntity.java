@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import rotp.core.util.functions.DamageUtil;
+import rotp.core.util.functions.JojoModUtil;
 
 import rotp.addons.wonderofu.WonderOfUAddon;
 import rotp.addons.wonderofu.WonderOfUDamageTypes;
@@ -210,14 +211,16 @@ public final class CarCalamityEntity extends Mob {
 
     private void explode(ServerLevel serverLevel) {
         // The caster may be dead or gone; the blast is then the car's own.
+        LivingEntity caster = resolveLiving(serverLevel, getOwnerUuid());
         DamageSource damageSource = DamageUtil.make(
                 serverLevel,
                 WonderOfUDamageTypes.CALAMITY_CAR,
                 this,
-                resolveLiving(serverLevel, getOwnerUuid()));
+                caster);
         Level.ExplosionInteraction interaction =
                 serverLevel.getGameRules()
-                        .getBoolean(GameRules.RULE_MOBGRIEFING)
+                                .getBoolean(GameRules.RULE_MOBGRIEFING)
+                        && JojoModUtil.breakingBlocksEnabled(serverLevel, caster)
                         ? Level.ExplosionInteraction.MOB
                         : Level.ExplosionInteraction.NONE;
         serverLevel.explode(

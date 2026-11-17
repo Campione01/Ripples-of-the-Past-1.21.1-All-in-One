@@ -10,6 +10,7 @@ import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 
 import rotp.addons.whitesnake.WhitesnakeAddon;
+import rotp.addons.whitesnake.disguise.WhitesnakeDisguiseState;
 import rotp.addons.whitesnake.entity.WhitesnakeEntity;
 import rotp.addons.whitesnake.network.OpenDisguiseSelectionPayload;
 import net.minecraft.network.chat.Component;
@@ -35,6 +36,12 @@ public final class WhitesnakeDisguiseAbility
                 action.getPowerUser(), ABILITY_NAME);
     }
 
+    // R772.1 OQ-C04: the disguise goes on with the Stand recalled (the owner's 收回仍持續), so the HUD lights this slot
+    @Override
+    public boolean cl_runsWithStandRecalled(LivingEntity user) {
+        return WhitesnakeDisguiseState.of(user).isDisguised();
+    }
+
     @Override
     public Component getName(Power<?> context) {
         return isDisguised(context)
@@ -50,18 +57,9 @@ public final class WhitesnakeDisguiseAbility
     }
 
     private static boolean isDisguised(Power<?> context) {
-        LivingEntity user = context != null
-                ? context.getUser()
-                : null;
-        if (user == null) {
-            return false;
-        }
-        var power = rotp.core.powersystem
-                .standpower.StandPower.get(user);
-        return power != null
-                && power.getSummonedStandEntity()
-                        instanceof WhitesnakeEntity whitesnake
-                && whitesnake.isDisguised();
+        return context != null
+                && WhitesnakeDisguiseState.of(context.getUser())
+                        .isDisguised();
     }
 
     public static final class DisguiseAction

@@ -333,25 +333,28 @@ public final class LittleFeetAddon {
                             INSTANT_SELF_SHRINK_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             INSTANT_SELF_GROW_NAME,
-                            0,
+                            INSTANT_SELF_SHRINK_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             SLOW_SELF_SHRINK_NAME,
                             0,
                             InputMethod.HOLD)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             SLOW_SELF_GROW_NAME,
-                            0,
+                            SLOW_SELF_SHRINK_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.HOLD)
                     .addToHotbar(
                             NEAREST_TARGET_GROW_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             ALL_TARGETS_GROW_NAME,
-                            0,
+                            NEAREST_TARGET_GROW_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")

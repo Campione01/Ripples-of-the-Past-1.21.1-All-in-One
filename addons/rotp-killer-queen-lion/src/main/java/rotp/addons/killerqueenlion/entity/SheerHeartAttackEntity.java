@@ -371,7 +371,8 @@ public final class SheerHeartAttackEntity extends Monster
 
     // 1.16: breaks blocks only with the break-blocks rule and mob griefing
     private Level.ExplosionInteraction explosionInteraction() {
-        return JojoModUtil.breakingBlocksEnabled(level())
+        return JojoModUtil.breakingBlocksEnabled(
+                                level(), getKillerQueenOwner())
                         && EventHooks.canEntityGrief(level(), this)
                 ? Level.ExplosionInteraction.MOB
                 : Level.ExplosionInteraction.NONE;

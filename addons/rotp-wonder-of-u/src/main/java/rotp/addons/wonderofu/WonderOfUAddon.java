@@ -34,8 +34,10 @@ import net.minecraft.world.entity.MobCategory;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(WonderOfUAddon.MOD_ID)
 public final class WonderOfUAddon {
@@ -50,6 +52,12 @@ public final class WonderOfUAddon {
             DeferredRegister.create(Registries.SOUND_EVENT, MOD_ID);
     public static final DeferredRegister<StandType> STAND_TYPES =
             DeferredRegister.create(JojoRegistries.DEFAULT_STANDS_REG, MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
+            DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<WonderOfUStandEntity.Recalled>> RECALLED_STAND =
+            ATTACHMENT_TYPES.register(
+                    "recalled_stand",
+                    () -> AttachmentType.builder(() -> new WonderOfUStandEntity.Recalled()).build());
 
     public static final DeferredHolder<
             AbilityType<?>, AbilityType<CalamityPassiveAbility>>
@@ -148,6 +156,7 @@ public final class WonderOfUAddon {
         ENTITY_TYPES.register(modEventBus);
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
         modEventBus.addListener(
                 WonderOfUGameEvents::registerAttributes);
         modEventBus.addListener(WonderOfUAddon::markSkillsThroughWalls);

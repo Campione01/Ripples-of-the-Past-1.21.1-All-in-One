@@ -184,6 +184,12 @@
                                                  }
                                              ]
                               },
+    "kingcrimson_bloodthrow":  {
+                                   "subtitle":  "rotp_kingcrimson.subtitle.kingcrimson_bloodthrow",
+                                   "sounds":  [
+                                                  "rotp_kingcrimson:stand/kingcrimson_dash"
+                                              ]
+                               },
     "kingcrimson_timeskip":  {
                                  "subtitle":  "rotp_kingcrimson.subtitle.kingcrimson_timeskip",
                                  "sounds":  [

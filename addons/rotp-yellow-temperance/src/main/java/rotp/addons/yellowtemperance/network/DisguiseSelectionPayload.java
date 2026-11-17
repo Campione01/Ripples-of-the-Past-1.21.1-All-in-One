@@ -51,10 +51,14 @@ public record DisguiseSelectionPayload(
     public static void handle(
             DisguiseSelectionPayload payload,
             IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)) {
-            return;
+        if (context.player() instanceof ServerPlayer player) {
+            select(player, payload.modeId(), payload.selection());
         }
-        DisguiseMode mode = DisguiseMode.byId(payload.modeId());
+    }
+
+    public static void select(
+            ServerPlayer player, byte modeId, String selection) {
+        DisguiseMode mode = DisguiseMode.byId(modeId);
         YellowTemperanceControllerEntity controller =
                 YellowTemperanceAddon.controller(player);
         long gameTime = player.level().getGameTime();
@@ -65,11 +69,11 @@ public record DisguiseSelectionPayload(
         }
         switch (mode) {
             case ENTITY -> applyEntity(
-                    controller, player, payload.selection());
+                    controller, player, selection);
             case PLAYER -> applyPlayer(
-                    controller, player, payload.selection());
-            case STAND -> applyStand(
-                    controller, payload.selection());
+                    controller, player, selection);
+            case STAND, STAND_SELF -> applyStand(
+                    controller, mode, selection);
             case NONE -> {
             }
         }
@@ -109,6 +113,7 @@ public record DisguiseSelectionPayload(
 
     private static void applyStand(
             YellowTemperanceControllerEntity controller,
+            DisguiseMode mode,
             String value) {
         ResourceLocation id = ResourceLocation.tryParse(value);
         Object stand = id != null
@@ -117,10 +122,15 @@ public record DisguiseSelectionPayload(
                 : null;
         if (DisguisePolicy.isAllowedStand(id, stand)
                 && stand instanceof EntityStandType entityStandType) {
-            controller.applyEntityOrStandDisguise(
-                    DisguiseMode.STAND,
-                    id,
-                    entityStandType.getEntityType().getDimensions());
+            if (mode == DisguiseMode.STAND) {
+                controller.applyBesideStand(id);
+            }
+            else {
+                controller.applyEntityOrStandDisguise(
+                        mode,
+                        id,
+                        entityStandType.getEntityType().getDimensions());
+            }
         }
     }
 

@@ -6,7 +6,6 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
-import rotp.addons.kingcrimson.KingCrimsonEpitaphForesightSpec;
 import rotp.addons.kingcrimson.state.KingCrimsonTemporalStateService;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
@@ -25,20 +24,22 @@ public final class KingCrimsonAfterimageEntity
     /** The colour of 1.16's KC_RedGlow team (TextFormatting.RED), which coloured its afterimage outline. */
     private static final int TIME_ERASE_OUTLINE_COLOR =
             ChatFormatting.RED.getColor();
+    private static volatile boolean haloReplacesOutline;
 
     @Nullable
-    private LivingEntity originEntity;
+    private Entity originEntity;
     private int originEntityId = -1;
     @Nullable
     private UUID originUuid;
     private int ticksDelayed;
     private int delayTicks;
     private int lifespanTicks;
-    /** A client-only Epitaph vision image: placed at the foreseen position instead of trailing the origin. */
-    private boolean futureVision;
-    /** A Time Erase afterimage outlined in red through walls; Epitaph vision images never are. */
+    /** A shifted player's image: no half-second trail, it stands on its origin. */
+    private boolean followsOrigin;
+    /** The image of a thing that moves outside an erase (a projectile, a falling block): no creature. */
+    private boolean movingThing;
+    /** A Time Erase afterimage outlined in red through walls. */
     private boolean timeEraseOutline;
-    private int lastVisionRefreshTick;
     /** The Time Erase user whose client holds this afterimage; it stands still while that erase is paused. */
     @Nullable
     private Player eraseObserver;
@@ -92,29 +93,34 @@ public final class KingCrimsonAfterimageEntity
         eraseObserver = observer;
     }
 
-    /** Turns this client entity into an Epitaph vision image of {@code originId}. */
-    public void initializeFutureVision(int originId, UUID expectedOriginUuid) {
+    /**
+     * Turns this client entity into the image of a player a Time Erase shifts: it stands where his entity stands,
+     * which the eraser's client has put on his image, for as long as the erase runs.
+     */
+    public void initializeFollowing(int originId, UUID expectedOriginUuid) {
         initializeClient(originId, expectedOriginUuid, 0, Integer.MAX_VALUE);
-        futureVision = true;
+        followsOrigin = true;
     }
 
-    /** Moves the vision image to the latest foreseen position. */
-    public void refreshFutureVision(Vec3 foreseen) {
-        if (lastVisionRefreshTick == 0 && tickCount == 0) {
-            moveTo(foreseen.x, foreseen.y, foreseen.z, getYRot(), getXRot());
-        }
-        else {
-            setPos(foreseen.x, foreseen.y, foreseen.z);
-        }
-        lastVisionRefreshTick = tickCount;
+    public boolean followsOrigin() {
+        return followsOrigin;
     }
 
-    public boolean isFutureVision() {
-        return futureVision;
+    /**
+     * Turns this client entity into the afterimage of a thing that moves in the world outside a Time Erase (EV1105AC
+     * section 7): it trails its origin by a few ticks for as long as the erase runs and the thing is there.
+     */
+    public void initializeMoving(int originId, UUID expectedOriginUuid, int delay) {
+        initializeClient(originId, expectedOriginUuid, delay, Integer.MAX_VALUE);
+        movingThing = true;
+    }
+
+    public boolean isMovingThing() {
+        return movingThing;
     }
 
     @Nullable
-    public LivingEntity getOriginEntity() {
+    public Entity getOriginEntity() {
         resolveOrigin();
         return originEntity;
     }
@@ -139,24 +145,28 @@ public final class KingCrimsonAfterimageEntity
     @Override
     public void tick() {
         super.tick();
-        if (!futureVision && eraseObserver != null
-                && KingCrimsonTemporalStateService.isErasePaused(eraseObserver)) {
+        if (eraseObserver != null && KingCrimsonTemporalStateService.isErasePaused(eraseObserver)) {
             // T1: the erase's foresight freezes with the erase in someone's time stop
-            lifespanTicks++;
+            if (lifespanTicks < Integer.MAX_VALUE) {
+                lifespanTicks++;
+            }
             return;
         }
-        LivingEntity origin = getOriginEntity();
+        Entity origin = getOriginEntity();
         if (origin == null
                 || !origin.isAlive()
-                || !followsRunningErase() && tickCount > lifespanTicks) {
+                || !followsRunningErase() && (movingThing || tickCount > lifespanTicks)) {
             discard();
             return;
         }
-        if (futureVision) {
-            if (tickCount - lastVisionRefreshTick
-                    > KingCrimsonEpitaphForesightSpec.VISION_STALE_TICKS) {
+        if (followsOrigin) {
+            if (!followsRunningErase()) {
                 discard();
+                return;
             }
+            setPos(origin.getX(), origin.getY(), origin.getZ());
+            setYRot(origin.getYRot());
+            setXRot(origin.getXRot());
             return;
         }
 
@@ -178,27 +188,26 @@ public final class KingCrimsonAfterimageEntity
     // An erase held back by another ability (Made in Heaven's mode A) outlasts its length in client ticks; its
     // afterimages stay until the erase's end removes them.
     private boolean followsRunningErase() {
-        return !futureVision && eraseObserver != null
-                && KingCrimsonTemporalStateService.isErasing(eraseObserver);
+        return eraseObserver != null && KingCrimsonTemporalStateService.isErasing(eraseObserver);
     }
 
     @Override
     public boolean isInvisible() {
-        LivingEntity origin = getOriginEntity();
+        Entity origin = getOriginEntity();
         return super.isInvisible()
                 || origin != null && origin.isInvisible();
     }
 
     @Override
     public boolean isInvisibleTo(Player player) {
-        LivingEntity origin = getOriginEntity();
+        Entity origin = getOriginEntity();
         return super.isInvisibleTo(player)
                 || origin != null && origin.isInvisibleTo(player);
     }
 
     @Override
     public boolean displayFireAnimation() {
-        LivingEntity origin = getOriginEntity();
+        Entity origin = getOriginEntity();
         return origin != null && origin.displayFireAnimation();
     }
 
@@ -207,6 +216,20 @@ public final class KingCrimsonAfterimageEntity
         return timeEraseOutline
                 ? TIME_ERASE_OUTLINE_COLOR
                 : super.getTeamColor();
+    }
+
+    /** While the halo draws these afterimages itself, the vanilla outline stays out of it; on no shaders the outline is the look. */
+    public static void setHaloReplacesOutline(boolean replaces) {
+        haloReplacesOutline = replaces;
+    }
+
+    public boolean showsTimeEraseOutline() {
+        return timeEraseOutline;
+    }
+
+    @Override
+    public boolean isCurrentlyGlowing() {
+        return !(timeEraseOutline && haloReplacesOutline) && super.isCurrentlyGlowing();
     }
 
     @Override
@@ -254,7 +277,7 @@ public final class KingCrimsonAfterimageEntity
         resolveOrigin();
     }
 
-    private void setOriginEntity(LivingEntity origin) {
+    private void setOriginEntity(Entity origin) {
         originEntity = origin;
         originEntityId = origin.getId();
         originUuid = origin.getUUID();
@@ -271,9 +294,9 @@ public final class KingCrimsonAfterimageEntity
         }
         originEntity = null;
         Entity candidate = level().getEntity(originEntityId);
-        if (candidate instanceof LivingEntity living
-                && living.getUUID().equals(originUuid)) {
-            originEntity = living;
+        if (candidate != null
+                && candidate.getUUID().equals(originUuid)) {
+            originEntity = candidate;
         }
     }
 

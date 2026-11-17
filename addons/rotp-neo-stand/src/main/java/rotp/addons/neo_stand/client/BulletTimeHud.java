@@ -1,10 +1,11 @@
 package rotp.addons.neo_stand.client;
 
-import java.util.HashMap;
+import java.lang.ref.WeakReference;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import rotp.core.api.client.time.ClientRegionalTimeDilationQuery;
 import rotp.core.api.client.time.ClientRegionalTimeDilationSurface;
@@ -30,9 +31,11 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
 
 public final class BulletTimeHud implements LayeredDraw.Layer {
+    // dilation() also answers for sounds, whose PlaySoundEvent can come off the client thread.
     private static final Map<UUID, ClientField> FIELDS =
-            new HashMap<>();
-    private static ClientLevel trackedLevel;
+            new ConcurrentHashMap<>();
+    // Weakly: it is only reset when the next level is asked about, so a strong one would hold the old client world.
+    private static volatile WeakReference<ClientLevel> trackedLevel = new WeakReference<>(null);
 
     public static void accept(BulletTimeSyncPayload payload) {
         Minecraft minecraft = Minecraft.getInstance();
@@ -213,9 +216,9 @@ public final class BulletTimeHud implements LayeredDraw.Layer {
     }
 
     private static void resetForLevel(ClientLevel level) {
-        if (trackedLevel != level) {
+        if (trackedLevel.get() != level) {
             FIELDS.clear();
-            trackedLevel = level;
+            trackedLevel = new WeakReference<>(level);
         }
     }
 
@@ -285,7 +288,7 @@ public final class BulletTimeHud implements LayeredDraw.Layer {
             return radiusBlocks;
         }
 
-        private long remainingTicks() {
+        private synchronized long remainingTicks() {
             return remainingTicks;
         }
 
@@ -293,7 +296,7 @@ public final class BulletTimeHud implements LayeredDraw.Layer {
             return dilationFactor;
         }
 
-        private void advance(
+        private synchronized void advance(
                 long gameTime, boolean timeStopped) {
             long elapsed = Math.max(
                     0L, gameTime - lastGameTime);

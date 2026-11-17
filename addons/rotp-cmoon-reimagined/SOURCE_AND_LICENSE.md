@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-cmoon-reimagined`, mod id `cmoon_rm`, version `1.0.0-port.7`.
+- Module: `rotp-cmoon-reimagined`, mod id `cmoon_rm`, version `1.0.0-port.8`.
 - Original 1.16.5 add-on: `RotP-newcmoon.jar` (C-Moon Reimagined, mod id `cmoon_rm`), by silentevermore; declared license: GNU GPL v3.0; SHA-256 `176E7C48FDF4F2B311D8EFEC8786B29C7EFD8E90DB2E61601D8224B9A32DDA98`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

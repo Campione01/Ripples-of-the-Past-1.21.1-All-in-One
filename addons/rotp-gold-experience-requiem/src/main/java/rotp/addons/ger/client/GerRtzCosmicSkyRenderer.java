@@ -17,6 +17,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.logging.LogUtils;
 
 import rotp.addons.ger.GoldExperienceRequiemAddon;
+import rotp.addons.ger.state.GerRtzPackRoute;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
@@ -52,6 +53,10 @@ public final class GerRtzCosmicSkyRenderer
 
     @Override
     public void render(ClientSkyRenderContext context) {
+        if (GerRtzPackAccess.route() != GerRtzPackRoute.NO_SHADERS) {
+            // Under a pack the shell carries the cosmos.
+            return;
+        }
         PoseStack poseStack = new PoseStack();
         poseStack.mulPose(context.frustumMatrix());
         renderSky(

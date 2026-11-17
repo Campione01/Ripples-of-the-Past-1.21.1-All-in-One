@@ -192,6 +192,8 @@ public final class DiverDownAuthority {
             return false;
         }
 
+        // What it did to the target goes on through a recall (owner's rule of 2026-11-05; 1.16 too): it answers to the
+        // owner and his power, the Stand may be away.
         Entity ownerEntity =
                 level.getEntity(authority.getUUID(OWNER_TAG));
         Entity standEntity =
@@ -200,14 +202,24 @@ public final class DiverDownAuthority {
                 ? DiverDownAddon.SPRING_LEGS_NAME
                 : DiverDownAddon.BONE_SHARD_BOMB_NAME;
         if (!(ownerEntity instanceof LivingEntity owner)
-                || !(standEntity
-                        instanceof DiverDownStandEntity stand)
-                || !validController(owner, stand, ability)
-                || !canAffect(owner, target, stand)) {
+                || !validUser(owner, StandPower.get(owner), ability)
+                || !canAffect(
+                        owner,
+                        target,
+                        standEntity instanceof DiverDownStandEntity stand
+                                ? stand
+                                : null)) {
             clearEffectAuthority(target, expected);
             return false;
         }
         return true;
+    }
+
+    public static boolean ownerLostTheStand(LivingEntity owner) {
+        StandPower power = StandPower.get(owner);
+        return power == null
+                || !power.hasPower()
+                || power.getPowerType() != DiverDownAddon.DIVER_DOWN.get();
     }
 
     public static void clearEffectAuthority(
@@ -284,26 +296,6 @@ public final class DiverDownAuthority {
         }
     }
 
-    public static void clearForStand(
-            ServerLevel level, UUID standUuid) {
-        if (level == null || standUuid == null) {
-            return;
-        }
-        for (Entity entity : entitiesOf(level)) {
-            if (entity instanceof LivingEntity living) {
-                for (EffectKind kind : EffectKind.values()) {
-                    if (ownedByStand(living, kind, standUuid)) {
-                        clearEffectAuthority(living, kind);
-                    }
-                }
-            }
-            if (entity instanceof BoneShardEntity shard
-                    && standUuid.equals(shard.getStandUuid())) {
-                shard.discard();
-            }
-        }
-    }
-
     // getAllEntities is a live view of the level's id map: a discard while it is iterated can shrink the map under
     // the iterator ("Index 48 out of bounds for length 33"), so the clean-ups walk a copy.
     private static List<Entity> entitiesOf(ServerLevel level) {
@@ -349,15 +341,6 @@ public final class DiverDownAuthority {
                 && authority.hasUUID(OWNER_TAG)
                 && ownerUuid.equals(
                         authority.getUUID(OWNER_TAG));
-    }
-
-    private static boolean ownedByStand(
-            LivingEntity target, EffectKind kind, UUID standUuid) {
-        CompoundTag authority = authority(target, kind);
-        return authority != null
-                && authority.hasUUID(STAND_TAG)
-                && standUuid.equals(
-                        authority.getUUID(STAND_TAG));
     }
 
     private static CompoundTag authority(Entity entity, EffectKind kind) {

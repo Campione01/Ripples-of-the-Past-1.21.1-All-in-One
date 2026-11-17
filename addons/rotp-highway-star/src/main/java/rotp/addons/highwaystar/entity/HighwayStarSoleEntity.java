@@ -9,7 +9,9 @@ import javax.annotation.Nullable;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.util.functions.DamageUtil;
+import rotp.core.util.functions.JojoModUtil;
 
+import rotp.addons.highwaystar.HighwayStarAddon;
 import rotp.addons.highwaystar.HighwayStarConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -197,6 +199,13 @@ public class HighwayStarSoleEntity extends TamableAnimal {
         super.remove(reason);
     }
 
+    private static boolean ownerLostTheStand(LivingEntity owner) {
+        StandPower power = StandPower.get(owner);
+        return power == null
+                || !power.hasPower()
+                || power.getPowerType() != HighwayStarAddon.HIGHWAY_STAR.get();
+    }
+
     @Override
     public void tick() {
         super.tick();
@@ -221,11 +230,13 @@ public class HighwayStarSoleEntity extends TamableAnimal {
             return;
         }
         UUID ownerUUID = getOwnerUUID();
-        if (ownerUUID == null || !ownerUUID.equals(owner.getUUID()) || !owner.isAlive()) {
+        if (ownerUUID == null || !ownerUUID.equals(owner.getUUID()) || !owner.isAlive() || ownerLostTheStand(owner)) {
             discard();
             return;
         }
-        if (attachedTarget == null && !returningToOwner && !chasing && !attached) {
+        // A sole that chases or drains goes on through a recall (owner's rule of 2026-11-05); one with its work done is
+        // idle again, also on its way back, and is the Stand's.
+        if (attachedTarget == null && !chasing && !attached) {
             boolean standInactive;
             try {
                 StandPower power = StandPower.get(owner);
@@ -373,7 +384,8 @@ public class HighwayStarSoleEntity extends TamableAnimal {
     }
 
     private void tryHitObstacle(Vec3 destination) {
-        if (breakCooldown > 0 || !(level() instanceof ServerLevel) || !horizontalCollision) {
+        if (breakCooldown > 0 || !(level() instanceof ServerLevel) || !horizontalCollision
+                || !JojoModUtil.breakingBlocksEnabled(level(), getOwner())) {
             return;
         }
         Vec3 eye = position().add(0.0, getBbHeight() * 0.5, 0.0);

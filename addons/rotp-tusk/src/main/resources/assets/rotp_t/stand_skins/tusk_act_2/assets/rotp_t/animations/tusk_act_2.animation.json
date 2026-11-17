@@ -103,106 +103,33 @@
       "bones": {
         "body_rot": {
           "rotation": {
-            "vector": [
-              0,
-              0,
-              0
-            ]
+            "0.0": {"vector": [0, 30, 0]},
+            "0.75": {"vector": [0, 30, 0]},
+            "1.0": {"vector": [0, 0, 0], "easing": "linear"}
           }
         },
         "head": {
           "rotation": {
-            "0.0": {
-              "vector": [
-                -25,
-                -25,
-                20
-              ]
-            },
-            "1.0": {
-              "vector": [
-                "query.head_x_rotation",
-                "query.head_y_rotation",
-                0
-              ],
-              "easing": "easeOutCubic"
-            }
+            "0.0": {"vector": [-15, 0, 15]},
+            "0.75": {"vector": [-15, 0, 15]},
+            "1.0": {"vector": ["query.head_x_rotation", "query.head_y_rotation", 0], "easing": "linear"}
           }
         },
         "torso_bend": {
-          "rotation": {
-            "0.0": {
-              "vector": [
-                0,
-                55,
-                -20
-              ]
-            },
-            "1.0": {
-              "vector": [
-                0,
-                0,
-                0
-              ],
-              "easing": "easeOutCubic"
-            }
-          }
+          "rotation": {"vector": [0, 0, -1.5]}
         },
         "right_arm": {
           "rotation": {
-            "0.0": {
-              "vector": [
-                55,
-                0,
-                80
-              ]
-            },
-            "1.0": {
-              "vector": [
-                0,
-                0,
-                0
-              ],
-              "easing": "easeOutCubic"
-            }
+            "0.0": {"vector": [55, 0, 80]},
+            "0.75": {"vector": [55, 0, 80]},
+            "1.0": {"vector": [0, 0, 0], "easing": "linear"}
           }
         },
         "left_arm": {
           "rotation": {
-            "0.0": {
-              "vector": [
-                -20,
-                0,
-                -95
-              ]
-            },
-            "1.0": {
-              "vector": [
-                0,
-                0,
-                0
-              ],
-              "easing": "easeOutCubic"
-            }
-          }
-        },
-        "torso_lower": {
-          "rotation": {
-            "0.0": {
-              "vector": [
-                20,
-                -35,
-                10
-              ]
-            },
-            "1.0": {
-              "vector": [
-                0,
-                0,
-                0
-              ],
-              "easing": "easeOutCubic"
-            }
+            "0.0": {"vector": [-20, 0, -95]},
+            "0.75": {"vector": [-20, 0, -95]},
+            "1.0": {"vector": [0, 0, 0], "easing": "linear"}
           }
         }
       }

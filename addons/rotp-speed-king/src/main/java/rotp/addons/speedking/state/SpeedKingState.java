@@ -97,6 +97,13 @@ public final class SpeedKingState
         return changed;
     }
 
+    public boolean clearBodyMoves() {
+        boolean changed = grabbedTargetId >= 0 || blocking;
+        grabbedTargetId = -1;
+        blocking = false;
+        return changed;
+    }
+
     public boolean clearTransient() {
         boolean changed = grabbedTargetId >= 0
                 || blocking

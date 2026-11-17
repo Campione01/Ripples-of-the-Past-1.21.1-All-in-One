@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import rotp.core.powersystem.standpower.StandDamageContext;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
@@ -164,7 +165,8 @@ public final class EchoesOnomatopoeiaService {
 
     /**
      * master EchoesTailNeedleRecallAction: each word the user's tail left on another, on a block or as a thing comes
-     * off and flies back as a needle, a needle in flight turns back; with nothing out the tail is simply in.
+     * off and flies back as a needle, a needle in flight turns back, the word on himself comes off; with nothing out
+     * the tail is simply in.
      */
     public static void recall(ServerPlayer player) {
         boolean flying = false;
@@ -202,6 +204,8 @@ public final class EchoesOnomatopoeiaService {
             }
             mark.takeOff();
         }
+        // the master's recall took every attachment of the owner, the one on himself too
+        takeBackSelfMark(player);
         if (!flying) {
             RotpEchoes.userState(player).setTailOut(false);
         }
@@ -216,17 +220,25 @@ public final class EchoesOnomatopoeiaService {
         return player.level().addFreshEntity(needle);
     }
 
-    /** master EchoesOnomatopoeiaSelfAction / attachToSelf: the word on the user, in place of one already there. */
+    /**
+     * master EchoesOnomatopoeiaSelfAction / attachToSelf: the word on the user. It counts as the tail fired, as the
+     * master's setFired did: the tail tip is hidden, needle and attach wait for it, and it is refused with the tail out.
+     */
     public static boolean attachToSelf(ServerPlayer player) {
-        EchoesOnomatopoeia word = RotpEchoes.userState(player).onomatopoeia();
-        if (word == null) {
+        EchoesUserState state = RotpEchoes.userState(player);
+        EchoesOnomatopoeia word = state.onomatopoeia();
+        if (word == null || state.tailOut()) {
             return false;
         }
         attach(player, player.getUUID(), word, player.getRandom().nextInt(EchoesOnomatopoeia.VARIANTS));
+        state.setTailOut(true);
         return true;
     }
 
-    /** master EchoesOnomatopoeiaAttachCancelAction: the user's words come off others and blocks, the tail is back. */
+    /**
+     * master EchoesOnomatopoeiaAttachCancelAction: the user's words come off others, blocks and himself, the tail is
+     * back.
+     */
     public static void takeBackMarks(ServerPlayer player) {
         List<LivingEntity> marked = new ArrayList<>();
         List<Entity> gone = new ArrayList<>();
@@ -244,6 +256,7 @@ public final class EchoesOnomatopoeiaService {
         gone.forEach(Entity::discard);
         marked.forEach(EchoesOnomatopoeiaService::removeMark);
         EchoesOnomatopoeiaMarkBlockEntity.marksOf(player.getUUID()).forEach(EchoesOnomatopoeiaMarkBlockEntity::takeOff);
+        takeBackSelfMark(player);
         RotpEchoes.userState(player).setTailOut(false);
     }
 
@@ -276,7 +289,21 @@ public final class EchoesOnomatopoeiaService {
         EchoesOnomatopoeiaPayloads.syncMark(target);
     }
 
+    /**
+     * The word comes off and every client watching is told, also when the server has none: a client draws by entity id,
+     * and a respawned player keeps the id of the one who died. The state it gave ends too (master
+     * OnomatopoeiaAttachedEntity.remove).
+     */
     public static void removeMark(LivingEntity target) {
+        EchoesOnomatopoeiaMark mark = markOf(target);
+        if (mark != null && mark.word() != null) {
+            removeWord(mark.word(), target);
+        }
+        // the self word held the tail, which nothing else can then hold (master EchoesOnomatopoeiaSelfCancelAction)
+        if (mark != null && target instanceof ServerPlayer player && player.getUUID().equals(mark.owner())
+                && player.hasData(EchoesAttachments.USER_STATE)) {
+            RotpEchoes.userState(player).setTailOut(false);
+        }
         target.removeData(EchoesAttachments.ONOMATOPOEIA_MARK);
         EchoesOnomatopoeiaPayloads.syncMark(target);
     }
@@ -288,7 +315,14 @@ public final class EchoesOnomatopoeiaService {
         }
         EchoesOnomatopoeiaMark mark = target.getData(EchoesAttachments.ONOMATOPOEIA_MARK);
         EchoesOnomatopoeia word = mark.word();
-        if (word == null || !target.isAlive() || !ownerHasAct2Out(level, mark)) {
+        if (word == null || !target.isAlive()) {
+            return;
+        }
+        if (ownerLostEchoes(level, mark)) {
+            removeMark(target);
+            return;
+        }
+        if (!ownerHasAct2(level, mark)) {
             return;
         }
         if (word == EchoesOnomatopoeia.YOUHUO) {
@@ -306,11 +340,11 @@ public final class EchoesOnomatopoeiaService {
         else if (word.actsOnce()) {
             if (!mark.triggered()) {
                 mark.markTriggered();
-                apply(word, target);
+                applyBy(mark.owner(), word, target);
             }
         }
         else if (level.getGameTime() % TRIGGER_INTERVAL_TICKS == 0L) {
-            apply(word, target);
+            applyBy(mark.owner(), word, target);
         }
     }
 
@@ -353,10 +387,38 @@ public final class EchoesOnomatopoeiaService {
         }
     }
 
-    private static boolean ownerHasAct2Out(ServerLevel level, EchoesOnomatopoeiaMark mark) {
+    // The master asked for ACT2 out; the owner's rule of 2026-11-05 is over it: a word goes on through a recall.
+    private static boolean ownerHasAct2(ServerLevel level, EchoesOnomatopoeiaMark mark) {
+        ServerPlayer owner = mark.owner() != null ? level.getServer().getPlayerList().getPlayer(mark.owner()) : null;
+        StandPower power = owner != null && owner.level() == level ? StandPower.get(owner) : null;
+        return power != null && power.getPowerType() == EchoesStands.ECHOES_ACT2.get();
+    }
+
+    // Another ACT only puts the word to sleep; with no Echoes left, or no user, nothing can wake it or take it off.
+    private static boolean ownerLostEchoes(ServerLevel level, EchoesOnomatopoeiaMark mark) {
         ServerPlayer owner = mark.owner() != null ? level.getServer().getPlayerList().getPlayer(mark.owner()) : null;
         StandPower power = owner != null ? StandPower.get(owner) : null;
-        return power != null && power.getPowerType() == EchoesStands.ECHOES_ACT2.get() && power.isSummoned();
+        return power == null || EchoesForms.actOf(power.getPowerType()) < 0;
+    }
+
+    /** A word on an entity ends with that entity's death, or a player's logout or change of level, whoever put it there. */
+    public static void endWordOn(LivingEntity entity) {
+        if (entity.hasData(EchoesAttachments.ONOMATOPOEIA_MARK)) {
+            removeMark(entity);
+        }
+    }
+
+    /** A word on another entity ends with its user's death, logout or change of level; a relog must not bring it back. */
+    public static void endWordsOnOthers(ServerPlayer player) {
+        List<LivingEntity> marked = new ArrayList<>();
+        for (ServerLevel level : player.getServer().getAllLevels()) {
+            for (Entity entity : level.getAllEntities()) {
+                if (entity != player && entity instanceof LivingEntity living && isMarkedBy(living, player.getUUID())) {
+                    marked.add(living);
+                }
+            }
+        }
+        marked.forEach(EchoesOnomatopoeiaService::removeMark);
     }
 
     private static void stopMobAi(Mob mob) {
@@ -376,9 +438,14 @@ public final class EchoesOnomatopoeiaService {
     /** master EchoesBlockEventHandler.onLivingTick, once a second: Jian in the entity's cell or under it pricks it. */
     public static void tickBlockMarks(LivingEntity entity) {
         BlockPos pos = entity.blockPosition();
-        if (EchoesOnomatopoeiaMarkBlockEntity.wordAt(entity.level(), pos) == EchoesOnomatopoeia.JIAN
-                || EchoesOnomatopoeiaMarkBlockEntity.wordAt(entity.level(), pos.below()) == EchoesOnomatopoeia.JIAN) {
-            entity.hurt(entity.damageSources().cactus(), 0.5F);
+        for (BlockPos cell : new BlockPos[] {pos, pos.below()}) {
+            if (EchoesOnomatopoeiaMarkBlockEntity.wordAt(entity.level(), cell) == EchoesOnomatopoeia.JIAN) {
+                try (var running = StandDamageContext.enter(RotpEchoes.powerOf(entity.level(),
+                        EchoesOnomatopoeiaMarkBlockEntity.ownerAt(entity.level(), cell)))) {
+                    entity.hurt(entity.damageSources().cactus(), 0.5F);
+                }
+                return;
+            }
         }
     }
 
@@ -395,6 +462,13 @@ public final class EchoesOnomatopoeiaService {
             }
         }
         return false;
+    }
+
+    /** A word applied by its owner's Stand: its damage takes the Stand's damage share, whichever tick delivers it. */
+    public static void applyBy(@Nullable UUID owner, EchoesOnomatopoeia word, LivingEntity target) {
+        try (var running = StandDamageContext.enter(RotpEchoes.powerOf(target.level(), owner))) {
+            apply(word, target);
+        }
     }
 
     /** master OnomatopoeiaEffect.apply. */

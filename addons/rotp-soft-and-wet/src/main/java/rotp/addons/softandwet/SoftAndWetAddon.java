@@ -239,8 +239,11 @@ public final class SoftAndWetAddon {
                     .addToHotbar("bubbles", 0, InputMethod.CLICK)
                     .addToHotbar(
                             "bubble_blind", 0, InputMethod.CLICK)
-                    .addToHotbar(
-                            "bubble_stun", 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            "bubble_stun",
+                            "bubble_blind",
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             "bubble_explosion", 0, InputMethod.CLICK)
                     .addToHotbar(

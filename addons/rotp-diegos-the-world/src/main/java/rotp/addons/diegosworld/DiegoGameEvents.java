@@ -38,12 +38,14 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.event.PlayLevelSoundEvent;
 
 @EventBusSubscriber(modid = DiegosTheWorldAddon.MOD_ID)
 public final class DiegoGameEvents {
-    private static final Map<UUID, Entity> LAST_RIDDEN_VEHICLE =
+    // The vehicle by its UUID: a held entity would keep its level and server alive after the rider left.
+    private static final Map<UUID, UUID> LAST_RIDDEN_VEHICLE =
             new ConcurrentHashMap<>();
     private static final Map<UUID, Long> HEAVY_PUNCH_IN_TIME_STOP =
             new ConcurrentHashMap<>();
@@ -193,7 +195,7 @@ public final class DiegoGameEvents {
         boolean timeStopped = state.isTimeStopped(player);
         Entity vehicle = player.getVehicle();
         if (vehicle != null) {
-            LAST_RIDDEN_VEHICLE.put(player.getUUID(), vehicle);
+            LAST_RIDDEN_VEHICLE.put(player.getUUID(), vehicle.getUUID());
             if (timeStopped
                     && vehicle instanceof LivingEntity livingVehicle
                     && !livingVehicle.hasEffect(
@@ -208,8 +210,11 @@ public final class DiegoGameEvents {
             }
         }
         else {
-            Entity lastVehicle =
+            UUID lastVehicleId =
                     LAST_RIDDEN_VEHICLE.remove(player.getUUID());
+            Entity lastVehicle = lastVehicleId != null
+                    ? level.getEntity(lastVehicleId)
+                    : null;
             if (timeStopped
                     && lastVehicle != null
                     && lastVehicle.isAlive()
@@ -251,6 +256,18 @@ public final class DiegoGameEvents {
             HEAVY_PUNCH_IN_TIME_STOP.put(
                     target.getUUID(), level.getGameTime());
         }
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        LAST_RIDDEN_VEHICLE.clear();
+        HEAVY_PUNCH_IN_TIME_STOP.clear();
+        SUPPRESS_INHERITED_DIO_VOICE.clear();
+    }
+
+    /** Read by the game tests. */
+    public static boolean remembersVehicleForTests(UUID rider) {
+        return LAST_RIDDEN_VEHICLE.containsKey(rider);
     }
 
     @SubscribeEvent

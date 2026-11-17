@@ -15,6 +15,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.d4c.ability.D4CPhase2BAbility;
 import rotp.addons.d4c.entity.D4CAnnihilationCloneEntity;
 import rotp.addons.d4c.travel.D4CDimensionTargets;
+import rotp.addons.d4c.travel.D4CDimensionUnlocks;
 import rotp.addons.d4c.travel.D4CDimensionTravelService;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.standpower.StandInstance;
@@ -285,6 +286,7 @@ public final class D4CHeldRecheckGameTests {
                 // the game-test server has no Parallel World level
                 scene.owner.getPersistentData().putString("rotp_d4c.phase2a.selected_dimension",
                         D4CDimensionTargets.NETHER.toString());
+                D4CDimensionUnlocks.record(scene.owner, D4CDimensionTargets.NETHER);
                 EntityActionInstance held = scene.pressAndHold(D4CAddon.PARALLEL_WORLD_TRAVEL_NAME, (short) 251);
                 helper.assertTrue(held != null, "fixture: " + scene.fixtureFailure);
                 helper.getLevel().setBlockAndUpdate(feet.east(), Blocks.AIR.defaultBlockState());

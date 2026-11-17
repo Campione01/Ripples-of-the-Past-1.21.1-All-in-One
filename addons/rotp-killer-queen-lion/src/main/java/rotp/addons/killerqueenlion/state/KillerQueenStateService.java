@@ -394,19 +394,20 @@ public final class KillerQueenStateService {
         return null;
     }
 
+    // A bomb stays through a recall (owner's rule of 2026-11-05): with no Stand out the range runs from its user.
     @Nullable
     public static BlockPos blockBombPos(Player owner) {
         KillerQueenState state = KillerQueenLionAddon.state(owner);
         StandEntity stand = KillerQueenAuthority.currentStand(owner);
+        Entity holder = stand != null ? stand : owner;
         BlockPos position = state.blockBombPos();
         ResourceLocation dimension =
                 state.blockBombDimension();
-        if (stand == null
-                || position == null
+        if (position == null
                 || dimension == null
                 || !dimension.equals(
                         owner.level().dimension().location())
-                || stand.distanceToSqr(
+                || holder.distanceToSqr(
                                 position.getX(),
                                 position.getY(),
                                 position.getZ())

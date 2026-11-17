@@ -259,7 +259,7 @@ public final class BeachBoyAddon {
                         .speed(14.0, 16.0)
                         .range(100.0, 100.0)
                         .durability(8.0, 10.0)
-                        .precision(16.0, 18.0)
+                        .precision(10.0)
                         .randomWeight(2.0)
                         .build(),
                 moveset,

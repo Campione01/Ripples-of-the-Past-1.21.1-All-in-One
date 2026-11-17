@@ -1,6 +1,5 @@
 package rotp.addons.kingcrimson.client;
 
-import rotp.core.api.client.render.ClientRenderCompatibility;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -9,6 +8,7 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 
 import rotp.addons.kingcrimson.KingCrimsonAddon;
+import rotp.addons.kingcrimson.client.shatter.KingCrimsonShatterClient;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -16,7 +16,7 @@ import net.minecraft.client.gui.LayeredDraw;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.resources.ResourceLocation;
 
-/** Final-main-target color grade for Time Erase under Iris shaders. */
+/** Final-main-target fallback when the Iris void shell cannot be drawn. */
 public final class KingCrimsonTimeEraseIrisOverlay
         implements LayeredDraw.Layer {
     private static final ResourceLocation OVERLAY =
@@ -29,9 +29,7 @@ public final class KingCrimsonTimeEraseIrisOverlay
     @Override
     public void render(
             GuiGraphics graphics, DeltaTracker deltaTracker) {
-        if (!KingCrimsonTemporalClientState.localTimeErase()
-                || !ClientRenderCompatibility.snapshot()
-                        .irisShaderPackInUse()) {
+        if (!KingCrimsonShatterClient.useIrisOverlay()) {
             return;
         }
 

@@ -9,6 +9,7 @@ import rotp.core.core.JojoRegistries;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.ability.AbilityType;
+import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.standpower.StandStats;
 import rotp.core.powersystem.standpower.StandUnlockableSkill;
@@ -232,8 +233,11 @@ public final class HarvestAddon {
                             BE_CLOSER_NAME, 0, InputMethod.CLICK)
                     .addToHotbar(
                             GIVE_POTION_NAME, 0, InputMethod.HOLD)
-                    .addToHotbar(
-                            REMOVE_POTION_NAME, 0, InputMethod.HOLD)
+                    .addHotbarSlotVariation(
+                            REMOVE_POTION_NAME,
+                            GIVE_POTION_NAME,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.HOLD)
                     .addToHotbar(
                             CONTROL_HARVEST_NAME,
                             0,

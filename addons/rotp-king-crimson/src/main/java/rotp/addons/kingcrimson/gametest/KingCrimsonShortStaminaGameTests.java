@@ -31,7 +31,10 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import rotp.addons.kingcrimson.KingCrimsonAddon;
 import rotp.addons.kingcrimson.KingCrimsonConfig;
 import rotp.addons.kingcrimson.KingCrimsonPhase5Spec;
-import rotp.addons.kingcrimson.state.EpitaphStateService;
+import rotp.addons.kingcrimson.KingCrimsonPhase3Spec;
+import rotp.addons.kingcrimson.epitaph.EpitaphEnd;
+import rotp.addons.kingcrimson.epitaph.EpitaphSession;
+import rotp.addons.kingcrimson.epitaph.EpitaphSessions;
 import rotp.addons.kingcrimson.state.KingCrimsonTemporalStateService;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
@@ -116,38 +119,30 @@ public final class KingCrimsonShortStaminaGameTests {
             }
         }
 
-        // 1.16 KingCrimsonEpitaph is a hold-only StandAction: PowerBaseImpl only set it as the held action and
-        // stopHeldAction never performed it, so StandAction.onPerform never paid its staminaCost(175). It had no
-        // stamina condition either, so it arms on an empty bar too.
+        // The owner's Epitaph of R772.1 is paid for at the press (EPITAPH-ARCH 5.1): a bar that cannot pay its 175 is
+        // refused. Unlike the others here, whose 1.16 rule is to pay what is there: 1.16 never charged its hold-only
+        // Epitaph at all (PowerBaseImpl only set it as the held action, and StandAction.onPerform never ran).
         for (float stamina : new float[] {0, 300}) {
             try (var scene = new Scene(helper, "S3/epitaph/" + (int) stamina)) {
-                StandEntity stand = scene.summon();
+                scene.summon();
                 scene.power.setStamina(stamina);
+                boolean pays = stamina >= KingCrimsonPhase3Spec.EPITAPH_ACTIVATION_STAMINA;
                 Ability epitaph = scene.power.getAbility("kingcrimson_epitaph");
-                checks.check(epitaph.checkConditions(scene.power).isPositive(), scene.id + " conditions pass");
-                scene.press(epitaph, InputMethod.HOLD);
-                EntityActionInstance action = LivingComponentAction.getCurEntityAction(stand);
-                scene.premise(action != null && action.ability == epitaph, "Epitaph action installed");
-                for (int tick = 0; tick < 30 && !action.isOver()
-                        && !KingCrimsonAddon.epitaphState(scene.player).isArmed(scene.gameTime()); tick++) {
-                    action._tickAction();
-                }
-                checks.check(KingCrimsonAddon.epitaphState(scene.player).isArmed(scene.gameTime())
-                                && scene.power.getAbilityCooldown("kingcrimson_epitaph") > 0,
-                        scene.id + " Epitaph arms and goes on cooldown: phase=" + action.getPhase()
+                checks.check(epitaph.checkConditions(scene.power).isPositive() == pays,
+                        scene.id + (pays ? " conditions pass" : " a bar that cannot pay is refused"));
+                BufferingState state = scene.press(epitaph, InputMethod.CLICK);
+                boolean began = EpitaphSessions.of(scene.player) != null;
+                checks.check(state.isActionSuccess == pays && began == pays
+                                && (scene.power.getAbilityCooldown("kingcrimson_epitaph") > 0) == pays,
+                        scene.id + " a prediction begins and Epitaph goes on cooldown only when it is paid for: success="
+                                + state.isActionSuccess + " began=" + began
                                 + " cooldown=" + scene.power.getAbilityCooldown("kingcrimson_epitaph"));
-                checks.check(scene.power.getStamina() == stamina && scene.staminaMessages() == 0,
-                        scene.id + " arming takes no stamina and shows no message: stamina=" + scene.power.getStamina()
-                                + " messages=" + scene.staminaMessages());
+                float paid = stamina - scene.power.getStamina();
+                checks.check(KingCrimsonGroundGameTestFixture.near(paid, pays ? KingCrimsonPhase3Spec.EPITAPH_ACTIVATION_STAMINA : 0.0F),
+                        scene.id + " the press takes its cost and nothing else: paid=" + paid);
                 // Owner rule of 2026-10-15: only a Stand's guard slows its user, so Epitaph holds no hidden Slowness II
-                for (int tick = 0; tick < 5 && !action.isOver(); tick++) {
-                    action._tickAction();
-                }
-                checks.check(!action.isOver() && !scene.player.hasEffect(MobEffects.MOVEMENT_SLOWDOWN)
-                                && action.userWalkSpeed == 1.0F,
-                        scene.id + " the holder keeps full speed: over=" + action.isOver()
-                                + " slowness=" + scene.player.getEffect(MobEffects.MOVEMENT_SLOWDOWN)
-                                + " walk=" + action.userWalkSpeed);
+                checks.check(!scene.player.hasEffect(MobEffects.MOVEMENT_SLOWDOWN),
+                        scene.id + " the user keeps full speed: slowness=" + scene.player.getEffect(MobEffects.MOVEMENT_SLOWDOWN));
             }
         }
 
@@ -244,7 +239,10 @@ public final class KingCrimsonShortStaminaGameTests {
         @Override
         public void close() {
             KingCrimsonTemporalStateService.terminate(player);
-            EpitaphStateService.terminateIfArmed(player);
+            EpitaphSession running = EpitaphSessions.of(player);
+            if (running != null) {
+                running.end(EpitaphEnd.CANCELLED);
+            }
             StandEntity stand = power.getSummonedStandEntity();
             if (stand != null) {
                 power.setSummonedStand(null);

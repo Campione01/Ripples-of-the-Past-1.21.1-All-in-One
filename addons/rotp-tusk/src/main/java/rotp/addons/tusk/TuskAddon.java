@@ -816,23 +816,25 @@ public final class TuskAddon {
                     .addToHotbar(
                             NAIL_SCRATCH_NAME, 0, InputMethod.CLICK)
                     .addToHotbar(
-                            NAIL_SHOT_NAME, 0, InputMethod.HOLD);
+                            NAIL_SHOT_NAME, 0, InputMethod.HOLD)
+                    .addHotbarSlotVariation(
+                            CHARGED_NAIL_SHOT_NAME,
+                            NAIL_SHOT_NAME,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.HOLD);
         }
         hotbar.addToHotbar(
                 SELECT_ACT_NAME, 0, InputMethod.CLICK);
-        if (actIndex >= ACT_2) {
-            hotbar.addToHotbar(
-                    CHARGED_NAIL_SHOT_NAME, 0, InputMethod.HOLD);
-        }
         if (actIndex >= ACT_3) {
             hotbar
                     .addToHotbar(
                             WORMHOLE_NAME, 0, InputMethod.CLICK)
                     .addToHotbar(
                             MOVE_WORMHOLE_NAME, 0, InputMethod.HOLD)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             REMOVE_WORMHOLE_NAME,
-                            0,
+                            MOVE_WORMHOLE_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             WORMHOLE_ARM_NAME, 0, InputMethod.CLICK)
@@ -840,9 +842,10 @@ public final class TuskAddon {
                             MOVE_WORMHOLE_ARM_NAME,
                             0,
                             InputMethod.HOLD)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             REMOVE_WORMHOLE_ARM_NAME,
-                            0,
+                            MOVE_WORMHOLE_ARM_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK);
         }
         if (actIndex == ACT_4) {
@@ -893,6 +896,13 @@ public final class TuskAddon {
                             BLOCK_NAME,
                             InputMethod.HOLD,
                             InputKey.RMB);
+            // the nail shot is on LMB until ACT4
+            if (actIndex >= ACT_2) {
+                keybinds.bind(
+                        CHARGED_NAIL_SHOT_NAME,
+                        InputMethod.HOLD,
+                        InputKey.LMB.withModifier(InputKey.Modifier.SHIFT));
+            }
         }
         keybinds.finalizeControlScheme();
 

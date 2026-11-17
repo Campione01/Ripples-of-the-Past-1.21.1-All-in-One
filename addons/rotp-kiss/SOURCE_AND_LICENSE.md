@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-kiss`, mod id `kiss`, version `1.0.2a-port.23`.
+- Module: `rotp-kiss`, mod id `kiss`, version `1.0.2a-port.24`.
 - Original 1.16.5 add-on: `RotP-kiss-1.0.jar` (Kiss Stand Addon, mod id `kiss`), by jiutoh,Day_GeE; declared license: GNU GPL v3.0; SHA-256 `AC6A972282C92D30AF68EE6765F3CC55C13E0C82245E1D2FECA30634BF4AF919`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-08-22 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

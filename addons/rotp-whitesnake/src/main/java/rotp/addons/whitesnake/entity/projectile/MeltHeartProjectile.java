@@ -1,5 +1,6 @@
 package rotp.addons.whitesnake.entity.projectile;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
@@ -11,6 +12,9 @@ import rotp.addons.whitesnake.WhitesnakeAddon;
 import rotp.addons.whitesnake.block.MeltHeartBlock;
 import rotp.addons.whitesnake.blockentity.MeltHeartBlockEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
@@ -26,9 +30,11 @@ public final class MeltHeartProjectile
         extends ModdedProjectileEntity {
     private static final String ABILITY_NAME = "melt_your_heart";
 
+    // the shooter is the Stand; the user's id goes to the client for the HUD's recall sign (OQ-C04)
+    private static final EntityDataAccessor<Optional<UUID>> WHITESNAKE_USER =
+            SynchedEntityData.defineId(MeltHeartProjectile.class, EntityDataSerializers.OPTIONAL_UUID);
+
     private boolean hitCeiling;
-    @Nullable
-    private UUID whitesnakeUser;
 
     public MeltHeartProjectile(
             LivingEntity shooter, Level level) {
@@ -44,8 +50,19 @@ public final class MeltHeartProjectile
         super(type, level);
     }
 
+    @Override
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(WHITESNAKE_USER, Optional.empty());
+    }
+
     public void setWhitesnakeUser(UUID userId) {
-        whitesnakeUser = userId;
+        entityData.set(WHITESNAKE_USER, Optional.ofNullable(userId));
+    }
+
+    @Nullable
+    public UUID whitesnakeUser() {
+        return entityData.get(WHITESNAKE_USER).orElse(null);
     }
 
     @Override
@@ -73,15 +90,22 @@ public final class MeltHeartProjectile
     }
 
     private boolean hasValidWhitesnakeOwner() {
+        UUID userId = whitesnakeUser();
         if (!(level() instanceof ServerLevel serverLevel)
-                || whitesnakeUser == null) {
+                || userId == null) {
             return false;
         }
-        LivingEntity user = findUser(serverLevel, whitesnakeUser);
+        LivingEntity user = findUser(serverLevel, userId);
         return user != null
                 && user.level() == serverLevel
-                && WhitesnakeAddon.isActiveWhitesnakeUser(
+                && WhitesnakeAddon.holdsWhitesnakeSkill(
                         user, ABILITY_NAME);
+    }
+
+    // its user decides, in tick; the Stand that shot it may be recalled
+    @Override
+    protected boolean shouldExpire(@Nullable Entity owner) {
+        return tickCount > ticksLifespan();
     }
 
     @Nullable
@@ -120,8 +144,9 @@ public final class MeltHeartProjectile
                     movement.z * 1.5D);
         }
 
+        UUID userId = whitesnakeUser();
         if (level() instanceof ServerLevel serverLevel
-                && whitesnakeUser != null
+                && userId != null
                 && !belowState.isAir()
                 && !belowState.is(
                         WhitesnakeAddon.MELT_HEART_BLOCK.get())
@@ -134,7 +159,7 @@ public final class MeltHeartProjectile
             if (serverLevel.setBlockAndUpdate(position, state)
                     && serverLevel.getBlockEntity(position)
                             instanceof MeltHeartBlockEntity blockEntity) {
-                blockEntity.initialize(whitesnakeUser);
+                blockEntity.initialize(userId);
             }
         }
     }

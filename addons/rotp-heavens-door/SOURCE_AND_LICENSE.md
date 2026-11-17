@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-heavens-door`, mod id `rotp_hd`, version `1.2-port.20`.
+- Module: `rotp-heavens-door`, mod id `rotp_hd`, version `1.2-port.21`.
 - Original 1.16.5 add-on: `RotP-天堂之门-1.2.jar` (RotP 天堂之门, mod id `rotp_hd`), by YarickTT, TheDoGGyS, HK47bot; declared license: GNU GPL v3.0; SHA-256 `B6EB5F2B9994206C722AAC1D9CB0E3C8066BA715CCAAF0A8E6121E707EC54469`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

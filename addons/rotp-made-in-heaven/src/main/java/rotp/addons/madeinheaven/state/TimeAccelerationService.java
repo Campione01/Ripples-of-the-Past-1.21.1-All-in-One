@@ -60,7 +60,7 @@ public final class TimeAccelerationService {
         }
         TimeAccelerationState state =
                 MadeInHeavenAddon.accelerationState(level);
-        if (state.active()) {
+        if (state.hasSession()) {
             return false;
         }
         state.begin(owner.getUUID(),
@@ -71,11 +71,34 @@ public final class TimeAccelerationService {
         return true;
     }
 
+    public static boolean togglePause(ServerPlayer owner) {
+        ServerLevel level = owner.serverLevel();
+        TimeAccelerationState state = MadeInHeavenAddon.accelerationState(level);
+        if (level.dimension() != Level.OVERWORLD || !owner.isAlive()
+                || !stillOwnsStandPower(owner) || !state.ownsSession(owner.getUUID())) {
+            return false;
+        }
+        MinecraftServer server = level.getServer();
+        if (state.active()) {
+            state.pause(server.getTickCount());
+            stopLoopSounds(server);
+            TimeLagService.endAll(server);
+        }
+        else {
+            state.resume(server.getTickCount());
+            state.ownDayTime(level.getDayTime());
+            playLoopSounds(level, owner);
+            TimeLagService.reconcileAttributes(server.getPlayerList().getPlayers());
+        }
+        syncAll(server, state);
+        return true;
+    }
+
     public static void tick(MinecraftServer server) {
         ServerLevel level = server.overworld();
         TimeAccelerationState state =
                 MadeInHeavenAddon.accelerationState(level);
-        if (!state.active()) {
+        if (!state.hasSession()) {
             return;
         }
         ServerPlayer owner =
@@ -89,6 +112,9 @@ public final class TimeAccelerationService {
         }
         if (!stillOwnsStandPower(owner)) {
             clear(level, ClearReason.STAND_LOSS);
+            return;
+        }
+        if (!state.active()) {
             return;
         }
 
@@ -349,6 +375,12 @@ public final class TimeAccelerationService {
         return state.isOwner(candidate.getUUID());
     }
 
+    public static boolean isSessionOwner(LivingEntity candidate) {
+        return candidate != null && candidate.level().dimension() == Level.OVERWORLD
+                && MadeInHeavenAddon.accelerationState(candidate.level())
+                        .ownsSession(candidate.getUUID());
+    }
+
     public static int phase(Level level) {
         return MadeInHeavenAddon
                 .accelerationState(level)
@@ -371,7 +403,7 @@ public final class TimeAccelerationService {
         ServerLevel level = server.overworld();
         TimeAccelerationState state =
                 MadeInHeavenAddon.accelerationState(level);
-        if (state.isOwner(owner.getUUID())) {
+        if (state.ownsSession(owner.getUUID())) {
             clear(level, reason);
         }
     }
@@ -380,7 +412,7 @@ public final class TimeAccelerationService {
             ServerLevel level, ClearReason reason) {
         TimeAccelerationState state =
                 MadeInHeavenAddon.accelerationState(level);
-        if (!state.active()) {
+        if (!state.hasSession()) {
             return;
         }
         MinecraftServer server = level.getServer();

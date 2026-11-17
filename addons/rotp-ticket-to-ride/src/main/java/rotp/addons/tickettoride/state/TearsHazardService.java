@@ -1,6 +1,14 @@
 package rotp.addons.tickettoride.state;
 
+import java.util.UUID;
+
+import javax.annotation.Nullable;
+
+import rotp.addons.tickettoride.TicketToRideAddon;
 import rotp.core.init.ModStatusEffects;
+import rotp.core.powersystem.standpower.StandDamageContext;
+import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.util.functions.JojoModUtil;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -37,7 +45,9 @@ public final class TearsHazardService {
                         MobEffects.MOVEMENT_SLOWDOWN, 300, 2, false, true, true));
                 entity.addEffect(new MobEffectInstance(
                         ModStatusEffects.MISSHAPEN_LEGS, 400, 0, false, true, true));
-                entity.hurt(entity.damageSources().fall(), 8.0F);
+                try (var running = StandDamageContext.enter(markersStand(entity))) {
+                    entity.hurt(entity.damageSources().fall(), 8.0F);
+                }
             }
             if (inSnowBiome(level, entity) && random.nextDouble() < 0.075D) {
                 entity.addEffect(new MobEffectInstance(
@@ -91,9 +101,11 @@ public final class TearsHazardService {
                 false,
                 false,
                 false));
-        entity.hurt(
-                entity.damageSources().fall(),
-                5.0F + (distance - 3.0F) * 0.5F);
+        try (var running = StandDamageContext.enter(markersStand(entity))) {
+            entity.hurt(
+                    entity.damageSources().fall(),
+                    5.0F + (distance - 3.0F) * 0.5F);
+        }
         entity.playSound(
                 SoundEvents.SKELETON_HURT,
                 1.0F,
@@ -118,6 +130,9 @@ public final class TearsHazardService {
             if (!level.getBlockState(pos).is(Blocks.TNT)) {
                 continue;
             }
+            if (!markerMayBreakBlocks(level, entity)) {
+                return;
+            }
             BlockPos at = pos.immutable();
             level.setBlock(at, Blocks.AIR.defaultBlockState(), 11);
             level.addFreshEntity(new PrimedTnt(
@@ -141,7 +156,8 @@ public final class TearsHazardService {
                 .map(BlockPos::immutable)
                 .findFirst()
                 .orElse(null);
-        if (hive == null || random.nextDouble() >= 0.045D) {
+        if (hive == null || random.nextDouble() >= 0.045D
+                || !markerMayBreakBlocks(level, entity)) {
             return;
         }
         level.destroyBlock(hive, false);
@@ -164,6 +180,27 @@ public final class TearsHazardService {
                 level.getBlockState(hive).getSoundType(level, hive, null)
                         .getBreakSound(),
                 SoundSource.BLOCKS, 1.0F, 1.0F);
+    }
+
+    // The misfortunes of a marked entity break blocks for the Ticket to Ride user who marked it: the game rule and
+    // that user's Stand switch decide. A marker who is not online leaves the rule alone.
+    private static boolean markerMayBreakBlocks(
+            ServerLevel level, LivingEntity entity) {
+        UUID marker = TicketToRideAddon.woundState(entity).ownerUuid();
+        return JojoModUtil.breakingBlocksEnabled(
+                level, marker != null ? level.getPlayerByUUID(marker) : null);
+    }
+
+    /**
+     * The Ticket to Ride user who marked this entity: its misfortunes are his Stand's work, so they take its damage
+     * share. Null when the marker is not online or no longer holds the Stand.
+     */
+    @Nullable
+    public static StandPower markersStand(LivingEntity entity) {
+        UUID marker = TicketToRideAddon.woundState(entity).ownerUuid();
+        Player player = marker != null ? entity.level().getPlayerByUUID(marker) : null;
+        StandPower power = player != null ? StandPower.get(player) : null;
+        return power != null && power.getPowerType() == TicketToRideAddon.TICKET_TO_RIDE.get() ? power : null;
     }
 
     public static void applyBleeding(LivingEntity entity) {

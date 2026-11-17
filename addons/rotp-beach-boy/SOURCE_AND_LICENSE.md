@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-beach-boy`, mod id `rotp_beach_boy`, version `0.1.13-port.1`.
+- Module: `rotp-beach-boy`, mod id `rotp_beach_boy`, version `0.1.13-port.2`.
 - Original 1.16.5 add-on: see the record below (original authors: Babelmoth).
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-11-04 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-11-04 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-ticket-to-ride`, mod id `rotp_ttr`, version `1.0-full-closure.9-mc1.21.1`.
+- Module: `rotp-ticket-to-ride`, mod id `rotp_ttr`, version `1.0-full-closure.10-mc1.21.1`.
 - Original 1.16.5 add-on: `RotP-Ticket to ride-1.0.jar` (RotP ticket to ride Addon, mod id `rotp_ttr`), by voidzyy , Love Train from LL; declared license: GNU GPL v3.0; SHA-256 `53B39A9D86A459B3294460532FCC75533FF9EF990C2482182999A6724EF1CA14`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-10-28); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

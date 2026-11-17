@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "mlm",
+    "lll",
+    "l l"
+  ],
+  "key": {
+    "l": {
+      "item": "minecraft:leather"
+    },
+    "m": {
+      "item": "minecraft:phantom_membrane"
+    }
+  },
+  "result": {
+    "id": "rotp_spin:gyros_cloak"
+  }
+}

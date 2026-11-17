@@ -5,7 +5,6 @@ import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
 import rotp.core.api.RotpAddonApi;
 import rotp.core.api.timestop.TimeStopAudioContext;
-import rotp.core.api.timestop.TimeStopAudioCue;
 import rotp.core.api.timestop.TimeStopAudioDecision;
 import rotp.core.api.timestop.TimeStopBehaviorPolicies;
 import rotp.core.api.timestop.TimeStopBehaviorPolicy;
@@ -223,18 +222,27 @@ public final class OvaTheWorldAddon {
                                     / TimeStopLearning.BASE_STAMINA_COST);
                 }
 
+                // 1.16 .shout(DIO_OVA_THE_WORLD) and
+                // voiceLineWithStandSummoned(DIO_OVA_TIME_STOP): the core
+                // says it for a charge, under the sneak rule, and cuts it
+                // off if the charge comes to nothing.
                 // 1.16 addTimeResumeVoiceLine(DIO_OVA_TIME_RESUMES, true)
                 // and (DIO_OVA_TIMES_UP, false): the core's resume voice
                 // cue, 30 ticks before the end of a stop of 100+ ticks.
                 @Override
                 public TimeStopAudioDecision audio(
                         TimeStopAudioContext context) {
-                    return context.cue() == TimeStopAudioCue.RESUME_VOICE
-                            ? TimeStopAudioDecision.sound(
-                                    context.isManualResume()
-                                            ? DIO_OVA_TIME_RESUMES
-                                            : DIO_OVA_TIMES_UP)
-                            : TimeStopAudioDecision.pass();
+                    return switch (context.cue()) {
+                        case START_VOICE -> TimeStopAudioDecision.sound(
+                                context.standAlreadySummoned()
+                                        ? DIO_OVA_TIME_STOP
+                                        : DIO_OVA_THE_WORLD);
+                        case RESUME_VOICE -> TimeStopAudioDecision.sound(
+                                context.isManualResume()
+                                        ? DIO_OVA_TIME_RESUMES
+                                        : DIO_OVA_TIMES_UP);
+                        default -> TimeStopAudioDecision.pass();
+                    };
                 }
             };
 
@@ -426,12 +434,13 @@ public final class OvaTheWorldAddon {
                             0, USE_SPECIAL, SWITCH_SPECIAL)
                     .addToHotbar(
                             ULTRA_PUNCH, 0, InputMethod.HOLD)
-                    // The 1.16 blink (the_world_ova_time_resume's SHIFT
-                    // variation) is its own slot after the time stop.
                     .addToHotbar(
                             TIME_STOP, 0, InputMethod.HOLD)
-                    .addToHotbar(
-                            TIME_STOP_BLINK, 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            TIME_STOP_BLINK,
+                            TIME_STOP,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             TS_PUNCH, 0, InputMethod.CLICK)
                 .finalizeControlScheme()

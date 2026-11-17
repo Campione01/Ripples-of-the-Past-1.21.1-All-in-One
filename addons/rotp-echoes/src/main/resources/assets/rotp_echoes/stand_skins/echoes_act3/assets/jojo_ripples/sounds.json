@@ -1,0 +1,9 @@
+{
+  "stand_punch_heavy_charged": {
+    "replace": true,
+    "subtitle": "jojo_ripples.subtitle.stand_attack_strong",
+    "sounds": [
+      "rotp_echoes:heavy_attack"
+    ]
+  }
+}

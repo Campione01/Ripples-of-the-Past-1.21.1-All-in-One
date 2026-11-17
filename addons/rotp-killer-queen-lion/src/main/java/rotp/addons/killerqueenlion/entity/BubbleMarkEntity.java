@@ -48,7 +48,8 @@ public final class BubbleMarkEntity extends ModdedProjectileEntity {
 
     // 1.16 BubbleMarkAction was the user's StandAction: a mark is launched
     // with or without Killer Queen out; one launched with the Stand out stays
-    // bound to it, one launched without it to its owner alone.
+    // going on through a recall as well (owner's rule of 2026-11-05): in flight
+    // it answers to its owner alone.
     public BubbleMarkEntity(
             ServerPlayer owner, @Nullable StandEntity stand, Level level) {
         super(KillerQueenLionAddon.BUBBLE_MARK_ENTITY.get(), owner, level);
@@ -139,13 +140,10 @@ public final class BubbleMarkEntity extends ModdedProjectileEntity {
 
     private boolean authorized(ServerLevel level) {
         UUID ownerUuid = getControllerUuid();
-        UUID standUuid = getStandUuid();
         return ownerUuid != null
                 && level.getGameTime() < entityData.get(EXPIRES_AT)
                 && level.dimension().location().toString().equals(boundDimension)
-                && (standUuid != null
-                        ? KillerQueenAuthority.validController(level, ownerUuid, standUuid)
-                        : ownerControls(level, ownerUuid));
+                && ownerControls(level, ownerUuid);
     }
 
     private static boolean ownerControls(ServerLevel level, UUID ownerUuid) {

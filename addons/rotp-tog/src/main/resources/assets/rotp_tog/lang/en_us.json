@@ -1,0 +1,19 @@
+{
+  "entity.rotp_tog.tower_of_gray": "Tower Of Gray",
+  "stand.rotp_tog.tower_of_gray": "Tower Of Gray",
+  "action.rotp_tog.dash": "Tower Needle",
+  "action.rotp_tog.fly": "Fly",
+  "action.rotp_tog.quick_reposition": "Quick Reposition",
+  "action.rotp_tog.needle_pursuit": "Needle Pursuit",
+  "action.rotp_tog.gray_stinger": "Gray Stinger",
+  "action.rotp_tog.gray_swarm": "Gray Swarm",
+  "action.rotp_tog.dodge": "Dodge",
+  "rotp_tog.ability.dash": "Tower Needle",
+  "rotp_tog.ability.fly": "Fly",
+  "rotp_tog.ability.quick_reposition": "Quick Reposition",
+  "rotp_tog.ability.needle_pursuit": "Needle Pursuit",
+  "rotp_tog.ability.gray_stinger": "Gray Stinger",
+  "rotp_tog.ability.gray_swarm": "Gray Swarm",
+  "rotp_tog.ability.dodge": "Dodge",
+  "rotp_tog.ability.manual_control": "Manual control"
+}

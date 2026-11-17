@@ -66,6 +66,11 @@ public final class WeatherReportIcicleEntity
     }
 
     @Override
+    protected boolean runsInOwnerTime() {
+        return true;
+    }
+
+    @Override
     protected float getBaseDamage() {
         return BASE_DAMAGE;
     }
@@ -139,7 +144,6 @@ public final class WeatherReportIcicleEntity
 
     private Vec3 getNextOriginOffset(LivingEntity owner) {
         double nextDistance = updateDistance();
-        updateMotionFlags();
         if (isRetracting() && nextDistance <= 0.0D) {
             return null;
         }
@@ -149,27 +153,31 @@ public final class WeatherReportIcicleEntity
     }
 
     private double updateDistance() {
+        double step = ownerTimeStep();
         if (isRetracting()) {
-            return distance - RETRACT_SPEED * speedFactor;
+            return distance - RETRACT_SPEED * speedFactor * step;
         }
-        if (isMovingForward()) {
-            return distance + MOVEMENT_SPEED * speedFactor;
-        }
-        return distance;
-    }
 
-    private void updateMotionFlags() {
         int stopForwardMotionMark = Math.max(
                 1, (int) (maxDistance() / MOVEMENT_SPEED));
-        if (isMovingForward()
-                && tickCount >= stopForwardMotionMark) {
-            entityData.set(MOVING_FORWARD, false);
+        int startRetractionMark = stopForwardMotionMark + FULL_LENGTH_TICKS;
+        double age = ownerTicks();
+        double nextDistance = distance;
+        // A step may cross a phase boundary; move only for the time spent in that phase.
+        if (isMovingForward()) {
+            double forwardStep = Math.max(0.0D, Math.min(step,
+                    stopForwardMotionMark - (age - step)));
+            nextDistance += MOVEMENT_SPEED * speedFactor * forwardStep;
+            if (age >= stopForwardMotionMark) {
+                entityData.set(MOVING_FORWARD, false);
+            }
         }
-        if (!isRetracting()
-                && tickCount
-                        >= stopForwardMotionMark + FULL_LENGTH_TICKS) {
+        if (age >= startRetractionMark) {
             entityData.set(RETRACTING, true);
+            double retractStep = Math.min(step, age - startRetractionMark);
+            nextDistance -= RETRACT_SPEED * speedFactor * retractStep;
         }
+        return nextDistance;
     }
 
     private boolean isMovingForward() {

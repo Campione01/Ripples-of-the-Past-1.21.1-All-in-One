@@ -1,5 +1,7 @@
 package rotp.addons.beachboy.event;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 import rotp.addons.beachboy.BeachBoyAddon;
 import rotp.addons.beachboy.entity.BeachBoyHookEntity;
 import rotp.addons.beachboy.item.BeachBoyRodItem;
@@ -12,12 +14,13 @@ import rotp.addons.beachboy.util.BeachBoyStandUtil;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import net.minecraft.core.Holder;
-import net.minecraft.network.protocol.game.ClientboundSoundEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -349,42 +352,39 @@ public final class BeachBoyEvents {
         }
     }
 
-    // 1.16 PlayerListBeachBoySoundMixin: a sound sense user hears every sound within 128 blocks
+    // 1.16 PlayerListBeachBoySoundMixin: a sound sense user hears every sound within 128 blocks. It took only the
+    // position packets (SPlaySoundEffectPacket, SPlaySoundPacket): a sound bound to an entity stays in its own range.
+    // A level's sounds can come off the server thread (a mob placed in a generating chunk), so the seed is not the
+    // world's random and the walk over the players goes to the server thread, with what it needs read here.
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onSoundAtPosition(PlayLevelSoundEvent.AtPosition event) {
         if (event.getLevel() instanceof ServerLevel level && event.getSound() != null) {
             Vec3 pos = event.getPosition();
             Holder<SoundEvent> sound = event.getSound();
+            SoundSource source = event.getSource();
             float volume = event.getNewVolume();
             float pitch = event.getNewPitch();
-            double rangeSq = sq(sound.value().getRange(volume));
-            long seed = level.getRandom().nextLong();
-            for (ServerPlayer player : level.players()) {
-                double distSq = player.distanceToSqr(pos);
-                if (distSq >= rangeSq && distSq < SOUND_SENSE_RANGE_SQ && hasSoundSense(player)) {
-                    player.connection.send(new ClientboundSoundPacket(sound, event.getSource(), pos.x, pos.y, pos.z,
-                            volume, pitch, seed));
+            long seed = ThreadLocalRandom.current().nextLong();
+            onServerThread(level, () -> {
+                double rangeSq = sq(sound.value().getRange(volume));
+                for (ServerPlayer player : level.players()) {
+                    double distSq = player.distanceToSqr(pos);
+                    if (distSq >= rangeSq && distSq < SOUND_SENSE_RANGE_SQ && hasSoundSense(player)) {
+                        player.connection.send(new ClientboundSoundPacket(sound, source, pos.x, pos.y, pos.z,
+                                volume, pitch, seed));
+                    }
                 }
-            }
+            });
         }
     }
 
-    @SubscribeEvent(priority = EventPriority.LOWEST)
-    public static void onSoundAtEntity(PlayLevelSoundEvent.AtEntity event) {
-        if (event.getLevel() instanceof ServerLevel level && event.getSound() != null) {
-            Entity entity = event.getEntity();
-            Holder<SoundEvent> sound = event.getSound();
-            float volume = event.getNewVolume();
-            float pitch = event.getNewPitch();
-            double rangeSq = sq(sound.value().getRange(volume));
-            long seed = level.getRandom().nextLong();
-            for (ServerPlayer player : level.players()) {
-                double distSq = player.distanceToSqr(entity);
-                if (distSq >= rangeSq && distSq < SOUND_SENSE_RANGE_SQ && hasSoundSense(player)) {
-                    player.connection.send(new ClientboundSoundEntityPacket(sound, event.getSource(), entity, volume,
-                            pitch, seed));
-                }
-            }
+    private static void onServerThread(ServerLevel level, Runnable work) {
+        MinecraftServer server = level.getServer();
+        if (server.isSameThread()) {
+            work.run();
+        }
+        else {
+            server.execute(work);
         }
     }
 

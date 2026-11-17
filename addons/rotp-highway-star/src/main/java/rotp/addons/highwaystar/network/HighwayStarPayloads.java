@@ -34,6 +34,7 @@ public final class HighwayStarPayloads {
     private HighwayStarPayloads() {}
 
     public static void register(RegisterPayloadHandlersEvent event) {
+        HighwayStarRoomPayloads.register(event);
         PayloadRegistrar registrar = event.registrar("1").executesOn(HandlerThread.MAIN);
         registrar.playToClient(SmellStatePayload.TYPE, SmellStatePayload.STREAM_CODEC,
                 (payload, context) -> clientSmellHandler.accept(payload));

@@ -81,7 +81,8 @@ public abstract class KillerQueenBombProjectile
 
     // 1.16 SnowBomb / HBubbleBomb were StandActions of the user: a bomb is
     // launched with or without Killer Queen out; one launched with the Stand
-    // out stays bound to it, one launched without it to its owner alone.
+    // out goes on through a recall as well (owner's rule of 2026-11-05): in
+    // flight it answers to its owner alone.
     private void bind(
             ServerPlayer owner, @Nullable StandEntity stand) {
         if (!(level() instanceof ServerLevel level)
@@ -183,25 +184,15 @@ public abstract class KillerQueenBombProjectile
 
     private boolean isAuthorized(ServerLevel level) {
         UUID ownerUuid = getControllerUuid();
-        UUID standUuid = getStandUuid();
         return ownerUuid != null
                 && level.getGameTime()
                         < entityData.get(EXPIRES_AT)
                 && level.dimension().location().toString()
                         .equals(boundDimension)
-                && isFlightControllerValid(
-                        level, ownerUuid, standUuid);
+                && ownerControls(level, ownerUuid);
     }
 
-    protected boolean isFlightControllerValid(
-            ServerLevel level, UUID ownerUuid, @Nullable UUID standUuid) {
-        return standUuid != null
-                ? KillerQueenAuthority.validController(
-                        level, ownerUuid, standUuid)
-                : ownerControls(level, ownerUuid);
-    }
-
-    protected final boolean ownerControls(
+    private boolean ownerControls(
             ServerLevel level, UUID ownerUuid) {
         Entity controller = level.getEntity(ownerUuid);
         return controller instanceof ServerPlayer player

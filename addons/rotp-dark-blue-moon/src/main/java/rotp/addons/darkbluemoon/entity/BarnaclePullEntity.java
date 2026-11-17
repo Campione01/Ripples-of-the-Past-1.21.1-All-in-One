@@ -99,6 +99,11 @@ public class BarnaclePullEntity extends OwnerBoundProjectileEntity {
     }
 
     @Override
+    protected boolean runsInOwnerTime() {
+        return true;
+    }
+
+    @Override
     public void tick() {
         if (!level().isClientSide() && attachedEntityUUID != null && entityData.get(ATTACHED_ENTITY) < 0
                 && level() instanceof ServerLevel serverLevel
@@ -158,9 +163,8 @@ public class BarnaclePullEntity extends OwnerBoundProjectileEntity {
             return;
         }
         setRot(owner.getYRot(), owner.getXRot());
-        double nextDistance = retracting
-                ? distance - MOVEMENT_SPEED * speedFactor
-                : distance + MOVEMENT_SPEED * speedFactor;
+        double step = MOVEMENT_SPEED * speedFactor * ownerTimeStep();
+        double nextDistance = retracting ? distance - step : distance + step;
         if (retracting && nextDistance <= 0) {
             if (!level().isClientSide()) {
                 discard();

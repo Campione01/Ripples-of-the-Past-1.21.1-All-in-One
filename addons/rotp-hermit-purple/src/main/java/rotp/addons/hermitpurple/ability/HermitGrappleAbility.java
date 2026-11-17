@@ -18,6 +18,7 @@ import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.AimingEntity;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.powers.hamon.ModHamonSkills;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.hermitpurple.HermitHamon;
 import rotp.addons.hermitpurple.HermitPurpleAddon;
@@ -85,7 +86,7 @@ public final class HermitGrappleAbility
                 user, ModHamonSkills.HEALING_TOUCH.get());
         String replacement = null;
         if (overdrive && healing) {
-            replacement = user.isShiftKeyDown()
+            replacement = StandManualInput.isShiftHeld(user)
                     ? HermitPurpleAddon.HP_GRAB_HEAL_NAME
                     : HermitPurpleAddon.HP_GRAB_OD_NAME;
         }

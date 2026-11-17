@@ -10,6 +10,9 @@ authors="LL, Lang Lang"
 credits="Legacy resource support: Denis; Phase 1 port against the public Ripples of the Past addon contract"
 description='''${mod_description}'''
 
+[[mixins]]
+config="rotp_d4c.mixins.json"
+
 [[dependencies.${mod_id}]]
 modId="neoforge"
 type="required"

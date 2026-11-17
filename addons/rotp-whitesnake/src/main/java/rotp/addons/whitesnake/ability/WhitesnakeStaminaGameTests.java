@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.google.gson.JsonArray;
@@ -17,18 +18,26 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
+import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
@@ -46,6 +55,7 @@ import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.vehicle.Boat;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -58,10 +68,15 @@ import net.minecraft.world.scores.Scoreboard;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.neoforged.neoforge.network.connection.ConnectionType;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
 import rotp.addons.whitesnake.WhitesnakeAddon;
 import rotp.addons.whitesnake.disc.MemoryDiscItem;
+import rotp.addons.whitesnake.disguise.WhitesnakeDisguiseEvents;
+import rotp.addons.whitesnake.disguise.WhitesnakeDisguiseState;
+import rotp.addons.whitesnake.entity.WhitesnakeEntity;
 import rotp.addons.whitesnake.entity.projectile.DiscProjectile;
+import rotp.addons.whitesnake.blockentity.MeltHeartBlockEntity;
 import rotp.addons.whitesnake.entity.projectile.MeltHeartProjectile;
 import rotp.addons.whitesnake.memory.MemoryDiscService;
 import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility;
@@ -204,6 +219,372 @@ public final class WhitesnakeStaminaGameTests {
         }
         finally {
             disconnect(target);
+            disconnect(caster);
+        }
+    }
+
+    // The owner's rule of 2026-11-05 (13.png), against 1.16's owner check: a disc in flight goes on through its Stand's
+    // recall and ends with its user's loss of the Stand.
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_aFlyingDiscGoesOnThroughARecall", timeoutTicks = 40)
+    public static void aFlyingDiscGoesOnThroughARecall(GameTestHelper helper) {
+        Recorder caster = player(helper, "ws-st-recall");
+        Recorder target = player(helper, "ws-st-recall-t");
+        try {
+            StandEntity stand = summon(helper, caster);
+            StandPower power = StandPower.get(caster);
+            Ability ability = power.getAbility("whitesnake_throw_disc");
+            helper.assertTrue(MemoryDiscService.extractTo(target, caster).status() == MemoryDiscService.Status.APPLIED,
+                    "Fixture: no memory disc to throw");
+            ItemStack disc = memoryDisc(caster, target.getUUID()).copy();
+            caster.getInventory().clearContent();
+            caster.setItemInHand(InteractionHand.MAIN_HAND, disc);
+            helper.assertTrue(AbilityInput.withConditionCheck(ability, caster), "Fixture: the throw was refused");
+            perform(ability, stand, caster);
+            List<DiscProjectile> thrown = helper.getLevel().getEntitiesOfClass(DiscProjectile.class,
+                    new AABB(caster.blockPosition()).inflate(8.0D));
+            helper.assertTrue(thrown.size() == 1, "Fixture: projectiles=" + thrown.size());
+            DiscProjectile flying = thrown.get(0);
+            flying.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+
+            power.getPowerType().forceUnsummon(caster, power);
+            flying.tick();
+            helper.assertTrue(!flying.isRemoved(), "The disc in flight ended with the recall");
+
+            power.setStand(null);
+            flying.tick();
+            helper.assertTrue(flying.isRemoved(), "The disc must end when its user loses the Stand");
+            helper.succeed();
+        }
+        finally {
+            disconnect(target);
+            disconnect(caster);
+        }
+    }
+
+    // The owner's rule of 2026-11-06, over 1.16's: the disguise goes on with the Stand recalled, and the next summon
+    // takes it over, so its key ends it.
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 60)
+    public static void theDisguiseGoesOnThroughARecall(GameTestHelper helper) {
+        Recorder user = player(helper, "ws-dis-recall");
+        try {
+            WhitesnakeEntity stand = (WhitesnakeEntity) summon(helper, user);
+            StandPower power = StandPower.get(user);
+            Ability ability = power.getAbility("disguise");
+            disguise(helper, stand, user);
+            helper.assertTrue(WhitesnakeDisguiseState.of(user).type().equals(Optional.of(DISGUISE)),
+                    "The Stand's disguise must be on its user too, got " + WhitesnakeDisguiseState.of(user));
+
+            power.getPowerType().forceUnsummon(user, power);
+            helper.assertTrue(power.getSummonedStandEntity() == null, "Fixture: the recall left a Stand");
+            helper.assertTrue(WhitesnakeDisguiseState.of(user).type().equals(Optional.of(DISGUISE)),
+                    "The disguise ended with the recall");
+            helper.assertTrue("disguise_disable".equals(ability.getSpriteName(power)),
+                    "With the Stand recalled the skill still shows that it ends the disguise, got "
+                            + ability.getSpriteName(power));
+
+            helper.assertTrue(WhitesnakeAddon.WHITESNAKE.get().summon(user, power), "Fixture: the next summon failed");
+            WhitesnakeEntity next = (WhitesnakeEntity) power.getSummonedStandEntity();
+            helper.assertTrue(next != stand && next.getDisguiseType().equals(Optional.of(DISGUISE)),
+                    "The next summon takes the disguise over, got " + next.getDisguiseType());
+            helper.assertTrue(next.getDisguiseChangedTick() < -20,
+                    "A Stand taking a disguise over does not grow it in again, changed at " + next.getDisguiseChangedTick());
+
+            perform(ability, next, user);
+            helper.assertTrue(!next.isDisguised() && !WhitesnakeDisguiseState.of(user).isDisguised(),
+                    "After the next summon its key ends the disguise; Stand " + next.getDisguiseType()
+                            + ", user " + WhitesnakeDisguiseState.of(user));
+            helper.succeed();
+        }
+        finally {
+            disconnect(user);
+        }
+    }
+
+    // R772.1 OQ-C04: the HUD lights a slot whose skill goes on with the Stand recalled; the disguise's does while the
+    // disguise is on, and stops once it is off.
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 60)
+    public static void theDisguiseSlotSaysItGoesOnWithTheStandRecalled(GameTestHelper helper) {
+        Recorder user = player(helper, "ws-dis-sign");
+        try {
+            WhitesnakeEntity stand = (WhitesnakeEntity) summon(helper, user);
+            StandPower power = StandPower.get(user);
+            Ability ability = power.getAbility("disguise");
+            helper.assertTrue(!ability.cl_runsWithStandRecalled(user), "With no disguise the slot must not say so");
+            disguise(helper, stand, user);
+            power.getPowerType().forceUnsummon(user, power);
+            helper.assertTrue(power.getSummonedStandEntity() == null && WhitesnakeDisguiseState.of(user).isDisguised(),
+                    "Fixture: the disguise did not go on with the recall");
+            helper.assertTrue(ability.cl_runsWithStandRecalled(user),
+                    "The disguise goes on with the Stand recalled: its slot must say so");
+            helper.assertTrue(WhitesnakeAddon.WHITESNAKE.get().summon(user, power), "Fixture: the next summon failed");
+            perform(ability, (WhitesnakeEntity) power.getSummonedStandEntity(), user);
+            helper.assertTrue(!WhitesnakeDisguiseState.of(user).isDisguised() && !ability.cl_runsWithStandRecalled(user),
+                    "An ended disguise must not light its slot");
+            helper.succeed();
+        }
+        finally {
+            disconnect(user);
+        }
+    }
+
+    /*
+     * R772.1 OQ-C04: Melt Your Heart's drops and its melt on the ground go on with the Stand recalled. A drop's shooter is
+     * the Stand, so the user's id has to reach the client: copies fed only by the entity-data packet, the chunk's update
+     * tag and the block-entity update packet must know him, and the slot says so while a drop or a melt of his is there.
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_meltYourHeartsSlotSaysItGoesOnFromWhatTheClientIsSent", timeoutTicks = 40)
+    public static void meltYourHeartsSlotSaysItGoesOnFromWhatTheClientIsSent(GameTestHelper helper) {
+        Recorder caster = player(helper, "ws-melt-sign");
+        try {
+            StandEntity stand = summon(helper, caster);
+            StandPower power = StandPower.get(caster);
+            Ability ability = power.getAbility("melt_your_heart");
+            helper.assertTrue(!ability.cl_runsWithStandRecalled(caster), "With nothing of Melt Your Heart out the slot must not say so");
+            power.setStamina(power.getMaxStamina());
+            perform(ability, stand, caster);
+            List<MeltHeartProjectile> shot = helper.getLevel().getEntitiesOfClass(MeltHeartProjectile.class,
+                    new AABB(caster.blockPosition()).inflate(8.0D));
+            helper.assertTrue(shot.size() == 1, "Fixture: " + shot.size() + " drops were shot");
+            MeltHeartProjectile drop = shot.get(0);
+            drop.setDeltaMovement(Vec3.ZERO);
+
+            var values = drop.getEntityData().getNonDefaultValues();
+            RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), helper.getLevel().registryAccess());
+            MeltHeartProjectile dropCopy = new MeltHeartProjectile(WhitesnakeAddon.MELT_HEART_PROJECTILE.get(), helper.getLevel());
+            try {
+                ClientboundSetEntityDataPacket.STREAM_CODEC.encode(buffer,
+                        new ClientboundSetEntityDataPacket(drop.getId(), values != null ? values : List.of()));
+                dropCopy.getEntityData().assignValues(ClientboundSetEntityDataPacket.STREAM_CODEC.decode(buffer).packedItems());
+            }
+            finally {
+                buffer.release();
+            }
+            helper.assertTrue(caster.getUUID().equals(dropCopy.whitesnakeUser()),
+                    "A client's copy of a drop must know its user from what the server sends, got " + dropCopy.whitesnakeUser());
+            power.getPowerType().forceUnsummon(caster, power);
+            helper.assertTrue(power.getSummonedStandEntity() == null, "Fixture: the Stand was not recalled");
+            helper.assertTrue(ability.cl_runsWithStandRecalled(caster),
+                    "A drop of the user's goes on with the Stand recalled: the slot must say so");
+
+            BlockPos at = helper.absolutePos(new BlockPos(1, 2, 1));
+            helper.getLevel().setBlockAndUpdate(at, WhitesnakeAddon.MELT_HEART_BLOCK.get().defaultBlockState());
+            helper.assertTrue(helper.getLevel().getBlockEntity(at) instanceof MeltHeartBlockEntity,
+                    "Fixture: no melt on the ground");
+            MeltHeartBlockEntity melt = (MeltHeartBlockEntity) helper.getLevel().getBlockEntity(at);
+            melt.initialize(caster.getUUID());
+            var registries = helper.getLevel().registryAccess();
+            MeltHeartBlockEntity chunkCopy = new MeltHeartBlockEntity(at, melt.getBlockState());
+            chunkCopy.handleUpdateTag(melt.getUpdateTag(registries), registries);
+            helper.assertTrue(caster.getUUID().equals(chunkCopy.ownerId()),
+                    "A client's copy of a melt loaded with its chunk must know its owner, got " + chunkCopy.ownerId());
+            helper.assertTrue(melt.getUpdatePacket() instanceof ClientboundBlockEntityDataPacket,
+                    "A melt must send its owner in a block-entity update, got " + melt.getUpdatePacket());
+            MeltHeartBlockEntity updateCopy = new MeltHeartBlockEntity(at, melt.getBlockState());
+            RegistryFriendlyByteBuf update = new RegistryFriendlyByteBuf(Unpooled.buffer(), registries);
+            try {
+                ClientboundBlockEntityDataPacket.STREAM_CODEC.encode(update,
+                        (ClientboundBlockEntityDataPacket) melt.getUpdatePacket());
+                updateCopy.onDataPacket(null, ClientboundBlockEntityDataPacket.STREAM_CODEC.decode(update), registries);
+            }
+            finally {
+                update.release();
+            }
+            helper.assertTrue(caster.getUUID().equals(updateCopy.ownerId()),
+                    "A client's copy of a melt updated by the server must know its owner, got " + updateCopy.ownerId());
+
+            drop.discard();
+            helper.assertTrue(ability.cl_runsWithStandRecalled(caster),
+                    "A melt of the user's on the ground goes on with the Stand recalled: the slot must say so");
+            helper.getLevel().removeBlock(at, false);
+            helper.assertTrue(!ability.cl_runsWithStandRecalled(caster),
+                    "With the drop and the melt gone the slot must not say so");
+            helper.succeed();
+        }
+        finally {
+            disconnect(caster);
+        }
+    }
+
+    /*
+     * R772.1: since a Stand is put beside its user before it joins the world, a user at a chunk border has it added in
+     * the next chunk. The recording user must track it there, or every count of the Stand's packets reads 0 (the disc
+     * tests' "played 0 times").
+     */
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_aUserAtAChunkBorderTracksTheStandAddedInTheNextChunk", timeoutTicks = 100)
+    public static void aUserAtAChunkBorderTracksTheStandAddedInTheNextChunk(GameTestHelper helper) {
+        Recorder caster = player(helper, "ws-border");
+        StandPower power = StandPower.get(caster);
+        ChunkPos next;
+        try {
+            next = toAChunkBorder(helper, caster, power);
+        }
+        catch (RuntimeException | Error failure) {
+            disconnect(caster);
+            throw failure;
+        }
+        ServerLevel level = helper.getLevel();
+        boolean[] closed = {false};
+        int[] waited = {0};
+        helper.onEachTick(() -> {
+            if (closed[0]) {
+                return;
+            }
+            try {
+                if (level.getChunkSource().getChunkNow(next.x, next.z) == null || !level.areEntitiesLoaded(next.toLong())) {
+                    helper.assertTrue(++waited[0] < 80, "Fixture: the next chunk " + next + " did not load");
+                    return;
+                }
+                closed[0] = true;
+                helper.assertTrue(WhitesnakeAddon.WHITESNAKE.get().summon(caster, power), "Fixture: the summon failed");
+                StandEntity stand = power.getSummonedStandEntity();
+                helper.assertTrue(stand != null && stand.chunkPosition().equals(next),
+                        "Fixture: the Stand was added at " + (stand != null ? stand.position() : null) + ", not in " + next);
+                caster.assertTracks(stand);
+                disconnect(caster);
+                helper.succeed();
+            }
+            catch (RuntimeException | Error failure) {
+                closed[0] = true;
+                disconnect(caster);
+                throw failure;
+            }
+        });
+    }
+
+    // puts the user in his chunk half the Stand's offset from its border, so that his next summon lands across it
+    private static ChunkPos toAChunkBorder(GameTestHelper helper, Recorder caster, StandPower power) {
+        power.setStand(WhitesnakeAddon.WHITESNAKE.get());
+        power.skipProgression();
+        helper.assertTrue(WhitesnakeAddon.WHITESNAKE.get().summon(caster, power), "Fixture: the first summon failed");
+        Vec3 beside = power.getSummonedStandEntity().position().subtract(caster.position());
+        power.getPowerType().forceUnsummon(caster, power);
+        helper.assertTrue(power.getSummonedStandEntity() == null, "Fixture: the Stand was not recalled");
+        ChunkPos home = caster.chunkPosition();
+        boolean alongX = Math.abs(beside.x) >= Math.abs(beside.z);
+        double offset = alongX ? beside.x : beside.z;
+        helper.assertTrue(Math.abs(offset) > 0.05D, "Fixture: the Stand is put on its user, " + beside);
+        double low = alongX ? home.getMinBlockX() : home.getMinBlockZ();
+        double at = offset < 0.0D ? low - offset / 2.0D : low + 16.0D - offset / 2.0D;
+        caster.setPos(alongX ? at : caster.getX(), caster.getY(), alongX ? caster.getZ() : at);
+        ChunkPos next = new ChunkPos(SectionPos.blockToSectionCoord(caster.getX() + beside.x),
+                SectionPos.blockToSectionCoord(caster.getZ() + beside.z));
+        helper.assertTrue(caster.chunkPosition().equals(home) && !next.equals(home),
+                "Fixture: the user at " + caster.position() + " is not at a border his Stand crosses (" + beside + ")");
+        return next;
+    }
+
+    // The ends of what goes on: death, logout, a change of level, the loss of the Stand. Nothing saves it.
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", timeoutTicks = 60)
+    public static void theDisguiseEndsWithItsUserAndALossOfTheStand(GameTestHelper helper) {
+        Recorder user = player(helper, "ws-dis-ends");
+        boolean[] handedOver = {false};
+        try {
+            StandPower power = StandPower.get(user);
+            WhitesnakeEntity stand = (WhitesnakeEntity) summon(helper, user);
+            disguise(helper, stand, user);
+            power.getPowerType().forceUnsummon(user, power);
+
+            CompoundTag saved = user.serializeAttachments(user.registryAccess());
+            helper.assertTrue(saved == null || !saved.contains("rotp_whitesnake:disguise_state"),
+                    "A relog must not bring the disguise back: " + saved);
+            RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(
+                    Unpooled.buffer(), user.registryAccess(), ConnectionType.NEOFORGE);
+            WhitesnakeDisguiseState.STREAM_CODEC.encode(buffer, WhitesnakeDisguiseState.of(user));
+            helper.assertTrue(WhitesnakeDisguiseState.STREAM_CODEC.decode(buffer).equals(WhitesnakeDisguiseState.of(user)),
+                    "A client that starts tracking the user must get the disguise");
+            buffer.release();
+
+            WhitesnakeDisguiseEvents.onLivingDeath(new net.neoforged.neoforge.event.entity.living.LivingDeathEvent(
+                    user, user.damageSources().magic()));
+            helper.assertTrue(!WhitesnakeDisguiseState.of(user).isDisguised(), "Death must end the disguise");
+
+            againRecalled(helper, user, power);
+            WhitesnakeDisguiseEvents.onPlayerLoggedOut(new net.neoforged.neoforge.event.entity.player.PlayerEvent
+                    .PlayerLoggedOutEvent(user));
+            helper.assertTrue(!WhitesnakeDisguiseState.of(user).isDisguised(), "A logout must end the disguise");
+
+            againRecalled(helper, user, power);
+            WhitesnakeDisguiseEvents.onPlayerChangedDimension(new net.neoforged.neoforge.event.entity.player.PlayerEvent
+                    .PlayerChangedDimensionEvent(user, net.minecraft.world.level.Level.OVERWORLD,
+                            net.minecraft.world.level.Level.NETHER));
+            helper.assertTrue(!WhitesnakeDisguiseState.of(user).isDisguised(), "A change of level must end the disguise");
+
+            againRecalled(helper, user, power);
+            power.setStand(null);
+            handedOver[0] = true;
+            helper.runAfterDelay(2, () -> {
+                try {
+                    helper.assertTrue(!WhitesnakeDisguiseState.of(user).isDisguised(),
+                            "The loss of the Stand must end the disguise");
+                    helper.succeed();
+                }
+                finally {
+                    disconnect(user);
+                }
+            });
+        }
+        finally {
+            if (!handedOver[0]) {
+                disconnect(user);
+            }
+        }
+    }
+
+    private static final net.minecraft.resources.ResourceLocation DISGUISE =
+            net.minecraft.resources.ResourceLocation.withDefaultNamespace("villager");
+
+    private static void disguise(GameTestHelper helper, WhitesnakeEntity stand, Recorder user) {
+        WhitesnakeEntity.SelectionSession session = stand.beginDisguiseSelection(user);
+        helper.assertTrue(session != null && stand.applyDisguise(
+                        session.id(), DISGUISE, helper.getLevel().getGameTime()),
+                "Fixture: the disguise did not go on");
+    }
+
+    private static void againRecalled(GameTestHelper helper, Recorder user, StandPower power) {
+        helper.assertTrue(WhitesnakeAddon.WHITESNAKE.get().summon(user, power), "Fixture: the summon failed");
+        disguise(helper, (WhitesnakeEntity) power.getSummonedStandEntity(), user);
+        power.getPowerType().forceUnsummon(user, power);
+        helper.assertTrue(WhitesnakeDisguiseState.of(user).isDisguised(), "Fixture: the disguise did not go on");
+    }
+
+    // The owner's rule of 2026-11-05 (13.png): Melt Your Heart's shots and the melt on the ground go on through a recall,
+    // and end with the user's loss of the Stand.
+    @GameTest(template = "empty", templateNamespace = "rotp_ws_memory", batch = "ws_far_meltYourHeartGoesOnThroughARecall", timeoutTicks = 40)
+    public static void meltYourHeartGoesOnThroughARecall(GameTestHelper helper) {
+        Recorder caster = player(helper, "ws-melt-recall");
+        try {
+            StandEntity stand = summon(helper, caster);
+            StandPower power = StandPower.get(caster);
+            power.setStamina(power.getMaxStamina());
+            perform(power.getAbility("melt_your_heart"), stand, caster);
+            List<MeltHeartProjectile> shot = helper.getLevel().getEntitiesOfClass(MeltHeartProjectile.class,
+                    new AABB(caster.blockPosition()).inflate(8.0D));
+            helper.assertTrue(shot.size() == 1, "Fixture: " + shot.size() + " drops were shot");
+            MeltHeartProjectile drop = shot.get(0);
+            drop.setDeltaMovement(Vec3.ZERO);
+            BlockPos at = helper.absolutePos(new BlockPos(1, 2, 1));
+            helper.getLevel().setBlockAndUpdate(at, WhitesnakeAddon.MELT_HEART_BLOCK.get().defaultBlockState());
+            helper.assertTrue(helper.getLevel().getBlockEntity(at) instanceof MeltHeartBlockEntity,
+                    "Fixture: no melt on the ground");
+            MeltHeartBlockEntity melt = (MeltHeartBlockEntity) helper.getLevel().getBlockEntity(at);
+            melt.initialize(caster.getUUID());
+
+            power.getPowerType().forceUnsummon(caster, power);
+            drop.tick();
+            helper.assertTrue(!drop.isRemoved(), "The shot in flight ended with the recall");
+            MeltHeartBlockEntity.serverTick(helper.getLevel(), at, melt.getBlockState(), melt);
+            helper.assertTrue(helper.getLevel().getBlockState(at).is(WhitesnakeAddon.MELT_HEART_BLOCK.get()),
+                    "The melt on the ground ended with the recall");
+
+            power.setStand(null);
+            drop.tick();
+            helper.assertTrue(drop.isRemoved(), "The shot must end when its user loses the Stand");
+            MeltHeartBlockEntity.serverTick(helper.getLevel(), at, melt.getBlockState(), melt);
+            helper.assertTrue(!helper.getLevel().getBlockState(at).is(WhitesnakeAddon.MELT_HEART_BLOCK.get()),
+                    "The melt on the ground must end when its user loses the Stand");
+            helper.succeed();
+        }
+        finally {
             disconnect(caster);
         }
     }
@@ -1348,10 +1729,13 @@ public final class WhitesnakeStaminaGameTests {
                 + "\"0.85\":\"phase = PERFORM;\",\"0.9\":\"phase = RECOVERY;\"}").getAsJsonObject();
         helper.assertTrue(markers.equals(heavy.get("timeline")),
                 "Whitesnake's heavy_punch phase markers changed: " + heavy.get("timeline"));
-        helper.assertTrue(rotates(heavy, "right_arm", 0.0D, 22.5D, 0.0D, 60.0D)
-                        && rotates(heavy, "body", 0.0D, 0.0D, 15.0D, 0.0D),
+        // the first tick hands over from the idle
+        double[] startArm = rotationAt(heavy, "right_arm", 0.05D);
+        double[] startBody = rotationAt(heavy, "body", 0.05D);
+        helper.assertTrue(Math.abs(startArm[0] - 22.5D) < 0.1D && Math.abs(startArm[1]) < 0.1D && Math.abs(startArm[2] - 60.0D) < 0.1D
+                        && Math.abs(startBody[0]) < 0.1D && Math.abs(startBody[1] - 15.0D) < 0.1D && Math.abs(startBody[2]) < 0.1D,
                 "Whitesnake's heavy_punch no longer starts in the 1.16 heavyRightStart: right_arm "
-                        + Arrays.toString(rotationAt(heavy, "right_arm", 0.0D)));
+                        + Arrays.toString(rotationAt(heavy, "right_arm", 0.05D)));
         for (double at : new double[] {0.85D, 0.875D, 0.8999D}) {
             helper.assertTrue(rotates(heavy, "right_arm", at, -67.5D, 0.0D, 90.0D)
                             && rotates(heavy, "left_arm", at, 22.5D, 0.0D, -60.0D)
@@ -1361,8 +1745,10 @@ public final class WhitesnakeStaminaGameTests {
                             + ": right_arm " + Arrays.toString(rotationAt(heavy, "right_arm", at)) + ", body "
                             + Arrays.toString(rotationAt(heavy, "body", at)));
         }
-        helper.assertTrue(rotates(heavy, "right_arm", 1.5D, -40.65653D, -55.87912D, 39.57735D)
-                        && rotates(heavy, "body", 1.5D, -3.89307D, 12.45167D, 5.12076D),
+        double[] idleArm = rotationAt(idle, "right_arm", 0.0D);
+        double[] idleBody = rotationAt(idle, "body", 0.0D);
+        helper.assertTrue(rotates(heavy, "right_arm", 1.5D, idleArm[0], idleArm[1], idleArm[2])
+                        && rotates(heavy, "body", 1.5D, idleBody[0], idleBody[1], idleBody[2]),
                 "Whitesnake's heavy_punch no longer recovers into Whitesnake's idle: right_arm "
                         + Arrays.toString(rotationAt(heavy, "right_arm", 1.5D)));
         assertIdleHeadAndLegs(helper, idle, heavy, "heavy_punch");
@@ -1439,7 +1825,8 @@ public final class WhitesnakeStaminaGameTests {
                 "Whitesnake's heavy_charged does not swing into the 1.16 heavy impact over its PERFORM: right_arm "
                         + Arrays.toString(rotationAt(charged, "right_arm", hit)) + " as the hit lands");
         double end = charged.get("animation_length").getAsDouble();
-        helper.assertTrue(rotates(charged, "right_arm", end, -40.65653D, -55.87912D, 39.57735D),
+        double[] idleArm = rotationAt(idle, "right_arm", 0.0D);
+        helper.assertTrue(rotates(charged, "right_arm", end, idleArm[0], idleArm[1], idleArm[2]),
                 "Whitesnake's heavy_charged no longer recovers into Whitesnake's idle: right_arm "
                         + Arrays.toString(rotationAt(charged, "right_arm", end)));
         assertIdleHeadAndLegs(helper, idle, charged, "heavy_charged");
@@ -1723,6 +2110,7 @@ public final class WhitesnakeStaminaGameTests {
         helper.assertTrue(WhitesnakeAddon.WHITESNAKE.get().summon(player, power), "Stand did not summon");
         StandEntity stand = power.getSummonedStandEntity();
         helper.assertTrue(stand != null, "Summoned Stand is absent");
+        player.assertTracks(stand);
         stand.setPos(player.position());
         helper.assertTrue(!power.isStaminaInfinite(), "Fixture: stamina is infinite");
         return stand;
@@ -1803,15 +2191,36 @@ public final class WhitesnakeStaminaGameTests {
             super.displayClientMessage(message, actionBar);
         }
 
-        // The mock player is not ticked: its tracking is moved to where it stands and its own chunk counts as sent, so
-        // it tracks its Stand and the Stand's sound packets reach it.
+        // The mock player is not ticked: its tracking is moved to where it stands and the chunks around it count as
+        // sent, so it tracks its Stand and the Stand's sound packets reach it. The Stand is added beside its user, in the
+        // next chunk when he stands within a block of a chunk border, and moving it back does not pair it again.
         private void listen(Connection connection, CommonListenerCookie cookie) {
             new Recording(this, connection, cookie);
             serverLevel().getChunkSource().move(this);
-            this.connection.chunkSender.dropChunk(this, chunkPosition());
+            ChunkPos home = chunkPosition();
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    this.connection.chunkSender.dropChunk(this, new ChunkPos(home.x + dx, home.z + dz));
+                }
+            }
         }
 
+        private boolean tracks(Entity entity) {
+            ChunkMap.TrackedEntity tracked = serverLevel().getChunkSource().chunkMap.entityMap.get(entity.getId());
+            return tracked != null && tracked.seenBy.contains(connection);
+        }
+
+        private void assertTracks(StandEntity stand) {
+            if (!tracks(stand)) {
+                throw new GameTestAssertException("Fixture: " + getGameProfile().getName() + " does not track its Stand"
+                        + " (Stand at " + stand.position() + ", user at " + position()
+                        + "), so no packet of the Stand reaches the recording connection");
+            }
+        }
+
+        // a count read while the user does not track the Stand would be 0 whatever the Stand did
         private int standSounds(StandEntity stand) {
+            assertTracks(stand);
             int count = 0;
             for (Packet<?> packet : List.copyOf(sent)) {
                 if (packet instanceof ClientboundCustomPayloadPacket custom

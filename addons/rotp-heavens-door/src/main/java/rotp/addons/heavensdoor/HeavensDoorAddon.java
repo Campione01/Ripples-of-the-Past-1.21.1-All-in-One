@@ -95,8 +95,9 @@ public final class HeavensDoorAddon {
     public static final double MAX_RANGE = 12.0D;
     public static final double DURABILITY = 12.0D;
     public static final double PRECISION = 9.0D;
-    public static final float STAND_WIDTH = 0.4F;
-    public static final float STAND_HEIGHT = 1.25F;
+    // 1.16 had 0.4 x 1.25; players still call that too big (R772.1 G22).
+    public static final float STAND_WIDTH = 0.32F;
+    public static final float STAND_HEIGHT = 1.0F;
 
     private static final int REQUIRED_CORE_ABI = 1;
     public static final String NETWORK_PROTOCOL_VERSION = "6";
@@ -422,6 +423,8 @@ public final class HeavensDoorAddon {
     private static EntityStandType createStand(ResourceLocation id) {
         MovesetBuilder moveset = new MovesetBuilder()
                 .addHumanoidStandStuff()
+                // its left click turns the target into a book, under the punch's class
+                .noPunchCombo()
                 .addAbility("punch", TURN_INTO_BOOK)
                 .addAbility(
                         "barrage",

@@ -10,3 +10,7 @@ ext.gameTestStructures = [
 ]
 
 apply from: rootProject.file('gradle/addon-module.gradle')
+
+dependencies {
+    compileOnly project(':rotp-king-crimson')
+}

@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-highway-star`, mod id `highwaystar`, version `1.0.0-port.1`.
+- Module: `rotp-highway-star`, mod id `highwaystar`, version `1.0.0-port.2`.
 - Original 1.16.5 add-on: see the record below (original authors: Grasshopper).
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-10-29 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-10-29 to 2026-11-15); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 
@@ -26,5 +26,7 @@ language files are redistributed under the donor's GPL-3.0 license. The default 
 to the core's humanoid Stand layout; the donor files themselves stay unchanged under
 `assets/highwaystar/geo` and `assets/highwaystar/animations`.
 
-`assets/highwaystar/textures/ability/manual_control.png` is the core's own manual control icon
-(`jojo_ripples`, GPL-3.0), copied so that the add-on's namespace resolves it.
+`assets/highwaystar/textures/ability/manual_control.png` is cut from the donor's Stand texture, the head's
+front face, by `migration/make_manual_icon.py`.
+
+Idle root bob and the shrink before a split: restored from the 1.16 model (`migration/highway_star_idle_bob.py`, `HighwayStarRenderer`); the shrink runs over the donor's squash, and the Stand stays hidden from the squash's end until the soles have spawned.

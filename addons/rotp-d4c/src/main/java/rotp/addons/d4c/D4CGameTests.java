@@ -27,6 +27,7 @@ import rotp.addons.d4c.entity.D4CAnnihilationCloneEntity;
 import rotp.addons.d4c.entity.D4CMarkerEntity;
 import rotp.addons.d4c.entity.D4CSummonKickEntity;
 import rotp.addons.d4c.travel.D4CDimensionTargets;
+import rotp.addons.d4c.travel.D4CDimensionUnlocks;
 import rotp.addons.d4c.travel.D4CDimensionTravelService;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -1550,6 +1551,7 @@ public final class D4CGameTests {
             ResourceLocation selectedDimension) {
         owner.getPersistentData().putString(
                 SELECTED_DIMENSION_KEY, selectedDimension.toString());
+        D4CDimensionUnlocks.record(owner, selectedDimension);
         StandPower power = StandPower.get(owner);
         helper.assertTrue(
                 power != null,

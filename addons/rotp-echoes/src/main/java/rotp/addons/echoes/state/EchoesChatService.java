@@ -33,8 +33,9 @@ public final class EchoesChatService {
 
     private EchoesChatService() {}
 
-    // master SoundCooldownHelper.playSkillBGM and FreezeSoundHelper: the skill stinger on every freeze, self
-    // freeze and infuse, and at most one voice from the freeze pool every 30 seconds
+    // master SoundCooldownHelper.playSkillBGM and the author's 1.21.1 FreezeSoundHelper: the skill stinger and a voice
+    // from the freeze pool on every freeze, self freeze and infuse (the author took out the master's 30 seconds between
+    // voices)
     public static void playSkillSound(ServerPlayer player) {
         player.serverLevel().playSound(
                 null,
@@ -45,11 +46,6 @@ public final class EchoesChatService {
                 SoundSource.PLAYERS,
                 0.8F,
                 1.0F);
-        EchoesUserState state = RotpEchoes.userState(player);
-        long gameTime = player.level().getGameTime();
-        if (!state.skillSoundReady(gameTime)) {
-            return;
-        }
         player.serverLevel().playSound(
                 null,
                 player.getX(),
@@ -65,12 +61,12 @@ public final class EchoesChatService {
                             .withStyle(ChatFormatting.GRAY),
                     true);
         }
-        state.resetSkillSoundCooldown(gameTime);
     }
 
+    // 016's lines are signed ACT3 and that addon's one Stand was ACT3; the later builds have no other speaker
     public static void tickPassive(ServerPlayer player) {
         if (player.getAbilities().instabuild
-                || !RotpEchoes.isEchoesUser(player)) {
+                || !isAct3User(player)) {
             return;
         }
         EchoesUserState state = RotpEchoes.userState(player);
@@ -87,7 +83,9 @@ public final class EchoesChatService {
     }
 
     public static void showCounterLine(ServerPlayer player) {
-        sendEchoLine(player, randomLine(player, COUNTER_KEY, COUNTER_LINES), false);
+        if (isAct3User(player)) {
+            sendEchoLine(player, randomLine(player, COUNTER_KEY, COUNTER_LINES), false);
+        }
     }
 
     public static boolean isAct3User(ServerPlayer player) {

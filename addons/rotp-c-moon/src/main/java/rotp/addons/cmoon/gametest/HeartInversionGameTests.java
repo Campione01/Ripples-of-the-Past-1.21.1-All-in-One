@@ -276,12 +276,12 @@ public final class HeartInversionGameTests {
         };
         NeoForge.EVENT_BUS.addListener(EventPriority.NORMAL, false, PlayLevelSoundEvent.AtPosition.class, listener);
         try {
-            target = f.husk(f.userPos.add(0.0D, 0.0D, 5.0D));
             ResourceLocation heart = CMoonAddon.C_MOON_HEART_INVERSION_SOUND.getId();
             ResourceLocation coreHeavy = ModSoundEvents.STAND_PUNCH_HEAVY.getId();
-            Vec3 centre = target.getBoundingBox().getCenter();
 
-            // 1.16 StandMissedPunch never plays (playImpactSound is targetWasHit); the port keeps a swing from the Stand
+            // 1.16 StandMissedPunch never plays (playImpactSound is targetWasHit); the port keeps a swing from the Stand.
+            // The husk comes after the miss: the Stand flies out to an entity on its user's look within the user's reach
+            // (StandMeleeReach, rotp_cm:cmoon holder reach), wherever the Stand itself stands.
             HeartInversionAbility.HeartInversion miss = f.heartInversion(null, 0.0D, 0.0F);
             helper.assertTrue(miss.punchedTarget != null && miss.punchedTarget.getType() == ActionTarget.TargetType.EMPTY,
                     "The untargeted Heart Inversion hit something: " + miss.punchedTarget);
@@ -290,6 +290,8 @@ public final class HeartInversionGameTests {
                     "A missed Heart Inversion played an impact sound: " + played);
 
             played.clear();
+            target = f.husk(f.userPos.add(0.0D, 0.0D, 5.0D));
+            Vec3 centre = target.getBoundingBox().getCenter();
             float health = target.getHealth();
             HeartInversionAbility.HeartInversion hit = f.heartInversion(target, NEAR, 0.75F);
             helper.assertTrue(target.getHealth() < health, "Heart Inversion did not hurt the husk");
@@ -558,8 +560,9 @@ public final class HeartInversionGameTests {
                         "Fixture distance " + distance + " gives a 1.16 chance of " + chance);
             }
             else {
-                // The user's own aim decides an untargeted punch (1.16 aimWithThisOrUser) and may meet a target
-                // ahead or the test area's barrier walls; standing back puts them out of the Stand's reach.
+                // The user's own aim decides an untargeted punch (1.16 aimWithThisOrUser) and may meet the test
+                // area's barrier walls; standing back puts them out of the Stand's reach. An entity on that aim
+                // within the user's reach is struck wherever the Stand stands (StandMeleeReach).
                 stand.moveTo(userPos.x, userPos.y, userPos.z - MISS_STAND_BACK, 0.0F, 0.0F);
                 stand.setYHeadRot(0.0F);
             }

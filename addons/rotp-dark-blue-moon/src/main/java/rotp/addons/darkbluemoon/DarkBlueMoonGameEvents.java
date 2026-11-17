@@ -237,9 +237,13 @@ public final class DarkBlueMoonGameEvents {
     }
 
     private static DarkBlueMoonEntity summonedTrapStand(Player player) {
-        StandPower power = StandPower.get(player);
-        return power != null && power.hasPower() && power.getSummonedStandEntity() instanceof DarkBlueMoonEntity dbm
-                && dbm.hasBarnacleTrap() ? dbm : null;
+        DarkBlueMoonEntity dbm = DarkBlueMoonEntity.current(player);
+        return dbm != null && dbm.hasBarnacleTrap() ? dbm : null;
+    }
+
+    @SubscribeEvent
+    public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        DarkBlueMoonEntity.forgetRecalled(event.getEntity());
     }
 
     private static boolean isOnAnyTrap(ServerLevel level, LivingEntity entity) {

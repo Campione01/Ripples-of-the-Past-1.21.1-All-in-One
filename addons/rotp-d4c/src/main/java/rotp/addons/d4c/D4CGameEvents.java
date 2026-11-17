@@ -225,6 +225,7 @@ public final class D4CGameEvents {
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
         D4CParallelItemService.tick(event.getServer());
+        D4CParallelTerrainMirror.tick();
         D4CCorpseFinderService.tickServer(event.getServer());
         D4CPhase2BService.tickMarks(event.getServer());
     }

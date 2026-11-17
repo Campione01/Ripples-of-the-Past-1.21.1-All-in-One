@@ -1,0 +1,13 @@
+{
+  "vertex": "rotp_kingcrimson:time_erase_halo",
+  "fragment": "rotp_kingcrimson:time_erase_halo",
+  "attributes": ["Position"],
+  "samplers": [
+    {"name": "Sampler0"},
+    {"name": "Sampler1"}
+  ],
+  "uniforms": [
+    {"name": "Step", "type": "float", "count": 2, "values": [0.0, 0.0]},
+    {"name": "Mode", "type": "int", "count": 1, "values": [0]}
+  ]
+}

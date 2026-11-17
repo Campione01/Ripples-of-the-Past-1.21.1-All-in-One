@@ -8,6 +8,7 @@ import java.util.UUID;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
 import rotp.addons.scr.SilverChariotRequiemAddon;
@@ -100,7 +101,7 @@ public final class RequiemSoulService {
 
         SilverChariotRequiemEntity source =
                 resolveSource(target, state);
-        if (source == null) {
+        if (source == null && !ownerStillHoldsTheStand(target, state)) {
             if (state.markSourceMissing()
                     >= SOURCE_GRACE_TICKS) {
                 clearStateAndPartner(target, state);
@@ -108,11 +109,14 @@ public final class RequiemSoulService {
             return;
         }
         state.markSourcePresent();
-        LivingEntity owner = source.getUser();
-        if (owner == null
-                || !canRemainInField(source, owner, target)) {
-            clearStateAndPartner(target, state);
-            return;
+        // With the Stand recalled no field reaches anyone new; who is in it stays, to the end of his own timers.
+        if (source != null) {
+            LivingEntity owner = source.getUser();
+            if (owner == null
+                    || !canRemainInField(source, owner, target)) {
+                clearStateAndPartner(target, state);
+                return;
+            }
         }
 
         if (state.isSlumbering()) {
@@ -214,6 +218,23 @@ public final class RequiemSoulService {
                 && stand.getUUID().equals(
                         state.sourceStandId())
                 && state.phaseTicks() >= SLUMBER_TICKS;
+    }
+
+    private static boolean ownerStillHoldsTheStand(
+            LivingEntity target, RequiemSoulState state) {
+        if (!(target.level() instanceof ServerLevel level)
+                || state.sourceOwnerId() == null
+                || !(level.getEntity(state.sourceOwnerId())
+                        instanceof LivingEntity owner)
+                || !owner.isAlive()
+                || owner.isRemoved()) {
+            return false;
+        }
+        StandPower power = StandPower.get(owner);
+        return power != null
+                && power.hasPower()
+                && power.getPowerType()
+                        == SilverChariotRequiemAddon.SILVER_CHARIOT_REQUIEM.get();
     }
 
     private static SilverChariotRequiemEntity resolveSource(

@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-planet-waves`, mod id `rotp_pw`, version `1.0.0-port.18`.
+- Module: `rotp-planet-waves`, mod id `rotp_pw`, version `1.0.0-port.19`.
 - Original 1.16.5 add-on: `RotP-行星波动 [BETA].jar` (RotP Planet Waves, mod id `rotp_pw`), by Hello There; declared license: GNU GPL v3.0; SHA-256 `8F37F0867A1DC05A33F9347271798A46990CB05A1851AE138F9527063EA03645`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-05); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-27 to 2026-11-15); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

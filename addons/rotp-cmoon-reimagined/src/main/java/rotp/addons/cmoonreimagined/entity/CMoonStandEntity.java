@@ -1,5 +1,6 @@
 package rotp.addons.cmoonreimagined.entity;
 
+import rotp.addons.cmoonreimagined.CMoonAddon;
 import rotp.core.api.gravity.DirectionalGravityApi;
 import rotp.core.api.gravity.DirectionalGravitySource;
 import rotp.core.powersystem.standpower.StandPower;
@@ -26,8 +27,15 @@ public final class CMoonStandEntity extends StandEntity
                     CMoonStandEntity.class,
                     EntityDataSerializers.INT);
 
+    // The owner's rule of 2026-11-05: a changed gravity goes on through a recall, bound to the removed entity, until the
+    // next summon takes it over, a press on the variation key ends it or its user dies, leaves, changes level or loses the Stand.
+    public static final class Recalled {
+        CMoonStandEntity stand;
+    }
+
     private LivingEntity boundGravityTarget;
     private Direction boundGravityDirection = Direction.DOWN;
+    private boolean carryEnded;
 
     public CMoonStandEntity(
             EntityType<? extends CMoonStandEntity> type,
@@ -51,15 +59,31 @@ public final class CMoonStandEntity extends StandEntity
 
     @Override
     public Direction gravityDirection(Entity entity) {
-        return entity == boundGravityTarget
+        return entity == boundGravityTarget && (!isRemoved() || userStillHolds(boundGravityTarget))
                 ? getGravityDirection()
                 : Direction.DOWN;
+    }
+
+    // Once it has failed it stays failed: a way back to this level must not bring the gravity back.
+    private boolean userStillHolds(LivingEntity user) {
+        if (carryEnded) {
+            return false;
+        }
+        StandPower power = StandPower.get(user);
+        carryEnded = !(user.isAlive()
+                && !user.isRemoved()
+                && user.level() == level()
+                && power != null
+                && power.hasPower()
+                && power.getPowerType() == CMoonAddon.C_MOON.get());
+        return !carryEnded;
     }
 
     public void setGravityDirection(Direction direction) {
         if (!level().isClientSide()
                 && direction != null
-                && direction.getAxis().isHorizontal()) {
+                && (direction == Direction.DOWN
+                        || direction.getAxis().isHorizontal())) {
             entityData.set(
                     GRAVITY_DIRECTION,
                     direction.get3DDataValue(),
@@ -73,7 +97,34 @@ public final class CMoonStandEntity extends StandEntity
             LivingEntity user, StandPower power) {
         clearGravityBinding();
         super.setUserAndPower(user, power);
+        if (user != null
+                && !level().isClientSide()
+                && user.hasData(CMoonAddon.RECALLED_STAND)) {
+            takeOverRecalled(user);
+        }
         reconcileGravityBinding(user);
+    }
+
+    private void takeOverRecalled(LivingEntity user) {
+        Recalled carry = user.getData(CMoonAddon.RECALLED_STAND);
+        CMoonStandEntity recalled = carry.stand;
+        carry.stand = null;
+        if (recalled == null || recalled == this) {
+            return;
+        }
+        if (recalled.getUser() == user
+                && recalled.level() == level()
+                && recalled.userStillHolds(user)) {
+            entityData.set(
+                    GRAVITY_DIRECTION,
+                    recalled.entityData.get(GRAVITY_DIRECTION),
+                    true);
+            // this one's binding replaces it under the same source id
+            recalled.boundGravityTarget = null;
+        }
+        else {
+            recalled.clearGravityBinding();
+        }
     }
 
     @Override
@@ -96,7 +147,14 @@ public final class CMoonStandEntity extends StandEntity
 
     @Override
     public void remove(Entity.RemovalReason reason) {
-        clearGravityBinding();
+        if (!level().isClientSide()
+                && boundGravityTarget != null
+                && userStillHolds(boundGravityTarget)) {
+            boundGravityTarget.getData(CMoonAddon.RECALLED_STAND).stand = this;
+        }
+        else {
+            clearGravityBinding();
+        }
         super.remove(reason);
     }
 

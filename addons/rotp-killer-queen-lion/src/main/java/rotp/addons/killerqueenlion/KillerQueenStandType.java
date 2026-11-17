@@ -31,20 +31,8 @@ public class KillerQueenStandType extends EntityStandType {
         super(stats, moveset, entityType, id);
     }
 
-    // 1.16 kept the block bomb on the Stand entity, and every unsummon
-    // (a plain unsummon ends here too) removed it, dropping the bomb.
-    @Override
-    public void forceUnsummon(LivingEntity user, StandPower standPower) {
-        boolean hadStand = !user.level().isClientSide()
-                && standPower.getSummonedStandEntity() != null;
-        super.forceUnsummon(user, standPower);
-        if (hadStand) {
-            KillerQueenStateService.onStandCleared(user);
-        }
-    }
-
     // Removing or replacing the Stand (stand remove, stand give ... true)
-    // drops the block bomb, as losing the 1.16 Stand entity did.
+    // drops the block bomb; a recall does not, unlike 1.16 (owner's rule of 2026-11-05).
     @Override
     public StandTypePersistentData newDataInstance() {
         return new KillerQueenStandData(this);

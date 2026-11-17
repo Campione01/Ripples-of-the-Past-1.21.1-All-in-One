@@ -6,6 +6,7 @@ import javax.annotation.Nullable;
 
 import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.api.time.event.BitesTheDustDetonateEvent;
+import rotp.core.api.time.event.TimeEraseRunningEvent;
 import rotp.core.api.time.event.TimeEraseStartEvent;
 import rotp.core.api.timestop.TimeStopLifecycleEvent;
 import rotp.core.event.RipplesAbilityKeyPressEvent;
@@ -27,9 +28,15 @@ import rotp.core.powersystem.standpower.type.StandType;
 
 import rotp.addons.ger.ability.GerReturnToZeroAbility;
 import rotp.addons.ger.client.GerDisablerClientState;
+import rotp.addons.ger.damage.GerDamageTypes;
+import rotp.addons.ger.damage.GerUnavoidableDamage;
 import rotp.addons.ger.entity.GerFieldEntity;
 import rotp.addons.ger.network.GerDisablerPayloads;
 import rotp.addons.ger.network.GerUndiePayloads;
+import rotp.addons.ger.state.GerAttackOrigins;
+import rotp.addons.ger.state.GerCoreSeams;
+import rotp.addons.ger.state.GerDisabledAttacks;
+import rotp.addons.ger.state.GerHitAnswerService;
 import rotp.addons.ger.state.GerLivingState;
 import rotp.addons.ger.state.GerPlayerState;
 import rotp.addons.ger.state.GerRtzRewindService;
@@ -40,7 +47,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.tags.DamageTypeTags;
+
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
@@ -54,7 +61,6 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
@@ -74,6 +80,7 @@ import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.level.PistonEvent;
 import net.neoforged.neoforge.event.level.block.CropGrowEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
@@ -321,6 +328,7 @@ public final class GoldExperienceRequiemGameEvents {
         }
         GerLivingState state =
                 GoldExperienceRequiemAddon.livingState(living);
+        GerHitAnswerService.tick(living, state);
         tickLockdowns(living, state);
         if (living instanceof ServerPlayer player
                 && state.markActionsDisabledSent(
@@ -349,20 +357,24 @@ public final class GoldExperienceRequiemGameEvents {
             return;
         }
         if (state.disablerActive()) {
-            living.addEffect(new MobEffectInstance(
-                    MobEffects.MOVEMENT_SLOWDOWN,
-                    4,
-                    4,
-                    false,
-                    false,
-                    false));
-            living.addEffect(new MobEffectInstance(
-                    MobEffects.WEAKNESS,
-                    4,
-                    4,
-                    false,
-                    false,
-                    false));
+            // The lockdown's own effects are no hit another Requiem answers.
+            GerHitAnswerService.applyingOwnEffects(() -> {
+                living.addEffect(new MobEffectInstance(
+                        MobEffects.MOVEMENT_SLOWDOWN,
+                        4,
+                        4,
+                        false,
+                        false,
+                        false));
+                living.addEffect(new MobEffectInstance(
+                        MobEffects.WEAKNESS,
+                        4,
+                        4,
+                        false,
+                        false,
+                        false));
+            });
+            GerDisabledAttacks.tick(living);
             Vec3 motion = living.getDeltaMovement();
             if (motion.y > 0.0D) {
                 living.setDeltaMovement(
@@ -381,14 +393,100 @@ public final class GoldExperienceRequiemGameEvents {
         if (state.undieActive()
                 && state.tickRekillDelay()
                 && living.isAlive()) {
-            living.invulnerableTime = 0;
-            DamageSource source = state.undieDeathSource();
-            living.hurt(
-                    source != null
-                            ? source
-                            : living.damageSources().fellOutOfWorld(),
-                    Float.MAX_VALUE);
+            rekill(living, state);
         }
+    }
+
+    /**
+     * The owner, 2026-11-08: nothing saves a loop victim. The loop kills
+     * with its own damage type, which passes invulnerability, armour, effects
+     * and enchantments, and where a hook still keeps the hit from its victim
+     * the death is finished directly.
+     */
+    private static void rekill(
+            LivingEntity living, GerLivingState state) {
+        DamageSource source = deathLoopSource(living, state);
+        living.invulnerableTime = 0;
+        // What kills as true damage and no more: whatever turns a hit back or passes it on gets no hit without end.
+        living.hurt(source, Math.max(
+                living.getHealth() + living.getAbsorptionAmount(), 1.0F));
+        if (!living.isAlive()
+                || state.inUndieDeath()
+                || !state.undieActive()) {
+            return;
+        }
+        if (state.undieDeaths() < MAX_UNDIE_LOOPS) {
+            holdUndieDeath(living, state);
+        }
+        else {
+            living.setHealth(0.0F);
+            living.die(source);
+        }
+    }
+
+    private static DamageSource deathLoopSource(
+            LivingEntity living, GerLivingState state) {
+        LivingEntity caster = state.undieCaster() != null
+                        && living.level() instanceof ServerLevel level
+                        && level.getEntity(state.undieCaster())
+                                instanceof LivingEntity found
+                ? found
+                : null;
+        Entity stand = caster != null
+                ? GoldExperienceRequiemAddon.activeStand(caster)
+                : null;
+        return GerDamageTypes.source(
+                living.level(),
+                GerDamageTypes.DEATH_LOOP,
+                stand != null ? stand : caster,
+                caster);
+    }
+
+    /**
+     * Creative and spectator players stay out, and a Requiem holder, with his
+     * Stand out or not, is never put in the loop (owner: "死亡循環對黃鎮持有者不生效").
+     */
+    public static boolean canEnterUndieLoop(LivingEntity victim) {
+        return !GerUnavoidableDamage.staysOut(victim)
+                && !GoldExperienceRequiemAddon.isGerUser(victim);
+    }
+
+    /** The Finisher Punch that is about to kill starts the loop with its own hit. */
+    public static void armUndieLoop(
+            LivingEntity victim, LivingEntity caster) {
+        GoldExperienceRequiemAddon.livingState(victim)
+                .armUndie(caster.getUUID());
+    }
+
+    /**
+     * After the killing Finisher Punch: a death something kept from the
+     * victim is finished directly, and a punch another rule made non-lethal
+     * leaves no mark waiting.
+     */
+    public static void settleUndieKill(
+            LivingEntity victim, boolean nonLethal) {
+        GerLivingState state =
+                GoldExperienceRequiemAddon.livingState(victim);
+        if (!state.undieActive()
+                || state.inUndieDeath()
+                || !victim.isAlive()) {
+            return;
+        }
+        if (!nonLethal) {
+            holdUndieDeath(victim, state);
+        }
+        else if (state.undieDeaths() == 0) {
+            state.clearUndie();
+        }
+    }
+
+    // Held just above 0 health until the victim's next tick starts the visible dying.
+    private static void holdUndieDeath(
+            LivingEntity living, GerLivingState state) {
+        if (!state.inUndieDeath()) {
+            state.acceptUndieDeath();
+        }
+        living.setHealth(Float.MIN_VALUE);
     }
 
     @SubscribeEvent
@@ -399,6 +497,11 @@ public final class GoldExperienceRequiemGameEvents {
         }
         GerLivingState state =
                 GoldExperienceRequiemAddon.livingState(living);
+        if (state.undieActive() && !canEnterUndieLoop(living)) {
+            // a victim who gained Requiem, or went Creative, leaves the loop
+            leaveUndieLoop(living, state);
+            return;
+        }
         if (state.undiePhase() != GerLivingState.UndiePhase.PENDING
                 && state.inUndieDeath()
                 && !living.isDeadOrDying()) {
@@ -430,8 +533,9 @@ public final class GoldExperienceRequiemGameEvents {
 
     /**
      * An Undie loop death is not a death: the lethal hit never reaches
-     * die(), so it drops nothing and runs no death effect. The victim is held
-     * just above 0 health until its next tick starts the visible dying.
+     * die(), so it drops nothing and runs no death effect, and a totem of
+     * undying in hand is never asked. The victim is held just above 0 health
+     * until its next tick starts the visible dying.
      */
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onLivingDamage(LivingDamageEvent.Post event) {
@@ -445,27 +549,7 @@ public final class GoldExperienceRequiemGameEvents {
                 || state.undieDeaths() >= MAX_UNDIE_LOOPS) {
             return;
         }
-        if (!state.inUndieDeath()) {
-            if (totemWouldSave(living, event.getSource())) {
-                return;
-            }
-            state.acceptUndieDeath(event.getSource());
-        }
-        living.setHealth(Float.MIN_VALUE);
-    }
-
-    private static boolean totemWouldSave(
-            LivingEntity living, DamageSource source) {
-        if (source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
-            return false;
-        }
-        for (InteractionHand hand : InteractionHand.values()) {
-            if (living.getItemInHand(hand)
-                    .is(Items.TOTEM_OF_UNDYING)) {
-                return true;
-            }
-        }
-        return false;
+        holdUndieDeath(living, state);
     }
 
     private static void startUndieDying(
@@ -498,6 +582,12 @@ public final class GoldExperienceRequiemGameEvents {
     /** 1.16 UndieManager.reviveEntity and finishServerRevive. */
     private static void reviveFromUndieDeath(
             LivingEntity living, GerLivingState state) {
+        standUpFromUndieDeath(living);
+        teleportWithinLoadedArea(living);
+        endUndieDeath(living, state);
+    }
+
+    private static void standUpFromUndieDeath(LivingEntity living) {
         // Still dead here, so the tracker resets as on a real death.
         living.getCombatTracker().recheckStatus();
         living.setHealth(Math.min(living.getMaxHealth(), 1.0F));
@@ -510,8 +600,17 @@ public final class GoldExperienceRequiemGameEvents {
         living.fallDistance = 0.0F;
         living.setPose(Pose.STANDING);
         living.clearFire();
-        teleportWithinLoadedArea(living);
-        endUndieDeath(living, state);
+    }
+
+    private static void leaveUndieLoop(
+            LivingEntity living, GerLivingState state) {
+        if (state.inUndieDeath()) {
+            standUpFromUndieDeath(living);
+            sendUndiePayload(living,
+                    new GerUndiePayloads.RevivePayload(
+                            living.getId(), living.getHealth()));
+        }
+        state.clearUndie();
     }
 
     private static void endUndieDeath(
@@ -753,7 +852,7 @@ public final class GoldExperienceRequiemGameEvents {
     // refusal, and this ends what it does not reach (an action no key holds,
     // one already performing). The user's own Stand actions, the time stop
     // among them, run in its Stand-power slot, apart from its own slot.
-    private static void interruptAction(LivingEntity entity) {
+    public static void interruptAction(LivingEntity entity) {
         EntityActionInstance action =
                 LivingComponentAction.getCurEntityAction(entity);
         if (action != null) {
@@ -792,7 +891,7 @@ public final class GoldExperienceRequiemGameEvents {
         // gets here; it is still a loop death and stays cancelled.
         event.setCanceled(true);
         if (!state.inUndieDeath()) {
-            state.acceptUndieDeath(event.getSource());
+            state.acceptUndieDeath();
         }
         if (state.undiePhase() == GerLivingState.UndiePhase.PENDING) {
             startUndieDying(living, state);
@@ -828,6 +927,13 @@ public final class GoldExperienceRequiemGameEvents {
         }
     }
 
+    // A real death only: a loop death is cancelled before it gets here.
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onLivingDeathInMarkedArea(
+            LivingDeathEvent event) {
+        GerRtzRewindService.recordDeath(event.getEntity());
+    }
+
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onPlayerClone(PlayerEvent.Clone event) {
         GoldExperienceRequiemAddon
@@ -844,6 +950,7 @@ public final class GoldExperienceRequiemGameEvents {
     public static void onServerTick(
             ServerTickEvent.Post event) {
         GerRtzRewindService.tick(event.getServer());
+        GerAttackOrigins.tick();
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
@@ -863,11 +970,23 @@ public final class GoldExperienceRequiemGameEvents {
     // Requiem acts on its own will (owner Q3, Q4): no mark, no key.
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onTimeEraseStart(TimeEraseStartEvent event) {
-        if (GerRtzRewindService.returnsTimeEraseToZero(
+        if (GerRtzRewindService.summonedRequiemWithin(
                 event.getLevel(),
                 event.getEraser(),
-                event.getPosition())) {
+                event.getPosition(),
+                GerCoreSeams.eraseAnswerChunks(event))) {
             event.setCanceled(true);
+        }
+    }
+
+    // The owner, 2026-11-08: an eraser who comes near a summoned Requiem in a running erase is thrown out of it.
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void onTimeEraseRunning(TimeEraseRunningEvent event) {
+        LivingEntity holder = GerRtzRewindService.throwsEraserOut(
+                event.getLevel(), event.getEraser(), event.getPosition());
+        if (holder != null) {
+            event.answer(
+                    GoldExperienceRequiemAddon.id("return_to_zero"), holder);
         }
     }
 
@@ -876,7 +995,7 @@ public final class GoldExperienceRequiemGameEvents {
             BitesTheDustDetonateEvent event) {
         if (GerRtzRewindService.returnsDetonationToZero(
                 event.getTarget())) {
-            event.setCanceled(true);
+            GerCoreSeams.returnDetonationToZero(event);
         }
     }
 
@@ -884,6 +1003,15 @@ public final class GoldExperienceRequiemGameEvents {
     public static void onServerStopping(
             ServerStoppingEvent event) {
         GerRtzRewindService.clear(event.getServer());
+        GerAttackOrigins.clear();
+    }
+
+    // Again after the levels are saved and the players logged out, which can still write; also on the crash path.
+    @SubscribeEvent
+    public static void onServerStopped(
+            ServerStoppedEvent event) {
+        GerRtzRewindService.clear(event.getServer());
+        GerAttackOrigins.clear();
     }
 
     @SubscribeEvent

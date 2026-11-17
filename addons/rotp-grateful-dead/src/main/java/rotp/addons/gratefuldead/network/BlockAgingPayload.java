@@ -13,8 +13,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 public record BlockAgingPayload(
         BlockPos position,
-        float progress,
-        int crackStage) implements CustomPacketPayload {
+        float progress) implements CustomPacketPayload {
     public static final Type<BlockAgingPayload> TYPE =
             new Type<>(GratefulDeadAddon.id(
                     "aging_block_update"));
@@ -26,8 +25,7 @@ public record BlockAgingPayload(
                         RegistryFriendlyByteBuf buffer) {
                     return new BlockAgingPayload(
                             buffer.readBlockPos(),
-                            buffer.readFloat(),
-                            buffer.readByte());
+                            buffer.readFloat());
                 }
 
                 @Override
@@ -36,7 +34,6 @@ public record BlockAgingPayload(
                         BlockAgingPayload payload) {
                     buffer.writeBlockPos(payload.position());
                     buffer.writeFloat(payload.progress());
-                    buffer.writeByte(payload.crackStage());
                 }
             };
 
@@ -45,7 +42,6 @@ public record BlockAgingPayload(
         progress = Float.isFinite(progress)
                 ? Mth.clamp(progress, 0.0F, 1.0F)
                 : 0.0F;
-        crackStage = Mth.clamp(crackStage, -1, 9);
     }
 
     private static Consumer<BlockAgingPayload> clientHandler =

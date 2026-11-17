@@ -4,11 +4,13 @@ import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
+import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.subsystems.target.ActionTarget;
 
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -31,6 +33,20 @@ public final class WhiteAlbumPunchAbility
             extends StandEntityPunch {
         public WhiteAlbumPunch(EntityActionType ability) {
             super(ability);
+        }
+
+        // 1.16 wa_punch swingHand(), no hold: the press that went off swung
+        // the user's main arm (InputHandler.actionSwingsHand), whichever hand
+        // the hidden controller strikes with.
+        @Override
+        public void onActionSet(EntityActionInstance prevAction) {
+            super.onActionSet(prevAction);
+            LivingEntity user = getPowerUser();
+            if (!level().isClientSide()
+                    && !isRestoringInputLifecycle()
+                    && user != null) {
+                user.swing(InteractionHand.MAIN_HAND, true);
+            }
         }
 
         // Core light punch hit plus the 1.16 knockback on a landed hit.

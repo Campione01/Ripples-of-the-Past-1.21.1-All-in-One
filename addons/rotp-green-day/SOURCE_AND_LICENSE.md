@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-green-day`, mod id `rotp_zgd`, version `1.0.2-port.21`.
+- Module: `rotp-green-day`, mod id `rotp_zgd`, version `1.0.2-port.22`.
 - Original 1.16.5 add-on: `RotP-青春岁月1.0.2.jar` (RotP Green Day, mod id `rotp_zgd`), by Makuta Zeml, StandoByte; declared license: GNU GPL v3.0; SHA-256 `0D408356CD109762909D01AD50F027D3CD8DFCE54BCC635C793A5DBA874EC0E6`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

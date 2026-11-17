@@ -16,6 +16,7 @@ import rotp.addons.tusk.state.TuskPortalOperations;
 import rotp.addons.tusk.state.TuskPortalOperations.OperationKind;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 
 public final class TuskPortalAbilities {
@@ -71,7 +72,11 @@ public final class TuskPortalAbilities {
                     false);
             if (!operations.createPortalPair(player)) {
                 creationFailed(player);
+                return;
             }
+            // 1.16 TuskCreateWormhole.perform restarts the swing.
+            player.swinging = false;
+            player.swing(InteractionHand.MAIN_HAND, true);
         }
     }
 

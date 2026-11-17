@@ -5,4 +5,8 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
+ext.gameTestStructures = [
+        'data/highwaystar/structure/empty.nbt': 'core',
+]
+
 apply from: rootProject.file('gradle/addon-module.gradle')

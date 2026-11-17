@@ -4,7 +4,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import rotp.addons.bastet.BastetAddon;
+import rotp.core.powersystem.standpower.StandPower;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -62,6 +65,25 @@ public final class MagnetizedData {
         }
         MAGNETIZED.put(uuid, ticks - 1);
         MagnetForceHandler.applyMagnetForce(entity);
+    }
+
+    /**
+     * The Bastet user whose magnetism hurts this creature, for the Stand's damage share: the nearest other one in range
+     * (1.16 kept no owner of a magnetization), or null.
+     */
+    @Nullable
+    public static StandPower bastetPowerNear(LivingEntity entity) {
+        if (!(entity.level() instanceof ServerLevel level)) {
+            return null;
+        }
+        ServerPlayer nearest = null;
+        for (ServerPlayer player : level.players()) {
+            if (player != entity && player.distanceToSqr(entity) <= MAX_RANGE * MAX_RANGE && BastetAddon.isBastetUser(player)
+                    && (nearest == null || player.distanceToSqr(entity) < nearest.distanceToSqr(entity))) {
+                nearest = player;
+            }
+        }
+        return nearest != null ? StandPower.get(nearest) : null;
     }
 
     private static boolean isWithinBastetRange(LivingEntity entity) {

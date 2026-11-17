@@ -98,9 +98,15 @@ public final class HermitVineRenderer<
         StandVisualContext visualContext =
                 HermitPurpleVisuals.context(
                         entity, partialTick);
+        // a placed barrier outlives its Stand, whose alpha is gone with it
+        float alpha = visualContext != null
+                ? visualContext.effectiveAlpha()
+                : entity instanceof HermitBarrierVineEntity barrier
+                                && barrier.isAttachedToBlock()
+                        ? 1.0F
+                        : 0.0F;
         if (!ClientGlobals.canSeeStands
-                || visualContext == null
-                || visualContext.effectiveAlpha() <= 0.0F) {
+                || alpha <= 0.0F) {
             return;
         }
 
@@ -121,7 +127,7 @@ public final class HermitVineRenderer<
         MultiBufferSource alphaBuffer =
                 AlphaMultiBufferSource.wrap(
                         buffer,
-                        visualContext.effectiveAlpha());
+                        alpha);
         VertexConsumer vertices = alphaBuffer.getBuffer(
                 ModRenderTypes.standTranslucent(
                         getTextureLocation(entity)));

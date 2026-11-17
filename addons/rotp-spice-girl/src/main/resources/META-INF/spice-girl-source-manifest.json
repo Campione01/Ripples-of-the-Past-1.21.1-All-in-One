@@ -25,13 +25,13 @@
     "source_bytes": 7076,
     "source_sha256": "2B7DE6F4CE7E8163D4C7D28B7969C0EB2D38F7486E8FA8FA73E33A812F49B132",
     "identifier": "geometry.rotp_sg.spice_girl",
-    "target_sha256": "0A02DB78D4EF6841CC31A89B4ACCCC4C5D082C4553B948307CFF329405F9F1B5",
+    "target_sha256": "A4332B96CF80B39F8AEE2A2980A0E464942BB01D2B9A1154CFFAF36C51157A5C",
     "conversion": "Legacy camelCase bones renamed and reparented to the current humanoid Stand anchor contract; torso_lower added; per-face UVs reproduce the core Gecko loader's donor box-UV face mapping; an empty left_item locator in the left hand holds the core grab's held entity."
   },
   "converted_animation": {
     "source_bytes": 145471,
     "source_sha256": "835FD987B3E49523358A2DD00607EA73D5833DE3B6C5325CD31DEA9898FAA6DF",
-    "target_sha256": "4A54CB780820C715D6F0C2EE89D28020C573AD7ED53FBCF76FA6858DE6EA815B",
+    "target_sha256": "5928F0E6D9AB8B514D4039236A732BC5841F68EBD4A0623032D5647B24C27873",
     "legacy_clip_count": 16,
     "target_clip_count": 22,
     "dedicated_current_clips": ["wall_climb", "heavy_charged", "grab", "grab_punch", "grab_barrage", "grab_throw"],

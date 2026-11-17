@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.world.entity.player.PlayerModelPart;
+import net.minecraft.world.phys.Vec3;
 
 public final class KingCrimsonTimeEraseDecoyRenderer
         extends CharacterMobRenderer<
@@ -44,8 +45,8 @@ public final class KingCrimsonTimeEraseDecoyRenderer
                         .contains(minecraft.gameRenderer.getMainCamera().getPosition())) {
             return;
         }
-        applySkinParts(regularPlayerModel, entity);
-        applySkinParts(slimPlayerModel, entity);
+        applyPlayerLook(regularPlayerModel, entity);
+        applyPlayerLook(slimPlayerModel, entity);
         super.render(
                 entity,
                 entityYaw,
@@ -55,12 +56,23 @@ public final class KingCrimsonTimeEraseDecoyRenderer
                 packedLight);
     }
 
-    private static void applySkinParts(
+    // As PlayerRenderer draws a crouching player.
+    @Override
+    public Vec3 getRenderOffset(
+            KingCrimsonTimeEraseDecoyEntity entity,
+            float partialTick) {
+        return entity.isCrouching()
+                ? new Vec3(0.0D, entity.getScale() * -2.0F / 16.0F, 0.0D)
+                : super.getRenderOffset(entity, partialTick);
+    }
+
+    private static void applyPlayerLook(
             EntityModel<KingCrimsonTimeEraseDecoyEntity> model,
             KingCrimsonTimeEraseDecoyEntity entity) {
         if (!(model instanceof PlayerModel<?> playerModel)) {
             return;
         }
+        playerModel.crouching = entity.isCrouching();
         playerModel.hat.visible =
                 entity.isSkinPartShown(PlayerModelPart.HAT);
         playerModel.jacket.visible =

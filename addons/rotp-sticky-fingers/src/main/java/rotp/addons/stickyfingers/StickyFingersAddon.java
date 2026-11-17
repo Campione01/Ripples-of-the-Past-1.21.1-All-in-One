@@ -3,6 +3,8 @@ package rotp.addons.stickyfingers;
 import static rotp.core.init.power.ModStands.SWITCH_SPECIAL;
 import static rotp.core.init.power.ModStands.USE_SPECIAL;
 
+import java.util.function.Supplier;
+
 import rotp.core.api.RotpAddonApi;
 import rotp.core.api.control.CarriedPassengerActionHooks;
 import rotp.core.core.JojoRegistries;
@@ -44,6 +46,7 @@ import rotp.addons.stickyfingers.network.DetachedBodyControlPayload;
 import rotp.addons.stickyfingers.network.DetachedBodyPresentationPayload;
 import rotp.addons.stickyfingers.state.DetachedPartType;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.effect.MobEffect;
@@ -59,9 +62,11 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.material.PushReaction;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(StickyFingersAddon.MOD_ID)
 public final class StickyFingersAddon {
@@ -109,6 +114,16 @@ public final class StickyFingersAddon {
             DeferredRegister.create(Registries.SOUND_EVENT, MOD_ID);
     public static final DeferredRegister<StandType> STAND_TYPES =
             DeferredRegister.create(JojoRegistries.DEFAULT_STANDS_REG, MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
+            DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
+    // Which of its user's skills go on with the Stand recalled (RecallSign bits), for the HUD's mark on their slots.
+    // Synced to the user alone, with no serializer: the server works it out again every second.
+    public static final Supplier<AttachmentType<Integer>> RECALL_SIGN =
+            ATTACHMENT_TYPES.register(
+                    "recall_sign",
+                    () -> AttachmentType.builder(() -> 0)
+                            .sync((holder, player) -> holder == player, ByteBufCodecs.VAR_INT)
+                            .build());
     public static final DeferredRegister<EntityCustomEffectType<?>>
             STAND_EFFECT_TYPES = DeferredRegister.create(
                     JojoRegistries.STAND_EFFECTS_REG, MOD_ID);
@@ -487,6 +502,7 @@ public final class StickyFingersAddon {
         MENU_TYPES.register(modEventBus);
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
     }
 
     public static ResourceLocation id(String path) {
@@ -499,6 +515,14 @@ public final class StickyFingersAddon {
         return power != null
                 && power.getPowerType() == STICKY_FINGERS.get()
                 && power.isSummoned();
+    }
+
+    /** For what is already placed or taken off: it goes on through a recall and ends with the loss of the Stand. */
+    public static boolean holdsStickyFingers(
+            LivingEntity entity) {
+        StandPower power = StandPower.get(entity);
+        return power != null
+                && power.getPowerType() == STICKY_FINGERS.get();
     }
 
     private static DeferredHolder<
@@ -697,17 +721,19 @@ public final class StickyFingersAddon {
                             ZIP_USER_WOUNDS_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             ZIP_TARGET_WOUNDS_NAME,
-                            0,
+                            ZIP_USER_WOUNDS_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                     .addToHotbar(
                             OPEN_STORAGE_NAME,
                             0,
                             InputMethod.CLICK)
-                    .addToHotbar(
+                    .addHotbarSlotVariation(
                             OPEN_INNER_STORAGE_NAME,
-                            0,
+                            OPEN_STORAGE_NAME,
+                            InputKey.Modifier.SHIFT,
                             InputMethod.CLICK)
                 .finalizeControlScheme()
                 .makeControlScheme("keybinds")

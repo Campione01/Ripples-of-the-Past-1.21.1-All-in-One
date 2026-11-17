@@ -17,6 +17,7 @@ import rotp.core.util.functions.DamageUtil;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.impl.stands._entitybase.StandMeleeReach;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import rotp.addons.thehand.TheHandAddon;
 import rotp.addons.thehand.TheHandConfig;
@@ -423,7 +424,7 @@ public final class TheHandCombat {
         }
         Entity attracted = target;
         // 1.16: the held item is pulled out only after a full recovery.
-        if (recoveryCompleted && user.isShiftKeyDown()) {
+        if (recoveryCompleted && StandManualInput.isShiftHeld(user)) {
             Entity disarmed = disarmOne(user.level(), target);
             if (disarmed != null) {
                 attracted = disarmed;

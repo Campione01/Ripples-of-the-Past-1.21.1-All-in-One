@@ -137,6 +137,64 @@ public enum UltimateLifeformSpec {
         };
     }
 
+    /*
+     * 1.16 replaceAction of UltimateLifeformHeavyPunch, UltimateLifeformBarrage and UltimateLifeformPlantInfusion: what
+     * the key or slot of this move does now, null for the move itself. The Beat was the shift variation of the Hamon
+     * Overdrive and the heavy punch had none, so without a charge the variation key still gave the heavy punch.
+     */
+    @Nullable
+    public UltimateLifeformSpec contextVariation(
+            int hamonCharge, @Nullable PillarmanMode mode) {
+        return switch (this) {
+            case HEAVY_PUNCH -> hamonCharge > 0 ? HAMON_OVERDRIVE : null;
+            case HAMON_OVERDRIVE_BEAT -> hamonCharge > 0 ? null : HEAVY_PUNCH;
+            case ULTIMATE_BARRAGE -> mode == PillarmanMode.LIGHT
+                    ? BLADE_BARRAGE
+                    : hamonCharge > 0 ? ULTIMATE_HAMON_BARRAGE : null;
+            case HAMON_PLANT_INFUSION -> HAMON_ORGANISM_INFUSION;
+            default -> null;
+        };
+    }
+
+    // 1.16 shiftVariationOf: on the base's slot, under the variation key
+    @Nullable
+    public UltimateLifeformSpec slotVariationOf() {
+        return switch (this) {
+            case HAMON_OVERDRIVE_BEAT -> HEAVY_PUNCH;
+            case ULTIMATE_HAMON_KICK -> ULTIMATE_BARRAGE;
+            case HYPNOTIZE -> HAMON_SHOCK;
+            case HAMON_LIFE_MAGNETISM -> HAMON_PLANT_INFUSION;
+            case ULTIMATE_AGILITY -> EVASION;
+            case BLADE_DASH_ATTACK -> BLADE_SLASH;
+            case LIGHT_FLASH_DECOY -> LIGHT_FLASH;
+            case DIVINE_SANDSTORM -> SMALL_SANDSTORM;
+            case SCALE_SPLIT_SHOT -> SCALE_SHOT;
+            case PHANTOM_SUMMON -> BUNNY_SUMMON;
+            case ARMOR_FIRE_PROTECTION -> ARMOR_PROTECTION;
+            case ENDERMAN_TELEPORT -> ULTIMATE_FLIGHT_DASH;
+            case ABSOLUTE_IMMORTALITY -> UNLIMITED_POWER;
+            default -> null;
+        };
+    }
+
+    // The move whose slot reaches this one; 1.16 gave no slot to what only a replaceAction or a variation reached.
+    public UltimateLifeformSpec slotOwner() {
+        UltimateLifeformSpec base = slotVariationOf();
+        if (base != null) {
+            return base;
+        }
+        return switch (this) {
+            case HAMON_OVERDRIVE -> HEAVY_PUNCH;
+            case ULTIMATE_HAMON_BARRAGE, BLADE_BARRAGE -> ULTIMATE_BARRAGE;
+            case HAMON_ORGANISM_INFUSION -> HAMON_PLANT_INFUSION;
+            default -> this;
+        };
+    }
+
+    public boolean hasOwnSlot() {
+        return slotOwner() == this;
+    }
+
     // 1.16 Action.holdOnly: no hold to fire, a hold limit (holdType)
     public boolean holdOnly() {
         return held && chargeTicks == 0;

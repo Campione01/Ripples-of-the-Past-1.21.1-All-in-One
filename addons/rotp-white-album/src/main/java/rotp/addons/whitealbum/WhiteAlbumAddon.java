@@ -37,8 +37,10 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 @Mod(WhiteAlbumAddon.MOD_ID)
 public final class WhiteAlbumAddon {
@@ -71,6 +73,17 @@ public final class WhiteAlbumAddon {
     public static final DeferredRegister<StandType>
             STAND_TYPES = DeferredRegister.create(
                     JojoRegistries.DEFAULT_STANDS_REG, MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>>
+            ATTACHMENT_TYPES = DeferredRegister.create(
+                    NeoForgeRegistries.ATTACHMENT_TYPES, MOD_ID);
+    public static final DeferredHolder<
+            AttachmentType<?>,
+            AttachmentType<WhiteAlbumControllerEntity.Recalled>>
+            RECALLED_STAND = ATTACHMENT_TYPES.register(
+                    "recalled_stand",
+                    () -> AttachmentType.builder(
+                            () -> new WhiteAlbumControllerEntity.Recalled())
+                            .build());
 
     // 1.16 wa_punch: the core light punch plus knockback(2.0) on a hit.
     public static final DeferredHolder<
@@ -234,6 +247,7 @@ public final class WhiteAlbumAddon {
         PARTICLE_TYPES.register(modEventBus);
         SOUND_EVENTS.register(modEventBus);
         STAND_TYPES.register(modEventBus);
+        ATTACHMENT_TYPES.register(modEventBus);
         modEventBus.addListener(
                 WhiteAlbumGameEvents::registerAttributes);
     }

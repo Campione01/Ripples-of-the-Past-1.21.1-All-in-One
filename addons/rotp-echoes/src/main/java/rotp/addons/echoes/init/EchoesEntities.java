@@ -14,7 +14,7 @@ public final class EchoesEntities {
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES =
             DeferredRegister.create(Registries.ENTITY_TYPE, RotpEchoes.MOD_ID);
 
-    // master EchoesEntity.getDimensions: the egg is 0.4 x 1.0
+    // R772.1 E12: every act is 0.65 x 1.95, the scale of the author's 1.21.1 skins
     public static final DeferredHolder<
             EntityType<?>, EntityType<EchoesStandEntity>> ACT0 =
             ENTITY_TYPES.register(
@@ -24,7 +24,7 @@ public final class EchoesEntities {
                                     MobCategory.MISC)
                             .noSave()
                             .noSummon()
-                            .sized(0.4F, 1.0F)
+                            .sized(0.65F, 1.95F)
                             .clientTrackingRange(32)
                             .updateInterval(2)
                             .build(key.toString()));
@@ -38,7 +38,7 @@ public final class EchoesEntities {
                                     MobCategory.MISC)
                             .noSave()
                             .noSummon()
-                            .sized(0.4F, 1.2F)
+                            .sized(0.65F, 1.95F)
                             .clientTrackingRange(32)
                             .updateInterval(2)
                             .build(key.toString()));
@@ -52,7 +52,7 @@ public final class EchoesEntities {
                                     MobCategory.MISC)
                             .noSave()
                             .noSummon()
-                            .sized(0.4F, 1.25F)
+                            .sized(0.65F, 1.95F)
                             .clientTrackingRange(32)
                             .updateInterval(2)
                             .build(key.toString()));
@@ -66,7 +66,7 @@ public final class EchoesEntities {
                                     MobCategory.MISC)
                             .noSave()
                             .noSummon()
-                            .sized(0.5F, 1.5F)
+                            .sized(0.65F, 1.95F)
                             .clientTrackingRange(32)
                             .updateInterval(2)
                             .build(key.toString()));

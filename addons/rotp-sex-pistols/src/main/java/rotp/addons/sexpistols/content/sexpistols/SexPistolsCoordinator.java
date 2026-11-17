@@ -537,14 +537,7 @@ public final class SexPistolsCoordinator
         if (!summoned && recallTicks <= 0) {
             return;
         }
-        tearingDown = true;
-        try {
-            RevolverBulletEntity.discardOwnedBy(
-                    level, owner.getUUID());
-        }
-        finally {
-            tearingDown = false;
-        }
+        // The six come back; a bullet in flight goes on (owner's rule of 2026-11-05).
         summoned = false;
         releasedMembersOnly = false;
         recallTicks = RECALL_TICKS;

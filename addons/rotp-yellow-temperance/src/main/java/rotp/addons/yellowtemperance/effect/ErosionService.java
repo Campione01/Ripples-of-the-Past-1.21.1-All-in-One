@@ -2,23 +2,24 @@ package rotp.addons.yellowtemperance.effect;
 
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
+import rotp.core.powersystem.standpower.StandDamageContext;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.util.functions.DamageUtil;
 
 import rotp.addons.yellowtemperance.YellowTemperanceAddon;
 import rotp.addons.yellowtemperance.YellowTemperanceConfig;
 import rotp.addons.yellowtemperance.YellowTemperancePhase1Spec;
-import rotp.addons.yellowtemperance.entity.YellowTemperanceControllerEntity;
-import rotp.addons.yellowtemperance.network.ErosionVisualPayload;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraft.world.entity.player.Player;
 
 public final class ErosionService {
     public static final String CASTER_KEY =
@@ -98,11 +99,13 @@ public final class ErosionService {
                                     * YellowTemperanceConfig
                                             .EROSION_DAMAGE_PER_LEVEL
                                             .get().floatValue());
-            target.hurt(
-                    new DamageSource(
-                            DamageUtil.type(level, EROSION_DAMAGE)),
-                    damage);
-            sync(target, owner(target), true);
+            // dealt from the eroded one's own tick, so it is applied in the name of the user who eroded it
+            try (var running = StandDamageContext.enter(castersStand(level, casterId(target)))) {
+                target.hurt(
+                        new DamageSource(
+                                DamageUtil.type(level, EROSION_DAMAGE)),
+                        damage);
+            }
         }
         if (erosion.getDuration()
                 <= YellowTemperanceConfig
@@ -160,10 +163,8 @@ public final class ErosionService {
         if (target == null || target.level().isClientSide()) {
             return;
         }
-        LivingEntity owner = owner(target);
         target.removeEffect(YellowTemperanceAddon.EROSION);
         target.getPersistentData().remove(CASTER_KEY);
-        sync(target, owner, false);
     }
 
     public static boolean isOwnedBy(
@@ -188,7 +189,6 @@ public final class ErosionService {
                 caster);
         target.getPersistentData().putUUID(
                 CASTER_KEY, caster.getUUID());
-        sync(target, caster, true);
     }
 
     private static boolean valid(
@@ -202,46 +202,17 @@ public final class ErosionService {
                         YellowTemperanceAddon.PROTECTION);
     }
 
+    @Nullable
+    private static StandPower castersStand(ServerLevel level, @Nullable UUID caster) {
+        Player user = caster != null ? level.getPlayerByUUID(caster) : null;
+        return user != null && YellowTemperanceAddon.isYellowTemperanceUser(user) ? StandPower.get(user) : null;
+    }
+
     private static UUID casterId(LivingEntity target) {
         return target != null
                 && target.getPersistentData().hasUUID(CASTER_KEY)
                         ? target.getPersistentData()
                                 .getUUID(CASTER_KEY)
                         : null;
-    }
-
-    private static LivingEntity owner(LivingEntity target) {
-        UUID id = casterId(target);
-        MinecraftServer server = target != null
-                ? target.getServer()
-                : null;
-        if (id == null || server == null) {
-            return null;
-        }
-        for (ServerLevel level : server.getAllLevels()) {
-            Entity entity = level.getEntity(id);
-            if (entity instanceof LivingEntity living) {
-                return living;
-            }
-        }
-        return null;
-    }
-
-    private static void sync(
-            LivingEntity target,
-            LivingEntity owner,
-            boolean active) {
-        YellowTemperanceControllerEntity controller =
-                owner != null
-                        ? YellowTemperanceAddon.controller(owner)
-                        : null;
-        PacketDistributor.sendToPlayersTrackingEntityAndSelf(
-                target,
-                new ErosionVisualPayload(
-                        target.getId(),
-                        controller != null
-                                ? controller.getId()
-                                : 0,
-                        active && controller != null));
     }
 }

@@ -493,12 +493,13 @@ public final class DiegosTheWorldAddon {
                             KNIFE_BARRAGE, 0, InputMethod.CLICK)
                     .addToHotbar(
                             TIME_STOP_PUNCH, 0, InputMethod.CLICK)
-                    // The donor blink (the_world_time_resume's SHIFT
-                    // variation) is its own slot after the time stop.
                     .addToHotbar(
                             TIME_STOP, 0, InputMethod.HOLD)
-                    .addToHotbar(
-                            TIME_STOP_BLINK, 0, InputMethod.CLICK)
+                    .addHotbarSlotVariation(
+                            TIME_STOP_BLINK,
+                            TIME_STOP,
+                            InputKey.Modifier.SHIFT,
+                            InputMethod.CLICK)
                     .addToHotbar(
                             BARBED_WIRE_TRAP, 0, InputMethod.CLICK)
                 .finalizeControlScheme()

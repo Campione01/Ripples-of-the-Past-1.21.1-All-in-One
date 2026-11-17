@@ -1094,6 +1094,96 @@ public final class TuskNailShotGameTests {
         });
     }
 
+    /**
+     * R772.1 OQ-A06 (1.16 TuskChargedNailShot, NailEntity.breakProjectile, TuskCreateWormhole): through the real presses,
+     * Act 3's charged nail opens its rotational wormhole where it lands, and Create the Wormhole then opens the pair from
+     * it, as 1.16's capability wormhole let it.
+     */
+    @GameTest(template = "empty", batch = "tusk_wormhole_from_the_shot", timeoutTicks = TIMEOUT_TICKS)
+    public static void act3sChargedNailOpensTheWormholeThePairComesFrom(GameTestHelper helper) {
+        Fixture fixture = new Fixture(helper, TuskAddon.TUSK_ACT_3.get(), GameType.SURVIVAL,
+                "TuskShotPortal", 32);
+        BlockPos wall = fixture.feet.offset(0, 1, 4);
+        Flight flight = new Flight();
+        boolean[] pressed = {false};
+        fixture.drive(() -> {
+            if (flight.nail == null) {
+                fixture.setBlock(wall, Blocks.OBSIDIAN.defaultBlockState());
+                flight.launch(fixture, CHARGED_NAIL_SHOT);
+                return;
+            }
+            if (!pressed[0]) {
+                // pressed as a player does, once the shot is over; a press in its recovery waits in the input buffer
+                if (fixture.wormholes().isEmpty()
+                        || LivingComponentAction.getCurEntityAction(fixture.owner, PowerClass.STAND) != null) {
+                    fixture.stage = "waiting for the charged nail's wormhole and the end of the shot";
+                    return;
+                }
+                fixture.click(WORMHOLE);
+                pressed[0] = true;
+                fixture.stage = "waiting for the portal pair from the shot's wormhole";
+                return;
+            }
+            if (!TuskPortalOperations.get(fixture.level.getServer()).hasOwned(fixture.owner.getUUID())) {
+                return;
+            }
+            fixture.pass();
+        });
+    }
+
+    // 1.16 TuskCreateWormhole.perform: user.swinging = false; user.swing(Hand.MAIN_HAND). The arm's opening has no swing.
+    @GameTest(template = "empty", batch = "tusk_wormhole_swing", timeoutTicks = TIMEOUT_TICKS)
+    public static void wormholeSwingsTheMainArmLikeTheDonor(GameTestHelper helper) {
+        Fixture fixture = new Fixture(helper, TuskAddon.TUSK_ACT_3.get(), GameType.SURVIVAL,
+                "TuskWormholeSwing", 16);
+        boolean[] pressed = {false};
+        fixture.drive(() -> {
+            if (!pressed[0]) {
+                pressed[0] = true;
+                fixture.openWormhole(new Vec3(
+                        fixture.feet.getX() + 4.5D, fixture.feet.getY() + 3.5D, fixture.feet.getZ() + 2.5D), null);
+                helper.assertTrue(!fixture.owner.swinging, "Fixture: the user swings before the press.");
+                fixture.click(WORMHOLE);
+                fixture.stage = "waiting for the portal pair";
+                return;
+            }
+            if (!TuskPortalOperations.get(fixture.level.getServer()).hasOwned(fixture.owner.getUUID())) {
+                return;
+            }
+            helper.assertTrue(fixture.owner.swinging && fixture.owner.swingingArm == InteractionHand.MAIN_HAND,
+                    "1.16 swung the user's main arm as the wormhole opened; swinging=" + fixture.owner.swinging
+                            + " arm=" + fixture.owner.swingingArm);
+            fixture.pass();
+        });
+    }
+
+    @GameTest(template = "empty", batch = "tusk_wormhole_refused_swing", timeoutTicks = TIMEOUT_TICKS)
+    public static void refusedWormholeSwingsNoArm(GameTestHelper helper) {
+        Fixture fixture = new Fixture(helper, TuskAddon.TUSK_ACT_3.get(), GameType.SURVIVAL,
+                "TuskWormholeRefused", 16);
+        boolean[] pressed = {false};
+        fixture.drive(() -> {
+            if (!pressed[0]) {
+                pressed[0] = true;
+                WormholeEntity source = fixture.openWormhole(new Vec3(
+                        fixture.feet.getX() + 4.5D, fixture.feet.getY() + 3.5D, fixture.feet.getZ() + 2.5D), null);
+                fixture.click(WORMHOLE);
+                // The press went through; the wormhole it would open from is gone before it performs.
+                source.discard();
+                fixture.stage = "waiting for the refused wormhole to end";
+                return;
+            }
+            if (LivingComponentAction.getCurEntityAction(fixture.owner, PowerClass.STAND) != null) {
+                return;
+            }
+            helper.assertTrue(!TuskPortalOperations.get(fixture.level.getServer()).hasOwned(fixture.owner.getUUID()),
+                    "A wormhole opened with no source.");
+            helper.assertTrue(!fixture.owner.swinging,
+                    "A wormhole that did not open swung the user's arm.");
+            fixture.pass();
+        });
+    }
+
     @GameTest(template = "empty", batch = "tusk_stamina_rotation", timeoutTicks = TIMEOUT_TICKS)
     public static void infiniteRotationStrikesOnAShortBarAndDrainsIt(GameTestHelper helper) {
         Fixture fixture = new Fixture(helper, TuskAddon.TUSK_ACT_4.get(), GameType.SURVIVAL,

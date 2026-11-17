@@ -1,7 +1,11 @@
 package rotp.addons.whitesnake.block;
 
+import java.util.UUID;
+
 import javax.annotation.Nullable;
 
+import rotp.core.powersystem.standpower.StandDamageContext;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.util.functions.DamageUtil;
 import com.mojang.serialization.MapCodec;
 
@@ -16,6 +20,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
@@ -151,6 +156,13 @@ public final class MeltHeartBlock extends BaseEntityBlock {
                 && state.getValue(LAYERS) < 5;
     }
 
+    @Nullable
+    private static StandPower ownersStand(Level level, BlockPos position) {
+        UUID owner = level.getBlockEntity(position) instanceof MeltHeartBlockEntity melt ? melt.ownerId() : null;
+        Player user = owner != null ? level.getPlayerByUUID(owner) : null;
+        return WhitesnakeAddon.hasWhitesnakePower(user) ? StandPower.get(user) : null;
+    }
+
     @Override
     protected void entityInside(
             BlockState state,
@@ -192,9 +204,12 @@ public final class MeltHeartBlock extends BaseEntityBlock {
                 false));
         living.setSwimming(true);
         if (living.isAlive()) {
-            living.hurt(
-                    DamageUtil.make(level, DamageTypes.MAGIC),
-                    0.5F);
+            // the melt's owner is the Whitesnake user whose Stand put it there: its damage takes his Stand's share
+            try (var running = StandDamageContext.enter(ownersStand(level, position))) {
+                living.hurt(
+                        DamageUtil.make(level, DamageTypes.MAGIC),
+                        0.5F);
+            }
         }
     }
 

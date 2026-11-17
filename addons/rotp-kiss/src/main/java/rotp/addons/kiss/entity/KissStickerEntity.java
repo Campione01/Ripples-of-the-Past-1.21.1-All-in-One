@@ -62,6 +62,7 @@ public final class KissStickerEntity extends Entity {
                     KissStickerEntity.class, EntityDataSerializers.BOOLEAN);
     private Vec3 launchOrigin;
     private boolean tokenGranted;
+    private boolean loadedFromSave;
 
     public KissStickerEntity(
             EntityType<? extends KissStickerEntity> type, Level level) {
@@ -148,9 +149,17 @@ public final class KissStickerEntity extends Entity {
             }
             return;
         }
-        if (!KissService.validController(level, getOwnerUuid(), getStandUuid())) {
+        if (!KissService.validOwner(level, getOwnerUuid())) {
             discard();
             return;
+        }
+        // A logout clears the tokens: a sticker saved with its chunk must not come back after a relog.
+        if (loadedFromSave) {
+            loadedFromSave = false;
+            if (!ownerCarriesItsToken()) {
+                discard();
+                return;
+            }
         }
         switch (mode()) {
             case FLYING -> tickFlying();
@@ -280,6 +289,13 @@ public final class KissStickerEntity extends Entity {
         }
     }
 
+    private boolean ownerCarriesItsToken() {
+        ServerPlayer owner = ownerPlayer();
+        return owner != null
+                && mode() != Mode.FLYING
+                && KissTokenService.carriesToken(owner, token -> matchesAttachment(token.entityUuid(), token.blockPos()));
+    }
+
     private ServerPlayer ownerPlayer() {
         UUID ownerUuid = getOwnerUuid();
         return ownerUuid != null && level().getServer() != null
@@ -367,6 +383,7 @@ public final class KissStickerEntity extends Entity {
         entityData.set(CREATED_AT, tag.getLong("CreatedAt"));
         entityData.set(RESERVED, tag.getBoolean("Reserved"));
         tokenGranted = tag.getBoolean("TokenGranted");
+        loadedFromSave = true;
         if (tag.contains("LaunchX")) {
             launchOrigin = new Vec3(
                     tag.getDouble("LaunchX"),

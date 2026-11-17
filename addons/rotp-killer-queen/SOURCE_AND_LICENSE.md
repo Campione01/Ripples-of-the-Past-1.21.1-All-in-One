@@ -2,9 +2,9 @@
 
 ## Public release
 
-- Module: `rotp-killer-queen`, mod id `rotp_zkq`, version `1.6.10-port.26`.
+- Module: `rotp-killer-queen`, mod id `rotp_zkq`, version `1.6.10-port.27`.
 - Original 1.16.5 add-on: `RotP-Killer_Queen-1.6.10b添加败者食尘修复.jar` (RotP Killer Queen, mod id `rotp_zkq`), by Makuta Zeml, StandoByte, Model by: Lanostry, StandSkins by: MlgMC; declared license: GNU GPL v3.0; SHA-256 `D4C302283C9A5CF2134EB7A4AFB154464065C30366BB2DC6AEA3620B01EB539F`.
-- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-04); it is a modified version of the original add-on, not the original.
+- This module was ported to NeoForge 1.21.1 and modified by Campione01 (port work dated 2026-07-26 to 2026-11-14); it is a modified version of the original add-on, not the original.
 - License of this module: GPL-3.0-only (see `LICENSE`).
 - The port record below is the one kept with the port; local file-system paths in it were reduced to file names, and links into the private port workspace to their titles.
 

@@ -190,12 +190,15 @@ public final class GerReturnToZeroAbility
                 || action.getPerformer() == null) {
             return false;
         }
+        action.automatic = true;
         return performAtOnce(action);
     }
 
     public static final class ReturnToZeroAction
             extends EntityActionInstance {
         private GerRtzRewindService.Result result;
+        // The coordinator, R772.1: only a key press breaks a prediction; the answer to a stop answers the stop.
+        private boolean automatic;
 
         public ReturnToZeroAction(EntityActionType ability) {
             super(ability);
@@ -208,6 +211,12 @@ public final class GerReturnToZeroAbility
             }
             LivingEntity user = getPowerUser();
             if (!(user instanceof ServerPlayer player)) {
+                return;
+            }
+            // EPITAPH-ARCH 3.7: before the mark and the stamina are looked at.
+            if (!automatic
+                    && GerRtzRewindService.breaksEpitaphPrediction(player)) {
+                result = GerRtzRewindService.Result.PREDICTION_BROKEN;
                 return;
             }
             StandPower power = StandPower.get(player);

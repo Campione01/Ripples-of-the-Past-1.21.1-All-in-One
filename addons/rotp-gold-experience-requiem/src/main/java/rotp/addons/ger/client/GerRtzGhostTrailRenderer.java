@@ -21,7 +21,8 @@ import org.lwjgl.opengl.GL30;
 
 public final class GerRtzGhostTrailRenderer {
     private static final int PRIVATE_BUFFER_SIZE = 786_432;
-    private static final int MAX_RENDERED_GHOSTS_PER_ENTITY = 12;
+    private static final int MAX_RENDERED_GHOSTS_PER_ENTITY =
+            GerRtzGhostFade.MAX_COPIES;
 
     private GerRtzGhostTrailRenderer() {}
 
@@ -51,6 +52,9 @@ public final class GerRtzGhostTrailRenderer {
         Vec3 camera = event.getCamera().getPosition();
         float partialTick = event.getPartialTick()
                 .getGameTimeDeltaPartialTick(true);
+        float elapsed = GerRtzClientState.elapsedTicks() + partialTick;
+        int presentationTicks =
+                GerRtzClientState.presentationTotalTicks(active);
         int renderedTotal = 0;
         boolean ghostSubmitted = false;
         RenderTargetState targetState = new RenderTargetState();
@@ -83,6 +87,10 @@ public final class GerRtzGhostTrailRenderer {
                                 + MAX_RENDERED_GHOSTS_PER_ENTITY
                                 - 1)
                                 / MAX_RENDERED_GHOSTS_PER_ENTITY);
+                // The points come newest first: the last copies are the oldest.
+                int copies = Math.min(
+                        MAX_RENDERED_GHOSTS_PER_ENTITY,
+                        (trail.points().size() + stride - 1) / stride);
                 int rendered = 0;
                 for (int pointIndex = 0;
                         pointIndex < trail.points().size()
@@ -91,14 +99,21 @@ public final class GerRtzGhostTrailRenderer {
                         pointIndex += stride) {
                     Vec3 point = trail.points().get(pointIndex);
                     float trailAlpha = lifecycle
-                            * (0.42F
-                                    - rendered
-                                            * 0.28F
-                                            / MAX_RENDERED_GHOSTS_PER_ENTITY);
-                    MultiBufferSource buffer =
+                            * GerRtzGhostFade.alpha(
+                                    rendered,
+                                    copies,
+                                    elapsed,
+                                    presentationTicks);
+                    if (trailAlpha <= 0.0F) {
+                        break;
+                    }
+                    MultiBufferSource buffer = new GerRtzGhostTint(
                             AlphaMultiBufferSource.wrap(
                                     PrivateBuffers.ALPHA_BLEND,
-                                    trailAlpha);
+                                    trailAlpha),
+                            GerRtzGhostFade.red(),
+                            GerRtzGhostFade.green(),
+                            GerRtzGhostFade.blue());
                     stack.pushPose();
                     ghostSubmitted = true;
                     try {

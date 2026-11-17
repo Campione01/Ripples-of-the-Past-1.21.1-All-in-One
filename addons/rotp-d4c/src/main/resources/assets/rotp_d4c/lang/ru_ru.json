@@ -60,7 +60,7 @@
   "item.rotp_d4c.colt_custom.tooltip": "§6Перезарядка — Shift+ПКМ, потребляет железные самородки. Фирменный револьвер Валентайна, говорят, очень ценный.\n§8Модель пожертвована XCXHarry, анимация и код by ланг-ланг",
   "item.rotp_d4c.saint_corpse_ears": "Останки Святого ( Уши )",
   "item.rotp_d4c.saint_corpse_eyes": "Останки Святого ( Глаза )",
-  "item.rotp_d4c.saint_corpse_eyes.tooltip2": "Shift+R - переключить рентген",
+  "item.rotp_d4c.saint_corpse_eyes.tooltip2": "Рентген переключается способностью D4C «Переключение рентгена»",
   "item.rotp_d4c.saint_corpse_head": "Останки Святого ( Голова )",
   "item.rotp_d4c.saint_corpse_heart": "Останки Святого ( Сердце )",
   "item.rotp_d4c.saint_corpse_left_arm": "Останки Святого ( Левая рука )",
@@ -116,7 +116,7 @@
   "item.rotp_d4c.complete_saint_corpse.tooltip.line3": "§dСпособно исполнить любое желание и изменить ход мира",
   "item.rotp_d4c.complete_saint_corpse.tooltip.line4": "§bСогласно легендам, лишь истинный Святой может обуздать его силу",
   "item.rotp_d4c.complete_saint_corpse.tooltip.effect": "§aЭффект: Все эффекты частей останков (уровень +1) + время остановки времени +5 сек.\n+300% к макс. психической энергии, +150% к восстановлению, НЕ складывается с другими частями",
-  "item.rotp_d4c.complete_saint_corpse.tooltip2": "Shift+R - переключить рентген",
+  "item.rotp_d4c.complete_saint_corpse.tooltip2": "Рентген переключается способностью D4C «Переключение рентгена»",
   "message.rotp_d4c.xray_enabled": "§aРентген включён",
   "message.rotp_d4c.xray_disabled": "§cРентген выключен",
   "message.rotp_d4c.xray_toggle_enabled": "Рентген включён",
@@ -218,5 +218,9 @@
   "jojo_ripples.skill.saint_corpse_xray": "Переключение рентгена",
   "rotp_d4c.ability.annihilation_mark": "Метка аннигиляции",
   "rotp_d4c.ability.minion_ai_control": "Поведение ИИ клона",
+  "rotp_d4c.dimension.parallel_of": "Параллельный %s",
+  "rotp_d4c.message.parallel_closed": "Параллельный мир измерения %s отключён в настройках.",
+  "rotp_d4c.configuration.parallelDimensions": "Параллельные миры",
+  "rotp_d4c.configuration.parallelDimensions.tooltip": "Измерения, у которых есть параллельный мир для D4C. Вступает в силу при следующем запуске мира. Каждое отмеченное измерение, кроме Верхнего мира, добавляет ещё один мир, который сервер обрабатывает и сохраняет. Снятие отметки никогда не удаляет сохранённое. Моды, действующие на измерение по его id, могут вести себя в его параллельном мире иначе.",
   "rotp_d4c.message.minion_ai_mode": "Режим ИИ клона: %s"
 }
