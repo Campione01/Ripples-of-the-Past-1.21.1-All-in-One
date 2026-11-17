@@ -1,10 +1,11 @@
 # ROTP 1.21.1 add-ons
 
-This folder holds the NeoForge 1.21.1 ports of the Ripples of the Past (ROTP)
-add-ons that may be published as open source: 82 modules, each a mod of its
-own, ported from the 1.16.5 add-ons of their original authors and modified for
-this ROTP 1.21.1 core. Only the sources and the build are here; the port's
-private verification records are not.
+This folder holds the NeoForge 1.21.1 Ripples of the Past (ROTP) add-ons that
+may be published as open source: 83 modules, each a mod of its own. 82 were
+ported from the 1.16.5 add-ons of their original authors and modified for this
+ROTP 1.21.1 core; RotP King Crimson Voxy (`rotp-king-crimson-voxy`) is this
+project's own add-on, not a port. Only the sources and the build are here; the
+port's private verification records are not.
 
 ## Modules
 
@@ -42,6 +43,7 @@ private verification records are not.
 | `rotp-killer-queen` | `rotp_zkq` | RotP Killer Queen | Makuta Zeml, StandoByte, Model by: Lanostry, StandSkins by: MlgMC | GPL-3.0-only |
 | `rotp-killer-queen-lion` | `rotp_zkq8` | RotP Killer Queen Lion | Makuta Zeml, StandoByte, Model by: Lanostry, StandSkins by: MlgMC | GPL-3.0-only |
 | `rotp-king-crimson` | `rotp_kingcrimson` | RotP King Crimson | HelloThere, DeezQuartz, StandoByte | GPL-3.0-only |
+| `rotp-king-crimson-voxy` | `rotp_kingcrimson_voxy` | RotP King Crimson Voxy | Campione01, this project's own add-on | GPL-3.0-only |
 | `rotp-kiss` | `kiss` | RotP Kiss | jiutoh, Day_GeE | GPL-3.0-only |
 | `rotp-kraft-work` | `rotp_kraft_work` | RotP Kraft Work | DanielGamer321, StandoByte | GPL-3.0-only |
 | `rotp-little-feet` | `rotp_littlefeet` | RotP Little Feet | Hello There, StandoByte, Model by: August_Deadge | GPL-3.0-only |
@@ -113,10 +115,10 @@ Then take one of these three choices:
 
 1. The simplest: the all-in-one, `rotp-all-in-one-open-2026.11.16.jar`, and the four
    libraries. It holds the ROTP core (`RipplesOfThePast-Unofficial-NeoForge-1.21.1-0.2.2.2.jar`) and
-   all 82 add-ons; NeoForge loads each nested jar as its own mod, with its own
+   all 83 add-ons; NeoForge loads each nested jar as its own mod, with its own
    mod id, configs and screens.
 2. The ROTP core, `RipplesOfThePast-Unofficial-NeoForge-1.21.1-0.2.2.2.jar`, and the bundle,
-   `rotp-addon-bundle-open-2026.11.16.jar`, which holds all 82 add-ons, and the four
+   `rotp-addon-bundle-open-2026.11.16.jar`, which holds all 83 add-ons, and the four
    libraries.
 3. The ROTP core and the individual add-on jars of the GitHub release
    (`<module>-<version>.jar`), only the ones you want, and the libraries they
@@ -146,6 +148,7 @@ Optional integrations (not needed to play):
 - [Epic Fight](https://modrinth.com/mod/epic-fight), for `rotp-white-album`
 - [Mantle](https://modrinth.com/mod/mantle), for `tinkers-of-the-past`
 - [Tinkers' Construct](https://modrinth.com/mod/tinkers-construct), for `tinkers-of-the-past`
+- [Voxy](https://modrinth.com/mod/voxy), for `rotp-king-crimson-voxy`
 
 ## Config screens
 

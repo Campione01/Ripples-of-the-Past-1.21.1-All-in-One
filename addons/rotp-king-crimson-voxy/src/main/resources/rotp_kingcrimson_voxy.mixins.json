@@ -1,0 +1,16 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "rotp.addons.kingcrimsonvoxy.mixin",
+  "plugin": "rotp.addons.kingcrimsonvoxy.KcVoxyMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "IrisEntityIdMixin",
+    "ObserverPoliciesMixin",
+    "SodiumChunkRendererMixin",
+    "VoxyRenderCountMixin",
+    "VoxyShaderBuilderMixin",
+    "VoxyShaderLoaderMixin"
+  ],
+  "injectors": {"defaultRequire": 0}
+}

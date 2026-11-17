@@ -54,6 +54,7 @@ includeBuild('..') {
         'rotp-killer-queen',
         'rotp-killer-queen-lion',
         'rotp-king-crimson',
+        'rotp-king-crimson-voxy',
         'rotp-kiss',
         'rotp-kraft-work',
         'rotp-little-feet',

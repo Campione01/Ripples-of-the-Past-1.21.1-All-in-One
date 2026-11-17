@@ -7,7 +7,7 @@ modId="${bundle_mod_id}"
 version="${bundle_version}"
 displayName="RotP Add-on Bundle (open source)"
 authors="Campione01 (bundle); the authors of each add-on are listed in META-INF/NOTICE.md"
-description='''The 82 open-source RotP 1.21.1 add-ons in one jar. Each nested jar is its own mod, with its own mod id, version, license, configs and screens; NeoForge loads them through Jar-in-Jar. This container has no code of its own and is GPL-3.0-only; each nested add-on keeps its own license (META-INF/LICENSE and META-INF/SOURCE_AND_LICENSE.md in its jar).'''
+description='''The 83 open-source RotP 1.21.1 add-ons in one jar. Each nested jar is its own mod, with its own mod id, version, license, configs and screens; NeoForge loads them through Jar-in-Jar. This container has no code of its own and is GPL-3.0-only; each nested add-on keeps its own license (META-INF/LICENSE and META-INF/SOURCE_AND_LICENSE.md in its jar).'''
 
 [[dependencies.${bundle_mod_id}]]
 modId="neoforge"

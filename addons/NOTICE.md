@@ -1,17 +1,19 @@
 # Attribution notice for the ROTP 1.21.1 add-ons
 
-Every module in this folder is a modified work: a port to NeoForge 1.21.1 of a
-Ripples of the Past 1.16.5 add-on, modified by Campione01 for the ROTP 1.21.1 core.
-The original add-ons, their authors and their declared licenses are listed
-below; the full provenance of each module is in its `SOURCE_AND_LICENSE.md`.
-Ripples of the Past itself was created by StandoByte (see the repository's
-`NOTICE.md`).
+Every module in this folder except RotP King Crimson Voxy
+(`rotp-king-crimson-voxy`) is a modified work: a port to NeoForge 1.21.1 of a
+Ripples of the Past 1.16.5 add-on, modified by Campione01 for the ROTP 1.21.1
+core. RotP King Crimson Voxy (`rotp-king-crimson-voxy`) is this project's own
+add-on, written by Campione01 for the ROTP 1.21.1 core; it is not a port. The
+original add-ons, their authors and their declared licenses are listed below;
+the full provenance of each module is in its `SOURCE_AND_LICENSE.md`. Ripples of
+the Past itself was created by StandoByte (see the repository's `NOTICE.md`).
 
-The bundle `rotp-addon-bundle-open-2026.11.16.jar` nests the jars of the 82 modules below
+The bundle `rotp-addon-bundle-open-2026.11.16.jar` nests the jars of the 83 modules below
 unchanged; each keeps its own license and notices.
 
 The all-in-one `rotp-all-in-one-open-2026.11.16.jar` nests the ROTP core jar built from
-the same repository and the jars of the 82 modules below, all unchanged; each
+the same repository and the jars of the 83 modules below, all unchanged; each
 keeps its own license and notices (the core's are `META-INF/LICENSE-ROTP.txt`,
 `META-INF/NOTICE-ROTP.md` and `META-INF/THIRD_PARTY_NOTICES.md` in its jar).
 
@@ -237,6 +239,11 @@ keeps its own license and notices (the core's are `META-INF/LICENSE-ROTP.txt`,
 - Original add-on: `RotP-绯红之王-1.0.3.jar`, by HelloThere, DeezQuartz, StandoByte, declared license GNU GPL v3.0.
 - Credits (from the mod metadata): Bounded 1.21.1 port against the public Ripples of the Past addon contract.
 - Ported to NeoForge 1.21.1 and modified by Campione01, 2026-07-26 to 2026-11-13.
+
+## RotP King Crimson Voxy (`rotp_kingcrimson_voxy`)
+
+- Module: `rotp-king-crimson-voxy`, version `0.1.0-port.1`, license GPL-3.0-only.
+- Origin: own add-on, not a port; written by Campione01 for NeoForge 1.21.1, 2026-11-06 to 2026-11-15 (see `rotp-king-crimson-voxy/SOURCE_AND_LICENSE.md`).
 
 ## RotP Kiss (`kiss`)
 

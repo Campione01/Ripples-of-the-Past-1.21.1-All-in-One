@@ -1,0 +1,18 @@
+// Public build of RotP King Crimson Voxy (rotp_kingcrimson_voxy). The module identity is in gradle.properties;
+// the shared logic is in ../gradle/addon-module.gradle.
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev'
+}
+
+apply from: rootProject.file('gradle/addon-module.gradle')
+
+// Compile-only stand-ins for classes of an optional mod; they never go into the jar.
+sourceSets {
+    stubs {}
+}
+
+dependencies {
+    compileOnly sourceSets.stubs.output
+    compileOnly project(':rotp-king-crimson')
+}

@@ -52,6 +52,7 @@ dependencies {
     jarJar(project(':rotp-killer-queen'))
     jarJar(project(':rotp-killer-queen-lion'))
     jarJar(project(':rotp-king-crimson'))
+    jarJar(project(':rotp-king-crimson-voxy'))
     jarJar(project(':rotp-kiss'))
     jarJar(project(':rotp-kraft-work'))
     jarJar(project(':rotp-little-feet'))
