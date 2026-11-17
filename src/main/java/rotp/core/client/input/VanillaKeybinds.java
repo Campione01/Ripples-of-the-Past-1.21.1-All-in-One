@@ -1,20 +1,27 @@
 package rotp.core.client.input;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.jetbrains.annotations.ApiStatus;
 import org.lwjgl.glfw.GLFW;
 
+import rotp.core.api.client.input.PowerKeyConflictContexts;
 import rotp.core.client.ClientPowerCache;
+import rotp.core.client.input.controlscheme.VariationKey;
+import rotp.core.client.input.controlscheme.VariationKeyName;
+import rotp.core.client.ui.hud_power.PowerHud;
 import rotp.core.client.ui.screen_jojomenu.IJojoMenuScreen;
 import rotp.core.client.ui.screen_jojomenu.JojoMenuTabs;
 import rotp.core.client.ui.screen_jojomenu.Tab;
 import rotp.core.config.SettingsField;
 import rotp.core.config.client.ClientModSettings;
+import rotp.core.config.client.StandToggle;
 import rotp.core.core.JojoMod;
 import rotp.core.init.power.ModPlayerPowers;
 import rotp.core.network.c2s.ClNoParamsPacket;
@@ -68,6 +75,35 @@ public class VanillaKeybinds {
 				}
 			};
 
+	/**
+	 * Active only while the open HUD has a bind on the mapping: with a modifier the player gave it, KeyMappingLookup
+	 * would otherwise take the vanilla click on that key from everybody, Stand or no Stand.
+	 */
+	private static IKeyConflictContext whileBound(Supplier<KeyMapping> keyMapping) {
+		return new IKeyConflictContext() {
+			@Override
+			public boolean isActive() {
+				InputHandler inputHandler = InputHandler.getInstance();
+				return KeyConflictContext.IN_GAME.isActive() && inputHandler != null
+						&& inputHandler.hasActiveBinding(keyMapping.get());
+			}
+
+			@Override
+			public boolean conflicts(IKeyConflictContext other) {
+				return KeyConflictContext.IN_GAME.conflicts(other == this ? KeyConflictContext.IN_GAME : other);
+			}
+		};
+	}
+
+	/*
+	 * OQ-C05: the grab keys act only through a Stand HUD's scheme (their contexts are active only with a bind there), so a
+	 * non-Stand power's skill key on the same key never shares a press with them. Every other key of the mod acts whatever
+	 * HUD is open (consumeClick, the HUD-mode keys in InputHandler.handleKeyInput) and stays IN_GAME.
+	 */
+	private static IKeyConflictContext standHudKey(IKeyConflictContext activity) {
+		return PowerKeyConflictContexts.whileActive(PowerKeyConflictContexts.stand(), activity::isActive);
+	}
+
 	@ApiStatus.Internal
 	public static boolean shouldActivateGrabChargedHeavyConflictContext(
 			boolean inGameContextActive,
@@ -89,13 +125,21 @@ public class VanillaKeybinds {
 	public KeyMapping playerPowerHUD;
 	public KeyMapping hamonBreath;
 	public KeyMapping grabChargedHeavy;
+	public KeyMapping grabThrow;
+	public KeyMapping grabRelease;
+	public KeyMapping swapItems;
+	public KeyMapping variationKey;
 	public KeyMapping useAbility;
 	public KeyMapping switchSpecial;
 	public KeyMapping disableHUDControls;
 	public KeyMapping jojoStuffMenu;
 	public KeyMapping hamonMeditation;
 	public KeyMapping jojoLmbRmb;
-	
+	public KeyMapping standCancelAction;
+	public KeyMapping tossStandItem;
+	public KeyMapping swapStandItemHands;
+	public final Map<StandToggle, KeyMapping> standToggleKeys = new EnumMap<>(StandToggle.class);
+
 	public static VanillaKeybinds register(RegisterKeyMappingsEvent event) {
 		VanillaKeybinds binds = new VanillaKeybinds();
 		event.register(binds.summonStand = new Jokerge(
@@ -112,12 +156,29 @@ public class VanillaKeybinds {
 				.inInitOrder().withDescTooltip());
 		event.register(binds.grabChargedHeavy = new Jokerge(
 				MovesetBuilder.GRAB_CHARGED_HEAVY_KEY_MAPPING_NAME,
-				GRAB_CHARGED_HEAVY_CONFLICT_CONTEXT, KeyModifier.SHIFT,
+				standHudKey(GRAB_CHARGED_HEAVY_CONFLICT_CONTEXT), KeyModifier.SHIFT,
 				InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_RIGHT, MAIN_CATEGORY)
+				.inInitOrder().withDescTooltip());
+		event.register(binds.grabThrow = new Jokerge(
+				MovesetBuilder.GRAB_THROW_KEY_MAPPING_NAME, standHudKey(whileBound(() -> binds.grabThrow)),
+				InputConstants.Type.MOUSE, InputConstants.MOUSE_BUTTON_RIGHT, MAIN_CATEGORY)
+				.inInitOrder().withDescTooltip());
+		event.register(binds.grabRelease = new Jokerge(
+				MovesetBuilder.GRAB_RELEASE_KEY_MAPPING_NAME, standHudKey(whileBound(() -> binds.grabRelease)),
+				InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_Q, MAIN_CATEGORY)
+				.inInitOrder().withDescTooltip());
+		event.register(binds.swapItems = new Jokerge(
+				MovesetBuilder.SWAP_ITEMS_KEY_MAPPING_NAME, KeyConflictContext.IN_GAME, KeyModifier.CONTROL,
+				InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
 		event.register(binds.useAbility = new Jokerge(
 				JojoMod.MOD_ID + ".key.use_special_ability", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_X, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
+		event.register(binds.variationKey = new SingleKeyMapping(
+				VariationKey.mappingName(), KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, MAIN_CATEGORY)
+				.inInitOrder().withDescTooltip());
+		VariationKey.useMapping(binds.variationKey);
+		VariationKeyName.use(() -> binds.variationKey.getKey().getDisplayName());
 		event.register(binds.switchSpecial = new Jokerge(
 				JojoMod.MOD_ID + ".key.ability_hotbar", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
@@ -137,10 +198,23 @@ public class VanillaKeybinds {
 		event.register(binds.hamonMeditation = new Jokerge(
 				JojoMod.MOD_ID + ".key.meditation", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, MAIN_CATEGORY)
 				.inInitOrder().withDescTooltip());
+		// owner, R772.1: none of these has a default key, the player gives each one in the key binds screen
+		event.register(binds.standCancelAction = unboundKey(JojoMod.MOD_ID + ".key.stand_cancel_action"));
+		event.register(binds.tossStandItem = unboundKey(JojoMod.MOD_ID + ".key.stand_item_toss"));
+		event.register(binds.swapStandItemHands = unboundKey(JojoMod.MOD_ID + ".key.stand_item_swap_hands"));
+		binds.standToggleKeys.put(StandToggle.BREAK_BLOCKS, unboundKey(JojoMod.MOD_ID + ".key.stand_toggle_break_blocks"));
+		binds.standToggleKeys.put(StandToggle.PICK_UP_ITEMS, unboundKey(JojoMod.MOD_ID + ".key.stand_toggle_pick_up_items"));
+		binds.standToggleKeys.put(StandToggle.BEYOND_EFFECTIVE_RANGE, unboundKey(JojoMod.MOD_ID + ".key.stand_toggle_beyond_effective_range"));
+		binds.standToggleKeys.values().forEach(event::register);
 		event.register(binds.jojoLmbRmb = new LmbRmbKeyMapping(
 				JojoMod.MOD_ID + ".key.jojo_test", KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, MAIN_CATEGORY)
 				.inInitOrder());
 		return binds;
+	}
+
+	private static KeyMapping unboundKey(String name) {
+		return new Jokerge(name, KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, MAIN_CATEGORY)
+				.inInitOrder().withDescTooltip();
 	}
 
 	public void handleTick() {
@@ -161,7 +235,8 @@ public class VanillaKeybinds {
 			PacketDistributor.sendToServer(ClNoParamsPacket.of(PacketType.SUMMON_STAND));
 		}
 		
-		if (ClientModSettings.getSettingsReadOnly().toggleDisableHotbars && disableHUDControls.consumeClick()) {
+		if (ClientModSettings.getSettingsReadOnly().toggleDisableHotbars && disableHUDControls.consumeClick()
+				&& !disableHUDControls.getKey().equals(variationKey.getKey())) {
 			InputHandler.inputsDisabled = !InputHandler.inputsDisabled;
 		}
 		
@@ -188,6 +263,19 @@ public class VanillaKeybinds {
 		
 		while (jojoLmbRmb.consumeClick()) {
 			inputHandler.doTheThing();
+		}
+
+		standToggleKeys.forEach((toggle, key) -> {
+			while (key.consumeClick()) {
+				PowerHud.abilityHUDInstance.standToggles.flipByKey(toggle);
+			}
+		});
+
+		while (standCancelAction.consumeClick()) {
+			StandPower standPower = ClientPowerCache.getPower(PowerClass.STAND);
+			if (standPower != null && standPower.hasPower()) {
+				PacketDistributor.sendToServer(ClNoParamsPacket.of(PacketType.STAND_CANCEL_ACTION));
+			}
 		}
 	}
 
@@ -251,6 +339,18 @@ public class VanillaKeybinds {
 		public Jokerge(String description, IKeyConflictContext keyConflictContext, KeyModifier keyModifier, InputConstants.Type inputType, int keyCode, String category) { super(description, keyConflictContext, keyModifier, inputType, keyCode, category); }
 		public Jokerge(String description, IKeyConflictContext keyConflictContext, KeyModifier keyModifier, InputConstants.Key keyCode, String category) { super(description, keyConflictContext, keyModifier, keyCode, category); }
 		
+		// NeoForge's same() compares the bare key when contexts do not conflict: a power's keys kept apart stay apart
+		@Override
+		public boolean same(KeyMapping other) {
+			return !PowerKeyConflictContexts.separates(this, other) && !KeyPairsToldApart.toldApart(this, other)
+					&& super.same(other);
+		}
+
+		@Override
+		public boolean hasKeyModifierConflict(KeyMapping other) {
+			return !PowerKeyConflictContexts.separates(this, other) && super.hasKeyModifierConflict(other);
+		}
+
 		public Jokerge inInitOrder() {
 			this.orderIndex = PER_CATEGORY.computeIfAbsent(this.getCategory(), __ -> new MutableInt()).getAndIncrement();
 			return this;
@@ -276,6 +376,18 @@ public class VanillaKeybinds {
 		}
 	}
 	
+	/** One key and nothing else: the variation key is itself what the other keys are pressed with. */
+	public static class SingleKeyMapping extends Jokerge {
+		public SingleKeyMapping(String description, IKeyConflictContext keyConflictContext, InputConstants.Type inputType, int keyCode, String category) {
+			super(description, keyConflictContext, inputType, keyCode, category);
+		}
+
+		@Override
+		public void setKeyModifierAndCode(KeyModifier keyModifier, InputConstants.Key keyCode) {
+			super.setKeyModifierAndCode(KeyModifier.NONE, keyCode);
+		}
+	}
+
 	public static class LmbRmbKeyMapping extends Jokerge {
 		public LmbRmbKeyMapping(String description, IKeyConflictContext keyConflictContext, InputConstants.Type inputType, int keyCode, String category) {
 			super(description, keyConflictContext, inputType, keyCode, category);

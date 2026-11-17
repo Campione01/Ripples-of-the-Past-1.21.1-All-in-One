@@ -7,6 +7,8 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import org.jetbrains.annotations.ApiStatus;
+
 import rotp.core.api.perception.PerceptionBlockers;
 import rotp.core.api.stand.StandSkillWalls;
 import rotp.core.client.ClientGlobals;
@@ -15,7 +17,6 @@ import rotp.core.client.sound.ClientsideSoundsHelper;
 import rotp.core.client.sound.sounds.EntityLingeringSoundInstance;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.init.ModSoundEvents;
-import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.Moveset;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
@@ -32,6 +33,8 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandTuning;
+import rotp.core.powersystem.standpower.StandTuning.MiningTier;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.entity.StandEntity;
@@ -46,6 +49,7 @@ import rotp.core.subsystems.target.AimingEntity;
 import rotp.core.subsystems.target.HitResultUtil;
 import rotp.core.subsystems.target.StandPrecisionRay;
 import rotp.core.subsystems.target.ActionTarget.TargetType;
+import rotp.core.util.functions.AttributeUtil;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.compat.v1_21_4.missingmethods._EntitySelector;
 
@@ -78,6 +82,7 @@ import net.minecraft.world.phys.Vec3;
 public class StandEntityPunchAbility extends StandEntityAbility {
 	// ServerPlayer.CREATIVE_BLOCK_INTERACTION_RANGE_MODIFIER
 	private static final ResourceLocation CREATIVE_BLOCK_RANGE = ResourceLocation.withDefaultNamespace("creative_mode_block_range");
+	private static final ResourceLocation CREATIVE_ENTITY_RANGE = ResourceLocation.withDefaultNamespace("creative_mode_entity_range");
 	// 1.16 harvest levels by (int) strength / 4. Level 0 covered every pickaxe, axe and shovel block, so below
 	// strength 4 only blocks no tool type is made for pass.
 	private static final BlockMiningTier[] LEGACY_HARVEST_TIERS = {
@@ -94,6 +99,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	@Nullable private Holder<SoundEvent> standCrySound;
 	private boolean detachedLightCounterKnockback;
 	private boolean laterPhaseEntryTiming;
+	@Nullable private String comboPunchName;
 
 	public StandEntityPunchAbility(AbilityType<?> abilityType, AbilityId abilityId) {
 		this(abilityType, abilityId, StandEntityPunch::new);
@@ -134,6 +140,40 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	public StandEntityPunchAbility initIsGrabVariation() {
 		usageGroup = AbilityUsageGroup.GRAB;
 		return this;
+	}
+
+	/**
+	 * This ability is a later punch of the named punch's combo, made for it by the core's rule (MovesetBuilder.addWhatItsMovesBring).
+	 * The player knows one move on the key, so it goes by that punch's name and is locked and cooled down with it. The clip is the
+	 * index-th of the name the punch asks for, also where a punch's constructor fixes that name.
+	 */
+	@ApiStatus.Internal
+	public final void initIsComboMemberOf(String punchName, int index) {
+		comboPunchName = punchName;
+		anim = ActionAnimIdentifier.getOrCreate(anim.name(), index, anim.isIdle());
+	}
+
+	@Override
+	public String getTranslationKey(String postfix) {
+		return comboPunchName != null ? getResourceNamespace() + ".ability." + comboPunchName + postfix : super.getTranslationKey(postfix);
+	}
+
+	@Override
+	public ConditionCheck getUnlockConditionCheck(Power<?> context) {
+		Ability punch = comboPunchName != null && context != null ? context.getMoveset().getAbility(comboPunchName) : null;
+		ConditionCheck punchCheck = punch != null ? punch.getUnlockConditionCheck(context) : ConditionCheck.POSITIVE;
+		return punchCheck.isPositive() ? super.getUnlockConditionCheck(context) : punchCheck;
+	}
+
+	@Override
+	public void setCooldownOnUse(Power<?> context, int ticksHeld) {
+		super.setCooldownOnUse(context, ticksHeld);
+		int cooldown = getCooldown(context, ticksHeld);
+		if (cooldown > 0 && context instanceof StandPower standPower) {
+			for (String memberName : getComboPunchNames(standPower.getMoveset(), comboPunchName != null ? comboPunchName : name())) {
+				standPower.setAbilityCooldown(memberName, cooldown);
+			}
+		}
 	}
 
 	/**
@@ -200,9 +240,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 			if (action instanceof StandEntityPunch punch) {
 				punch.handedAnimation = usesSinglePunchHandedAnimation(stand.getUserPower(), stand);
 			}
-			action.phasesLength.put(ActionPhase.WINDUP, StandStatFormulas.getLightAttackWindup(
-					stand.getAttackSpeed(), stand.getFinisherMeter(), stand.guardCounter(), 
-					isFirstPunch(stand)));
+			action.phasesLength.put(ActionPhase.WINDUP, lightWindup(action, stand));
 			float lightRecovery = StandStatFormulas.getLightAttackRecovery(stand.getAttackSpeed(), stand.getFinisherMeter());
 			action.phasesLength.put(ActionPhase.PERFORM, lightRecovery);
 			action.phasesLength.put(ActionPhase.RECOVERY, lightRecovery * (stand.isArmsOnlyMode() ? 2 : 4));
@@ -252,6 +290,8 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		 * landed, or the target is not living). Null when a hitEntity override did not say: the sound plays.
 		 */
 		@Nullable protected Boolean impactSoundDue;
+		// server: the windup carry this punch leaves to the next punch of its sequence
+		private double windupCarry;
 
 		public StandEntityPunch(EntityActionType ability) {
 			super(ability);
@@ -294,6 +334,9 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 			// 1.16 replayed the punch cry with every new punch task, chained ones too (StandEntityLightAttack.getSounds)
 			playedStandCrySound = false;
 			if (performer instanceof StandEntity stand) {
+				if (ability instanceof StandEntityPunchAbility punch) {
+					punch.rememberComboPunch(stand);
+				}
 				// a failed input that puts this punch back keeps its hand
 				if (stand.level().isClientSide() || isRestoringInputLifecycle()) {
 					stand.applySyncedPunchingHand(punchingHand);
@@ -571,6 +614,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 			}
 			if (level.destroyBlock(blockPos, dropBlock, stand)) {
 				blockState.getBlock().destroy(level, blockPos, blockState);
+				rotp.core.mechanics.ScreenSplashes.brokenBlock(level, blockPos, blockState);
 				return true;
 			}
 			return false;
@@ -582,7 +626,7 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 				return false;
 			}
 			return stand.replacesStandBreakStrengthRule(blockState, level, blockPos)
-					|| isBlockBreakableByStrength(stand.getAttackDamage(), blockState, level, blockPos);
+					|| isBlockBreakableByStrength(stand.getAttackDamage(), StandTuning.of(stand.getUserPower()), blockState, level, blockPos);
 		}
 
 		/**
@@ -590,14 +634,30 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		 * harvest level under (int) strength / 4.
 		 */
 		public static boolean isBlockBreakableByStrength(double strength, BlockState blockState, Level level, BlockPos blockPos) {
+			return isBlockBreakableByStrength(strength, null, blockState, level, blockPos);
+		}
+
+		/** The same in the Stand's block rules: a fixed highest tier, or none, and its share of the hardness (StandTuning). */
+		public static boolean isBlockBreakableByStrength(double strength, @Nullable StandTuning tuning, BlockState blockState,
+				Level level, BlockPos blockPos) {
 			float hardness = blockState.getDestroySpeed(level, blockPos);
 			if (!blockState.requiresCorrectToolForDrops()) {
 				hardness *= 0.6F;
 			}
-			if (hardness < 0 || !(hardness < Math.exp(strength / 4))) {
+			double hardnessLimit = StandStatFormulas.maxBreakableHardness(strength);
+			if (tuning != null) {
+				hardnessLimit = tuning.miningHardnessLimit(hardnessLimit);
+			}
+			if (hardness < 0 || !(hardness < hardnessLimit)) {
 				return false;
 			}
-			int harvestTier = Mth.clamp((int) strength / 4, 0, LEGACY_HARVEST_TIERS.length - 1);
+			MiningTier fixed = tuning != null ? tuning.miningTier() : MiningTier.BY_STRENGTH;
+			if (fixed == MiningTier.NONE) {
+				return false;
+			}
+			int harvestTier = fixed == MiningTier.BY_STRENGTH
+					? Mth.clamp(StandStatFormulas.getLegacyHarvestTier(strength), 0, LEGACY_HARVEST_TIERS.length - 1)
+					: fixed.ordinal() - MiningTier.HAND.ordinal();
 			return LEGACY_HARVEST_TIERS[harvestTier].canMine(blockState);
 		}
 
@@ -1219,7 +1279,10 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		}
 		double userReach = userAimReach(user, stand);
 		double reach = StandMeleeReach.maxReach(stand, user, false);
-		Predicate<Entity> pastUserReach = canTarget.and(entity -> StandMeleeReach.userDistance(user, entity) > userReach);
+		Predicate<Entity> pastUserReach = canTarget.and(entity -> {
+			double distance = StandMeleeReach.userDistance(user, entity);
+			return distance > userReach && distance <= reach;
+		});
 		ActionTarget far = precisionRay
 				? StandPrecisionRay.closestWithPriority(StandPrecisionRay.clipTargets(user, reach, pastUserReach, 0,
 						stand.getPrecision(), true))
@@ -1419,11 +1482,17 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	}
 
 	/**
-	 * 1.16 StandEntity.getAimDistance: the user's REACH_DISTANCE, 5 in either game mode: the 1.21 Survival attribute
-	 * and half a block, without the Creative half block a server player gets on top.
+	 * Keep 1.16's five-block aim. Melee follows the greater live bonus to the holder's block or entity reach,
+	 * without either of vanilla's Creative modifiers. Other Stands retain the original block-reach calculation.
 	 */
 	public static double userAimReach(LivingEntity user, StandEntity stand) {
 		AttributeInstance reach = user.getAttribute(Attributes.BLOCK_INTERACTION_RANGE);
+		if (user instanceof Player && stand != null && StandMeleeReach.usesMeleeReach(stand)) {
+			AttributeInstance entityReach = user.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
+			double blockBonus = reach == null ? 0 : reachWithoutCreative(reach, CREATIVE_BLOCK_RANGE) - 4.5D;
+			double entityBonus = entityReach == null ? 0 : reachWithoutCreative(entityReach, CREATIVE_ENTITY_RANGE) - 3.0D;
+			return 5.0D + Math.max(0.0D, Math.max(blockBonus, entityBonus));
+		}
 		if (reach == null) {
 			return stand.getAttributeValue(Attributes.BLOCK_INTERACTION_RANGE);
 		}
@@ -1431,6 +1500,12 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		double creativeBonus = creative != null && creative.operation() == AttributeModifier.Operation.ADD_VALUE
 				? creative.amount() : 0;
 		return reach.getValue() - creativeBonus + 0.5D;
+	}
+
+	private static double reachWithoutCreative(AttributeInstance reach, ResourceLocation creativeId) {
+		// Creative is additive before modded multipliers, not a subtraction from the final value.
+		return reach.getModifier(creativeId) == null
+				? reach.getValue() : AttributeUtil.calcValueWithoutModifiers(reach, creativeId);
 	}
 
 	public static boolean canStandHit(StandEntity stand, Entity target) {
@@ -1467,6 +1542,21 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	
 	// 
 	
+	// the carry goes from punch to punch of a sequence (StandStatFormulas.LightWindup); a punch that never starts, as the
+	// copy a buffered press makes before its replay, is never asked for its carry
+	private int lightWindup(EntityActionInstance action, StandEntity stand) {
+		boolean firstPunch = isFirstPunch(stand);
+		if (!(action instanceof StandEntityPunch punch)) {
+			return StandStatFormulas.getLightAttackWindup(stand.getAttackSpeed(), stand.getFinisherMeter(),
+					stand.guardCounter(), firstPunch);
+		}
+		double carry = !firstPunch && stand.getCurStandAction() instanceof StandEntityPunch previous ? previous.windupCarry : 0;
+		StandStatFormulas.LightWindup windup = StandStatFormulas.getLightAttackWindup(stand.getAttackSpeed(),
+				stand.getFinisherMeter(), stand.guardCounter(), firstPunch, carry);
+		punch.windupCarry = windup.carry();
+		return windup.ticks();
+	}
+
 	private boolean isFirstPunch(StandEntity stand) {
 		EntityActionInstance previous = stand.getCurStandAction();
 		if (previous == null) return true;
@@ -1476,14 +1566,14 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 	}
 
 	private static boolean isSameLightComboFamily(Moveset moveset, EntityActionType first, EntityActionType second) {
-		if (!(first instanceof Ability firstAbility) || !(second instanceof Ability secondAbility)
+		if (!(first instanceof StandEntityPunchAbility firstAbility) || !(second instanceof StandEntityPunchAbility secondAbility)
 				|| first.getAbilityUsageCategory() != AbilityUsageGroup.COMBAT || second.getAbilityUsageCategory() != AbilityUsageGroup.COMBAT
-				|| firstAbility.abilityType != ModStandAbilities.PUNCH.get() || secondAbility.abilityType != ModStandAbilities.PUNCH.get()) {
+				|| firstAbility.abilityType != secondAbility.abilityType) {
 			return false;
 		}
 		for (Ability root : moveset.abilities.values()) {
 			String name = root.name();
-			if (root.isSubAbility || root.usageGroup != AbilityUsageGroup.COMBAT || root.abilityType != ModStandAbilities.PUNCH.get()
+			if (root.isSubAbility || root.usageGroup != AbilityUsageGroup.COMBAT || root.abilityType != firstAbility.abilityType
 					|| name == null || moveset.getAbility(name) != root) continue;
 			boolean firstMember = false;
 			boolean secondMember = false;
@@ -1520,8 +1610,10 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 			return null;
 		}
 		List<String> punchNamesBuffer = getComboPunchNames(moveset, baseName);
-		
+
+		// A quick press: the Stand is still in a punch of this combo, which is the combo window. The punch after it follows.
 		int startFromPunch = 0;
+		boolean quickPress = false;
 		if (standEntity != null) {
 			AbilityId curAbility = LivingComponentAction.getComponent(standEntity).comboString.getLast();
 			if (curAbility != null) {
@@ -1529,12 +1621,18 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 				for (int i = 0; i < punchNamesBuffer.size(); i++) {
 					if (punchNamesBuffer.get(i).equals(actionName)) {
 						startFromPunch = i + 1;
+						quickPress = true;
 						break;
 					}
 				}
 			}
 		}
-		
+
+		if (!quickPress) {
+			Ability opening = getSlowPressPunch(standPower, standEntity, baseName, punchNamesBuffer);
+			if (opening != null) return opening;
+		}
+
 		int size = punchNamesBuffer.size();
 		for (int i = 0; i < size; i++) {
 			int index = (startFromPunch + i) % size;
@@ -1546,6 +1644,35 @@ public class StandEntityPunchAbility extends StandEntityAbility {
 		}
 		
 		return null;
+	}
+
+	/**
+	 * A press after the combo window has run out plays one of the first two punches, so the arms keep taking turns however slowly the
+	 * player clicks: the one the Stand did not play last, and after a chain that ended on the third or fourth punch the second, as those
+	 * swing the first punch's arm on most skins. The third and fourth punch are reached only by quick presses. A locked punch is
+	 * skipped for the other of the two; with both locked the press falls to the whole combo.
+	 */
+	@Nullable
+	private Ability getSlowPressPunch(StandPower standPower, @Nullable StandEntity standEntity, String baseName, List<String> punchNames) {
+		if (punchNames.size() < 2) return null;
+		String last = standEntity != null ? standEntity.lastComboPunch(baseName) : null;
+		int lastIndex = last != null ? punchNames.indexOf(last) : -1;
+		int first = lastIndex == 0 || lastIndex >= 2 ? 1 : 0;
+		Moveset moveset = standPower.getMoveset();
+		for (int i = 0; i < 2; i++) {
+			Ability opening = moveset.getAbility(punchNames.get((first + i) % 2));
+			if (opening != null && opening.isAbilityAvailable(standPower)) {
+				return opening;
+			}
+		}
+		return null;
+	}
+
+	private void rememberComboPunch(StandEntity stand) {
+		String name = name();
+		if (name == null || usageGroup != AbilityUsageGroup.COMBAT) return;
+		String punch = comboPunchName != null ? comboPunchName : isSubAbility ? name.replaceAll("\\d+$", "") : name;
+		stand.rememberComboPunch(punch, name);
 	}
 
 	private static List<String> getComboPunchNames(Moveset moveset, String baseName) {

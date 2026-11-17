@@ -17,6 +17,8 @@ public class ClientInputBind {
 	protected KeyMapping vanillaMapping;
 	protected ClientKey immutableKey;
 	@Nonnull protected KeyModifier immutableKeyModifier;
+	/** The modifier a moveset declared: it is read through the variation key at every look, so a change of that key needs no rebuild. */
+	@Nullable protected InputKey.Modifier declaredModifier;
 	
 	public ClientInputBind(KeyMapping vanillaMapping) {
 		this(vanillaMapping, null, null);
@@ -42,7 +44,11 @@ public class ClientInputBind {
 	public static ClientInputBind toClientInput(InputBindTemplate commonInput) {
 		if (commonInput == null) return null;
 		return switch (commonInput) {
-			case InputKey hardcodedKey -> new ClientInputBind(toClientKey(hardcodedKey), toClientModifier(hardcodedKey.modifier));
+			case InputKey hardcodedKey -> {
+				ClientInputBind bind = new ClientInputBind(toClientKey(hardcodedKey), toClientModifier(hardcodedKey.modifier));
+				bind.declaredModifier = hardcodedKey.modifier;
+				yield bind;
+			}
 			case InputUseVanillaMapping keyMapping -> {
 				KeyMapping vanillaKeyMapping = keyMapping.toClientKeybind();
 				yield vanillaKeyMapping != null ? new ClientInputBind(vanillaKeyMapping) : null;
@@ -58,11 +64,16 @@ public class ClientInputBind {
     	};
     }
     
+    /**
+     * A declared SHIFT is the variation key. A declared CONTROL is Ctrl, except while the variation key is Ctrl:
+     * it falls to Shift, so that the two never share a key.
+     */
     public static KeyModifier toClientModifier(InputKey.Modifier commonModifier) {
     	if (commonModifier == null) return KeyModifier.NONE;
+    	KeyModifier variation = VariationKey.modifier();
     	return switch (commonModifier) {
-    		case SHIFT -> KeyModifier.SHIFT;
-    		case CONTROL -> KeyModifier.CONTROL;
+    		case SHIFT -> variation;
+    		case CONTROL -> variation == KeyModifier.CONTROL ? KeyModifier.SHIFT : KeyModifier.CONTROL;
     	};
     }
     
@@ -95,6 +106,9 @@ public class ClientInputBind {
 	
 	@Nonnull
 	public KeyModifier getKeyModifier() {
+		if (declaredModifier != null) {
+			return toClientModifier(declaredModifier);
+		}
 		if (vanillaMapping != null && !vanillaMapping.isUnbound()) {
 			return vanillaMapping.getKeyModifier();
 		}

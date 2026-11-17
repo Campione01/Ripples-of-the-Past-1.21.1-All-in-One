@@ -26,6 +26,7 @@ import rotp.core.mechanics.standarrow.StandVirusEffect;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.impl.stands.crazydiamond.MisshapenEffect;
 import rotp.core.impl.stands.goldexperience.GELifeshotEffect;
 import rotp.core.impl.stands.goldexperience.GELifeshotState;
 
@@ -108,14 +109,14 @@ public class ModStatusEffects {
 	public static final DeferredHolder<MobEffect, StandVirusEffect> STAND_VIRUS = STATUS_EFFECTS.register("stand_virus",
 			id -> new StandVirusEffect(MobEffectCategory.HARMFUL, 0xC10019));
 
-	public static final DeferredHolder<MobEffect, StatusEffectModified> MISSHAPEN_FACE = STATUS_EFFECTS.register("misshapen_face",
-			id -> new StatusEffectModified(MobEffectCategory.HARMFUL, 0x808080));
+	public static final DeferredHolder<MobEffect, MisshapenEffect> MISSHAPEN_FACE = STATUS_EFFECTS.register("misshapen_face",
+			id -> new MisshapenEffect(MisshapenEffect.Part.FACE));
 
-	public static final DeferredHolder<MobEffect, StatusEffectModified> MISSHAPEN_ARMS = STATUS_EFFECTS.register("misshapen_arms",
-			id -> new StatusEffectModified(MobEffectCategory.HARMFUL, 0x808080));
+	public static final DeferredHolder<MobEffect, MisshapenEffect> MISSHAPEN_ARMS = STATUS_EFFECTS.register("misshapen_arms",
+			id -> new MisshapenEffect(MisshapenEffect.Part.ARMS));
 
-	public static final DeferredHolder<MobEffect, StatusEffectModified> MISSHAPEN_LEGS = STATUS_EFFECTS.register("misshapen_legs",
-			id -> new StatusEffectModified(MobEffectCategory.HARMFUL, 0x808080));
+	public static final DeferredHolder<MobEffect, MisshapenEffect> MISSHAPEN_LEGS = STATUS_EFFECTS.register("misshapen_legs",
+			id -> new MisshapenEffect(MisshapenEffect.Part.LEGS));
 
 	public static final DeferredHolder<MobEffect, GELifeshotEffect> SENSORY_OVERLOAD = STATUS_EFFECTS.register("sensory_overload",
 			id -> new GELifeshotEffect(0xD88F1F));
@@ -137,6 +138,9 @@ public class ModStatusEffects {
 			TRACKED_EFFECTS.add(HAMON_SHOCK);
 			TRACKED_EFFECTS.add(BLEEDING);
 			TRACKED_EFFECTS.add(STAND_VIRUS);
+			TRACKED_EFFECTS.add(MISSHAPEN_FACE);
+			TRACKED_EFFECTS.add(MISSHAPEN_ARMS);
+			TRACKED_EFFECTS.add(MISSHAPEN_LEGS);
 		});
 	}
 

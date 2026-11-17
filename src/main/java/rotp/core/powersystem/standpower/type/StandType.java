@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.JojoModConfig;
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.client.standskin.StandSkinsScreen;
@@ -30,6 +31,7 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandStats;
+import rotp.core.powersystem.standpower.StandTuning;
 import rotp.core.powersystem.standpower.StandUnlockableSkill;
 import rotp.core.powersystem.standpower.StandAwakening.AwakeningStage;
 import rotp.core.powersystem.standpower.datapack.DataDrivenStandsLoader;
@@ -69,6 +71,7 @@ public class StandType extends PowerType {
 
 	protected final ResourceLocation standTypeId;
 	protected StandStats stats;
+	private final StandTuning tuning = new StandTuning();
 	protected boolean isEnabled;
 	protected boolean playSummonSound = true;
 	protected boolean playUnsummonSound = true;
@@ -296,12 +299,14 @@ public class StandType extends PowerType {
 		super.applyConfig(json);
 		JsonObject config = json.getAsJsonObject();
 		Optional.ofNullable(config.get("stats")).ifPresent(stats::applyConfig);
+		Optional.ofNullable(config.get(StandTuning.MEMBER)).ifPresent(tuning::applyConfig);
 	}
 
 	@Override
 	public void restoreDefaults() {
 		super.restoreDefaults();
 		stats.restoreDefaults();
+		tuning.restoreDefaults();
 	}
 	
 	
@@ -317,6 +322,11 @@ public class StandType extends PowerType {
 	
 	public StandStats getStandStats() {
 		return stats;
+	}
+
+	/** The server's rules for this Stand beside its stats (the settings screen's Stands page). */
+	public StandTuning getTuning() {
+		return tuning;
 	}
 	
 	
@@ -336,6 +346,19 @@ public class StandType extends PowerType {
 		}
 	}
 	
+	/**
+	 * The key a player binds for it, which never summons: an action still in its windup or charge ends with nothing done,
+	 * and a Stand with no action goes back as with the summon key. A press during the Stand's own unsummon ends that at
+	 * once ({@link rotp.core.powersystem.standpower.entity.EntityStandType}). An action already performing or recovering
+	 * goes on.
+	 */
+	public void onUserCancelCommand(LivingEntity user, StandPower standPower) {
+		if (!StandActionCancel.cancelWindup(LivingComponentAction.getExistingComponent(user, PowerClass.STAND), standPower)
+				&& standPower.isSummoned() && LivingComponentAction.getCurEntityAction(user, PowerClass.STAND) == null) {
+			unsummon(user, standPower);
+		}
+	}
+
 	public boolean summon(LivingEntity user, StandPower standPower) {
 		if (!standPower.isSummoned() && standPower.canUsePower()) {
 			SummonedStand summonedStand = makeSummonedStand();
@@ -362,9 +385,7 @@ public class StandType extends PowerType {
 	protected void playSummonShout(LivingEntity user) {
 		if (user != null && !user.level().isClientSide() && !user.isShiftKeyDown()) {
 			Holder<SoundEvent> shout = summonShoutSupplier.get();
-			if (shout != null) {
-				JojoModUtil.sayVoiceLine(user, shout);
-			}
+			JojoModUtil.sayVoiceLine(user, shout, ModSoundEvents.VOICELINE_STAND_SUMMON, 1.0F, 1.0F, 200, false);
 		}
 	}
 	
@@ -461,7 +482,8 @@ public class StandType extends PowerType {
 			if (standEntity != null) {
 				EntityActionInstance action = LivingComponentAction.getCurEntityAction(standEntity);
 				if (action != null && !action.canStaminaRegen(standPower, standEntity)) {
-					return 0;
+					// none while the Stand acts (1.16), a share of it in the no-cooldown mode (the owner, 2026-11-11)
+					return 1.5f * StandAbilityFatigue.regenKeptDuringUse(standPower);
 				}
 			}
 			return 1.5f;

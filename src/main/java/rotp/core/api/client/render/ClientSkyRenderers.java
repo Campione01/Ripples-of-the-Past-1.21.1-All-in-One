@@ -1,6 +1,7 @@
 package rotp.core.api.client.render;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,12 +21,18 @@ import net.neoforged.api.distmarker.OnlyIn;
 /**
  * Owner-keyed replacements for the vanilla client sky renderer.
  *
- * <p>The first active provider wins in registration order. Provider and
- * renderer failures are logged and fall back to the vanilla sky path.</p>
+ * <p>Among active providers the highest priority wins; equal priorities are
+ * ordered by owner ID. Registration order does not matter. Cloud suppression
+ * follows the same winner. Provider and renderer failures are logged and fall
+ * back to the vanilla sky path.</p>
  */
 @OnlyIn(Dist.CLIENT)
 public final class ClientSkyRenderers {
-	private static final Map<ResourceLocation, ClientSkyRendererProvider>
+	public static final int DEFAULT_PRIORITY = 0;
+	/** For a background no other sky may replace, such as a time erase's. */
+	public static final int HIGHEST_PRIORITY = Integer.MAX_VALUE;
+
+	private static final Map<ResourceLocation, Registration>
 			PROVIDERS = new LinkedHashMap<>();
 	private static volatile List<Registration> snapshot = List.of();
 
@@ -34,9 +41,18 @@ public final class ClientSkyRenderers {
 	public static synchronized void register(
 			ResourceLocation owner,
 			ClientSkyRendererProvider provider) {
+		register(owner, DEFAULT_PRIORITY, provider);
+	}
+
+	public static synchronized void register(
+			ResourceLocation owner,
+			int priority,
+			ClientSkyRendererProvider provider) {
 		Objects.requireNonNull(owner, "owner");
 		Objects.requireNonNull(provider, "provider");
-		if (PROVIDERS.putIfAbsent(owner, provider) != null) {
+		if (PROVIDERS.putIfAbsent(
+				owner,
+				new Registration(owner, priority, provider)) != null) {
 			throw new IllegalStateException(
 					"Duplicate client sky renderer provider: " + owner);
 		}
@@ -110,14 +126,20 @@ public final class ClientSkyRenderers {
 
 	private static void publishSnapshot() {
 		List<Registration> registrations =
-				new ArrayList<>(PROVIDERS.size());
-		PROVIDERS.forEach((owner, provider) ->
-				registrations.add(new Registration(owner, provider)));
+				new ArrayList<>(PROVIDERS.values());
+		registrations.sort(Comparator
+				.<Registration>comparingInt(Registration::priority)
+				.reversed()
+				.thenComparing(Registration::owner));
 		snapshot = List.copyOf(registrations);
 	}
 
 	static synchronized List<ResourceLocation> registeredOwners() {
 		return List.copyOf(PROVIDERS.keySet());
+	}
+
+	static List<ResourceLocation> resolutionOrder() {
+		return snapshot.stream().map(Registration::owner).toList();
 	}
 
 	static synchronized void resetForTests() {
@@ -127,6 +149,7 @@ public final class ClientSkyRenderers {
 
 	private record Registration(
 			ResourceLocation owner,
+			int priority,
 			ClientSkyRendererProvider provider) {}
 
 	private record ResolvedRenderer(

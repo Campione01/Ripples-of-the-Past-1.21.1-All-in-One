@@ -13,12 +13,15 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import rotp.core.JojoModConfig;
+import rotp.core.api.simulation.EntitySimulations;
 import rotp.core.api.timestop.TimeStopAudioContext;
 import rotp.core.api.timestop.TimeStopAudioCue;
 import rotp.core.api.timestop.TimeStopAudioDecision;
@@ -27,6 +30,7 @@ import rotp.core.api.timestop.TimeStopEntityMovementAuthorizers;
 import rotp.core.api.timestop.TimeStopLifecycleEvent;
 import rotp.core.api.timestop.TimeStopAwarenessProviders;
 import rotp.core.api.timestop.TimeStopLifecycleEvent.RemovalReason;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.core.JojoMod;
 import rotp.core.customobjects.DamageSourceModified;
@@ -38,6 +42,7 @@ import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.init.power.ModStands;
+import rotp.core.mixin.timestop.ServerLevelBlockEventsInvoker;
 import rotp.core.modcompat.ModInteractionUtil;
 import rotp.core.network.s2c.TrDirectEntityDataPacket;
 import rotp.core.network.s2c.TrTimeStopInstancePacket;
@@ -57,6 +62,7 @@ import rotp.core.util.functions.MathUtil;
 import rotp.core.util.functions.UtilFunctions;
 import rotp.core.util.functions_network.NetworkUtil;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -72,6 +78,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.GameRules;
@@ -80,12 +89,14 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingKnockBackEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 @EventBusSubscriber(modid = JojoMod.MOD_ID)
 public class TimeStopState {
-    private static final Map<Integer, TimeStopState.Instance> CLIENT_INSTANCES = new HashMap<>();
+    // Read from PlaySoundEvent too, which can come off the client thread.
+    private static final Map<Integer, TimeStopState.Instance> CLIENT_INSTANCES = new ConcurrentHashMap<>();
     public static final double TIME_STOP_SPRINT_FLOAT_START_THRESHOLD = 0.0D;
     public static final double TIME_STOP_SPRINT_FLOAT_LIFT_VELOCITY = 0.2D;
     public static final double TIME_STOP_SPRINT_FLOAT_STEADY_VELOCITY = 0.1D;
@@ -96,6 +107,8 @@ public class TimeStopState {
 
     private final ServerLevel level;
     private final Map<Integer, TimeStopState.Instance> instances = new HashMap<>();
+    // Server-only: stops a game test holds with no user (rotp.core.gametest.GameTestTimeStops); empty outside tests.
+    private final IntOpenHashSet heldWithoutUser = new IntOpenHashSet();
     // Server-only: the ability that started each instance, like 1.16 TimeStopInstance.action.
     private final Map<Integer, AbilityId> timeStopStarters = new HashMap<>();
     // Server-only: the stamina each instance's start actually took, and the part of it no early end gives back.
@@ -106,10 +119,15 @@ public class TimeStopState {
     private final Map<Integer, FrozenEntityState> frozenEntities = new HashMap<>();
     private final Map<Integer, List<Runnable>> onTimeResume = new HashMap<>();
     private final Set<UUID> playersVisionFrozen = new HashSet<>();
+    private final IntOpenHashSet dirtyEntityData = new IntOpenHashSet();
     private final Map<UUID, Map<Integer, Map<Integer, SynchedEntityData.DataValue<?>>>> delayedEntityData = new HashMap<>();
+    private final TimeStopRedstoneHold redstoneHold;
+    private final TimeStopScheduledTickHold scheduledTickHold;
 
     public TimeStopState(ServerLevel level) {
         this.level = level;
+        this.redstoneHold = new TimeStopRedstoneHold(level);
+        this.scheduledTickHold = new TimeStopScheduledTickHold(level);
     }
 
     public Collection<Instance> getInstances() {
@@ -154,6 +172,24 @@ public class TimeStopState {
         return commitPreStart(event);
     }
 
+    /**
+     * For game tests (rotp.core.gametest.GameTestTimeStops): puts a stop with no user (a negative user id) that the
+     * lifecycle keeps until its time runs out or it is removed, where a stop without a living user of a time stop
+     * ability is ended at its next lifecycle tick.
+     */
+    @ApiStatus.Internal
+    public boolean tryPutInstanceHeldWithoutUser(Instance instance) {
+        if (instance.userId() >= 0) {
+            throw new IllegalArgumentException("A stop held without a user has no user id: " + instance.userId());
+        }
+        heldWithoutUser.add(instance.id());
+        if (!tryPutInstance(instance)) {
+            heldWithoutUser.remove(instance.id());
+            return false;
+        }
+        return true;
+    }
+
     @ApiStatus.Internal
     public boolean commitPreStart(TimeStopLifecycleEvent.PreStart event) {
         return commitPreStart(event, null);
@@ -180,7 +216,7 @@ public class TimeStopState {
 
     /**
      * The owner's rule for an early end (2026-10-14): the unused share of what the start took comes back,
-     * except unrefundableStartCost, the price of the shortest stop (an immediate release) under the same
+     * except unrefundableStartCost, the price of the shortest stop (a double press's) under the same
      * policy and multiplier, which is never given back.
      */
     @ApiStatus.Internal
@@ -404,6 +440,9 @@ public class TimeStopState {
     }
 
     public boolean interruptTickEarly(Entity entity) {
+        if (EntitySimulations.isSimulated(entity)) {
+            return false;
+        }
         if (!shouldInterruptEarly(entity)) {
             return false;
         }
@@ -414,7 +453,7 @@ public class TimeStopState {
     }
 
     public void freezeEntity(Entity entity) {
-        if (!isFreezable(entity) || frozenEntities.containsKey(entity.getId())) {
+        if (!isFreezable(entity) || frozenEntities.containsKey(entity.getId()) || EntitySimulations.isSimulated(entity)) {
             return;
         }
         // The motion stays on the entity, as in 1.16 (a stopped entity just did not tick): knockback and pushes
@@ -422,16 +461,44 @@ public class TimeStopState {
         frozenEntities.put(entity.getId(), new FrozenEntityState(
                 entity.position(),
                 entity.fallDistance,
-                entity instanceof Mob mob ? mob.isNoAi() : null));
+                entity instanceof Mob mob ? keepOldNoAi(mob) : null));
         entity.fallDistance = 0;
         if (entity instanceof Mob mob) {
             mob.setNoAi(true);
         }
     }
 
+    // A mob back from disk in stopped time reads no AI from the stop before; what it was is on the mob, as 1.16 PrevNoAi.
+    private static boolean keepOldNoAi(Mob mob) {
+        var saved = ModDataAttachmentTypes.TIME_STOP_PREV_NO_AI.get();
+        if (mob.hasData(saved)) {
+            return mob.getData(saved);
+        }
+        boolean wasNoAi = mob.isNoAi();
+        mob.setData(saved, wasNoAi);
+        return wasNoAi;
+    }
+
+    /**
+     * A mob saved while frozen joins its level again, its chunk back or the server up after a crash: with no stop to hold
+     * it, it gets its old AI back here. A stop that still holds it freezes it again and restores it as it ends.
+     */
+    @ApiStatus.Internal
+    public static void restoreLoadedMobIfNoStopHoldsIt(Mob mob, ServerLevel level) {
+        var saved = ModDataAttachmentTypes.TIME_STOP_PREV_NO_AI.get();
+        if (!mob.hasData(saved)) {
+            return;
+        }
+        var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+        if (!level.hasData(attachmentType) || !level.getData(attachmentType).shouldFreeze(mob)) {
+            mob.setNoAi(mob.getData(saved));
+            mob.removeData(saved);
+        }
+    }
+
     @ApiStatus.Internal
     public void updateGrabbedEntityPosition(LivingEntity entity) {
-        if (entity.level() != level || !shouldFreeze(entity)) {
+        if (entity.level() != level || !shouldFreeze(entity) || EntitySimulations.isSimulated(entity)) {
             return;
         }
         freezeEntity(entity);
@@ -453,7 +520,7 @@ public class TimeStopState {
      * @return whether the entity stays frozen
      */
     public boolean repinOrRelease(Entity entity) {
-        if (entity.level() != level) {
+        if (entity.level() != level || EntitySimulations.isSimulated(entity)) {
             return false;
         }
         if (!shouldFreeze(entity)) {
@@ -564,6 +631,9 @@ public class TimeStopState {
     }
 
     public void unfreezeEntity(Entity entity) {
+        if (EntitySimulations.isSimulated(entity)) {
+            return;
+        }
         FrozenEntityState state = frozenEntities.remove(entity.getId());
         if (state == null) {
             return;
@@ -571,12 +641,13 @@ public class TimeStopState {
         entity.fallDistance = state.fallDistance();
         if (entity instanceof Mob mob && state.wasNoAi() != null) {
             mob.setNoAi(state.wasNoAi());
+            mob.removeData(ModDataAttachmentTypes.TIME_STOP_PREV_NO_AI.get());
         }
         runQueuedOnTimeResume(entity);
     }
 
     public void queueOnTimeResume(Entity entity, Runnable action) {
-        if (entity == null || action == null) {
+        if (entity == null || action == null || EntitySimulations.isSimulated(entity)) {
             return;
         }
         if (!shouldFreeze(entity)) {
@@ -596,6 +667,12 @@ public class TimeStopState {
     }
 
     public void reconcileFrozenEntity(Entity entity) {
+        if (EntitySimulations.isSimulated(entity)) {
+            return;
+        }
+        if (entity.level() == level && entity.getEntityData().isDirty() && !playersVisionFrozen.isEmpty()) {
+            dirtyEntityData.add(entity.getId());
+        }
         if (!isFreezable(entity)) {
             unfreezeEntity(entity);
             return;
@@ -614,7 +691,7 @@ public class TimeStopState {
     }
 
     public void refreshTimeStopEffectState(LivingEntity entity) {
-        if (entity.level() != level) {
+        if (entity.level() != level || EntitySimulations.isSimulated(entity)) {
             return;
         }
         reconcileFrozenEntity(entity);
@@ -635,6 +712,7 @@ public class TimeStopState {
     public void removeInstance(int id, RemovalReason reason) {
         Objects.requireNonNull(reason);
         Instance removed = instances.remove(id);
+        heldWithoutUser.remove(id);
         if (removed != null) {
             applyTimeStopCooldown(removed);
             removeTimeStopEffectIfNoActiveInstance(removed);
@@ -642,7 +720,15 @@ public class TimeStopState {
             restoreTimeStopGamerulesIfNoActiveInstances();
             syncRemovedInstanceToAll(id);
             updateAllPlayerAwareness();
+            pruneViewersIfNoStopLeft();
             ModEventHooks.onTimeStopRemoved(level, removed, reason);
+        }
+    }
+
+    // a viewer gone before the last stop ended meets neither the awareness pass above nor the data sync, which needs a stop
+    private void pruneViewersIfNoStopLeft() {
+        if (instances.isEmpty() && !playersVisionFrozen.isEmpty()) {
+            pruneFrozenVisionPlayers();
         }
     }
 
@@ -651,6 +737,7 @@ public class TimeStopState {
     public void reset() {
         List<Instance> removedInstances = new ArrayList<>(instances.values());
         instances.clear();
+        heldWithoutUser.clear();
         for (Instance removed : removedInstances) {
             LivingEntity user = getLivingEntityById(removed.userId());
             StandPower power = user != null ? PowerClass.STAND.get(user) : null;
@@ -734,6 +821,7 @@ public class TimeStopState {
                 }
                 Instance expired = instance;
                 iter.remove();
+                heldWithoutUser.remove(expired.id());
                 RemovalReason reason = shouldEnd
                         ? RemovalReason.INTERRUPTED
                         : expired.ticksManuallySet()
@@ -761,6 +849,7 @@ public class TimeStopState {
         if (!instances.isEmpty() && !playersVisionFrozen.isEmpty()) {
             manualEntitiesDataSync();
         }
+        pruneViewersIfNoStopLeft();
         for (PendingRemoval removal : pendingRemovals) {
             ModEventHooks.onTimeStopRemoved(
                     level, removal.instance(), removal.reason());
@@ -840,29 +929,64 @@ public class TimeStopState {
             unfreezePlayerVision(player);
         }
         else {
-            playersVisionFrozen.add(player.getUUID());
+            if (playersVisionFrozen.add(player.getUUID()) && playersVisionFrozen.size() == 1) {
+                // Capture data that was already dirty when the first viewer froze.
+                for (Entity entity : level.getAllEntities()) {
+                    if (entity.getEntityData().isDirty()) {
+                        dirtyEntityData.add(entity.getId());
+                    }
+                }
+            }
         }
     }
 
     private void unfreezePlayerVision(ServerPlayer player) {
         UUID playerId = player.getUUID();
-        if (playersVisionFrozen.remove(playerId) || delayedEntityData.containsKey(playerId)) {
+        if (removeFrozenViewer(playerId) || delayedEntityData.containsKey(playerId)) {
             sendDataOnTimeStopUnfreeze(player);
         }
     }
 
     private void clearFrozenVisionForPlayer(ServerPlayer player) {
         UUID playerId = player.getUUID();
-        playersVisionFrozen.remove(playerId);
+        removeFrozenViewer(playerId);
         delayedEntityData.remove(playerId);
+    }
+
+    private boolean removeFrozenViewer(UUID playerId) {
+        boolean removed = playersVisionFrozen.remove(playerId);
+        if (playersVisionFrozen.isEmpty()) {
+            dirtyEntityData.clear();
+        }
+        return removed;
+    }
+
+    @ApiStatus.Internal
+    public static void onEntityDataDirty(Entity entity) {
+        if (entity.level() instanceof ServerLevel level && level.getServer().isSameThread()
+                && !EntitySimulations.isSimulated(entity)) {
+            var key = ModDataAttachmentTypes.TIME_STOP.get();
+            if (level.hasData(key)) {
+                TimeStopState state = level.getData(key);
+                if (!state.playersVisionFrozen.isEmpty()) {
+                    state.dirtyEntityData.add(entity.getId());
+                }
+            }
+        }
     }
 
     private void manualEntitiesDataSync() {
         pruneFrozenVisionPlayers();
-        if (playersVisionFrozen.isEmpty()) {
+        if (dirtyEntityData.isEmpty()) {
             return;
         }
-        for (Entity entity : UtilFunctions.getEntities(level)) {
+        int[] pending = dirtyEntityData.toIntArray();
+        dirtyEntityData.clear();
+        for (int entityId : pending) {
+            Entity entity = level.getEntity(entityId);
+            if (entity == null || entity.isRemoved()) {
+                continue;
+            }
             SynchedEntityData entityData = entity.getEntityData();
             if (!entityData.isDirty()) {
                 continue;
@@ -871,6 +995,8 @@ public class TimeStopState {
                     .map(connection -> connection.getPlayer())
                     .toList();
             if (trackingPlayers.stream().noneMatch(player -> playersVisionFrozen.contains(player.getUUID()))) {
+                // A viewer may start tracking this still-dirty entity before the stop ends.
+                dirtyEntityData.add(entityId);
                 continue;
             }
             List<SynchedEntityData.DataValue<?>> packedData = entityData.packDirty();
@@ -914,6 +1040,9 @@ public class TimeStopState {
     private void pruneFrozenVisionPlayers() {
         playersVisionFrozen.removeIf(playerId -> !isPlayerInLevel(playerId));
         delayedEntityData.keySet().removeIf(playerId -> !isPlayerInLevel(playerId));
+        if (playersVisionFrozen.isEmpty()) {
+            dirtyEntityData.clear();
+        }
     }
 
     private boolean isPlayerInLevel(UUID playerId) {
@@ -1000,6 +1129,9 @@ public class TimeStopState {
                 new IdentityHashMap<>();
         Map<StandPower, String> cooldownAbilities =
                 new IdentityHashMap<>();
+        // the ability whose use the longest stop was, for the no-cooldown mode's fatigue (none for a stop no ability began)
+        Map<StandPower, Ability> fatigueAbilities =
+                new IdentityHashMap<>();
         for (Instance removed : removedInstances) {
             LivingEntity user = getLivingEntityById(removed.userId());
             StandPower power =
@@ -1015,6 +1147,13 @@ public class TimeStopState {
                 if (previousTicks == null || effectiveTicksPassed > previousTicks) {
                     cooldownTicks.put(power, effectiveTicksPassed);
                     cooldownAbilities.put(power, getCooldownAbilityName(removed, power));
+                    Ability starter = timeStopStarters.containsKey(removed.id()) ? getStartingAbility(removed, power) : null;
+                    if (starter != null) {
+                        fatigueAbilities.put(power, starter);
+                    }
+                    else {
+                        fatigueAbilities.remove(power);
+                    }
                 }
             }
         }
@@ -1041,10 +1180,17 @@ public class TimeStopState {
         }
         for (Map.Entry<StandPower, Integer> cooldown
                 : cooldownTicks.entrySet()) {
-            TimeStopCooldowns.setTimeStopCooldownsOnTimeStopEnd(
-                    cooldown.getKey(),
+            StandPower power = cooldown.getKey();
+            // the stop's start paid its repeat (TimeStopAbility); its end adds the cooldown it skips to its fatigue
+            StandAbilityFatigue.withoutFatigue(() -> TimeStopCooldowns.setTimeStopCooldownsOnTimeStopEnd(
+                    power,
                     cooldownAbilities.get(cooldown.getKey()),
-                    cooldown.getValue());
+                    cooldown.getValue()));
+            Ability fatigued = fatigueAbilities.get(power);
+            if (fatigued != null) {
+                StandAbilityFatigue.addFatigue(power, fatigued,
+                        TimeStopCooldowns.timeStopCooldown(power, cooldown.getValue()));
+            }
         }
     }
 
@@ -1147,6 +1293,9 @@ public class TimeStopState {
     }
 
     private boolean shouldEndTimeStop(Instance instance) {
+        if (instance.userId() < 0 && !heldWithoutUser.isEmpty() && heldWithoutUser.contains(instance.id())) {
+            return false;
+        }
         LivingEntity user = getLivingEntityById(instance.userId());
         if (user == null || !user.isAlive()) {
             return true;
@@ -1165,7 +1314,10 @@ public class TimeStopState {
         float staminaCostTick = instance.staminaCostTick();
         if (staminaCostTick > 0) {
             staminaCostTick *= PlayerClientBroadcastedSettings.getTimeStopStaminaCostMultiplier(power);
-            staminaCostTick += power.getStaminaTickGain();
+            // 1.16 took the stopper's regeneration back; the no-cooldown mode leaves him its stopped-time share
+            if (StandAbilityFatigue.regenKeptDuringUse(power) <= 0.0F) {
+                staminaCostTick += power.getStaminaTickGain();
+            }
             if (!power.consumeStamina(staminaCostTick, true)) {
                 power.setStamina(0);
                 return true;
@@ -1204,11 +1356,12 @@ public class TimeStopState {
             case SOUND -> decision.sound();
             case SILENT -> null;
         };
-        if (resumeVoiceLineUser != null && power != null && voiceLine != null) {
+        if (resumeVoiceLineUser != null && power != null && decision.kind() != TimeStopAudioDecision.Kind.SILENT) {
             // 1.16 sayVoiceLine without interrupting: a line still being said keeps playing
             JojoModUtil.sayVoiceLine(
                     resumeVoiceLineUser,
                     voiceLine,
+                    ModSoundEvents.VOICELINE_TIME_RESUME,
                     1.0F,
                     1.0F,
                     200,
@@ -1347,9 +1500,101 @@ public class TimeStopState {
             var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
             if (level.hasData(attachmentType)) {
                 TimeStopState state = level.getData(attachmentType);
+                state.tickOnLevelTick();
+            }
+        }
+    }
+
+    @ApiStatus.Internal
+    public void tickOnLevelTick() {
+        if (!instances.isEmpty()) {
+            tickLifecycle();
+        }
+        drainRedstoneIfTimeResumed();
+    }
+
+    // Every way a stop ends leaves the level here within a tick, ahead of that tick's block ticks and block events.
+    private void drainRedstoneIfTimeResumed() {
+        if (redstoneHold.hasWork() && !hasActiveStop()) {
+            redstoneHold.drain();
+        }
+        if (scheduledTickHold.hasWork() && !hasActiveStop()) {
+            scheduledTickHold.drain();
+        }
+    }
+
+    /** A block or fluid tick scheduled into a stopped chunk: its delay counts from the stop's end (TimeStopScheduledTickHold). */
+    @ApiStatus.Internal
+    public static void noteScheduledTick(ServerLevel tickLevel, BlockPos pos, Object type, boolean fluid, long triggerTick) {
+        var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+        if (tickLevel.hasData(attachmentType)) {
+            TimeStopState state = tickLevel.getData(attachmentType);
+            if (!state.instances.isEmpty() && state.isTimeStopped(new ChunkPos(pos))) {
+                state.scheduledTickHold.noteScheduled(pos, type, fluid, triggerTick);
+            }
+        }
+    }
+
+    /** A block or fluid tick come due in a stopped chunk keeps the delay it had left when time stopped there. */
+    @ApiStatus.Internal
+    public void noteFrozenTickDue(BlockPos pos, Object type, boolean fluid) {
+        ChunkPos chunkPos = new ChunkPos(pos);
+        long stopStart = instances.values().stream()
+                .filter(Instance::isActive)
+                .filter(instance -> instance.covers(chunkPos))
+                .mapToLong(this::getStartGameTime)
+                .min()
+                .orElse(level.getGameTime());
+        scheduledTickHold.noteDue(pos, type, fluid, stopStart);
+    }
+
+    boolean hasActiveStop() {
+        return instances.values().stream().anyMatch(Instance::isActive);
+    }
+
+    /** Whether stopped time keeps this neighbour update from its block until it resumes. */
+    @ApiStatus.Internal
+    public static boolean holdNeighborUpdate(Level updatedLevel, BlockState receiver, BlockPos pos, Block source, BlockPos sourcePos,
+            boolean movedByPiston) {
+        if (!(updatedLevel instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+        var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+        if (!serverLevel.hasData(attachmentType)) {
+            return false;
+        }
+        TimeStopState state = serverLevel.getData(attachmentType);
+        return !state.instances.isEmpty() && state.isTimeStopped(new ChunkPos(pos))
+                && state.redstoneHold.hold(receiver, pos, source, sourcePos, movedByPiston);
+    }
+
+    /** How many entities' data changes wait for a frozen viewer. */
+    @ApiStatus.Internal
+    public int heldEntityDataCount() {
+        return dirtyEntityData.size();
+    }
+
+    /** The held neighbour updates' blocks, in the order they will run. */
+    @ApiStatus.Internal
+    public List<BlockPos> heldNeighborUpdates() {
+        return redstoneHold.heldPositions();
+    }
+
+    /**
+     * No tick follows, and a level's block events are not saved: stops end as when the last player leaves, then what
+     * waited for them runs now, so the save holds a world that was told.
+     */
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
+        for (ServerLevel serverLevel : event.getServer().getAllLevels()) {
+            if (serverLevel.hasData(attachmentType)) {
+                TimeStopState state = serverLevel.getData(attachmentType);
                 if (!state.instances.isEmpty()) {
-                    state.tickLifecycle();
+                    state.reset();
                 }
+                state.drainRedstoneIfTimeResumed();
+                ((ServerLevelBlockEventsInvoker) serverLevel).jojo_ripples$runBlockEvents();
             }
         }
     }

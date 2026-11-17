@@ -23,8 +23,8 @@ public class StandInitTheWorld {
 	public static EntityStandType create(ResourceLocation id) {
 		return new EntityStandType(
 				new StandStats.Builder()
-				.power(16.0, 19.0)
-				.speed(16.0, 18.5)
+				.power(19.0, 23.0)
+				.speed(18.0, 22.0)
 				.range(5, 10)
 				.durability(16.0, 20.0)
 				.precision(12)
@@ -99,8 +99,7 @@ public class StandInitTheWorld {
 					.makeHotbar(0, USE_SPECIAL, SWITCH_SPECIAL)
 					.addToHotbar("ts_punch", 0, InputMethod.CLICK)
 					.addToHotbar("time_stop", 0, InputMethod.HOLD)
-					// 1.16 blink (SHIFT variation of the time stop) as its own wheel slot
-					.addToHotbar("time_stop_blink", 0, InputMethod.CLICK)
+					.addHotbarSlotVariation("time_stop_blink", "time_stop", InputKey.Modifier.SHIFT, InputMethod.CLICK)
 				.finalizeControlScheme()
 
 

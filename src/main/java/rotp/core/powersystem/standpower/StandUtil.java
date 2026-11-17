@@ -40,6 +40,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -130,7 +131,10 @@ public class StandUtil {
 	public static void trackTakenStand(ServerPlayer player, @Nullable StandType stand) {
 		MinecraftServer server = player.getServer();
 		if (server != null) {
-			ServerDuplicateCounter.StandHolders.get(server).setHeld(player.getUUID(), stand != null ? stand.getId() : null);
+			StandPower power = StandPower.get(player);
+			ResourceLocation reserved = power != null ? power.reservedStandDuringLoan() : null;
+			ResourceLocation held = reserved != null ? reserved : stand != null ? stand.getId() : null;
+			ServerDuplicateCounter.StandHolders.get(server).setHeld(player.getUUID(), held);
 		}
 	}
 

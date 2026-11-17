@@ -31,6 +31,7 @@ public final class ClientModSettingsSmokeTest {
 			invalidCompactHotbarValueKeepsOtherSettings();
 			attackTargetLockDefaultsAndPersistsWithoutChangingMarker();
 			invalidAttackTargetLockKeepsOtherSettings();
+			aFileWithTheRemovedHotbarTogglesLoadsAndDropsThem();
 			loginSendsTheBroadcastSettings();
 			ownAfkMenacingFirstPersonDefaultsOnAndPersistsApartFromMaster();
 			rotp.core.client.ui.hud_power.CompactStandHotbarWindowSmokeTest.run();
@@ -278,6 +279,20 @@ public final class ClientModSettingsSmokeTest {
 					"invalid compact value uses disabled default");
 			assertFloatEquals(25, ClientModSettings.getSettingsReadOnly().standTransparency,
 					"invalid compact value does not reset unrelated display options");
+		});
+	}
+
+	// 1.16's two hotbar toggles are gone from the settings: a file that still has them loads, and the next save drops them
+	private static void aFileWithTheRemovedHotbarTogglesLoadsAndDropsThem() throws Exception {
+		withSettingsFile("{\"toggleLmbHotbar\":true,\"toggleRmbHotbar\":true,\"standOutline\":false,\"standTransparency\":30}", settingsFile -> {
+			ClientModSettings.init(settingsFile.toFile());
+			assertBooleanEquals(false, ClientModSettings.getSettingsReadOnly().standOutline, "the settings beside them load");
+			assertFloatEquals(30, ClientModSettings.getSettingsReadOnly().standTransparency, "and keep their values");
+			ClientModSettings.edit(settings -> settings.screenSplash = true, false);
+			String saved = Files.readString(settingsFile);
+			if (saved.contains("toggleLmbHotbar") || saved.contains("toggleRmbHotbar") || !saved.contains("\"standOutline\"")) {
+				throw new AssertionError("A saved file must drop the removed hotbar toggles and keep the rest: " + saved);
+			}
 		});
 	}
 

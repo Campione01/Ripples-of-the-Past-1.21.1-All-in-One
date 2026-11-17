@@ -24,6 +24,7 @@ import rotp.core.util.functions.UtilFunctions;
 import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.HamonUtil;
 import rotp.core.impl.powers.hamon.ModHamonSkills;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -158,10 +159,10 @@ public class HamonHealingAbility extends HamonActionRuntimeAbility {
 		return touched != null ? touched : user;
 	}
 
-	// 1.16 Healing Touch: a sneaking user who learned it heals the living entity aimed at instead of itself
+	// 1.16 Healing Touch: a user who learned it heals the living entity aimed at instead of itself, on the variation key
 	@Nullable
 	private static LivingEntity touchTarget(LivingEntity user, HamonData hamon) {
-		if (user.isShiftKeyDown() && hamon.isSkillLearned(ModHamonSkills.HEALING_TOUCH.get())) {
+		if (StandManualInput.isShiftHeld(user) && hamon.isSkillLearned(ModHamonSkills.HEALING_TOUCH.get())) {
 			ActionTarget target = HamonAbilityHelpers.getAimTarget(user, user.level());
 			if (target.getType() == TargetType.ENTITY && target.getMainEntity() instanceof LivingEntity livingTarget
 					&& canBeHealed(livingTarget)) {

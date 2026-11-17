@@ -21,6 +21,7 @@ import org.jetbrains.annotations.ApiStatus;
 import org.lwjgl.glfw.GLFW;
 
 import rotp.core.client.ClientGlobals;
+import rotp.core.impl.stands.crazydiamond.client.MisshapenControls;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.client.ClientTickHandler;
 import rotp.core.client.input.clickhold.AmbiguousKeyPress;
@@ -30,9 +31,12 @@ import rotp.core.client.input.controlscheme.ClientControlScheme.AbilityControlsE
 import rotp.core.client.input.controlscheme.ClientControlScheme.Hotbar;
 import rotp.core.client.input.controlscheme.ClientControlScheme.HotbarSlot;
 import rotp.core.client.input.controlscheme.ClientInputBind;
+import rotp.core.client.input.controlscheme.HotbarSelectionRules;
+import rotp.core.client.input.controlscheme.VariationKey;
 import rotp.core.client.input.controlscheme.ClientKey;
 import rotp.core.client.ui.AbilitySelectionWheel;
 import rotp.core.client.ui.hud_power.PowerHud;
+import rotp.core.client.ui.screen_jojomenu.ControlSchemeEditorInput;
 import rotp.core.client.util.functions.ClientUtil;
 import rotp.core.config.client.ClientModSettings;
 import rotp.core.event.client.PreKeyInputEvent;
@@ -61,6 +65,7 @@ import rotp.core.powersystem.playerpower.PlayerPower;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.subsystems.timestop.TimeStopState;
 import rotp.core.util.enums.Direction2D;
 import rotp.core.util.mod.IPlayerLeap;
@@ -78,6 +83,8 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.Input;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.FriendlyByteBuf;
@@ -135,10 +142,24 @@ public class InputHandler {
 	}
 	
 	public static boolean inputsDisabled;
-	
-	
+
+	/** An open screen leaves no ability active, except the selection wheel: which keys reach one there, {@link #keyReachesAbilities} says. */
+	public static boolean screenHoldsAbilities() {
+		Screen screen = Minecraft.getInstance().screen;
+		return screen != null && !(screen instanceof AbilitySelectionWheel);
+	}
+
+	private boolean keyReachesAbilities(ClientKey key, KeyModifier keyModifier) {
+		ClientInputBind wheelUseKey = mc.screen instanceof AbilitySelectionWheel wheel ? wheel.abilities.useAbilityKey : null;
+		return HotbarSelectionRules.keyReachesAbilities(mc.screen instanceof AbilitySelectionWheel,
+				wheelUseKey != null && wheelUseKey.keyMatches(key, keyModifier));
+	}
+
+
 	@SubscribeEvent
 	public void handleKeyBindingsPost(ClientTickEvent.Post event) {
+		AllControlSchemes.followVariationKey();
+		keepHotbarSelectionsOnUsableSlots();
 		vanillaKeybinds.handleTick();
 		tickReleaseEventQueue();
 		tickPendingReleaseUse();
@@ -171,10 +192,26 @@ public class InputHandler {
 		}
 	}
 	
+	/**
+	 * Abilities come and go with their unlocks and their context (a nugget in the Stand's hand), so a selected slot can run
+	 * out of anything to use. A container menu shows its own slots: its selection stays for when it closes.
+	 */
+	private void keepHotbarSelectionsOnUsableSlots() {
+		if (mc.player == null || mc.screen != null && !(mc.screen instanceof AbilitySelectionWheel)) {
+			return;
+		}
+		ClientControlScheme controlScheme = getActiveControlSchemeForHotbarOperation();
+		if (controlScheme != null) {
+			for (Hotbar hotbar : controlScheme.getCurGroup().hotbars) {
+				hotbar.keepSelectionOnUsableSlot();
+			}
+		}
+	}
+
 	/** Whether the hotbar's selected ability would resolve to something usable right now. */
 	private boolean isSelectedAbilityUsable(Hotbar hotbar) {
 		HotbarSlot slot = hotbar.getSelected();
-		if (slot == null || slot.showAbility() == null) {
+		if (slot == null || slot.selectableAbility() == null) {
 			return false;
 		}
 		List<AbilityControlsEntry> clickBound = slot.getBinds().getAll(getCurModifier(), InputMethod.CLICK);
@@ -216,6 +253,8 @@ public class InputHandler {
 		rawMouseClicks.clear();
 		keysPressedWithAbility.clear();
 		hamonDoubleShift.reset();
+		variationKeySent = false;
+		StandManualInput.setClientVariationKey(false);
 		lastActionKey = null;
 		inputsDisabled = false;
 		curPowerClassToggle = null;
@@ -241,7 +280,9 @@ public class InputHandler {
 	@SubscribeEvent(priority = EventPriority.HIGH)
 	public void onFrameUpdate(RenderFrameEvent.Pre event) {
 		if (!ClientModSettings.getSettingsReadOnly().toggleDisableHotbars) {
-			inputsDisabled = _heldKeys.containsKey(ClientKey.fromVanillaKeybind(vanillaKeybinds.disableHUDControls));
+			// a variation key set on this key must not turn off what it is held for
+			inputsDisabled = !vanillaKeybinds.disableHUDControls.getKey().equals(vanillaKeybinds.variationKey.getKey())
+					&& _heldKeys.containsKey(ClientKey.fromVanillaKeybind(vanillaKeybinds.disableHUDControls));
 		}
 		
 		float tickDelta = mc.getTimer()/*getDeltaTracker()*/.getRealtimeDeltaTicks();
@@ -280,7 +321,9 @@ public class InputHandler {
 	public void handleMouseInput(InputEvent.MouseButton.Pre event) {
 		if (mc.getConnection() == null) return;
 
-		ClientKey button = ClientKey.make(InputConstants.Type.MOUSE, event.getButton());
+		// lane MISHEAL (R772.1): misshapen arms swap the Stand's LMB and RMB rows, as 1.16's rebound keys did
+		ClientKey button = ClientKey.make(InputConstants.Type.MOUSE,
+				MisshapenControls.routeRawMouseButton(event.getButton(), event.getAction()));
 		switch (event.getAction()) {
 			case InputConstants.PRESS -> rawMouseClicks.rawPress(button);
 			case InputConstants.RELEASE -> rawMouseClicks.rawRelease(button);
@@ -429,12 +472,16 @@ public class InputHandler {
 	}
 
 	boolean hasActiveGrabChargedHeavyBinding() {
-		if (inputsDisabled || vanillaKeybinds == null || vanillaKeybinds.grabChargedHeavy == null) {
+		return vanillaKeybinds != null && hasActiveBinding(vanillaKeybinds.grabChargedHeavy);
+	}
+
+	boolean hasActiveBinding(@Nullable KeyMapping keyMapping) {
+		if (inputsDisabled || keyMapping == null) {
 			return false;
 		}
 		ClientControlScheme controls = getActiveControlScheme();
 		return hasActiveGrabChargedHeavyBinding(
-				controls != null ? controls.getCurGroup() : null, vanillaKeybinds.grabChargedHeavy, inputsDisabled);
+				controls != null ? controls.getCurGroup() : null, keyMapping, inputsDisabled);
 	}
 
 	@ApiStatus.Internal
@@ -527,7 +574,9 @@ public class InputHandler {
 				controlScheme != null
 						&& controlScheme.powerClassCosmetic == PowerClass.STAND,
 				vanillaUseTrigger,
-				keyModifier == KeyModifier.SHIFT,
+				keyModifier == KeyModifier.SHIFT
+						|| vanillaKeybinds != null && keyModifier != KeyModifier.NONE
+								&& keyModifier == vanillaKeybinds.grabChargedHeavy.getKeyModifier(),
 				standPowerSummonedAndUsable,
 				liveSynchronizedStandEntity,
 				ClientGlobals.isPlayerStandFullBodyUnsummoning());
@@ -943,27 +992,52 @@ public class InputHandler {
 	
 	// Key modifiers (Ctrl/Shift/Alt)
 	
-	private List<KeyModifier> modifiersQueue = new ArrayList<>();
-	
+	private List<Key> modifiersQueue = new ArrayList<>();
+	private boolean variationKeySent;
+
 	private void addKeyModifier(Key key) {
-		KeyModifier modifier = KeyModifier.getKeyModifier(key);
-		if (modifier != KeyModifier.NONE && !modifiersQueue.contains(modifier)) {
-			modifiersQueue.add(modifier);
+		if (VariationKey.heldAs(key) != KeyModifier.NONE && !modifiersQueue.contains(key)) {
+			modifiersQueue.add(key);
 		}
+		syncVariationKey(false);
 	}
-	
+
 	private void removeKeyModifier(Key key) {
-		KeyModifier modifier = KeyModifier.getKeyModifier(key);
-		if (modifier != KeyModifier.NONE) {
-			modifiersQueue.remove(modifier);
-		}
+		modifiersQueue.remove(key);
+		syncVariationKey(false);
 	}
-	
+
 	@Nonnull
 	public KeyModifier getCurModifier() {
-		return !modifiersQueue.isEmpty() ? modifiersQueue.get(modifiersQueue.size() - 1) : KeyModifier.NONE;
+		for (int i = modifiersQueue.size() - 1; i >= 0; i--) {
+			KeyModifier modifier = VariationKey.heldAs(modifiersQueue.get(i));
+			if (modifier != KeyModifier.NONE) {
+				return modifier;
+			}
+		}
+		return KeyModifier.NONE;
 	}
-	
+
+	public boolean isVariationKeyHeld() {
+		return getCurModifier() == VariationKey.modifier();
+	}
+
+	// goes out at the key event, before the press of the skill key it comes with
+	private void syncVariationKey(boolean always) {
+		boolean held = isVariationKeyHeld();
+		StandManualInput.setClientVariationKey(held);
+		ClientPacketListener connection = mc.getConnection();
+		if ((always || held != variationKeySent) && connection != null && connection.hasChannel(StandManualInput.VariationKeyPacket.TYPE)) {
+			PacketDistributor.sendToServer(new StandManualInput.VariationKeyPacket(held));
+			variationKeySent = held;
+		}
+	}
+
+	@SubscribeEvent
+	public void onLogin(ClientPlayerNetworkEvent.LoggingIn event) {
+		syncVariationKey(true);
+	}
+
 	
 	// The function that figures out what ability has the player inputed.
 	
@@ -980,7 +1054,8 @@ public class InputHandler {
 
 			if (!(heldBound.isEmpty() && clickBound.isEmpty())) {
 				input.bound = true;
-				Predicate<AbilityInputState> filter = inputState -> AbilityInputState.isInputActive(inputState, PowerHud.isInContainerScreen());
+				boolean reachesAbilities = keyReachesAbilities(key, keyModifier);
+				Predicate<AbilityInputState> filter = inputState -> reachesAbilities && AbilityInputState.isInputActive(inputState, PowerHud.isInContainerScreen());
 				ClientControlScheme.setPrioritizedAbility(input.heldAbility, heldBound, filter);
 				ClientControlScheme.setPrioritizedAbility(input.clickAbility, clickBound, filter);
 			}
@@ -1051,8 +1126,9 @@ public class InputHandler {
 			Hotbar wheelHotbar = null;
 			ClientControlScheme.MoveGroup curControls = controlScheme.getCurGroup();
 			for (Hotbar abilityHotbar : curControls.hotbars) {
-				if (abilityHotbar.switchAbilityKey != null && abilityHotbar.switchAbilityKey.keyMatches(pressedKey, getCurModifier())) {
-					boolean selected = isHotbarToggleEnabled(abilityHotbar) 
+				if (abilityHotbar.switchAbilityKey != null && abilityHotbar.switchAbilityKey.keyMatches(pressedKey, getCurModifier())
+						&& abilityHotbar.hasSelectableSlot()) {
+					boolean selected = isHotbarToggleEnabled(abilityHotbar)
 							? switchToggledHotbarControls(abilityHotbar)
 							: setSelectingAbility(abilityHotbar, pressedKey, true);
 					if (selected && wheelHotbar == null) wheelHotbar = abilityHotbar;
@@ -1118,7 +1194,7 @@ public class InputHandler {
 		}
 		HotbarSlot slot = hotbar.getSelected();
 		ClientKey useKey = hotbar.useAbilityKey.getKey();
-		if (slot == null || slot.showAbility() == null || useKey == null) {
+		if (slot == null || slot.selectableAbility() == null || useKey == null) {
 			return;
 		}
 		input(useKey, InputConstants.PRESS, 0);
@@ -1149,34 +1225,17 @@ public class InputHandler {
 	}
 	
 	private boolean cycleHotbarSlot(Hotbar hotbar, boolean backwards, @Nullable AbilitySelectionWheel curWheel) {
-		if (hotbar.slots.isEmpty()) {
+		int newIndex = ControlSchemeEditorInput.cycleSlot(hotbar.slotIndex, hotbar.selectableSlots(), backwards);
+		if (newIndex < 0) {
 			return false;
 		}
-		
-		int n = hotbar.slots.size();
-		int newIndex = hotbar.slotIndex;
-		for (int attempts = 0; attempts < n; attempts++) {
-			if (newIndex < 0 || newIndex >= n) {
-				newIndex = backwards ? n - 1 : 0;
-			}
-			else {
-				newIndex += backwards ? -1 : 1;
-				if (newIndex < 0) newIndex = n - 1;
-				else if (newIndex >= n) newIndex = 0;
-			}
-			
-			HotbarSlot slot = hotbar.slots.get(newIndex);
-			if (slot.showAbility() != null) {
-				if (newIndex != hotbar.slotIndex) {
-					hotbar.slotIndex = newIndex;
-					if (curWheel != null && curWheel.abilities == hotbar) {
-						curWheel.setIgnoreMouseUntilMove(OptionalInt.of(newIndex));
-					}
-				}
-				return true;
+		if (newIndex != hotbar.slotIndex) {
+			hotbar.pickSlot(newIndex);
+			if (curWheel != null && curWheel.abilities == hotbar) {
+				curWheel.setIgnoreMouseUntilMove(OptionalInt.of(newIndex));
 			}
 		}
-		return false;
+		return true;
 	}
 	
 	public boolean hotbarPickSlot(ClientKey digitKey) {
@@ -1200,14 +1259,14 @@ public class InputHandler {
 			@Nullable AbilitySelectionWheel curWheel = mc.screen instanceof AbilitySelectionWheel w ? w : null;
 			for (Hotbar hotbar : curControls.hotbars) {
 				if (isSelectingAbility(hotbar) && newIndex < hotbar.slots.size()) {
-					HotbarSlot slot = hotbar.slots.get(newIndex);
-					if (slot.showAbility() != null) {
-						hotbar.slotIndex = newIndex;
+					int slotIndex = HotbarSelectionRules.slotOfNumberKey(newIndex, hotbar.selectableSlots());
+					if (slotIndex >= 0) {
+						hotbar.pickSlot(slotIndex);
 						if (curWheel != null && curWheel.abilities == hotbar) {
-							curWheel.setIgnoreMouseUntilMove(OptionalInt.of(newIndex));
+							curWheel.setIgnoreMouseUntilMove(OptionalInt.of(slotIndex));
 						}
 					}
-					
+
 					pickedAHotbarSlot |= true;
 				}
 			}

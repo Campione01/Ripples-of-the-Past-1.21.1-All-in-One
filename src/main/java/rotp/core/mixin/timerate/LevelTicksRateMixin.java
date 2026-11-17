@@ -34,6 +34,17 @@ public abstract class LevelTicksRateMixin implements LevelTickRateState.Schedule
 		jojo_ripples$rateChannel = channel;
 	}
 
+	@Override
+	@Nullable
+	public ServerLevel jojo_ripples$tickLevel() {
+		return jojo_ripples$rateLevel;
+	}
+
+	@Override
+	public boolean jojo_ripples$isFluidTicks() {
+		return jojo_ripples$rateChannel == LevelTimeRates.Channel.FLUID_TICKS;
+	}
+
 	@ModifyVariable(method = "schedule", at = @At("HEAD"), argsOnly = true, require = 1)
 	private ScheduledTick<?> jojo_ripples$scaleDelay(ScheduledTick<?> tick) {
 		ServerLevel level = jojo_ripples$rateLevel;

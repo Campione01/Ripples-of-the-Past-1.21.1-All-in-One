@@ -87,7 +87,8 @@ public abstract class HGStringAbstractRenderer<T extends OwnerBoundProjectileEnt
 	private float getAlpha(T entity, float partialTick) {
 		StandEntity stand = entity.getOwner() instanceof StandEntity ownerStand ? ownerStand : null;
 		float lifecycleAlpha = 1.0F;
-		if (entity.standDamage() && stand != null) {
+		// a placed barrier outlives its Stand, whose alpha stays as its unsummon fade left it
+		if (entity.standDamage() && stand != null && !stand.isRemoved()) {
 			float modelAlpha = stand.modelAlpha.lerp(partialTick);
 			float rangeAlpha = (float) stand.rangeEfficiency * modelAlpha;
 			lifecycleAlpha = Mth.clamp(Math.max(rangeAlpha, modelAlpha * 0.15F), 0.0F, 1.0F);

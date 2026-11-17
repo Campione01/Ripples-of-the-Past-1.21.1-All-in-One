@@ -59,9 +59,25 @@ import rotp.core.api.client.render.ScopedPlayerModelVisibilitySmokeTest;
 import rotp.core.api.client.render.ScopedPlayerModelPoseSmokeTest;
 import rotp.core.api.client.animation.AddonPlayerAnimationsSmokeTest;
 import rotp.core.client.entityanim.AnimPoseThreadIsolationSmokeTest;
+import rotp.core.client.entityrender.stand.HeldBlockViewClearanceSmokeTest;
+import rotp.core.client.input.KeyPairsToldApartSmokeTest;
+import rotp.core.api.client.input.PowerKeyConflictContextsSmokeTest;
+import rotp.core.api.client.render.HeldItemButtonClaimsSmokeTest;
+import rotp.core.client.standskin.StandSkinNamesSmokeTest;
+import rotp.core.client.ui.hud_power.RecalledSkillSignSmokeTest;
+import rotp.core.client.ui.hud_power.WindupMinimumMarkSmokeTest;
+import rotp.core.client.ui.utils.SkillListLayoutSmokeTest;
+import rotp.core.client.ui.utils.TextBoxFitSmokeTest;
+import rotp.core.client.entityanim.ArmsOnlyTrunkSmokeTest;
+import rotp.core.client.entityanim.ChargeSectionSmokeTest;
+import rotp.core.client.entityanim.HeadLookLimitSmokeTest;
+import rotp.core.client.entityanim.HandedClipSmokeTest;
 import rotp.core.client.entityanim.MolangQueryThreadIsolationSmokeTest;
 import rotp.core.client.entityrender.parsemodel.generic.GenericModelFormatSmokeTest;
+import rotp.core.client.input.controlscheme.HotbarSelectionRulesSmokeTest;
 import rotp.core.client.input.controlscheme.HotbarShiftFallbackSmokeTest;
+import rotp.core.client.input.controlscheme.VariationKeySmokeTest;
+import rotp.core.client.ui.CanonStandPanelsSmokeTest;
 import rotp.core.client.ui.hud_power.StandHotbarShiftDisplaySmokeTest;
 import rotp.core.entityattachment.FrozenAttachmentsRestSmokeTest;
 import rotp.core.resource.StandDamageBlockSubtitleSmokeTest;
@@ -497,6 +513,9 @@ public final class RotpAddonApiSmokeTest {
 		PillarmanActionFlagsSmokeTest.run();
 		StandSkillsUnlockMessageSmokeTest.run();
 		HotbarShiftFallbackSmokeTest.run();
+		HotbarSelectionRulesSmokeTest.run();
+		VariationKeySmokeTest.run();
+		CanonStandPanelsSmokeTest.run();
 		StandHotbarShiftDisplaySmokeTest.run();
 		FrozenAttachmentsRestSmokeTest.run();
 		StandDamageBlockSubtitleSmokeTest.run();
@@ -541,6 +560,7 @@ public final class RotpAddonApiSmokeTest {
 		TimeStopBlinkInputSmokeTest.run();
 		TimeStopPunchTuningSmokeTest.run();
 		AbilityShoutSmokeTest.run();
+		rotp.core.mechanics.voiceline.VoiceLineTriggerWiringSmokeTest.run();
 		StandLossResolveSmokeTest.run();
 		AddonFeatureApiSurfaceSmokeTest.run();
 		ResolveModeValueSmokeTest.run();
@@ -571,6 +591,10 @@ public final class RotpAddonApiSmokeTest {
 		CrazyDiamondRestoreExtensionsSmokeTest.run();
 		GoldExperienceExternalHealingTargetsSmokeTest.run();
 		StarFingerVisualOwnershipSmokeTest.run();
+		ArmsOnlyTrunkSmokeTest.run();
+		ChargeSectionSmokeTest.run();
+		HeadLookLimitSmokeTest.run();
+		HandedClipSmokeTest.run();
 		LivingHandUseBlockersSmokeTest.run();
 		StandActionModifiersSmokeTest.run();
 		AbilityStaminaCostSmokeTest.run();
@@ -582,6 +606,15 @@ public final class RotpAddonApiSmokeTest {
 		StandActionPortSlotSmokeTest.run();
 		PlayerActionGateSmokeTest.run();
 		ActionStandOffsetHookSmokeTest.run();
+		HeldBlockViewClearanceSmokeTest.run();
+		TextBoxFitSmokeTest.run();
+		SkillListLayoutSmokeTest.run();
+		WindupMinimumMarkSmokeTest.run();
+		StandSkinNamesSmokeTest.run();
+		RecalledSkillSignSmokeTest.run();
+		HeldItemButtonClaimsSmokeTest.run();
+		PowerKeyConflictContextsSmokeTest.run();
+		KeyPairsToldApartSmokeTest.run();
 	}
 
 	private static ResourceLocation id(String namespace, String path) {

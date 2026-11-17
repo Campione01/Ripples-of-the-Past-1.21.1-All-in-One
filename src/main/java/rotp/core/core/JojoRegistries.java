@@ -11,6 +11,7 @@ import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.entityaction.type.SpecialEntityActionType;
 import rotp.core.powersystem.playerpower.PlayerPowerType;
 import rotp.core.powersystem.standpower.type.StandType;
+import rotp.core.subsystems.MergingDatapackRegistry;
 import rotp.core.subsystems.StoryPart;
 import rotp.core.util.reflection.CommonReflection;
 import rotp.core.impl.powers.hamon.HamonSkill;
@@ -127,6 +128,8 @@ public final class JojoRegistries {
 	
 	@SubscribeEvent
 	public static void registerDataPackRegistries(DataPackRegistryEvent.NewRegistry event) {
+		// a pack's character file adds its Stand ids to the same character from the mod or another pack
+		MergingDatapackRegistry.makeMerging(STORY_CHARACTERS_REG_KEY, StoryCharacter::merge);
 		event.dataPackRegistry(STORY_CHARACTERS_REG_KEY,
 				StoryCharacter.DIRECT_CODEC,
 				StoryCharacter.DIRECT_CODEC,

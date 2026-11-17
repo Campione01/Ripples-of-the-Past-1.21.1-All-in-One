@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 import org.jetbrains.annotations.ApiStatus;
 
 import rotp.core.api.power.AbilityRefusals;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.client.ClientProxy;
 import rotp.core.client.ClientTimeStopHandler;
 import rotp.core.client.input.AbilityInputState;
@@ -71,11 +72,14 @@ public class Ability {
 	private final EnumSet<StandPart> partsRequired = EnumSet.noneOf(StandPart.class);
 	private int resolveLevelToUnlock = -1;
 	private boolean playsVoiceLineOnSneak;
+	private boolean passive;
 	protected int cooldownTicks;
 	protected int cooldownTechnicalTicks;
 	protected int cooldownAdditionalTicks;
 	protected float cooldownResolveMultiplier = 1.0F;
 	protected boolean cooldownResolveMultiplierApplies;
+	private boolean practicalSkill;
+	private int fatigueCooldown = -1;
 	
 	@Nullable public AbilityStandFinisherData isStandFinisherOf = null;
 
@@ -138,9 +142,25 @@ public class Ability {
 	}
 	
 	public boolean addToControlSchemeEditing() {
-		return !isSubAbility;
+		return !isSubAbility && !isPassive();
 	}
-	
+
+	/**
+	 * Marks this ability as a passive skill: it acts by itself and no key uses it. The Stand skills screen lists it
+	 * under its passive skills with its description ({@code <namespace>.ability.<name>.desc}), whether its Resolve level
+	 * is reached and its cooldown; it is not offered on the controls screen. In a moveset:
+	 * {@code .addAbility("my_passive", MY_PASSIVE_TYPE, ability -> ability.passive())}; an ability class may override
+	 * {@link #isPassive()} instead.
+	 */
+	public Ability passive() {
+		this.passive = true;
+		return this;
+	}
+
+	public boolean isPassive() {
+		return passive;
+	}
+
 	
 	public AbilityUsageGroup getAbilityUsageCategory() {
 		return usageGroup;
@@ -191,6 +211,50 @@ public class Ability {
 		this.cooldownResolveMultiplier = Math.max(0.0F, Math.min(resolveCooldownMultiplier, 1.0F));
 		this.cooldownResolveMultiplierApplies = true;
 		return this;
+	}
+
+	/**
+	 * The cooldown {@link #getCooldown} gives in the normal mode, also while its Stand user plays without cooldowns: what
+	 * the no-cooldown mode's fatigue is derived from (StandAbilityFatigue). An override of getCooldown that reads the
+	 * setting itself sees it off here.
+	 */
+	public final int getNormalCooldown(Power<?> context, int ticksHeld) {
+		return PlayerClientBroadcastedSettings.inNormalCooldownMode(() -> getCooldown(context, ticksHeld));
+	}
+
+	/**
+	 * Flags this ability as a small practical skill (an emergency escape, a Stand's everyday skill in the manga): its
+	 * repeats in the no-cooldown mode cost even less at first (StandAbilityFatigue#FULL_COST_REPEAT_PRACTICAL). In a moveset:
+	 * {@code .addAbility("my_skill", MY_SKILL_TYPE, ability -> ability.practicalSkill())}; an ability class may override
+	 * {@link #isPracticalSkill} instead. RotpAddonApi#FEATURE_STAND_ABILITY_FATIGUE_V1.
+	 */
+	public Ability practicalSkill() {
+		this.practicalSkill = true;
+		return this;
+	}
+
+	@ApiStatus.OverrideOnly
+	public boolean isPracticalSkill(Power<?> context) {
+		return practicalSkill;
+	}
+
+	/**
+	 * Sets the cooldown, in ticks taken as they are, that this ability's fatigue in the no-cooldown mode is derived from in
+	 * place of its normal cooldown: a hand-set tier. 0 gives it no fatigue. An ability class may override
+	 * {@link #getFatigueCooldown} instead.
+	 */
+	public Ability fatigueCooldown(int ticks) {
+		this.fatigueCooldown = Math.max(ticks, 0);
+		return this;
+	}
+
+	/**
+	 * The cooldown this use's fatigue is derived from (StandAbilityFatigue): by default {@code normalCooldown}, the one the
+	 * normal mode sets for this use in the Stand's cooldown share; {@link #fatigueCooldown} replaces it.
+	 */
+	@ApiStatus.OverrideOnly
+	public int getFatigueCooldown(Power<?> context, int normalCooldown) {
+		return fatigueCooldown >= 0 ? fatigueCooldown : normalCooldown;
 	}
 
 	public int getCooldown(Power<?> context, int ticksHeld) {
@@ -281,6 +345,9 @@ public class Ability {
 			int cooldown = getCooldown(context, ticksHeld);
 			if (cooldown > 0) {
 				standPower.setAbilityCooldown(name(), cooldown);
+			}
+			else {
+				StandAbilityFatigue.onCooldownSkipped(standPower, this, ticksHeld);
 			}
 		}
 	}
@@ -432,6 +499,16 @@ public class Ability {
 	/** {@link #sayShout} for code that holds the ability as an action instance's EntityActionType. */
 	public static boolean sayShoutOf(@Nullable EntityActionType ability, LivingEntity user, @Nullable Holder<SoundEvent> shout) {
 		return ability instanceof Ability shouting && shouting.sayShout(user, shout);
+	}
+
+	/** {@link #sayShout}, which a voice pack's line for {@code trigger} replaces for a speaker its clothes make a character. */
+	public boolean sayShout(LivingEntity user, @Nullable Holder<SoundEvent> shout, Holder<SoundEvent> trigger) {
+		return !skipsShoutWhileSneaking(user) && JojoModUtil.sayVoiceLine(user, shout, trigger, 1.0F, 1.0F, 200, false);
+	}
+
+	public static boolean sayShoutOf(@Nullable EntityActionType ability, LivingEntity user, @Nullable Holder<SoundEvent> shout,
+			Holder<SoundEvent> trigger) {
+		return ability instanceof Ability shouting && shouting.sayShout(user, shout, trigger);
 	}
 
 	/**
@@ -690,7 +767,7 @@ public class Ability {
 	 */
 	public AbilityInputState cl_abilityInputState(Power<?> context) {
 		AbilityInputState state = AbilityInputState.init();
-		if (InputHandler.inputsDisabled || Minecraft.getInstance().screen != null) {
+		if (InputHandler.inputsDisabled || InputHandler.screenHoldsAbilities()) {
 			state.setFlag(AbilityInputState.IS_ACTIVE, false);
 			state.setFlag(AbilityInputState.VISIBLE_WHEN_INACTIVE, true);
 		}
@@ -700,6 +777,15 @@ public class Ability {
 	@Nullable
 	public WindupIndicator cl_windupIndicator(LivingEntity clientPlayer, WindupIndicator indicator, float partialTick) {
 		return null;
+	}
+
+	/**
+	 * Whether what this ability started still runs now with its Stand recalled (the owner's 收回仍持續: a disguise, an aura,
+	 * a link), read on the client from the user's own state. The HUD lights the ability's slots while the Stand is away, where
+	 * the recalled Stand's bar is otherwise drawn dark. Asked only while the user has no Stand out. False by default.
+	 */
+	public boolean cl_runsWithStandRecalled(LivingEntity user) {
+		return false;
 	}
 
 	/**

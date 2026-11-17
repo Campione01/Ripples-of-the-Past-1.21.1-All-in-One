@@ -16,6 +16,7 @@ import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.TrainableAbility;
 import rotp.core.powersystem.playerpower.PlayerPower;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandSpecials;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.type.StandTypePersistentData;
 import rotp.core.impl.powers.pillarman.PillarmanData;
@@ -139,10 +140,10 @@ public final class TimeStopLearning {
 				TimeStopBehaviorPolicies.progression(power);
 		int humanMaxTicks = policy != null
 				? policy.humanMaxTicks()
-				: HUMAN_MAX_TIME_STOP_TICKS;
+				: StandSpecials.timeStopTicks(power, StandSpecials.TIME_STOP_SECONDS, HUMAN_MAX_TIME_STOP_TICKS);
 		int enhancedMaxTicks = policy != null
 				? policy.enhancedMaxTicks()
-				: VAMPIRE_MAX_TIME_STOP_TICKS;
+				: StandSpecials.timeStopTicks(power, StandSpecials.TIME_STOP_SECONDS_ENHANCED, VAMPIRE_MAX_TIME_STOP_TICKS);
 		if (isHighSaturationZombie(user)) {
 			return getZombieMaxTimeStopTicks(policy);
 		}
@@ -243,11 +244,13 @@ public final class TimeStopLearning {
 			return timeStopTicks;
 		}
 		float costMultiplier = PlayerClientBroadcastedSettings.getTimeStopStaminaCostMultiplier(power);
-		float tickingCost = getTsPunchTimeStopStaminaCostTicking(power) * costMultiplier;
+		// weighed as consumeStamina will take it, in the Stand's stamina share
+		float tickingCost = power.getStaminaCostShare(getTsPunchTimeStopStaminaCostTicking(power) * costMultiplier);
 		if (tickingCost <= 0.0F) {
 			return timeStopTicks;
 		}
-		int affordableTicks = Mth.floor((power.getStamina() - getTsPunchTimeStopBaseStaminaCost(power) * costMultiplier) / tickingCost);
+		int affordableTicks = Mth.floor((power.getStamina()
+				- power.getStaminaCostShare(getTsPunchTimeStopBaseStaminaCost(power) * costMultiplier)) / tickingCost);
 		return Mth.clamp(affordableTicks, 0, timeStopTicks);
 	}
 
@@ -269,10 +272,10 @@ public final class TimeStopLearning {
 			return policy.learningPerTick();
 		}
 		if (standPower != null && standPower.getPowerType() == ModStands.STAR_PLATINUM.get()) {
-			return STAR_PLATINUM_LEARNING_PER_TICK;
+			return StandSpecials.timeStopFloat(standPower, StandSpecials.TIME_STOP_GROWTH, STAR_PLATINUM_LEARNING_PER_TICK);
 		}
 		if (standPower != null && standPower.getPowerType() == ModStands.THE_WORLD.get()) {
-			return THE_WORLD_LEARNING_PER_TICK;
+			return StandSpecials.timeStopFloat(standPower, StandSpecials.TIME_STOP_GROWTH, THE_WORLD_LEARNING_PER_TICK);
 		}
 		return THE_WORLD_LEARNING_PER_TICK;
 	}

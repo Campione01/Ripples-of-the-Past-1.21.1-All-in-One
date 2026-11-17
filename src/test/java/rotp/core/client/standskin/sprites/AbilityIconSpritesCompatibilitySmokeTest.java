@@ -3,11 +3,20 @@ package rotp.core.client.standskin.sprites;
 import java.io.IOException;
 import java.io.InputStream;
 import java.awt.image.BufferedImage;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.imageio.ImageIO;
 
+import rotp.core.powersystem.Moveset;
+import rotp.core.powersystem.Power;
+import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
+import rotp.core.powersystem.standpower.StandUnlockableSkill;
+import rotp.core.powersystem.unlockableskill.UnlockableSkill;
 import rotp.core.impl.stands._entitybase.StandEntityGrabReleaseAbility;
 
 import net.minecraft.resources.ResourceLocation;
@@ -29,6 +38,26 @@ public final class AbilityIconSpritesCompatibilitySmokeTest {
 				"namespaced icon cache must preserve the addon namespace");
 		check("ability/heavy_punch".equals(namespaced.getPath()),
 				"namespaced icon cache must use the standard ability path");
+
+		// The Ultimate Lifeform's heavy_punch showed the user's Stand's heavy_punch icon.
+		Object standPower = "stand";
+		check("skin".equals(AbilityIconSprites.skinOfPower(standPower, standPower, "skin")),
+				"a Stand's move must take its icon from its skin");
+		check(AbilityIconSprites.skinOfPower("player", standPower, "skin") == null,
+				"another power's move must not take its icon from the user's Stand skin");
+
+		// OQ-C21: a marker's plain icon name is looked for in the add-on Stand's namespace first, then the core's
+		Map<ResourceLocation, String> markerIcons = Map.of(
+				ResourceLocation.fromNamespaceAndPath("rotp_test", "trap"), "add-on trap",
+				ResourceLocation.fromNamespaceAndPath("jojo_ripples", "trap"), "core trap",
+				ResourceLocation.fromNamespaceAndPath("jojo_ripples", "barrier"), "core barrier");
+		ResourceLocation addonStand = ResourceLocation.fromNamespaceAndPath("rotp_test", "test_stand");
+		check("add-on trap".equals(AbilityIconSprites.resolveMarkerIcon("trap", addonStand,
+				id -> markerIcons.getOrDefault(id, "missing"), "missing")), "an add-on marker must find its own icon first");
+		check("core barrier".equals(AbilityIconSprites.resolveMarkerIcon("barrier", addonStand,
+				id -> markerIcons.getOrDefault(id, "missing"), "missing")), "an add-on marker must fall back on the core's icon");
+		check("core trap".equals(AbilityIconSprites.resolveMarkerIcon("trap", null,
+				id -> markerIcons.getOrDefault(id, "missing"), "missing")), "a marker with no Stand must take the core's icon");
 
 		AbilityType<StandEntityGrabReleaseAbility> releaseType = new AbilityType<>(
 				ResourceLocation.fromNamespaceAndPath("jojo_ripples", "stand_grab_release"),
@@ -63,6 +92,57 @@ public final class AbilityIconSpritesCompatibilitySmokeTest {
 		catch (IOException exception) {
 			throw new AssertionError("Could not read the shared release icon", exception);
 		}
+
+		checkSkillIconAgreesWithHud();
+	}
+
+	// The skills screen must not take the core's icon of a name while the HUD shows the add-on's.
+	private static void checkSkillIconAgreesWithHud() {
+		ResourceLocation stand = ResourceLocation.fromNamespaceAndPath("rotp_test", "test_stand");
+		AbilityType<Ability> type = new AbilityType<>(
+				ResourceLocation.fromNamespaceAndPath("rotp_test", "plain"), Ability::new);
+		AbilityType<Ability> fixedSpriteType = new AbilityType<>(
+				ResourceLocation.fromNamespaceAndPath("rotp_test", "fixed_sprite"),
+				(abilityType, id) -> new Ability(abilityType, id) {
+					@Override public String getSpriteName(Power<?> context) { return "block"; }
+				});
+		Map<String, Ability> abilities = new LinkedHashMap<>();
+		for (String name : List.of("punch", "second_of_group", "core_only")) {
+			abilities.put(name, type.createInstance(new AbilityId(null, stand, name)));
+		}
+		abilities.put("guard", fixedSpriteType.createInstance(new AbilityId(null, stand, "guard")));
+		Moveset moveset = new Moveset(abilities, null, stand);
+
+		Set<String> icons = Set.of("rotp_test:punch", "jojo_ripples:punch",
+				"rotp_test:block", "jojo_ripples:guard",
+				"rotp_test:group", "jojo_ripples:group",
+				"rotp_test:second_of_group", "jojo_ripples:core_only");
+
+		checkEquals("rotp_test:punch", skillIcon(StandUnlockableSkill.startingAbility("punch"), moveset, stand, icons),
+				"an add-on icon with a core name must win, as on the HUD");
+		checkEquals("rotp_test:block", skillIcon(StandUnlockableSkill.startingAbility("guard"), moveset, stand, icons),
+				"a fixed sprite of the ability must win over the core's icon of the skill's name, as on the HUD");
+		checkEquals("rotp_test:group", skillIcon(new StandUnlockableSkill("group").withAbility("second_of_group"), moveset, stand, icons),
+				"a skill with no ability of its name must take its own icon from its Stand's namespace");
+		checkEquals("rotp_test:second_of_group", skillIcon(new StandUnlockableSkill("no_own_icon").withAbility("second_of_group"), moveset, stand, icons),
+				"a skill with no icon of its own must take the icon of an ability it unlocks");
+		checkEquals("jojo_ripples:core_only", skillIcon(StandUnlockableSkill.startingAbility("core_only"), moveset, stand, icons),
+				"a skill with no add-on icon keeps the core's icon of that name");
+		checkEquals(MISSING, skillIcon(new StandUnlockableSkill("nothing").withAbility("not_in_moveset"), moveset, stand, icons),
+				"a skill with no icon anywhere is missing");
+		checkEquals("jojo_ripples:punch", skillIcon(StandUnlockableSkill.startingAbility("punch"), null, null, icons),
+				"with no power only the core's icon is left");
+	}
+
+	private static final String MISSING = "missing";
+
+	private static String skillIcon(UnlockableSkill skill, Moveset moveset, ResourceLocation stand, Set<String> icons) {
+		return AbilityIconSprites.resolveSkillIcon(skill, moveset, stand, null,
+				id -> icons.contains(id.toString()) ? id.toString() : MISSING, MISSING);
+	}
+
+	private static void checkEquals(String expected, String actual, String message) {
+		check(expected.equals(actual), message + ": expected " + expected + ", got " + actual);
 	}
 
 	private static void check(boolean condition, String message) {

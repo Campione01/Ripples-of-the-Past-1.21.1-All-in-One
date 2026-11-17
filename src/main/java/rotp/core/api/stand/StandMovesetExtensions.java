@@ -14,6 +14,7 @@ import rotp.core.powersystem.MovesetBuilder;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.config.ConfigAbilityFactory;
+import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.standpower.StandUnlockableSkill;
 
@@ -181,6 +182,32 @@ public final class StandMovesetExtensions {
 					requireName(controlSchemeName, "controlSchemeName"),
 					hotbarId,
 					requireName(abilityName, "abilityName"),
+					inputMethod));
+			return this;
+		}
+
+		/**
+		 * The ability as a variation in the slot of an ability already on the bar.
+		 * Fails when the moveset is built if the base has no slot there.
+		 */
+		public Builder addHotbarSlotVariation(String controlSchemeName,
+				int hotbarId, String baseAbilityName, String abilityName,
+				InputKey.Modifier modifier, InputMethod inputMethod) {
+			if (hotbarId < 0) {
+				throw new IllegalArgumentException(
+						"hotbarId must be non-negative");
+			}
+			if (inputMethod != InputMethod.CLICK
+					&& inputMethod != InputMethod.HOLD) {
+				throw new IllegalArgumentException(
+						"Stand moveset extensions only support CLICK or HOLD");
+			}
+			operations.add(new AddHotbarSlotVariation(
+					requireName(controlSchemeName, "controlSchemeName"),
+					hotbarId,
+					requireName(baseAbilityName, "baseAbilityName"),
+					requireName(abilityName, "abilityName"),
+					Objects.requireNonNull(modifier, "modifier"),
 					inputMethod));
 			return this;
 		}
@@ -475,6 +502,22 @@ public final class StandMovesetExtensions {
 			moveset.appendStandMovesetExtensionHotbar(
 					controlSchemeName, hotbarId,
 					abilityName, inputMethod);
+		}
+	}
+
+	private record AddHotbarSlotVariation(
+			String controlSchemeName,
+			int hotbarId,
+			String baseAbilityName,
+			String abilityName,
+			InputKey.Modifier modifier,
+			InputMethod inputMethod) implements Operation {
+
+		@Override
+		public void apply(MovesetBuilder moveset) {
+			moveset.addStandMovesetExtensionHotbarVariation(
+					controlSchemeName, hotbarId, baseAbilityName,
+					abilityName, modifier, inputMethod);
 		}
 	}
 

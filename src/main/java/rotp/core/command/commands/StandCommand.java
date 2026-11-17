@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import rotp.core.api.stand.StandPowerTransitions;
 import rotp.core.command.MultipleTargetsCommandResult;
 import rotp.core.command.argument.StandArgument;
 import rotp.core.core.JojoMod;
@@ -124,7 +125,7 @@ public class StandCommand {
 			if (entity instanceof LivingEntity living) {
 				PowerClass.STAND.attachPower(living);
 				StandPower stand = PowerClass.STAND.get(living);
-				if (stand != null && (replace || !stand.hasPower())) {
+				if (stand != null && (replace || !holdsAStand(stand))) {
 					clearBeforeReplace(stand);
 					stand.setStand(standType);
 					i++;
@@ -138,14 +139,21 @@ public class StandCommand {
 	/**
 	 * 1.16 /stand give ... true and /stand random ... true called power.clear() before giving: the Stand was
 	 * unsummoned and removed with its Resolve value, boosts and records (ResolveCounter.onClearStandType), so the
-	 * same Stand was given anew. The port's clear is the stand remover's transition.
+	 * same Stand was given anew. The port's clear is the stand remover's transition. During a temporary loan the Stand
+	 * being replaced is the reserved one, so the loan ends first.
 	 */
 	private static void clearBeforeReplace(StandPower stand) {
+		StandPowerTransitions.abortTemporaryLoan(stand);
 		if (stand.hasPower()) {
 			stand.applyDestructiveTransition(false);
 		}
 	}
-	
+
+	// a Stand reserved during a temporary loan is held, even while the borrowed one is lost: only replace may take it
+	private static boolean holdsAStand(StandPower stand) {
+		return stand.hasPower() || stand.temporaryLoanId() != null;
+	}
+
 	private static int setRandomStand(CommandSourceStack src, Collection<ServerPlayer> targets, boolean replace) {
 		int i = 0;
 		for (ServerPlayer player : targets) {
@@ -154,7 +162,7 @@ public class StandCommand {
 			if (stand == null) {
 				continue;
 			}
-			if (!replace && stand.hasPower()) {
+			if (!replace && holdsAStand(stand)) {
 				src.sendFailure(Component.translatable("rotp.commands.stand.give.failed.single", player.getDisplayName()));
 				continue;
 			}
@@ -188,6 +196,7 @@ public class StandCommand {
 			if (entity instanceof LivingEntity living) {
 				StandPower stand = StandPower.get(living);
 				if (stand != null) {
+					StandPowerTransitions.abortTemporaryLoan(stand);
 					if (stand.hasPower()) {
 						singlePrevType = stand.getPowerType();
 					}

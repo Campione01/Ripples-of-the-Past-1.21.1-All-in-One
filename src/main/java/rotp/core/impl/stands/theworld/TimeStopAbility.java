@@ -3,6 +3,10 @@ package rotp.core.impl.stands.theworld;
 import java.util.Locale;
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
+import rotp.core.api.simulation.EntitySimulations;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.api.timestop.TimeStopAudioContext;
 import rotp.core.api.timestop.TimeStopAudioCue;
 import rotp.core.api.timestop.TimeStopAudioDecision;
@@ -22,15 +26,18 @@ import rotp.core.init.power.ModPlayerPowers;
 import rotp.core.init.power.ModStands;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
+import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityId;
 import rotp.core.powersystem.ability.AbilityType;
 import rotp.core.powersystem.ability.EntityActionAbility;
 import rotp.core.powersystem.ability.TrainableAbility;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.ability.controls.InputMethod;
+import rotp.core.powersystem.ability.input.AbilityInput;
 import rotp.core.powersystem.ability.input.ActionInputBuffer.BufferingState;
 import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
 import rotp.core.powersystem.entityaction.ActionPhase;
+import rotp.core.powersystem.entityaction.EntityActionInputState;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.HeldInput;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
@@ -46,6 +53,8 @@ import rotp.core.powersystem.standpower.entity.StandEntityAbility.AutoSummonMode
 import rotp.core.subsystems.timestop.TimeStopCooldowns;
 import rotp.core.subsystems.timestop.TimeStopLearning;
 import rotp.core.subsystems.timestop.TimeStopState;
+import rotp.core.util.functions.JojoModUtil;
+import rotp.core.util.sound.MultiSoundEventResolver;
 import rotp.core.impl.powers.hamon.ModHamonSkills;
 
 import net.minecraft.core.Holder;
@@ -62,10 +71,15 @@ import net.minecraft.world.level.Level;
 
 public class TimeStopAbility extends StandEntityAbility implements TrainableAbility {
 	private static final ActionAnimIdentifier TIME_STOP_ANIM = ActionAnimIdentifier.getOrCreate("time_stop", false);
-	private static final int STAR_PLATINUM_HOLD_TO_FIRE_TICKS = 40;
-	private static final int THE_WORLD_HOLD_TO_FIRE_TICKS = 30;
-	private static final int THE_WORLD_RESOLVE_HOLD_TO_FIRE_TICKS = 20;
+	// only says the ability has a charge at all; a press reads its length from the config
+	private static final int DEFAULT_CHARGE_PHASE_TICKS = 30;
 	private static final int TIME_STOP_SOUND_MIN_TICKS = 40;
+	/** A release before this share of the full charge starts nothing (the owner, 2026-11-05). */
+	private static final float MIN_RELEASE_CHARGE_SHARE = 0.5F;
+	/** A second press this many ticks or fewer after the first fires at once: vanilla's window for a double-tap sprint. */
+	public static final int DOUBLE_PRESS_WINDOW_TICKS = 7;
+	// a tap is over by then, so it says nothing; a charge let go before its minimum has its line cut off
+	private static final int CHARGE_VOICE_DELAY_TICKS = 4;
 	// the user's TIME_STOP effect also covers this opening (time_stop_9 checks 180 + 35 ticks)
 	public static final int TIME_STOP_OPENING_SETTLE_TICKS = 35;
 	private static final int STAR_PLATINUM_RESOLVE_LEVEL_TO_UNLOCK = 4;
@@ -75,7 +89,7 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 
 	public TimeStopAbility(AbilityType<?> abilityType, AbilityId abilityId) {
 		super(abilityType, abilityId, TimeStopAction::new);
-		setDefaultPhaseLength(ActionPhase.BUTTON_CHARGE, THE_WORLD_HOLD_TO_FIRE_TICKS);
+		setDefaultPhaseLength(ActionPhase.BUTTON_CHARGE, DEFAULT_CHARGE_PHASE_TICKS);
 		setDefaultPhaseLength(ActionPhase.PERFORM, 1);
 		setDefaultPhaseLength(ActionPhase.RECOVERY, 0);
 		partsRequired(StandPart.MAIN_BODY);
@@ -182,10 +196,20 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 			InputMethod inputMethod, float clickHoldResolveTime, BufferingState bufferingState) {
 		if (hasOwnTimeStop(user)) {
 			bufferingState.isActionSuccess = requestManualResume(level, user);
+			if (bufferingState.isActionSuccess) {
+				noteResumePress(user);
+			}
 			return null;
 		}
 		StandPower power = !level.isClientSide() ? PowerClass.STAND.get(user) : null;
 		boolean standAlreadySummoned = power != null && power.getSummonedStandEntity() != null;
+		boolean freshPress = !bufferingState.isBuffered();
+		if (power != null && freshPress && !isCurrentlyInStoppedTime(user) && isHeldPressHeldBack(user)) {
+			EntityActionInstance held = AbilityInput.getHeldAction(user, PowerClass.STAND);
+			if (held != null && !(held instanceof TimeStopAction) && isSecondPressBehindHold(user)) {
+				endHeldActionForEmergencyStop(user, power, held);
+			}
+		}
 		// a press held back while the Stand power holds an action leaves that hold to setOrBufferAction's buffer
 		if (power != null && !isCurrentlyInStoppedTime(user) && !isHeldPressHeldBack(user)) {
 			clearCurrentStandAction(power);
@@ -198,12 +222,72 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 				: super.onKeyPress(level, user, extraClientInput, inputMethod, clickHoldResolveTime, bufferingState);
 		if (heldInput instanceof TimeStopAction timeStopAction) {
 			timeStopAction.setStandAlreadySummoned(standAlreadySummoned);
-			if (bufferingState.isActionSuccess && level instanceof ServerLevel serverLevel
-					&& power != null && !isCurrentlyInStoppedTime(user)) {
-				playTimeStopVoiceLine(serverLevel, user, power, standAlreadySummoned);
+			// 1.16 TimeStop#getShout: no line inside stopped time, where the charge is 0 and no press is a double press
+			if (bufferingState.isActionSuccess && power != null && !isCurrentlyInStoppedTime(user)) {
+				timeStopAction.voiceDue = true;
+				if (timeStopAction.phasesLength.getFloat(ActionPhase.BUTTON_CHARGE) > 0 && isSecondPress(user, freshPress)) {
+					timeStopAction.fireDoublePress(this);
+					return null;
+				}
 			}
 		}
 		return heldInput;
+	}
+
+	/**
+	 * The press that began a charge is a double press's first; another within {@link #DOUBLE_PRESS_WINDOW_TICKS} is its
+	 * second. A press that close to a resume is neither, so mashing the key to resume a stop starts no new one. A press a
+	 * held action kept in the buffer is a first press for the key's next press, never for its own replay.
+	 */
+	private static boolean isSecondPress(LivingEntity user, boolean freshPress) {
+		EntityActionInputState input = user.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get());
+		long now = user.level().getGameTime();
+		long first = freshPress
+				? Math.max(input.timeStopFirstPressTime, input.timeStopHeldBackPressTime)
+				: input.timeStopFirstPressTime;
+		boolean afterResume = now - input.timeStopResumePressTime <= DOUBLE_PRESS_WINDOW_TICKS;
+		boolean second = !afterResume && now - first <= DOUBLE_PRESS_WINDOW_TICKS;
+		input.timeStopFirstPressTime = second || afterResume ? EntityActionInputState.NO_PRESS : now;
+		input.timeStopHeldBackPressTime = EntityActionInputState.NO_PRESS;
+		return second;
+	}
+
+	// a press the held action keeps back is noted; the key's next press within the window is a double press
+	private static boolean isSecondPressBehindHold(LivingEntity user) {
+		EntityActionInputState input = user.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get());
+		long now = user.level().getGameTime();
+		boolean afterResume = now - input.timeStopResumePressTime <= DOUBLE_PRESS_WINDOW_TICKS;
+		long first = Math.max(input.timeStopFirstPressTime, input.timeStopHeldBackPressTime);
+		boolean second = !afterResume && now - first <= DOUBLE_PRESS_WINDOW_TICKS;
+		if (!second) {
+			input.timeStopHeldBackPressTime = afterResume ? EntityActionInputState.NO_PRESS : now;
+		}
+		return second;
+	}
+
+	/*
+	 * The owner's emergency stop (M0110): a double press does not wait behind a held guard or barrage. Its key lets go and
+	 * the action ends at once, its recovery too (a barrage let go would otherwise refuse the stop for its recovery).
+	 */
+	private static void endHeldActionForEmergencyStop(LivingEntity user, StandPower power, EntityActionInstance held) {
+		AbilityInput.interruptHeldInputs(user, PowerClass.STAND);
+		StandEntity standEntity = power.getSummonedStandEntity();
+		for (LivingComponentAction slot : new LivingComponentAction[] {
+				standEntity != null ? LivingComponentAction.getExistingComponent(standEntity) : null,
+				LivingComponentAction.getExistingComponent(user, PowerClass.STAND) }) {
+			if (slot != null && slot.getAction() == held) {
+				slot.setAction(null, SyncType.TRACKING_AND_SELF);
+			}
+		}
+	}
+
+	static void noteResumePress(LivingEntity user) {
+		user.getData(ModDataAttachmentTypes.ENTITY_ABILITY_INPUT.get()).timeStopResumePressTime = user.level().getGameTime();
+	}
+
+	/** The ticks a charge of this length must be held for its release to start a stop. */
+	public static int getMinReleaseChargeTicks(float chargeLength) {
+		return Mth.ceil(chargeLength * MIN_RELEASE_CHARGE_SHARE);
 	}
 
 	private void clearCurrentStandAction(StandPower power) {
@@ -284,6 +368,8 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 				indicator.maxValue = curAction.getAnimPhaseLength();
 				if (indicator.maxValue > 0) {
 					indicator.value = curAction.getAnimPhaseTick(partialTick);
+					// the release's minimum (onButtonStopHold) marked on the fill
+					indicator.minValue = getMinReleaseChargeTicks(indicator.maxValue);
 				}
 			}
 			else {
@@ -322,20 +408,24 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 		if (isCurrentlyInStoppedTime(user)) {
 			return 0;
 		}
+		int chargeTicks = JojoModConfig.getCommonConfigInstance(user.level().isClientSide()).timeStopChargeTicks();
 		StandPower power = PowerClass.STAND.get(user);
-		if (power != null && power.getPowerType() == ModStands.STAR_PLATINUM.get()) {
-			return STAR_PLATINUM_HOLD_TO_FIRE_TICKS;
+		if (power != null && power.getPowerType() != ModStands.STAR_PLATINUM.get()
+				&& shortensChargeAtResolveFour(power) && power.getResolveLevel() >= 4) {
+			return getResolveFourChargeTicks(chargeTicks);
 		}
-		if (power != null && shortensChargeAtResolveFour(power) && power.getResolveLevel() >= 4) {
-			return THE_WORLD_RESOLVE_HOLD_TO_FIRE_TICKS;
-		}
-		return THE_WORLD_HOLD_TO_FIRE_TICKS;
+		return chargeTicks;
+	}
+
+	/** Two thirds of the charge, 1.16's 20 of 30, never under the config's minimum. */
+	public static int getResolveFourChargeTicks(int chargeTicks) {
+		return Math.max(Math.round(chargeTicks * 2.0F / 3.0F),
+				Math.round((float) (JojoModConfig.TIME_STOP_CHARGE_SECONDS_MIN * 20.0D)));
 	}
 
 	/**
-	 * 1.16 TheWorldTimeStop#getHoldDurationToFire: from Resolve level 4 the charge takes
-	 * holdDurationToFireMaxLevel (20) ticks. Add-on time stops that 1.16 built as a
-	 * TheWorldTimeStop return true.
+	 * 1.16 TheWorldTimeStop#getHoldDurationToFire: from Resolve level 4 the charge is shorter, now two thirds of the
+	 * config's. Add-on time stops that 1.16 built as a TheWorldTimeStop return true.
 	 */
 	protected boolean shortensChargeAtResolveFour(StandPower power) {
 		return power.getPowerType() == ModStands.THE_WORLD.get();
@@ -383,8 +473,8 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 	}
 
 	/**
-	 * The owner's never-refunded unit (2026-10-14): what the shortest stop, an immediate release of the charge,
-	 * costs under the same startup-cost policy and multiplier as the stop that starts.
+	 * The owner's never-refunded unit (2026-10-14): what the shortest stop, a double press's, costs under the same
+	 * startup-cost policy and multiplier as the stop that starts.
 	 */
 	private float getShortestStopStaminaCost(StandPower power, String learningName, TimeStopState.Instance instance,
 			float chargeLength) {
@@ -396,7 +486,9 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 		return effectiveTimeStopStaminaCost(power, decision.isDenied() ? defaultCost : decision.resolve(defaultCost));
 	}
 
-	private void playTimeStopVoiceLine(ServerLevel serverLevel, LivingEntity user, StandPower power, boolean standAlreadySummoned) {
+	// the line it said, to cut off a charge that ends without its stop
+	@Nullable
+	private Holder<SoundEvent> sayTimeStopVoiceLine(LivingEntity user, StandPower power, boolean standAlreadySummoned) {
 		TimeStopAudioDecision decision =
 				TimeStopBehaviorPolicies.resolveAudio(
 						power.getPowerType().getId(),
@@ -413,7 +505,13 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 			case SOUND -> decision.sound();
 			case SILENT -> null;
 		};
-		sayShout(user, voiceLine);
+		if (decision.kind() == TimeStopAudioDecision.Kind.SILENT || skipsShoutWhileSneaking(user)) {
+			return null;
+		}
+		Holder<SoundEvent> resolved = voiceLine != null ? MultiSoundEventResolver.resolve(voiceLine) : null;
+		// 1.16 TimeStop: voiceLineDelay 0, a charge let go early must not keep the next one's line back
+		return JojoModUtil.sayVoiceLine(user, resolved, ModSoundEvents.VOICELINE_TIME_STOP, 1.0F, 1.0F, 0, false)
+				? (resolved != null ? resolved : ModSoundEvents.VOICELINE_TIME_STOP) : null;
 	}
 
 	private Holder<SoundEvent> getTimeStopVoiceLine(LivingEntity user, StandPower power, boolean standAlreadySummoned) {
@@ -451,11 +549,16 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 		return startTimeStopAfterHold(user, standAlreadySummoned, requestedTimeStopTicks, getHoldToFireTicks(user));
 	}
 
-	// chargeLength: the charge the press had; it prices the shortest stop, whose cost an early end never gives back
 	private boolean startTimeStopAfterHold(LivingEntity user, boolean standAlreadySummoned, int requestedTimeStopTicks,
 			float chargeLength) {
+		return startTimeStopAfterHold(user, standAlreadySummoned, requestedTimeStopTicks, chargeLength, false);
+	}
+
+	// chargeLength: the charge the press had; it prices the shortest stop, whose cost an early end never gives back
+	private boolean startTimeStopAfterHold(LivingEntity user, boolean standAlreadySummoned, int requestedTimeStopTicks,
+			float chargeLength, boolean doublePress) {
 		Level level = user.level();
-		if (level.isClientSide() || !(level instanceof ServerLevel serverLevel)) {
+		if (level.isClientSide() || !(level instanceof ServerLevel serverLevel) || EntitySimulations.isSimulated(user)) {
 			return false;
 		}
 		StandPower power = PowerClass.STAND.get(user);
@@ -553,50 +656,76 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 		if (state.getInstance(instance.id()).orElse(null) != instance) {
 			return false;
 		}
+		// in the no-cooldown mode a stop begun while the last one's fatigue runs pays its repeat now (its end adds the
+		// fatigue); the double press is the owner's emergency stop, a small practical skill
+		StandAbilityFatigue.chargeRepeat(power, this, doublePress);
 		TimeStopLearning.markUsedTimeStopToday(power);
 		ModCriteriaTriggers.triggerTimeAbility(user, power);
 		if (!invadingStoppedTime) {
-			if (instance.totalTicks() >= TIME_STOP_SOUND_MIN_TICKS) {
-				TimeStopAudioDecision soundDecision =
-						TimeStopBehaviorPolicies.resolveAudio(
-								instance.standTypeId().orElse(null),
-								new TimeStopAudioContext(
-										TimeStopAudioCue.START_SOUND,
-										user,
-										power,
-										abilityId,
-										instance,
-										standAlreadySummoned));
-				Holder<SoundEvent> startSound =
-						switch (soundDecision.kind()) {
-							case PASS -> getTimeStopSound(power);
-							case SOUND -> soundDecision.sound();
-							case SILENT -> null;
-						};
-				TimeStopState.Instance soundInstance = instance;
-				if (startSound != null) {
-					StandUtil.broadcastSoundWithCondition(
-							serverLevel,
-							user.position(),
-							startSound,
-							false,
-							power,
-							SoundSource.AMBIENT,
-							5.0F,
-							1.0F,
-							player -> soundInstance.covers(
-											new ChunkPos(
-													player.blockPosition()))
-									&& TimeStopState
-											.canPlayerSeeInStoppedTime(player));
-				}
+			Holder<SoundEvent> startSound = doublePress
+					? getDoublePressSound(user, power, instance, standAlreadySummoned)
+					: instance.totalTicks() >= TIME_STOP_SOUND_MIN_TICKS
+							? getStartSound(user, power, instance, standAlreadySummoned)
+							: null;
+			TimeStopState.Instance soundInstance = instance;
+			if (startSound != null) {
+				StandUtil.broadcastSoundWithCondition(
+						serverLevel,
+						user.position(),
+						startSound,
+						false,
+						power,
+						SoundSource.AMBIENT,
+						5.0F,
+						1.0F,
+						player -> soundInstance.covers(
+										new ChunkPos(
+												player.blockPosition()))
+								&& TimeStopState
+										.canPlayerSeeInStoppedTime(player));
 			}
 		}
 		return true;
 	}
 
+	@Nullable
+	private Holder<SoundEvent> getStartSound(LivingEntity user, StandPower power, TimeStopState.Instance instance,
+			boolean standAlreadySummoned) {
+		TimeStopAudioDecision soundDecision =
+				TimeStopBehaviorPolicies.resolveAudio(
+						instance.standTypeId().orElse(null),
+						new TimeStopAudioContext(
+								TimeStopAudioCue.START_SOUND,
+								user,
+								power,
+								abilityId,
+								instance,
+								standAlreadySummoned));
+		return switch (soundDecision.kind()) {
+			case PASS -> getTimeStopSound(power);
+			case SOUND -> soundDecision.sound();
+			case SILENT -> null;
+		};
+	}
+
+	// the sound of 1.16's instant stop, TimeStopInstant's blink, or the Stand's stop sound if it has no blink
+	@Nullable
+	private Holder<SoundEvent> getDoublePressSound(LivingEntity user, StandPower power, TimeStopState.Instance instance,
+			boolean standAlreadySummoned) {
+		for (Ability ability : power.getMoveset().abilities.values()) {
+			if (ability instanceof TimeStopBlinkAbility blink && name().equals(blink.getTimeStopAbilityName())) {
+				return blink.getTimeStopBlinkSound(power);
+			}
+		}
+		return getStartSound(user, power, instance, standAlreadySummoned);
+	}
+
 	public static class TimeStopAction extends EntityActionInstance {
 		private boolean standAlreadySummoned;
+		// server: this charge's line, due from its press until it is said
+		private boolean voiceDue;
+		@Nullable private Holder<SoundEvent> saidVoice;
+		private boolean stopStarted;
 
 		public TimeStopAction(EntityActionType ability) {
 			super(ability);
@@ -631,15 +760,46 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 		}
 
 		@Override
+		public void actionTick() {
+			if (getPhase() == ActionPhase.BUTTON_CHARGE && curPhaseTick + 1 >= CHARGE_VOICE_DELAY_TICKS) {
+				sayChargeVoice();
+			}
+		}
+
+		private void sayChargeVoice() {
+			if (!voiceDue) {
+				return;
+			}
+			voiceDue = false;
+			LivingEntity user = getPowerUser();
+			StandPower power = user != null ? PowerClass.STAND.get(user) : null;
+			if (power != null && ability instanceof TimeStopAbility timeStop) {
+				saidVoice = timeStop.sayTimeStopVoiceLine(user, power, standAlreadySummoned);
+			}
+		}
+
+		// a charge that ends without its stop, by a release too early, a hit or anything else, stops announcing it
+		@Override
+		public void onActionCleared(@Nullable EntityActionInstance newAction) {
+			LivingEntity user = getPowerUser();
+			if (saidVoice != null && !stopStarted && !takesTargetsFromServer() && user != null) {
+				JojoModUtil.stopVoiceLine(user, saidVoice);
+			}
+		}
+
+		@Override
 		public void actionPerformStart() {
 			if (level().isClientSide()) {
 				return;
 			}
+			sayChargeVoice();
 			LivingEntity user = getPowerUser();
-			if (!(ability instanceof TimeStopAbility timeStop) || user == null
-					|| !timeStop.startTimeStopAfterHold(user, standAlreadySummoned,
-							TimeStopLearning.getTimeStopTicks(PowerClass.STAND.get(user), timeStop.getLearningAbilityName()),
-							phasesLength.getFloat(ActionPhase.BUTTON_CHARGE))) {
+			if (ability instanceof TimeStopAbility timeStop && user != null) {
+				stopStarted = timeStop.startTimeStopAfterHold(user, standAlreadySummoned,
+						TimeStopLearning.getTimeStopTicks(PowerClass.STAND.get(user), timeStop.getLearningAbilityName()),
+						phasesLength.getFloat(ActionPhase.BUTTON_CHARGE));
+			}
+			if (!stopStarted) {
 				LivingComponentAction.getComponentForSlot(performer, actionSlot()).setAction(null, SyncType.TRACKING_AND_SELF);
 			}
 			// the user's own client may have let go of its copy, which this full charge's perform then no longer reaches;
@@ -653,43 +813,57 @@ public class TimeStopAbility extends StandEntityAbility implements TrainableAbil
 		public void onButtonStopHold() {
 			if (getPhase() == ActionPhase.BUTTON_CHARGE) {
 				if (!takesTargetsFromServer()) {
-					LivingEntity user = getPowerUser();
-					// 1.16 stopHeldAction(true): a release that fails the recheck starts nothing, silently
-					if (ability instanceof TimeStopAbility timeStop && user != null
-							&& timeStop.canFireReleasedHold(this)) {
-						StandPower power = PowerClass.STAND.get(user);
-						String learningName = timeStop.getLearningAbilityName();
-						int maxTicks = TimeStopLearning.getSavedTimeStopTicks(power, learningName);
-						int chargeTicks = Math.max(curPhaseTick, 1);
-						float chargeRatio = TimeStopLearning.getTimeStopChargeRatio(
-								chargeTicks, curPhaseLength);
-						int timeStopTicks = TimeStopLearning.getReleasedTimeStopTicks(
-								maxTicks, chargeTicks, curPhaseLength);
-						float learningPoints = power != null && power.getCurTypeData() != null
-								? power.getCurTypeData().getAbilityLearningProgressPoints(learningName)
-								: -1.0F;
-						JojoMod.getLogger().info(
-								"Time stop release resolved: user={}, stand={}, chargeTicks={}, chargeLength={}, ratio={}, learningPoints={}, maxTicks={}, resolvedTicks={}.",
-								user.getScoreboardName(),
-								power != null && power.getPowerType() != null ? power.getPowerType().getId() : "<none>",
-								chargeTicks, curPhaseLength, chargeRatio, learningPoints, maxTicks, timeStopTicks);
-						if (timeStop.startTimeStopAfterHold(user, standAlreadySummoned, timeStopTicks, curPhaseLength)
-								&& getPerformer() instanceof StandEntity stand) {
-							// the port's shorter stop (D-core-91) has no perform: its Stand takes the full stop's perform
-							// pose, and every client takes it from the event: the others, whose copy this release reaches
-							// only after it was cleared, and the user's own, which let go of its copy before
-							stand.setPerformPose(this);
-							level().broadcastEntityEvent(stand, StandEntity.PERFORM_POSE_EVENT);
-						}
+					if (ability instanceof TimeStopAbility timeStop
+							&& curPhaseTick >= getMinReleaseChargeTicks(curPhaseLength)) {
+						startShorterStop(timeStop, Math.max(curPhaseTick, 1), false);
 					}
 				}
-				// the user's own client lets go of its copy before the server decides the release, which a failed
-				// recheck or a refused start turns down: 1.16 posed only a time stop that performed, so the Stand waits
-				// for the server's event, as on the other clients
+				// the user's own client lets go of its copy before the server decides the release, which a charge let go too
+				// early, a failed recheck or a refused start turns down: 1.16 posed only a time stop that performed, so the
+				// Stand waits for the server's event, as on the other clients
 				else if (getPerformer() instanceof StandEntity stand) {
 					stand.awaitPerformPoseEvent(this);
 				}
 				LivingComponentAction.getComponentForSlot(performer, actionSlot()).setAction(null, SyncType.TRACKING_AND_SELF);
+			}
+		}
+
+		// the stop a release at once would give, had the charge's minimum not ruled that out: only the input differs
+		private void fireDoublePress(TimeStopAbility timeStop) {
+			voiceDue = false;
+			startShorterStop(timeStop, 1, true);
+			LivingComponentAction.getComponentForSlot(performer, actionSlot()).setAction(null, SyncType.TRACKING_AND_SELF);
+		}
+
+		// 1.16 stopHeldAction(true): a release that fails the recheck starts nothing, silently
+		private void startShorterStop(TimeStopAbility timeStop, int chargeTicks, boolean doublePress) {
+			LivingEntity user = getPowerUser();
+			if (user == null || !timeStop.canFireReleasedHold(this)) {
+				return;
+			}
+			sayChargeVoice();
+			StandPower power = PowerClass.STAND.get(user);
+			String learningName = timeStop.getLearningAbilityName();
+			int maxTicks = TimeStopLearning.getSavedTimeStopTicks(power, learningName);
+			float chargeRatio = TimeStopLearning.getTimeStopChargeRatio(
+					chargeTicks, curPhaseLength);
+			int timeStopTicks = TimeStopLearning.getReleasedTimeStopTicks(
+					maxTicks, chargeTicks, curPhaseLength);
+			float learningPoints = power != null && power.getCurTypeData() != null
+					? power.getCurTypeData().getAbilityLearningProgressPoints(learningName)
+					: -1.0F;
+			JojoMod.getLogger().info(
+					"Time stop release resolved: user={}, stand={}, chargeTicks={}, chargeLength={}, ratio={}, learningPoints={}, maxTicks={}, resolvedTicks={}.",
+					user.getScoreboardName(),
+					power != null && power.getPowerType() != null ? power.getPowerType().getId() : "<none>",
+					chargeTicks, curPhaseLength, chargeRatio, learningPoints, maxTicks, timeStopTicks);
+			stopStarted = timeStop.startTimeStopAfterHold(user, standAlreadySummoned, timeStopTicks, curPhaseLength, doublePress);
+			if (stopStarted && getPerformer() instanceof StandEntity stand) {
+				// the port's shorter stop (D-core-91) has no perform: its Stand takes the full stop's perform
+				// pose, and every client takes it from the event: the others, whose copy this release reaches
+				// only after it was cleared, and the user's own, which let go of its copy before
+				stand.setPerformPose(this);
+				level().broadcastEntityEvent(stand, StandEntity.PERFORM_POSE_EVENT);
 			}
 		}
 	}

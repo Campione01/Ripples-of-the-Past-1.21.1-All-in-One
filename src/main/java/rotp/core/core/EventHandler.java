@@ -2,6 +2,7 @@ package rotp.core.core;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.damage.DefencePiercing;
 import rotp.core.api.time.event.RewindAppliedEvent;
 import rotp.core.JojoModConfig;
 import rotp.core.entityattachment.DataEventListeners;
@@ -130,10 +131,12 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerWakeUpEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent.Pre;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 @EventBusSubscriber(modid = JojoMod.MOD_ID)
@@ -144,6 +147,16 @@ public class EventHandler {
 	@SubscribeEvent(priority = EventPriority.LOWEST)
 	public static void onFinalizeSpawn(FinalizeSpawnEvent event) {
 		CocoJumboTurtleEntity.onRegularTurtleSpawn(event);
+	}
+
+	@SubscribeEvent
+	public static void refreshCocoJumboPlayerViews(ServerTickEvent.Post event) {
+		CocoJumboTurtleEntity.tickPlayerSpawnViews(event.getServer());
+	}
+
+	@SubscribeEvent
+	public static void clearCocoJumboPlayerViews(ServerStoppedEvent event) {
+		CocoJumboTurtleEntity.clearPlayerSpawnViews();
 	}
 
 	@SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -221,7 +234,9 @@ public class EventHandler {
 
 	private static void dropStandDiscOnDeath(LivingEntity dead, StandPower standPower) {
 		JojoModConfig.Common config = JojoModConfig.getCommonConfigInstance(false);
-		if (config.dropStandDisc.get() && !config.keepStandOnDeath.get() && standPower.hasPower()) {
+		// during a temporary loan the Stand on hand is borrowed: its one disc is in escrow and comes back at the restore
+		if (config.dropStandDisc.get() && !config.keepStandOnDeath.get() && standPower.hasPower()
+				&& standPower.temporaryLoanId() == null) {
 			standPower.getStandInstance().ifPresent(stand -> dead.spawnAtLocation(StandDiscItem.withStand(stand)));
 		}
 	}
@@ -403,6 +418,9 @@ public class EventHandler {
 		TimeStopState state = serverLevel.getData(ModDataAttachmentTypes.TIME_STOP.get());
 		if (state.shouldFreeze(target)) {
 			float multiplier = JojoModConfig.getCommonConfigInstance(false).timeStopDamageMultiplier.get().floatValue();
+			if (multiplier < 1 && DefencePiercing.piercesMitigation(event.getSource())) {
+				return;
+			}
 			event.setNewDamage(event.getNewDamage() * multiplier);
 		}
 	}
@@ -427,10 +445,10 @@ public class EventHandler {
 	public static void onPillarmanUtilityIncomingDamage(LivingIncomingDamageEvent event) {
 		// 1.16 onLivingHurtStart: a guarding Stand takes a hit it can take first; the checks below still run
 		StandUserGuard.redirectToGuardingStand(event);
-		if (VampirismFreezeAbility.onUserIncomingDamage(event)
+		if (!DefencePiercing.piercesGuard(event.getSource()) && (VampirismFreezeAbility.onUserIncomingDamage(event)
 				|| PillarmanBladeDashAttackAbility.onUserIncomingDamage(event)
 				|| PillarmanBladeBarrageAbility.onUserIncomingDamage(event)
-				|| PillarmanUnnaturalAgilityAbility.onUserIncomingDamage(event)) {
+				|| PillarmanUnnaturalAgilityAbility.onUserIncomingDamage(event))) {
 			event.setCanceled(true);
 		}
 		// 1.16 cancelDamageFromBlock: Hamon energy or a Hamon charge stops cactus and sweet berry bush damage
@@ -441,14 +459,15 @@ public class EventHandler {
 
 	@SubscribeEvent(priority = EventPriority.HIGH)
 	public static void onHamonProtectionIncomingDamage(LivingIncomingDamageEvent event) {
-		if (HamonSendoWaveKickAbility.onUserIncomingDamage(event)) {
+		boolean piercesGuard = DefencePiercing.piercesGuard(event.getSource());
+		if (!piercesGuard && HamonSendoWaveKickAbility.onUserIncomingDamage(event)) {
 			event.setCanceled(true);
 			return;
 		}
-		if (HamonRebuffOverdriveAbility.onUserIncomingDamage(event)) {
+		if (!piercesGuard && HamonRebuffOverdriveAbility.onUserIncomingDamage(event)) {
 			return;
 		}
-		if (HamonSnakeMufflerAbility.onUserIncomingDamage(event)) {
+		if (!piercesGuard && HamonSnakeMufflerAbility.onUserIncomingDamage(event)) {
 			event.setCanceled(true);
 			return;
 		}
@@ -459,7 +478,7 @@ public class EventHandler {
 		LivingEntity target = event.getEntity();
 		DamageSource dmgSource = event.getSource();
 		if (target.level().isClientSide() || dmgSource.getDirectEntity() == null
-				|| dmgSource.is(DamageTypeTags.BYPASSES_ARMOR)) {
+				|| dmgSource.is(DamageTypeTags.BYPASSES_ARMOR) || piercesGuard) {
 			return;
 		}
 		Power<?> power = PowerClass.PLAYER_POWER.get(target);
@@ -569,7 +588,11 @@ public class EventHandler {
 	// 1.16 GameplayEventHandler stun rules: no sprinting, no interaction, no item pickup.
 	@SubscribeEvent
 	public static void stopSprintingInStun(PlayerTickEvent.Pre event) {
-		Player player = event.getEntity();
+		stopSprintingInStun(event.getEntity());
+	}
+
+	/** What the core does as a player's tick starts (PlayerTickEvent.Pre); also run for a simulated copy (EntitySimulations). */
+	public static void stopSprintingInStun(Player player) {
 		if (player.isSprinting() && ModStatusEffects.isStunned(player)) {
 			player.setSprinting(false);
 		}
@@ -811,31 +834,37 @@ public class EventHandler {
 
 	@SubscribeEvent
 	public static void onEntityCreated(EntityJoinLevelEvent event) {
+		onEntityJoined(event.getEntity(), event.getLevel(), event.loadedFromDisk());
+	}
+
+	/** What the core does as an entity joins a level; also run for a copy kept outside the world (EntitySimulations). */
+	public static void onEntityJoined(Entity entity, Level level, boolean loadedFromDisk) {
 		/* 
 		 * Attach the power data to the player.
 		 * The capabilities system is now strictly per-EntityType, can't have an instanceof check anymore 
 		 * for smth like a "Mobs with Stands"-type of addon, so we're not using it this time.
 		 */ 
-		if (event.getEntity() instanceof Player user) {
+		if (entity instanceof Player user) {
 			for (PowerClass<?> powerClass : PowerClass.values()) {
 				powerClass.attachPower(user);
 			}
 		}
-		else if (!event.getLevel().isClientSide() && event.getLevel() instanceof ServerLevel level) {
-			if (event.getEntity() instanceof Mob mob) {
+		else if (!level.isClientSide() && level instanceof ServerLevel serverLevel) {
+			if (entity instanceof Mob mob) {
 				VampirismUtil.editMobAiGoals(mob);
+				TimeStopState.restoreLoadedMobIfNoStopHoldsIt(mob, serverLevel);
 			}
-			if (!event.loadedFromDisk() && event.getEntity() instanceof Projectile projectile) {
+			if (!loadedFromDisk && entity instanceof Projectile projectile) {
 				HamonUtil.tryChargeProjectile(projectile);
 			}
-			if (event.getEntity() instanceof Chicken chicken) {
+			if (entity instanceof Chicken chicken) {
 				HamonUtil.tryChargeChickenFromChargedEgg(chicken);
 			}
 			var attachmentType = ModDataAttachmentTypes.TIME_STOP.get();
-			if (level.hasData(attachmentType)) {
-				TimeStopState state = level.getData(attachmentType);
-				if (state.isTimeStopped(event.getEntity())) {
-					onEntityEnteredTimeStop(event.getEntity(), state);
+			if (serverLevel.hasData(attachmentType)) {
+				TimeStopState state = serverLevel.getData(attachmentType);
+				if (state.isTimeStopped(entity)) {
+					onEntityEnteredTimeStop(entity, state);
 				}
 			}
 		}
@@ -886,7 +915,11 @@ public class EventHandler {
 
 	@SubscribeEvent
 	public static void onEntityTick(EntityTickEvent.Post event) {
-		Entity entity = event.getEntity();
+		onEntityTicked(event.getEntity());
+	}
+
+	/** What the core does after an entity's tick; also run for a copy kept outside the world (EntitySimulations). */
+	public static void onEntityTicked(Entity entity) {
 		DataEventListeners data = entityEventListeners(entity);
 		if (data != null) {
 			data.onTick();

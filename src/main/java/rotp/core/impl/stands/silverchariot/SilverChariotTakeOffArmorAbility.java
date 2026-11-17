@@ -17,6 +17,7 @@ import rotp.core.powersystem.standpower.StandStats;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandEntity;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -104,7 +105,7 @@ public class SilverChariotTakeOffArmorAbility extends NoPoseStandEntityAbility {
 			state.setArmoredStats(stripped);
 			state.setHasArmor(false);
 			stand.refreshSilverChariotStateAfterMutation(user);
-			AfterimageEntity.addAfterimages(stand, 10, -1);
+			AfterimageEntity.addAfterimages(stand, StandSpecials.SC_ARMOR_OFF_AFTERIMAGES.getInt(StandPower.get(user)), -1);
 
 			StandUtil.playStandEntitySound(stand, ModSoundEvents.SILVER_CHARIOT_ARMOR_OFF, 1.0F, 1.0F);
 		}

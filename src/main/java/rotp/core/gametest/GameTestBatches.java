@@ -33,6 +33,22 @@ final class GameTestBatches {
 	/** The eye beam scenes hold their stops over their cells for several ticks, one scene at a time. */
 	static final String HELD_TIME_STOP_EYE_BEAM = "jojo_ripples_held_time_stop_eye_beam";
 
+	// What stopped time does to the world: a level's held redstone waits for its last stop, so each test runs alone.
+	static final String WORLD_RANDOM_TICKS = "jojo_ripples_time_stop_world_random_ticks";
+	static final String WORLD_RANGE_COST = "jojo_ripples_time_stop_range_cost";
+	static final String WORLD_DIRTY_DATA = "jojo_ripples_time_stop_dirty_data";
+	static final String WORLD_VIEWER_LEFT = "jojo_ripples_time_stop_viewer_left";
+	static final String WORLD_START_END_COST = "jojo_ripples_time_stop_start_end_cost";
+	static final String WORLD_PISTONS = "jojo_ripples_time_stop_world_pistons";
+	static final String WORLD_LEVER = "jojo_ripples_time_stop_world_lever";
+	static final String WORLD_BUTTON = "jojo_ripples_time_stop_world_button";
+	static final String WORLD_BUILDING = "jojo_ripples_time_stop_world_building";
+	static final String WORLD_ENDS = "jojo_ripples_time_stop_world_ends";
+	static final String WORLD_QUEUE = "jojo_ripples_time_stop_world_queue";
+
+	/** The stop GameTestTimeStops holds with no user stays over its cells for several ticks. */
+	static final String HELD_TIME_STOP_NO_USER = "jojo_ripples_held_time_stop_no_user";
+
 	/** A level's tick rates act on the whole level, so the test that sets them runs alone. */
 	static final String LEVEL_TICK_RATES = "jojo_ripples_level_tick_rates";
 

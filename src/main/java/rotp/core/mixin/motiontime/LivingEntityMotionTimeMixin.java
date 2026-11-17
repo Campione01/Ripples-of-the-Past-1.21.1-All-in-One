@@ -77,6 +77,20 @@ public abstract class LivingEntityMotionTimeMixin {
 		return rate == 1.0F ? speed : speed * MotionTimeScale.levitationSpeedFactor(rate);
 	}
 
+	// A slowed glide applies a fraction of a vanilla tick's drag on each axis.
+	@WrapOperation(method = "travel", at = @At(value = "INVOKE",
+			target = "Lnet/minecraft/world/phys/Vec3;multiply(DDD)Lnet/minecraft/world/phys/Vec3;"),
+			slice = @Slice(from = @At(value = "INVOKE",
+					target = "Lnet/minecraft/world/entity/LivingEntity;isFallFlying()Z"),
+					to = @At(value = "FIELD", ordinal = 0,
+							target = "Lnet/minecraft/world/effect/MobEffects;LEVITATION:Lnet/minecraft/core/Holder;")))
+	private Vec3 jojo_ripples$glideDrag(Vec3 motion, double x, double y, double z, Operation<Vec3> original) {
+		float rate = jojo_ripples$motionRate();
+		return rate < 1.0F
+				? original.call(motion, Math.pow(x, rate), Math.pow(y, rate), Math.pow(z, rate))
+				: original.call(motion, x, y, z);
+	}
+
 	// the vertical drag at the end of the air branch, after Levitation (the elytra's 0.98 comes before it)
 	@ModifyConstant(method = "travel", constant = @Constant(doubleValue = MotionTimeScale.AIR_DRAG),
 			slice = @Slice(from = @At(value = "FIELD",

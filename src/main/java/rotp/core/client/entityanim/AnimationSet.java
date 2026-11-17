@@ -19,6 +19,7 @@ import rotp.core.client.entityanim.RotpAnimDefinition.AnimWithId;
 import rotp.core.client.entityanim.pose.AnimFramePose;
 import rotp.core.client.entityrender.stand.StandEntityRenderer;
 import rotp.core.powersystem.entityaction.ActionAnimIdentifier;
+import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.util.functions.StringUtil;
 import com.mojang.datafixers.util.Pair;
 
@@ -233,6 +234,14 @@ public class AnimationSet {
 	 */
 	public static boolean isFlameBurstPoseClip(String name) {
 		return FLAME_BURST_POSE_CLIPS.contains(name);
+	}
+
+	/**
+	 * The first-person tilt of those clips in degrees: 1.16's head stood 22.5 degrees over the look until the recovery and
+	 * lerped back over it. The clips' head now stays on the look (G13), so the view has the number itself.
+	 */
+	public static float flameBurstViewTilt(ActionPhase phase, float phaseRatio) {
+		return phase == ActionPhase.RECOVERY ? -22.5F * (1 - Math.clamp(phaseRatio, 0, 1)) : -22.5F;
 	}
 
 	/** Clips whose arms-only pose copied the user's own biped pose in 1.16 (CopyBipedUserPose). */

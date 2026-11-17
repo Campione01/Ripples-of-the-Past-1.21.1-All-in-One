@@ -10,6 +10,9 @@ import rotp.core.client.entityanim.molang.AnimMolangQuery.AnimMolangVariables;
 import rotp.core.client.entityanim.playerbend.ArmsFollowPitch;
 import rotp.core.client.entityanim.pose.AnimFramePose;
 import rotp.core.client.entityanim.pose.AnimatedEntity;
+import rotp.core.client.entityanim.pose.OfficialRigPose;
+import rotp.core.mechanics.jojopose.JojoPoseAction;
+import rotp.core.mechanics.jojopose.client.ClientJojoPoseLoader;
 import rotp.core.client.entityrender.stand.StandEntityModel;
 import rotp.core.client.entityrender.stand.StandEntityRenderer;
 import rotp.core.client.standskin.StandSkin;
@@ -34,6 +37,7 @@ import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.entity.HamonMasterEntity;
 import rotp.core.impl.powers.pillarman.PillarmanData;
 import rotp.core.impl.powers.pillarman.PillarmanPowerType;
+import rotp.core.impl.stands._entitybase.StandEntityBarrageAbility.StandEntityBarrage;
 import rotp.core.impl.stands._entitybase.StandEntityGrabAbility.StandEntityGrab;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility.StandEntityPunch;
 
@@ -79,6 +83,7 @@ public class PreFrameEntityAnimCalc {
 	private static final ActionAnimIdentifier SC_NO_ARMOR_IDLE_ANIM = ActionAnimIdentifier.getOrCreate("no_armor_idle", true);
 	private static final ActionAnimIdentifier GRAB_ANIM = ActionAnimIdentifier.getOrCreate("grab", false);
 	private static final ActionAnimIdentifier GRAB_MISS_ANIM = ActionAnimIdentifier.getOrCreate("grab_miss", false);
+	private static final ActionAnimIdentifier GENERIC_BARRAGE_ANIM = ActionAnimIdentifier.getOrCreate("barrage", false);
 
 	public static void onBeforeEntitiesRender(ClientLevel level) {
 		Minecraft mc = Minecraft.getInstance();
@@ -223,8 +228,10 @@ public class PreFrameEntityAnimCalc {
 			}
 
 			RotpAnimDefinition anim;
+			@Nullable float[] headLookLimit = null;
 			if (stand != null) {
 				StandSkin standSkin = StandSkinsLoader.getInstance().getSkin(stand);
+				headLookLimit = standSkin != null ? standSkin.getHeadLookLimit() : null;
 				ActionAnimIdentifier idleAnim = StandEntityRenderer.IDLE_ANIM;
 				idleAnim = selectStandIdleAnim(stand, idleAnim);
 				boolean grabHold = false;
@@ -247,10 +254,12 @@ public class PreFrameEntityAnimCalc {
 
 				if (animVariables.animId == null) {
 					float standTicks = stand.tickCount + partialTick;
+					// OFFPOSES: a user's JoJo pose may name the summon clip its Stand appears with
+					int summonVariant = ClientJojoPoseLoader.standSummonVariant(stand).orElse(stand.getSummonPoseRandomByte());
 					RotpAnimDefinition summonAnim = standSkin != null ?
-							standSkin.getStandAnimation(anims -> anims.getSummonAnim(SUMMON_ANIM.name(), stand.getSummonPoseRandomByte())) : null;
+							standSkin.getStandAnimation(anims -> anims.getSummonAnim(SUMMON_ANIM.name(), summonVariant)) : null;
 					if (summonAnim != null && standTicks <= summonAnim.lengthInSeconds * 20) {
-						animVariables.animId = ActionAnimIdentifier.getOrCreate(SUMMON_ANIM.name(), stand.getSummonPoseRandomByte(), false);
+						animVariables.animId = ActionAnimIdentifier.getOrCreate(SUMMON_ANIM.name(), summonVariant, false);
 						animVariables.time = standTicks;
 					}
 					else {
@@ -296,6 +305,10 @@ public class PreFrameEntityAnimCalc {
 				anim = animPossiblyReplaced.anim;
 				animVariables.animId = animPossiblyReplaced.animId;
 			}
+			else if (action instanceof JojoPoseAction.PosingInstance posing) {
+				// OFFPOSES: a pose's clip comes from the pose sets, not the action animation files
+				anim = ClientJojoPoseLoader.clip(posing.poseSet, posing.poseName);
+			}
 			else {
 				anim = getPlayerAnim(animVariables.animSet, animVariables.animId, AnimationSet.handedClipArm(living));
 			}
@@ -318,6 +331,14 @@ public class PreFrameEntityAnimCalc {
 				float lookXRot = molangVariables.xRot;
 				pose = anim.calcAnimPose(molangVariables,
 						performPose == null && actionComponent != null ? actionComponent.clPrevPunchPose : null, timeSeconds, 1);
+				if (action instanceof JojoPoseAction.PosingInstance) {
+					// pose clips are made on the official player rig; other clips may name a real part head_rot
+					OfficialRigPose.remap(pose);
+				}
+				if (headLookLimit != null) {
+					anim.limitHeadLook(pose, molangVariables, headLookLimit,
+							performPose == null && actionComponent != null ? actionComponent.clPrevPunchPose : null, timeSeconds, 1);
+				}
 				if (rebuffTail != null) pose.blendWeight = rebuffTail.blendWeight(tailElapsed);
 				if (stand != null && animVariables.animId != null && animVariables.animId.isIdle()
 						&& StandIdleSway.CLIP_VALUE.equals(anim.instructionTimelines.getStringTimelineVal(StandIdleSway.CLIP_FIELD, timeSeconds))
@@ -338,12 +359,21 @@ public class PreFrameEntityAnimCalc {
 				boolean userPoseCopied = stand != null && stand.isArmsOnlyMode() && animVariables.animId != null
 						&& AnimationSet.copiesUserPoseInArmsOnly(animVariables.animId.name())
 						&& copyUserBipedPose(stand, pose);
+				if (stand != null && stand.isArmsOnlyMode()) {
+					for (String trunkBone : ArmsOnlyTrunk.BONES) {
+						AnimFramePose.ModelPartFrame trunk = pose.getIfPresent(trunkBone);
+						if (trunk != null) {
+							ArmsOnlyTrunk.keepOnlyTheTurn(trunk.positionOffset, trunk.rotationOffset);
+						}
+					}
+				}
 				((AnimatedEntity) living).jojo_ripples$setModelPose(AnimatedEntity.PoseType.UNMODIFIED, pose);
 				
 				if (newFrame) {
 					BarrageSwings barrageSwings = getBarrageSwings(living);
 					if (barrageSwings != null) {
-						barrageSwings.frameStandBarrage(Minecraft.getInstance(), anim, timeSeconds, living, living.tickCount + partialTick);
+						barrageSwings.frameStandBarrage(Minecraft.getInstance(), anim, timeSeconds, living, living.tickCount + partialTick,
+								stand != null && action instanceof StandEntityBarrage);
 					}
 					swingsFramed = true;
 				}
@@ -449,7 +479,7 @@ public class PreFrameEntityAnimCalc {
 		animVariables.animSet = charge.action().ability.getEntityAnimSet(stand);
 		animVariables.animId = charge.action().getEntityAnim();
 		animVariables.time = charge.fullTicks();
-		animVariables.actionPhase = charge.phase() == ActionPhase.BUTTON_CHARGE ? ActionPhase.WINDUP : charge.phase();
+		animVariables.actionPhase = charge.phase();
 		animVariables.phaseTime = charge.phaseTicks();
 		animVariables.phaseCompletion = charge.phaseCompletion();
 	}
@@ -633,6 +663,13 @@ public class PreFrameEntityAnimCalc {
 	private static AnimationSet defaultStandAnims() {
 		AnimationLoader loader = AnimationLoader.getInstance();
 		return loader != null ? loader.getAnimSet(DEFAULT_STAND_ANIMS) : null;
+	}
+
+	/** stand_default's barrage: the arms of a Stand whose own barrage clip does not move them. */
+	@Nullable
+	public static RotpAnimDefinition genericBarrageClip() {
+		AnimationSet defaults = defaultStandAnims();
+		return defaults != null ? defaults.getOwnNamedAnim(GENERIC_BARRAGE_ANIM, false) : null;
 	}
 
 	public static AnimWithId getStandAnim(StandSkin skin, ActionAnimIdentifier animId, ActionAnimIdentifier curIdleAnim) {

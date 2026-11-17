@@ -7,6 +7,7 @@ import rotp.core.client.itemrender.ModItemModelOverrides;
 import rotp.core.client.entityrender.stand.aura.StandAuraFxClient;
 import rotp.core.client.ui.screen_jojomenu.JojoMenuTabs;
 import rotp.core.config.client.ClientModSettings;
+import rotp.core.config.client.screen.ModConfigScreen;
 import rotp.core.core.JojoMod;
 import rotp.core.init.ModBlocks;
 import rotp.core.subsystems.entity_puppetcontrol.client.stand.StandHudElements;
@@ -19,10 +20,12 @@ import net.minecraft.client.renderer.RenderType;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 
 @EventBusSubscriber(modid = JojoMod.MOD_ID, value = Dist.CLIENT)
 public class ClientSetup {
@@ -48,6 +51,9 @@ public class ClientSetup {
 		ModMarkers.registerMarkers(mc);
 		StandHudElements.init();
 		FirstPersonHamonAura.init();
+		ModList.get().getModContainerById(JojoMod.MOD_ID).ifPresent(container -> container.registerExtensionPoint(
+				IConfigScreenFactory.class,
+				(IConfigScreenFactory) (mod, modListScreen) -> new ModConfigScreen(modListScreen, ModConfigScreen.Page.CLIENT)));
 			event.enqueueWork(() -> {
 			ModItemModelOverrides.register();
 			ModBlocks.WOODEN_COFFIN_OAK.values().forEach(block -> ItemBlockRenderTypes.setRenderLayer(block.get(), RenderType.cutout()));

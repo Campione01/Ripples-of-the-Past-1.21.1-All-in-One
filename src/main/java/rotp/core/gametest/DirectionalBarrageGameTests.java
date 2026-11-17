@@ -114,12 +114,13 @@ public final class DirectionalBarrageGameTests {
 			helper.assertTrue(atStart == StandStatFormulas.getBarrageRecovery(f.stand.getAttackSpeed()) && atStart > 0,
 					"Fixture: recovery at the start " + atStart);
 			f.tick(3);
-			AttributeModifier boost = new AttributeModifier(JojoMod.resLoc("barrage_recovery_entry_test"), 12,
+			AttributeModifier boost = new AttributeModifier(JojoMod.resLoc("barrage_recovery_entry_test"), 6,
 					AttributeModifier.Operation.ADD_VALUE);
 			f.stand.getAttribute(Attributes.ATTACK_SPEED).addTransientModifier(boost);
 			try {
 				int expected = StandStatFormulas.getBarrageRecovery(f.stand.getAttackSpeed());
-				helper.assertTrue(expected != atStart, "Fixture: the speed change does not change the recovery");
+				helper.assertTrue(expected != atStart && expected > 0, "Fixture: the speed change gives the recovery "
+						+ expected + " for " + atStart + ", not another one above 0");
 				faster.onKeyRelease(f.user);
 				helper.assertTrue(faster.getPhase() == ActionPhase.RECOVERY
 						&& faster.phasesLength.getFloat(ActionPhase.RECOVERY) == expected,

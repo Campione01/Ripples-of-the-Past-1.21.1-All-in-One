@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import io.netty.buffer.Unpooled;
@@ -21,7 +22,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -39,6 +42,7 @@ import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import rotp.core.api.time.EntityTimeRates;
 import rotp.core.core.JojoMod;
 import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.ModHamonSkills;
@@ -53,6 +57,10 @@ import rotp.core.powersystem.playerpower.PlayerPower;
 @PrefixGameTestTemplate(false)
 public final class SnakeMufflerAnchorGameTests {
     private static final double EPSILON = 1.0E-5D;
+    private static final AtomicBoolean TIME_RATES_REGISTERED = new AtomicBoolean();
+    private static final String SLOWED_PLAYER = "jojo_ripples.gametest.snake_slowed_player";
+    private static final String HELD_MOB = "jojo_ripples.gametest.snake_held_mob";
+    private static final String FAST_PART = "jojo_ripples.gametest.snake_fast_part";
 
     private SnakeMufflerAnchorGameTests() {}
 
@@ -124,6 +132,69 @@ public final class SnakeMufflerAnchorGameTests {
             source.discard();
             savedCopy.discard();
             metadataCopy.discard();
+        }
+    }
+
+    @GameTest(template = "empty", batch = "snake_muffler_owner_time", timeoutTicks = 20)
+    public static void snakeMufflerLeapFollowsASlowedOwnersTime(GameTestHelper helper) {
+        if (TIME_RATES_REGISTERED.compareAndSet(false, true)) {
+            EntityTimeRates.register(JojoMod.resLoc("gametest_snake_time"), (entity, channel) -> switch (channel) {
+                case STAND_ACTIONS, MOTION -> entity.getTags().contains(SLOWED_PLAYER) ? 0.5F : EntityTimeRates.NO_RATE;
+                case BEING -> entity.getTags().contains(HELD_MOB) ? 0.5F : EntityTimeRates.NO_RATE;
+                case ENTITY_TICK -> entity.getTags().contains(FAST_PART) ? 2.0F : EntityTimeRates.NO_RATE;
+            });
+        }
+        helper.runAfterDelay(1, () -> {
+            assertLeap(helper, GameTestPlayers.makeServerMockPlayer(helper, GameType.SURVIVAL),
+                    "normal", false, 0.45D, 4, 11, 11);
+            Player slowed = GameTestPlayers.makeServerMockPlayer(helper, GameType.SURVIVAL);
+            slowed.addTag(SLOWED_PLAYER);
+            assertLeap(helper, slowed, "slowed player", false, 0.225D, 8, 21, 21);
+            LivingEntity held = EntityType.ZOMBIE.create(helper.getLevel());
+            helper.assertTrue(held != null, "Could not create the held mob");
+            held.addTag(HELD_MOB);
+            assertLeap(helper, held, "BEING-only mob", false, 0.45D, 8, 21, 21);
+            assertLeap(helper, GameTestPlayers.makeServerMockPlayer(helper, GameType.SURVIVAL),
+                    "normal owner with faster world ticks", true, 0.45D, 2, 6, 11);
+            helper.succeed();
+        });
+    }
+
+    private static void assertLeap(GameTestHelper helper, LivingEntity owner, String what, boolean fastPart,
+            double jumpSpeed, int leapCalls, int expireCall, int expireAge) {
+        ServerLevel level = helper.getLevel();
+        Vec3 start = helper.absoluteVec(new Vec3(1.5D, 8.0D, 1.5D));
+        owner.moveTo(start.x, start.y, start.z, 0.0F, 0.0F);
+        SnakeMufflerEntity snake = new SnakeMufflerEntity(level, owner);
+        if (fastPart) {
+            snake.addTag(FAST_PART);
+        }
+        try {
+            helper.assertTrue(level.addFreshEntity(owner) && level.addFreshEntity(snake) && snake.getOwner() == owner,
+                    "Could not add the Snake and its owner: " + what);
+            // Run the real server entity tick without ticking the owner, so no gravity or travel obscures the write.
+            Vec3 untouched = new Vec3(0.07D, 0.11D, 0.13D);
+            Vec3 leap = new Vec3(0.0D, jumpSpeed, 0.0D);
+            for (int call = 1; call <= expireCall; call++) {
+                owner.setDeltaMovement(untouched);
+                owner.hurtMarked = false;
+                owner.fallDistance = 2.0F;
+                level.tickNonPassenger(snake);
+                boolean leaping = call <= leapCalls;
+                Vec3 expected = leaping ? leap : untouched;
+                helper.assertTrue(owner.getDeltaMovement().distanceTo(expected) < EPSILON && owner.hurtMarked == leaping
+                                && owner.fallDistance == 0.0F,
+                        "Snake leap for " + what + " on server tick " + call + ": expected " + expected
+                                + ", got " + owner.getDeltaMovement());
+                helper.assertTrue(snake.isRemoved() == (call == expireCall),
+                        "Snake lifetime for " + what + " changed on server tick " + call + " (age " + snake.tickCount + ")");
+            }
+            helper.assertTrue(snake.tickCount == expireAge,
+                    "Snake expiry age for " + what + ": expected " + expireAge + ", got " + snake.tickCount);
+        }
+        finally {
+            snake.discard();
+            owner.discard();
         }
     }
 

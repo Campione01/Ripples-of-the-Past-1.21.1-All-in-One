@@ -69,8 +69,11 @@ public class StandEntityAbility extends EntityActionAbility {
 			standEntity = tryAutoSummonStand(power, user);
 			autoSummoned = standEntity != null;
 		}
-		else if (standEntity.isArmsOnlyMode()) {
-			updateArmsOnlyStandForAction(power, user, standEntity);
+		else {
+			standEntity.bringAlongIfLeftBehind(user);
+			if (standEntity.isArmsOnlyMode()) {
+				updateArmsOnlyStandForAction(power, user, standEntity);
+			}
 		}
 		if (standEntity == null) return null;
 		ConditionCheck standCheck = checkStandEntityConditions(power, standEntity);

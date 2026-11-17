@@ -28,7 +28,7 @@ public final class StandAbilityStamina {
 		if (standPower == null) {
 			return false;
 		}
-		amount = effectiveCost(standPower, amount);
+		amount = standPower.getStaminaCostShare(effectiveCost(standPower, amount));
 		if (amount <= 0 || standPower.isStaminaInfinite() || standPower.getStamina() >= amount) {
 			return true;
 		}

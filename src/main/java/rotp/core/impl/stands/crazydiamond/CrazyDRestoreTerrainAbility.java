@@ -61,6 +61,8 @@ import rotp.core.impl.stands.crazydiamond.brokenblocks.CDBlocksRestoredPacket;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.EntityMadeFromBlock;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.EntityMadeFromBlock.EntityReference;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.PrevBlockInfo;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.ints.IntSet;
@@ -132,10 +134,10 @@ public class CrazyDRestoreTerrainAbility extends NoPoseStandEntityAbility {
 			Entity cameraEntity = restorationCenterEntity(user, standPower);
 			Vec3i eyePosI = eyePos(cameraEntity);
 			boolean hasResolveEffect = ResolveModeEffect.getResolveEffectLvl(user) >= 0;
-			boolean onlyAimedAt = user.isShiftKeyDown();
-			if (getFixableBlocksInRange(level, user, eyePosI, restorationDistManhattan(hasResolveEffect), 
+			boolean onlyAimedAt = StandManualInput.isShiftHeld(user);
+			if (getFixableBlocksInRange(level, user, eyePosI, restorationDistManhattan(user, hasResolveEffect), 
 					block -> blockPosSelectedForRestoration(block, cameraEntity, cameraEntity.getLookAngle(), 
-							cameraEntity.getEyePosition(1.0F), eyePosI, restorationDistManhattan(hasResolveEffect), 
+							cameraEntity.getEyePosition(1.0F), eyePosI, restorationDistManhattan(user, hasResolveEffect), 
 							hasResolveEffect, onlyAimedAt)).isEmpty()) {
 				return ConditionCheck.NEGATIVE_CONTINUE_HOLD;
 			}
@@ -244,7 +246,7 @@ public class CrazyDRestoreTerrainAbility extends NoPoseStandEntityAbility {
 				boolean creative = playerUser != null ? playerUser.getAbilities().instabuild : false;
 				Entity cameraEntity = restorationCenterEntity(user, userPower);
 				boolean resolveEffect = ResolveModeEffect.getResolveEffectLvl(user) >= 0;
-				int manhattanRange = restorationDistManhattan(resolveEffect);
+				int manhattanRange = restorationDistManhattan(user, resolveEffect);
 				Vec3i eyePos = eyePos(cameraEntity);
 				Vec3 lookVec = cameraEntity.getLookAngle();
 				Vec3 eyePosD = cameraEntity.getEyePosition(1.0F);
@@ -254,8 +256,8 @@ public class CrazyDRestoreTerrainAbility extends NoPoseStandEntityAbility {
 				// formula, cost per block times stamina); an empty bar restores nothing but the hold goes on
 				int blocksToRestore = resolveEffect ? 64
 						: Math.min(blocksPerTick((StandEntity) standEntity), (int) (staminaPerBlock * userPower.getStamina()));
-				boolean onlyAimedAt = user.isShiftKeyDown();
-				
+				boolean onlyAimedAt = StandManualInput.isShiftHeld(user);
+
 				Collection<BlockToFix<?>> blocks = getFixableBlocksInRange(serverLevel, user, eyePos, manhattanRange,
 						blockPos -> blockPosSelectedForRestoration(blockPos, cameraEntity,
 								lookVec, eyePosD, eyePos, manhattanRange,
@@ -827,8 +829,8 @@ public class CrazyDRestoreTerrainAbility extends NoPoseStandEntityAbility {
 		}
 	}
 
-	public static int restorationDistManhattan(boolean resolve) {
-		return 12;
+	public static int restorationDistManhattan(@Nullable LivingEntity user, boolean resolve) {
+		return StandSpecials.CD_RESTORE_REACH.getInt(user != null ? StandPower.get(user) : null);
 	}
 
 

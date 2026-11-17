@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.damage.DefencePiercing;
 import rotp.core.core.JojoMod;
 import rotp.core.JojoModConfig;
 import rotp.core.customobjects.DamageSourceModified;
@@ -824,7 +825,8 @@ public class ResolveCounter {
 
     @SubscribeEvent(priority = EventPriority.LOW)
     public static void reduceDamageFromResolve(LivingDamageEvent.Pre event) {
-        if (event.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+        // only true damage passes Resolve; the void and /kill are in jojo_ripples:pierces_mitigation
+        if (DefencePiercing.piercesMitigation(event.getSource())) {
             return;
         }
         LivingEntity target = event.getEntity();

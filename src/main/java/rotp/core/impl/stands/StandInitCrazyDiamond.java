@@ -23,8 +23,8 @@ public class StandInitCrazyDiamond {
 	public static EntityStandType create(ResourceLocation id) {
 		return new EntityStandType(
 				new StandStats.Builder()
-				.power(14.0, 17.0)
-				.speed(14.0, 16.5)
+				.power(17.0, 20.0)
+				.speed(15.0, 18.0)
 				.range(1, 2)
 				.durability(11.0, 13.0)
 				.precision(11.0, 12.0)
@@ -136,12 +136,12 @@ public class StandInitCrazyDiamond {
 					.addToHotbar("blood_cutter", 0, InputMethod.CLICK)
 					.addToHotbar("bearing_shot", 0, InputMethod.HOLD)
 					.addToHotbar("repair_item", 0, InputMethod.HOLD)
-					.addToHotbar("revert_state", 0, InputMethod.HOLD)
+					.addHotbarSlotVariation("revert_state", "repair_item", InputKey.Modifier.SHIFT, InputMethod.HOLD)
 					.addToHotbar("uncraft", 0, InputMethod.HOLD)
 					.addToHotbar("heal", 0, InputMethod.HOLD)
 					.addToHotbar("restore_terrain", 0, InputMethod.HOLD)
 					.addToHotbar("block_anchor", 0, InputMethod.HOLD)
-					.addToHotbar("block_anchor_make", 0, InputMethod.CLICK)
+					.addHotbarSlotVariation("block_anchor_make", "block_anchor", InputKey.Modifier.SHIFT, InputMethod.CLICK)
 				.finalizeControlScheme()
 
 

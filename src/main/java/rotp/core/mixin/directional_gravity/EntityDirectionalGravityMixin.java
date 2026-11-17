@@ -141,6 +141,18 @@ public abstract class EntityDirectionalGravityMixin
 		}
 	}
 
+	@Inject(method = "getEyeY", at = @At("RETURN"), cancellable = true)
+	private void jojo_ripples$directionalGravityEyeY(
+			CallbackInfoReturnable<Double> cir) {
+		Entity entity = (Entity) (Object) this;
+		Direction direction =
+				DirectionalGravityApi.getEffectiveDirection(entity);
+		if (direction != Direction.DOWN) {
+			cir.setReturnValue(DirectionalGravityTransforms.eyePosition(
+					direction, entity.position(), entity.getEyeHeight()).y);
+		}
+	}
+
 	@Inject(method = "getEyePosition()Lnet/minecraft/world/phys/Vec3;",
 			at = @At("RETURN"), cancellable = true)
 	private void jojo_ripples$directionalGravityEyePosition(

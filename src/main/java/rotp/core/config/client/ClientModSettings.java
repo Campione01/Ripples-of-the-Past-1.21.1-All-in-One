@@ -9,8 +9,10 @@ import java.nio.file.StandardCopyOption;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.slf4j.Logger;
 
+import rotp.core.mechanics.clothes.ClothesArmorPriority;
 import rotp.core.util.functions.FileSystemUtil;
 import com.google.common.base.Charsets;
 import com.google.common.io.Files;
@@ -38,6 +40,11 @@ public class ClientModSettings {
 		public boolean abilitySelectionScroll = true;
 		public boolean releaseToUseAbility = false;
 		public boolean compactStandHotbar = false;
+		public boolean standExpBar = false;
+		public ResolveHudLayout resolveHudLayout = ResolveHudLayout.STRIP;
+		public boolean showBreakBlocksToggle = false;
+		public boolean showPickUpItemsToggle = false;
+		public boolean showBeyondRangeToggle = false;
 
 		public boolean resolveShaders = true;
 		public boolean timeStopAnimation = true;
@@ -53,13 +60,15 @@ public class ClientModSettings {
 		public boolean menacingParticles = true;
 		public boolean ownAfkMenacingFirstPerson = true;
 		public boolean characterVoiceLines = true;
-		public boolean toggleLmbHotbar = false;
-		public boolean toggleRmbHotbar = false;
+		public boolean screenSplash = false;
 		public boolean toggleDisableHotbars = false;
+		public boolean tutorialEnabled = true;
 
 		public boolean thirdPersonHamonAura = true;
 		public boolean firstPersonHamonAura = true;
 		public boolean hamonAuraBlur = false;
+
+		public ClothesArmorPriority clothesArmorPriority = ClothesArmorPriority.CLOTHES;
 
 		public final PlayerClientBroadcastedSettings broadcasted = new PlayerClientBroadcastedSettings();
 
@@ -70,6 +79,20 @@ public class ClientModSettings {
 				standAura = new StandAuraSettings();
 			}
 			standAura.sanitize();
+			if (clothesArmorPriority == null) {
+				clothesArmorPriority = ClothesArmorPriority.CLOTHES;
+			}
+			if (resolveHudLayout == null) {
+				resolveHudLayout = ResolveHudLayout.STRIP;
+			}
+		}
+
+		/** Turned back on, the tutorial shows all its tips again (TutorialProgress): the official version's "Reset Tutorial". */
+		public void setTutorialEnabled(boolean enabled) {
+			if (enabled && !tutorialEnabled) {
+				TutorialProgress.resetCurrent();
+			}
+			tutorialEnabled = enabled;
 		}
 
 		private static float clampTransparency(float transparency) {
@@ -172,6 +195,9 @@ public class ClientModSettings {
 		if (settings.has("broadcasted") && settings.get("broadcasted").isJsonObject()) {
 			normalizeBooleanField(settings.getAsJsonObject("broadcasted"), "standAttackTargetLock");
 			normalizeBooleanField(settings.getAsJsonObject("broadcasted"), "standAimAssist");
+			normalizeBooleanField(settings.getAsJsonObject("broadcasted"), "standBreaksBlocks");
+			normalizeBooleanField(settings.getAsJsonObject("broadcasted"), "standPicksUpItems");
+			normalizeBooleanField(settings.getAsJsonObject("broadcasted"), "standMovesBeyondEffectiveRange");
 		}
 		return settings;
 	}
@@ -271,6 +297,29 @@ public class ClientModSettings {
 	}
 
 	public void save() {
+		save(settings);
+	}
+
+	/** Applies the same validated field assignments to the live settings only after saving succeeds. */
+	public boolean tryEditSettings(Consumer<Settings> assignValues) {
+		Settings candidate;
+		try {
+			candidate = gson.fromJson(gson.toJsonTree(settings), Settings.class);
+			assignValues.accept(candidate);
+		}
+		catch (RuntimeException exception) {
+			LOGGER.error("Failed to prepare mod client settings", exception);
+			return false;
+		}
+		if (!save(candidate)) {
+			return false;
+		}
+		assignValues.accept(settings);
+		settings.sanitize();
+		return true;
+	}
+
+	private boolean save(Settings settings) {
 		File tempFile = null;
 		try {
 			settings.sanitize();
@@ -284,9 +333,11 @@ public class ClientModSettings {
 			}
 			replaceSettingsFile(tempFile, optionsFile);
 			tempFile = null;
+			return true;
 		}
 		catch (Exception exception) {
 			LOGGER.error("Failed to save mod client settings", (Throwable) exception);
+			return false;
 		}
 		finally {
 			if (tempFile != null && tempFile.exists() && !tempFile.delete()) {
@@ -335,5 +386,16 @@ public class ClientModSettings {
 
 	public static ClientModSettings getInstance() {
 		return instance;
+	}
+
+	/** The folder of the settings file, where other client files of the mod sit beside it. */
+	public File directory() {
+		return optionsFile.getAbsoluteFile().getParentFile();
+	}
+
+	/** Loads a settings file as the game would, without making it the game's settings; writes defaults to a missing file. */
+	@ApiStatus.Internal
+	public static Settings readDetached(File optionsFile) {
+		return new ClientModSettings(optionsFile).settings;
 	}
 }

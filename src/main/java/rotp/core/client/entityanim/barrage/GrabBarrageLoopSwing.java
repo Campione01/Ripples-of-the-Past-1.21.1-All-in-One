@@ -76,8 +76,8 @@ public class GrabBarrageLoopSwing extends BarrageSwing {
 	public void poseAndRender(EntityModel<?> model,
 			PoseStack poseStack, VertexConsumer buffer,
 			int packedLight, int packedOverlay, int color, float xRot) {
-		BarrageSwings.resetStandPoseForBarrage(model);
-		if (!BarrageSwings.setOnlyOneArmVisible(model, side)) {
+		AfterimageArm standArm = BarrageSwings.standArm(model, side);
+		if (standArm == null && !BarrageSwings.setOnlyOneArmVisible(model, side)) {
 			return;
 		}
 		float loopCompletion = ticks / ticksMax;
@@ -95,7 +95,12 @@ public class GrabBarrageLoopSwing extends BarrageSwing {
 		AnimMolangVariables molangVariables = AnimMolangVariables.set(xRot, 0, 0);
 
 		float seconds = barrageAnim.getAnimTime(animState);
-		barrageAnim.animate(model, molangVariables, null, seconds, 1);
+		if (standArm != null) {
+			standArm.pose(barrageAnim, molangVariables, seconds);
+		}
+		else {
+			barrageAnim.animate(model, molangVariables, null, seconds, 1);
+		}
 		ModelPart arm = BarrageSwings.getNoXRotArm(model, side);
 		if (arm == null) {
 			poseStack.popPose();
@@ -105,7 +110,8 @@ public class GrabBarrageLoopSwing extends BarrageSwing {
 
 		float alpha = 0.75F * swingAmount;
 		color = RGBUtil.scaleAlpha(color, alpha);
-		((Model_1_21_2plus) model).jojo_ripples$root().render(poseStack, buffer, packedLight, packedOverlay, color);
+		ModelPart drawn = standArm != null ? standArm.enter(poseStack) : ((Model_1_21_2plus) model).jojo_ripples$root();
+		drawn.render(poseStack, buffer, packedLight, packedOverlay, color);
 		poseStack.popPose();
 	}
 }

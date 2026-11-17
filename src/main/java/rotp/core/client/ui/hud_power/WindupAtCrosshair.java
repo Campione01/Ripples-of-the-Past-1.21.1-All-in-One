@@ -21,6 +21,8 @@ public class WindupAtCrosshair {
 	public static final GuiIcon WINDUP_CROSSHAIR = new GuiIcon(JojoMod.resLoc("textures/gui/windup_crosshair.png"), 15, 15);
 	public static final GuiIcon WINDUP_CROSSHAIR_FILLED = new GuiIcon(JojoMod.resLoc("textures/gui/windup_crosshair_filled.png"), 15, 15);
 
+	private static final int MIN_CHARGE_MARK_COLOR = 0xD0FFFFFF;
+
 	public static boolean _doRender = false;
 	public static WindupIndicator _renderWindup = new WindupIndicator();
 	public static boolean _filledAnim = false;
@@ -75,11 +77,21 @@ public class WindupAtCrosshair {
 				crosshairFillTransparency.reset();
 			}
 
-			float fillHeight = heldActionRatio == 1 ? height : 3 + 9 * heldActionRatio;
-			BlitFloat.blit(guiGraphics.pose(), mc, WINDUP_CROSSHAIR.file, 
-					x, y + height - fillHeight, width, fillHeight, 0, 
-					0, height - fillHeight, width, fillHeight, width, height, 
+			float fillHeight = WindupIndicator.fillHeight(heldActionRatio, height);
+			BlitFloat.blit(guiGraphics.pose(), mc, WINDUP_CROSSHAIR.file,
+					x, y + height - fillHeight, width, fillHeight, 0,
+					0, height - fillHeight, width, fillHeight, width, height,
 					BlitFloat.NO_TINT);
+			// the minimum charge: two dashes beside the crosshair at the height the fill must reach for a release to work
+			float markRatio = _renderWindup.markRatio();
+			if (markRatio > 0 && heldActionRatio < 1) {
+				int row = (int) (height - WindupIndicator.fillHeight(markRatio, height));
+				poseStack.pushPose();
+				poseStack.translate(x, y, 0);
+				guiGraphics.fill(1, row, 3, row + 1, MIN_CHARGE_MARK_COLOR);
+				guiGraphics.fill((int) width - 3, row, (int) width - 1, row + 1, MIN_CHARGE_MARK_COLOR);
+				poseStack.popPose();
+			}
 		}
 
 		if (crosshairFillTransparency.shouldRender()) {

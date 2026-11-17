@@ -1,5 +1,6 @@
 package rotp.core.client.standskin;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -24,6 +25,7 @@ import rotp.core.client.ui.screen_jojomenu.Tab;
 import rotp.core.client.ui.screen_jojomenu.TabCategory;
 import rotp.core.client.ui.utils.BlitFloat;
 import rotp.core.client.ui.utils.GuiIcon;
+import rotp.core.client.ui.utils.tooltip.TooltipParams;
 import rotp.core.client.util.functions.ClientUtil;
 import rotp.core.core.JojoMod;
 import rotp.core.network.c2s.ClSetStandSkinPacket;
@@ -41,6 +43,7 @@ import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
@@ -48,6 +51,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -181,7 +185,15 @@ public class StandSkinsScreen extends Screen implements IJojoMenuScreen {
 		
 		renderTabs(gui, this);
 		renderTabTooltip(gui, this, mouseX, mouseY);
-		
+		// the skin's name, then who made it
+		getSkinAt(mouseX, mouseY).ifPresent(view -> {
+			List<FormattedCharSequence> lines = new ArrayList<>();
+			lines.add(view.skin.displayName().copy().withStyle(ChatFormatting.BLACK).getVisualOrderText());
+			view.skin.authorsLine().ifPresent(line -> lines.add(line.copy().withStyle(ChatFormatting.DARK_GRAY).getVisualOrderText()));
+			TooltipParams.set(TooltipParams.paperStyle(1));
+			setTooltipForNextRenderPass(lines);
+		});
+
 		for (Renderable renderable : renderables) {
 			renderable.render(gui, mouseX, mouseY, partialTick);
 		}
@@ -536,7 +548,10 @@ public class StandSkinsScreen extends Screen implements IJojoMenuScreen {
 			if (!drawn) {
 				renderSkinIcon(gui, skin, WINDOW_WIDTH / 2 - 15, 100, 64);
 			}
-			
+
+			skin.authorsLine().ifPresent(line -> gui.drawString(Minecraft.getInstance().font, line,
+					4, WINDOW_INSIDE_HEIGHT - 12, 0xFF404040, false));
+
 			if (screen.isSkinSelected(skin)) {
 				BlitFloat.blit(gui.pose(), Minecraft.getInstance(), TEXTURE_ELEMENTS, 
 						WINDOW_INSIDE_WIDTH - 20, 4,  16, 16, 0, 

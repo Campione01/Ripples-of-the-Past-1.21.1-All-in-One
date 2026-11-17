@@ -28,6 +28,16 @@ public abstract class EntityCustomEffect {
 	public boolean removeOnUserDeath = true;
 	public boolean removeOnUserLogout = true;
 
+	/** Whether its user's death ends it now: the field, unless the effect decides by its own state. */
+	public boolean removedOnUserDeath() {
+		return removeOnUserDeath;
+	}
+
+	/** Whether its user's logout from a published server ends it now: the field, unless the effect decides by its own state. */
+	public boolean removedOnUserLogout() {
+		return removeOnUserLogout;
+	}
+
 
 	public EntityCustomEffect(@Nonnull EntityCustomEffectType<?> effectType) {
 		this.effectType = effectType;

@@ -145,9 +145,18 @@ public class StandEntityUnsummonAction extends SpecialEntityActionType {
 					&& performer instanceof StandEntity standEntity) {
 				StandPower userPower = StandPower.get(getPowerUser());
 				if (userPower != null && userPower.hasPower()) {
-					standEntity.stopRetraction();
-					standEntity.setNoPhysics(false);
-					userPower.getPowerType().forceUnsummon(user, userPower);
+					// stopRetraction clears this action, by which forceUnsummon would tell it from a forced unsummon that
+					// keeps the Stand HUD: as 1.16's unsummon task, this one closes it
+					boolean wasByUser = userPower.isUnsummonedByItsUser();
+					userPower.setUnsummonedByItsUser(true);
+					try {
+						standEntity.stopRetraction();
+						standEntity.setNoPhysics(false);
+						userPower.getPowerType().forceUnsummon(user, userPower);
+					}
+					finally {
+						userPower.setUnsummonedByItsUser(wasByUser);
+					}
 				}
 			}
 		}

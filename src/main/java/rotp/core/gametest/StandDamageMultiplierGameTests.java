@@ -520,7 +520,14 @@ public final class StandDamageMultiplierGameTests {
                         yield (0.04F + (float) caster.stand.getAttackDamage() * 0.01F)
                                 * (1 + p * 0.5F * Math.min(p, 0.5F)) * ((StandEntityBarrage) action).hitsThisTick;
                     }
-                    case CHARGED -> Math.max((float) caster.stand.getAttackDamage(), 1) * 1.5F;
+                    case CHARGED -> {
+                        // the larger of power x 1.5 and 1.1 x a second of the same Stand's barrage
+                        float p = (float) caster.stand.getPrecision() / 16;
+                        float barrageSecond = (0.04F + (float) caster.stand.getAttackDamage() * 0.01F)
+                                * (1 + p * 0.5F * Math.min(p, 0.5F))
+                                * Math.max((int) (caster.stand.getAttackSpeed() * 8.0 - 20.0), 0);
+                        yield Math.max(Math.max((float) caster.stand.getAttackDamage(), 1) * 1.5F, barrageSecond * 1.1F);
+                    }
                     case SPLASH -> (float) caster.stand.getAttackDamage() * 0.4F;
                     case ANGELO, ARMORED, TRANSPORT -> Math.max((float) caster.stand.getAttackDamage(), 1);
                     case PROJECTILE, CALLER, BOAT -> 1;

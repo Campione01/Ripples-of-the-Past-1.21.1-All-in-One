@@ -88,6 +88,7 @@ public final class LightComboTimingGameTests {
         for (String stand : List.of("star_platinum", "the_world")) {
             for (Kind kind : List.of(Kind.CYCLE, Kind.BUFFER_WINDUP, Kind.BUFFER_PERFORM, Kind.SKIP)) specs.add(new Spec(stand, kind));
         }
+        specs.add(new Spec("magicians_red", Kind.CYCLE));
         for (Kind kind : List.of(Kind.LOCK_NEXT, Kind.LOCK_PREVIOUS, Kind.NATURAL, Kind.HEAVY, Kind.GRAB, Kind.FINISHER)) specs.add(new Spec("star_platinum", kind));
         specs.add(new Spec("the_world", Kind.SAME_OBJECT));
         specs.add(new Spec("the_world", Kind.TS_PUNCH));
@@ -192,9 +193,9 @@ public final class LightComboTimingGameTests {
         boolean buffered() { return spec.kind == Kind.BUFFER_WINDUP || spec.kind == Kind.BUFFER_PERFORM; }
         String[] sequence() {
             if (spec.kind == Kind.LOCK_NEXT) return new String[] {"punch", "punch3", "punch4", "punch"};
-            if (spec.kind == Kind.SAME_OBJECT || spec.kind == Kind.NATURAL) return new String[] {"punch", "punch"};
-            if (spec.kind == Kind.CYCLE || spec.kind == Kind.LOCK_PREVIOUS) return spec.stand.equals("star_platinum")
-                    ? new String[] {"punch", "punch2", "punch3", "punch4", "punch"} : new String[] {"punch", "punch2", "punch"};
+            if (spec.kind == Kind.SAME_OBJECT) return new String[] {"punch", "punch"};
+            if (spec.kind == Kind.NATURAL) return new String[] {"punch", "punch2"};
+            if (spec.kind == Kind.CYCLE || spec.kind == Kind.LOCK_PREVIOUS) return new String[] {"punch", "punch2", "punch3", "punch4", "punch"};
             return new String[] {"punch", "punch2"};
         }
         void prepare() {
@@ -225,6 +226,10 @@ public final class LightComboTimingGameTests {
             if (spec.kind == Kind.LOCK_NEXT || spec.kind == Kind.SAME_OBJECT) {
                 power.getCurTypeData()._lockedAbilities.add("punch2");
                 suite.check(!power.getAbility("punch2").isAbilityAvailable(power), "real unavailable member remains registered");
+                if (spec.kind == Kind.SAME_OBJECT) {
+                    power.getCurTypeData()._lockedAbilities.add("punch3");
+                    power.getCurTypeData()._lockedAbilities.add("punch4");
+                }
             }
             if (spec.kind == Kind.HEAVY) {
                 power.getCurTypeData()._lockedAbilities.add("finisher_uppercut");
@@ -332,7 +337,7 @@ public final class LightComboTimingGameTests {
             }
             if (watch != null && watch.isOver() && stand.getCurStandAction() == null) {
                 if (spec.kind == Kind.NATURAL && actionIndex == 0) {
-                    suite.check(true, "native complete/clear precedes fresh combo reset"); actionIndex = 1; beginLight("punch", 1, 0);
+                    suite.check(true, "native complete/clear precedes fresh combo reset"); actionIndex = 1; beginLight("punch2", 1, 0);
                 }
                 else if (finishedSequence()) {
                     suite.check(nativeTicks >= 2 && stand.getCurStandAction() == null, "natural completion/cleanup, no forced phase or clock"); done = true;
@@ -375,7 +380,8 @@ public final class LightComboTimingGameTests {
                 watch = null; stage = 1;
             }
             else if (stage == 1 && prefix.isOver() && stand.getCurStandAction() == null) {
-                stage = 2; beginLight("punch", 1, 0);
+                // a slow press: the first punch came before the time-stop punch, so the arms take turns
+                stage = 2; beginLight("punch2", 1, 0);
             }
         }
         void beginLight(String selected, int windup, float skip) {

@@ -11,6 +11,7 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.init.power.ModStandAbilities;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityId;
@@ -21,8 +22,10 @@ import rotp.core.powersystem.ability.controls.InputBindTemplate;
 import rotp.core.powersystem.ability.controls.InputKey;
 import rotp.core.powersystem.ability.controls.InputMethod;
 import rotp.core.powersystem.ability.controls.InputUseVanillaMapping;
+import rotp.core.powersystem.entityaction.ActionPhase;
 import rotp.core.powersystem.standpower.StandUnlockableSkill;
 import rotp.core.powersystem.unlockableskill.UnlockableSkill;
+import rotp.core.subsystems.entity_useitem.StandItemUse;
 import com.mojang.datafixers.util.Pair;
 
 import net.minecraft.resources.ResourceLocation;
@@ -34,14 +37,23 @@ public class MovesetBuilder {
 			new InputUseVanillaMapping(GRAB_CHARGED_HEAVY_KEY_MAPPING_NAME);
 	public static final InputBindTemplate DEFAULT_GRAB_INPUT = GRAB_CHARGED_HEAVY_INPUT;
 	public static final InputBindTemplate DEFAULT_CHARGED_HEAVY_INPUT = GRAB_CHARGED_HEAVY_INPUT;
-	public static final InputBindTemplate DEFAULT_GRAB_THROW_INPUT = InputKey.RMB;
-	public static final InputBindTemplate DEFAULT_GRAB_RELEASE_INPUT = InputKey.Q;
+	public static final String GRAB_THROW_KEY_MAPPING_NAME = "jojo_ripples.key.grab_throw";
+	public static final String GRAB_RELEASE_KEY_MAPPING_NAME = "jojo_ripples.key.grab_release";
+	public static final String SWAP_ITEMS_KEY_MAPPING_NAME = "jojo_ripples.key.swap_items";
+	public static final InputBindTemplate DEFAULT_GRAB_THROW_INPUT = new InputUseVanillaMapping(GRAB_THROW_KEY_MAPPING_NAME);
+	public static final InputBindTemplate DEFAULT_GRAB_RELEASE_INPUT = new InputUseVanillaMapping(GRAB_RELEASE_KEY_MAPPING_NAME);
+	private static final String BLOCK_TOSS = "block_toss";
+	private static final int PUNCH_COMBO_LENGTH = 4;
+	private static final int LAST_COMBO_PUNCH_WINDUP = 5;
 
 	public final Map<String, ConfigAbilityFactory<?>> abilities = new LinkedHashMap<>();
 	public final Map<String, UnlockableSkill> unlockableSkills = new LinkedHashMap<>();
-	
+
 	@ApiStatus.Internal public Map<String, ControlSchemeTemplate> controlSchemes = new LinkedHashMap<>();
 	@ApiStatus.Internal public ControlSchemeTemplate curControlScheme = new ControlSchemeTemplate();
+	private boolean humanoidStand;
+	private boolean noPunchCombo;
+	private final Set<String> disabledByConfig = new LinkedHashSet<>();
 	private final Set<ResourceLocation> appliedStandMovesetExtensions = new LinkedHashSet<>();
 	private final Set<ResourceLocation> appliedPlayerPowerMovesetExtensions = new LinkedHashSet<>();
 	private final Map<PlayerPowerHotbarAnchor, String>
@@ -58,6 +70,9 @@ public class MovesetBuilder {
 		this.controlSchemes.forEach((name, scheme) -> copy.controlSchemes.put(name, scheme.deepCopy()));
 		copy.curControlScheme = this.curControlScheme.deepCopy();
 		copy.lastAbility = this.lastAbility;
+		copy.humanoidStand = this.humanoidStand;
+		copy.noPunchCombo = this.noPunchCombo;
+		copy.disabledByConfig.addAll(this.disabledByConfig);
 		copy.appliedStandMovesetExtensions.addAll(this.appliedStandMovesetExtensions);
 		copy.appliedPlayerPowerMovesetExtensions.addAll(
 				this.appliedPlayerPowerMovesetExtensions);
@@ -88,6 +103,10 @@ public class MovesetBuilder {
 		controlSchemes.putAll(staged.controlSchemes);
 		curControlScheme = staged.curControlScheme;
 		lastAbility = staged.lastAbility;
+		humanoidStand = staged.humanoidStand;
+		noPunchCombo = staged.noPunchCombo;
+		disabledByConfig.clear();
+		disabledByConfig.addAll(staged.disabledByConfig);
 		appliedStandMovesetExtensions.clear();
 		appliedStandMovesetExtensions.addAll(
 				staged.appliedStandMovesetExtensions);
@@ -125,6 +144,10 @@ public class MovesetBuilder {
 		controlSchemes.putAll(staged.controlSchemes);
 		curControlScheme = staged.curControlScheme;
 		lastAbility = staged.lastAbility;
+		humanoidStand = staged.humanoidStand;
+		noPunchCombo = staged.noPunchCombo;
+		disabledByConfig.clear();
+		disabledByConfig.addAll(staged.disabledByConfig);
 		appliedStandMovesetExtensions.clear();
 		appliedStandMovesetExtensions.addAll(
 				staged.appliedStandMovesetExtensions);
@@ -155,6 +178,16 @@ public class MovesetBuilder {
 		}
 		controlScheme.appendToExistingHotbar(
 				abilityName, hotbarId, inputMethod);
+	}
+
+	@ApiStatus.Internal
+	public void addStandMovesetExtensionHotbarVariation(
+			String controlSchemeName, int hotbarId,
+			String baseAbilityName, String abilityName,
+			InputKey.Modifier modifier, InputMethod inputMethod) {
+		addPlayerPowerMovesetExtensionHotbarVariation(
+				controlSchemeName, hotbarId, baseAbilityName,
+				abilityName, modifier, inputMethod);
 	}
 
 	@ApiStatus.Internal
@@ -363,6 +396,7 @@ public class MovesetBuilder {
 	// shortcuts for some common abilities
 	
 	public MovesetBuilder addHumanoidStandStuff() {
+		humanoidStand = true;
 		addManualControl();
 		return this;
 	}
@@ -371,7 +405,16 @@ public class MovesetBuilder {
 		addAbility("manual_control", ModStandAbilities.MANUAL_CONTROL);
 		return this;
 	}
-	
+
+	/**
+	 * For a humanoid Stand whose left click is a {@link StandEntityPunchAbility} and still no four-punch combo: a move of its own
+	 * under the punch's class, or a decision that its one punch stays. Say why at the call.
+	 */
+	public MovesetBuilder noPunchCombo() {
+		noPunchCombo = true;
+		return this;
+	}
+
 	@Deprecated
 	public MovesetBuilder addItemUsage() {
 		return this;
@@ -380,9 +423,73 @@ public class MovesetBuilder {
 	public MovesetBuilder addHumanoidStandSkills() {
 		return this
 		.addSkill(StandUnlockableSkill.startingAbility("guard"))
-		.addSkill(StandUnlockableSkill.startingAbility("manual_control"));
+		.addSkill(StandUnlockableSkill.startingAbility("manual_control"))
+		.addSkill(new StandUnlockableSkill(StandItemUse.SKILL).setIsStartingSkill());
 	}
-	
+
+	/**
+	 * What a moveset has by the rules of the core, for add-ons built against any version of it: a Stand with the grab can toss a
+	 * block, a humanoid Stand can use what it holds, and a humanoid Stand whose plain left click is a light punch has the four-punch
+	 * combo. Skills are read without building the moveset, so this runs on every copy PowerType makes, after the extensions. The
+	 * skill's name stands for a moveset's own choice: one that names it, or that a config has taken the ability from, keeps what it has.
+	 */
+	@ApiStatus.Internal
+	public void addWhatItsMovesBring() {
+		if (abilities.containsKey("grab") && !abilities.containsKey(BLOCK_TOSS) && !unlockableSkills.containsKey(BLOCK_TOSS)) {
+			addAbility(BLOCK_TOSS, ModStandAbilities.BLOCK_TOSS, Ability::useAbilityTypeResourceNamespace);
+			addSkill(StandUnlockableSkill.startingAbility(BLOCK_TOSS));
+		}
+		if (humanoidStand && !unlockableSkills.containsKey(StandItemUse.SKILL)) {
+			addSkill(new StandUnlockableSkill(StandItemUse.SKILL).setIsStartingSkill());
+		}
+		if (humanoidStand && !noPunchCombo) {
+			leftClickPunches().forEach(this::addPunchCombo);
+		}
+	}
+
+	private Set<String> leftClickPunches() {
+		Set<String> punches = new LinkedHashSet<>();
+		for (ControlSchemeTemplate scheme : controlSchemes.isEmpty() ? Set.of(curControlScheme) : controlSchemes.values()) {
+			scheme.defaultGroup.separateBinds.forEach((name, bind) -> {
+				ConfigAbilityFactory<?> ability = abilities.get(name);
+				if (ability != null && ability.abilityType()._defaultAbilityInstance instanceof StandEntityPunchAbility
+						&& sameBinding(bind, Pair.of(InputMethod.CLICK, InputKey.LMB))) {
+					punches.add(name);
+				}
+			});
+		}
+		return punches;
+	}
+
+	// A copy of the punch's own factory, so its sounds, knockback and whatever else its declaration set come along. No skill of their own:
+	// no row on the skills screen, and no bind, so no slot on the HUD or the controls screen.
+	private void addPunchCombo(String punch) {
+		for (int i = 2; i <= PUNCH_COMBO_LENGTH; i++) {
+			String member = punch + i;
+			if (!abilities.containsKey(member) && !disabledByConfig.contains(member)) {
+				abilities.put(member, comboMember(abilities.get(punch), punch, i));
+			}
+		}
+	}
+
+	private static <A extends Ability> ConfigAbilityFactory<A> comboMember(ConfigAbilityFactory<A> punch, String punchName, int number) {
+		ConfigAbilityFactory<A> member = punch.copy();
+		member.addInitBehavior(ability -> {
+			((StandEntityPunchAbility) ability).initIsComboMemberOf(punchName, number - 1);
+			if (number == PUNCH_COMBO_LENGTH) {
+				((StandEntityPunchAbility) ability).setDefaultPhaseLength(ActionPhase.WINDUP, LAST_COMBO_PUNCH_WINDUP);
+			}
+		});
+		return member;
+	}
+
+	/** A config's "disable": the rules above do not bring the ability back on the copies PowerType makes from it. */
+	@ApiStatus.Internal
+	public void disableByConfig(String abilityName) {
+		abilities.remove(abilityName);
+		disabledByConfig.add(abilityName);
+	}
+
 	protected void postInitControls() {
 		if (abilities.containsKey("grab")) {
 			if (!abilities.containsKey("grab_release")) {
@@ -390,8 +497,9 @@ public class MovesetBuilder {
 			}
 			addBindToAllCtrlSchemesIfMissing("grab_release", InputMethod.CLICK, DEFAULT_GRAB_RELEASE_INPUT);
 		}
+		addBindToAllCtrlSchemesIfMissing(BLOCK_TOSS, InputMethod.HOLD, InputKey.LMB);
 		addBindToAllCtrlSchemesIfMissing("manual_control", InputMethod.CLICK, InputKey.O);
-		addBindToAllCtrlSchemesIfMissing("items_swap_w_user", InputMethod.CLICK, InputKey.F.withModifier(InputKey.Modifier.CONTROL));
+		addBindToAllCtrlSchemesIfMissing("items_swap_w_user", InputMethod.CLICK, new InputUseVanillaMapping(SWAP_ITEMS_KEY_MAPPING_NAME));
 		addBindToAllCtrlSchemesIfMissing("items_swap_hands", InputMethod.CLICK, new InputUseVanillaMapping("key.swapOffhand"));
 		addBindToAllCtrlSchemesIfMissing("item_toss", InputMethod.CLICK, new InputUseVanillaMapping("key.drop"));
 	}

@@ -98,6 +98,10 @@ public class StandEntityHeavyPunchChargedAbility extends StandEntityAbility {
 		}
 	}
 
+	public static float calcExplosionRadius(StandEntity stand) {
+		return StandStatFormulas.getChargedHeavyBlastRadius(stand.getAttackDamage());
+	}
+
 	public static class StandEntityChargedHeavy extends EntityActionInstance implements SyncedDataHolderExtended {
 		// the key went up during BUTTON_CHARGE; synced, as the user's client asks it too (isHeldSincePress)
 		private static final EntityDataAccessor<Boolean> RELEASED_IN_CHARGE = SynchedEntityData.defineId(
@@ -204,8 +208,9 @@ public class StandEntityHeavyPunchChargedAbility extends StandEntityAbility {
 					// judged before the hit and played after it, as the heavy punch does (1.16 StandEntity.attackTarget)
 					Vec3 impactSoundPos = StandEntityPunchAbility.playHitSound(target, level) ? target.getCenterPos() : null;
 					DamageSource dmgSource = makePunchDamageSource();
-					float dmgAmount = StandStatFormulas.getChargedHeavyAttackDamage(stand.getAttackDamage());
-					float explRadius = Math.min((float) stand.getAttackDamage() * 0.25F, 10);
+					float dmgAmount = StandStatFormulas.getChargedHeavyAttackDamage(
+							stand.getAttackDamage(), stand.getAttackSpeed(), stand.getPrecision());
+					float explRadius = calcExplosionRadius(stand);
 
 					entityHitLanded = false;
 					switch (target.getType()) {
@@ -293,7 +298,7 @@ public class StandEntityHeavyPunchChargedAbility extends StandEntityAbility {
 					aoeDmgSource,
 					pos.x, pos.y, pos.z,
 					explRadius, false,
-					JojoModUtil.breakingBlocksEnabled(level) ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP)
+					JojoModUtil.breakingBlocksEnabled(level, stand) ? Explosion.BlockInteraction.DESTROY : Explosion.BlockInteraction.KEEP)
 					.aoeDamage(aoeDmg)
 					.createBlockShards(stand.getAttackDamage(), stand.getPrecision());
 			CustomExplosion.explode(explosion);

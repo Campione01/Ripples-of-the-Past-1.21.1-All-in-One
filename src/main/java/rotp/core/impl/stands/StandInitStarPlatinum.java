@@ -24,8 +24,8 @@ public class StandInitStarPlatinum {
 	public static EntityStandType create(ResourceLocation id) {
 		return new EntityStandType(
 				new StandStats.Builder()
-				.power(16.0, 18.5)
-				.speed(16.0, 19.0)
+				.power(20.0, 35.0)
+				.speed(18.0, 23.0)
 				.range(1, 2)
 				.durability(16.0, 20.0)
 				.precision(20)
@@ -129,8 +129,7 @@ public class StandInitStarPlatinum {
 					.addToHotbar("enhanced_eyesight", 0, InputMethod.HOLD)
 					.addToHotbar("inhale", 0, InputMethod.HOLD)
 					.addToHotbar("time_stop", 0, InputMethod.HOLD)
-					// 1.16 blink (SHIFT variation of the time stop) as its own wheel slot
-					.addToHotbar("time_stop_blink", 0, InputMethod.CLICK)
+					.addHotbarSlotVariation("time_stop_blink", "time_stop", InputKey.Modifier.SHIFT, InputMethod.CLICK)
 				.finalizeControlScheme()
 
 

@@ -55,6 +55,7 @@ import rotp.core.util.functions.JojoModUtil;
 import rotp.core.util.functions.StatusEffectUtil;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -74,7 +75,6 @@ public class CrazyDHealAbility extends StandEntityAbility {
 	private static final ActionAnimIdentifier IDLE_ANIM = ActionAnimIdentifier.getOrCreate("idle", true);
 	private static final ActionAnimIdentifier BARRAGE_ANIM = ActionAnimIdentifier.getOrCreate("barrage", false);
 	public static final float HEAL_STAMINA_COST_TICK = 1F;
-	private static final double HEAL_SPEED_MULTIPLIER = 1;
 
 	public CrazyDHealAbility(AbilityType<?> abilityType, AbilityId abilityId) {
 		super(abilityType, abilityId, HealingAction::new);
@@ -746,6 +746,15 @@ public class CrazyDHealAbility extends StandEntityAbility {
 						result.hpForExp += healingSpeed;
 					}
 				}
+
+				// a misshapen part, restored wrongly by a Crazy Diamond, is put right by a proper heal (owner, R772.1)
+				if (MisshapenEffect.isMisshapen(toHeal)) {
+					result.synched.isHealing = true;
+					result.synched.barrageVisuals |= useOriginalBarrageVisuals(entity);
+					if (!level.isClientSide()) {
+						MisshapenEffect.cure(toHeal);
+					}
+				}
 			}
 
 			return result;
@@ -853,7 +862,7 @@ public class CrazyDHealAbility extends StandEntityAbility {
 		
 		
 		protected double healSpeedWithConfig(StandEntity standEntity) {
-			return crazyDRestorationSpeed(standEntity) * HEAL_SPEED_MULTIPLIER;
+			return crazyDRestorationSpeed(standEntity) * StandSpecials.CD_HEAL_SPEED.getFor(standEntity);
 		}
 
 	}

@@ -3,8 +3,11 @@ package rotp.core.config.client;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntSupplier;
 
 import javax.annotation.Nullable;
+
+import org.jetbrains.annotations.ApiStatus;
 
 import rotp.core.entityattachment.SynchronizablePlayerData;
 import rotp.core.init.ModDataAttachmentTypes;
@@ -25,9 +28,14 @@ import net.neoforged.neoforge.common.util.INBTSerializable;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData, INBTSerializable<CompoundTag> {
-	public static final float NO_COOLDOWN_TIME_STOP_STAMINA_COST_MULTIPLIER = 3.0F;
+	/**
+	 * The time stop's costs in the no-cooldown mode. 3 until the owner's decision of 2026-11-11: the mode's fatigue alone
+	 * prices its repeats (StandAbilityFatigue), so a stop costs its normal price. Kept as the switch it was.
+	 */
+	public static final float NO_COOLDOWN_TIME_STOP_STAMINA_COST_MULTIPLIER = 1.0F;
 	public static final float NO_COOLDOWN_TIME_STOP_STAMINA_REGEN_MULTIPLIER = 0.2F;
 	private static final Map<Integer, PlayerClientBroadcastedSettings> REMOTE_SETTINGS = new ConcurrentHashMap<>();
+	private static final ThreadLocal<Boolean> NORMAL_COOLDOWN_VIEW = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
 	@Nullable private final transient Player owner;
 	public HumanoidArm standSide = HumanoidArm.RIGHT;
@@ -35,6 +43,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 	public boolean noStandAbilityCooldown = false;
 	public boolean standAttackTargetLock = false;
 	public boolean standAimAssist = true;
+	public boolean standBreaksBlocks = true;
+	public boolean standPicksUpItems = true;
+	public boolean standMovesBeyondEffectiveRange = true;
 
 	public PlayerClientBroadcastedSettings() {
 		this.owner = null;
@@ -52,6 +63,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		buf.writeBoolean(noStandAbilityCooldown);
 		buf.writeBoolean(standAttackTargetLock);
 		buf.writeBoolean(standAimAssist);
+		buf.writeBoolean(standBreaksBlocks);
+		buf.writeBoolean(standPicksUpItems);
+		buf.writeBoolean(standMovesBeyondEffectiveRange);
 	}
 
 	public void fromBuf(FriendlyByteBuf buf) {
@@ -60,6 +74,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		noStandAbilityCooldown = buf.readBoolean();
 		standAttackTargetLock = buf.readBoolean();
 		standAimAssist = buf.readBoolean();
+		standBreaksBlocks = buf.readBoolean();
+		standPicksUpItems = buf.readBoolean();
+		standMovesBeyondEffectiveRange = buf.readBoolean();
 	}
 
 	public PlayerClientBroadcastedSettings copy() {
@@ -74,6 +91,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		this.noStandAbilityCooldown = other.noStandAbilityCooldown;
 		this.standAttackTargetLock = other.standAttackTargetLock;
 		this.standAimAssist = other.standAimAssist;
+		this.standBreaksBlocks = other.standBreaksBlocks;
+		this.standPicksUpItems = other.standPicksUpItems;
+		this.standMovesBeyondEffectiveRange = other.standMovesBeyondEffectiveRange;
 	}
 
 
@@ -118,6 +138,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		nbt.putBoolean("NoStandAbilityCooldown", noStandAbilityCooldown);
 		nbt.putBoolean("StandAttackTargetLock", standAttackTargetLock);
 		nbt.putBoolean("StandAimAssist", standAimAssist);
+		nbt.putBoolean("StandBreaksBlocks", standBreaksBlocks);
+		nbt.putBoolean("StandPicksUpItems", standPicksUpItems);
+		nbt.putBoolean("StandMovesBeyondEffectiveRange", standMovesBeyondEffectiveRange);
 		return nbt;
 	}
 
@@ -129,6 +152,9 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		standAttackTargetLock = nbt.getBoolean("StandAttackTargetLock");
 		// on unless a save says otherwise: the setting came after saves that lack it
 		standAimAssist = !nbt.contains("StandAimAssist") || nbt.getBoolean("StandAimAssist");
+		standBreaksBlocks = !nbt.contains("StandBreaksBlocks") || nbt.getBoolean("StandBreaksBlocks");
+		standPicksUpItems = !nbt.contains("StandPicksUpItems") || nbt.getBoolean("StandPicksUpItems");
+		standMovesBeyondEffectiveRange = !nbt.contains("StandMovesBeyondEffectiveRange") || nbt.getBoolean("StandMovesBeyondEffectiveRange");
 	}
 
 	public static boolean isStandAttackTargetLockEnabled(StandPower standPower) {
@@ -149,14 +175,40 @@ public class PlayerClientBroadcastedSettings implements SynchronizablePlayerData
 		return true;
 	}
 
+	/** A player Stand user's toggle in the JoJo menu; a mob's Stand keeps every toggle on. */
+	public static boolean isStandToggleOn(StandToggle toggle, @Nullable LivingEntity user) {
+		if (user instanceof Player player) {
+			return getPlayerSettings(player).map(toggle::isOn).orElse(true);
+		}
+		return true;
+	}
+
 	public static boolean isNoStandAbilityCooldownEnabled(StandPower standPower) {
-		if (standPower == null || !standPower.hasPower()) {
+		if (standPower == null || !standPower.hasPower() || NORMAL_COOLDOWN_VIEW.get()) {
 			return false;
 		}
 		if (standPower.getUser() instanceof Player player) {
 			return getPlayerSettings(player).map(settings -> settings.noStandAbilityCooldown).orElse(false);
 		}
 		return false;
+	}
+
+	/**
+	 * Answers the query as the normal mode would, with every no-cooldown setting read as off: the cooldown an ability
+	 * would set, which the no-cooldown mode's fatigue is derived from (Ability#getNormalCooldown).
+	 */
+	@ApiStatus.Internal
+	public static int inNormalCooldownMode(IntSupplier query) {
+		if (NORMAL_COOLDOWN_VIEW.get()) {
+			return query.getAsInt();
+		}
+		NORMAL_COOLDOWN_VIEW.set(Boolean.TRUE);
+		try {
+			return query.getAsInt();
+		}
+		finally {
+			NORMAL_COOLDOWN_VIEW.set(Boolean.FALSE);
+		}
 	}
 
 	public static float getTimeStopStaminaCostMultiplier(StandPower standPower) {

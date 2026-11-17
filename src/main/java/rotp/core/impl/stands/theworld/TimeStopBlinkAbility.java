@@ -7,10 +7,9 @@ import java.util.function.BiFunction;
 
 import javax.annotation.Nullable;
 
-import rotp.core.api.perception.PerceptionBlockers;
+import rotp.core.api.stand.BlinkLanding;
 import rotp.core.api.stand.StandSkillWalls;
 import rotp.core.api.timestop.TimeStopTicksModifiers;
-import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
 import rotp.core.init.ModCriteriaTriggers;
 import rotp.core.init.ModDataAttachmentTypes;
@@ -33,14 +32,10 @@ import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
-import rotp.core.subsystems.target.ActionTargetAim;
-import rotp.core.subsystems.target.ActionTargetRange;
-import rotp.core.subsystems.target.StandPrecisionRay;
 import rotp.core.subsystems.timestop.TimeStopCooldowns;
 import rotp.core.subsystems.timestop.TimeStopLearning;
 import rotp.core.subsystems.timestop.TimeStopState;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ChunkMap;
@@ -53,7 +48,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.RelativeMovement;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
@@ -61,7 +55,6 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 public class TimeStopBlinkAbility extends Ability {
-	private static final double MAX_BLINK_DISTANCE = 192;
 	private boolean teleportBehindEntity;
 	private String timeStopAbilityName = "time_stop";
 	// 1.16 TimeStop.Builder staminaCost / staminaCostTick of the base time stop (The World's by default)
@@ -73,7 +66,7 @@ public class TimeStopBlinkAbility extends Ability {
 	public TimeStopBlinkAbility(AbilityType<?> abilityType, AbilityId abilityId) {
 		super(abilityType, abilityId);
 		isSubAbility = true;
-		// own wheel slot: the 1.16 ts_blink icon (falls back to time_stop)
+		// the 1.16 ts_blink icon, drawn with Shift held (falls back to time_stop)
 		spriteName = "time_stop_blink";
 		partsRequired(StandPart.MAIN_BODY);
 	}
@@ -160,9 +153,11 @@ public class TimeStopBlinkAbility extends Ability {
 				? timeStop.getUnlockConditionCheck(context) : ConditionCheck.createNegative("not_unlocked");
 	}
 
+	// 1.16 TimeResume held the slot's Shift in the user's own stop: gone here, Shift + the key resumes it as the key does
 	@Override
 	public boolean isAbilityAvailable(Power<?> context) {
-		return isAbilityUnlocked(context);
+		LivingEntity user = context != null ? context.getUser() : null;
+		return isAbilityUnlocked(context) && (user == null || !TimeResumeAbility.hasOwnTimeStop(user.level(), user));
 	}
 
 	@Override
@@ -211,19 +206,15 @@ public class TimeStopBlinkAbility extends Ability {
 			power.setStamina(staminaBeforeCost);
 			return false;
 		}
-		double playerSpeed = getDistancePerTick(user);
-		double maxDistance = Math.min(playerSpeed * timeStopTicks, MAX_BLINK_DISTANCE);
+		double maxDistance = BlinkLanding.reach(user, timeStopTicks, BlinkLanding.MAX_DISTANCE);
 		boolean wallsHideEntities = StandSkillWalls.wallsHideEntities(serverLevel, this);
-		ActionTarget target = getClickedBlinkTarget(user, power, wallsHideEntities);
-		if (target.isEmpty(serverLevel)) {
-			target = rayTraceBlinkTarget(user, maxDistance, wallsHideEntities);
-		}
+		ActionTarget target = BlinkLanding.target(user, power, maxDistance, wallsHideEntities);
 		Vec3 blinkPos = calcBlinkPos(serverLevel, user, target, maxDistance);
-		if (landsByUnperceived(serverLevel, user, blinkPos)) {
+		if (BlinkLanding.refusesLanding(serverLevel, user, blinkPos)) {
 			power.setStamina(staminaBeforeCost);
 			return false;
 		}
-		int impliedTicks = getImpliedTicks(user, blinkPos, playerSpeed, timeStopTicks);
+		int impliedTicks = BlinkLanding.impliedTicks(user, blinkPos, timeStopTicks);
 		power.consumeStamina(effectiveTimeStopCost(power, impliedTicks * getBlinkStaminaCostTicking(power, learningName)));
 		Vec3 soundPos = user.position();
 		// 1.16 set the yaw toward the target from blinkPos before teleporting
@@ -252,11 +243,12 @@ public class TimeStopBlinkAbility extends Ability {
 		if (StandUtil.standIgnoresStaminaDebuff(power)) {
 			return timeStopTicks;
 		}
-		float tickingCost = effectiveTimeStopCost(power, getBlinkStaminaCostTicking(power, learningName));
+		// weighed as consumeStamina takes it, in the Stand's stamina share, so the reach and the charge agree
+		float tickingCost = power.getStaminaCostShare(effectiveTimeStopCost(power, getBlinkStaminaCostTicking(power, learningName)));
 		if (tickingCost <= 0.0F) {
 			return timeStopTicks;
 		}
-		float staminaAfterBaseCost = power.getStamina() - effectiveTimeStopCost(power, getBlinkStaminaCost(power));
+		float staminaAfterBaseCost = power.getStamina() - power.getStaminaCostShare(effectiveTimeStopCost(power, getBlinkStaminaCost(power)));
 		int affordableTicks = Mth.floor(staminaAfterBaseCost / tickingCost);
 		return Mth.clamp(affordableTicks, TimeStopLearning.MIN_TIME_STOP_TICKS, timeStopTicks);
 	}
@@ -270,7 +262,7 @@ public class TimeStopBlinkAbility extends Ability {
 		return amount * PlayerClientBroadcastedSettings.getTimeStopStaminaCostMultiplier(power);
 	}
 
-	private Holder<SoundEvent> getTimeStopBlinkSound(StandPower power) {
+	public Holder<SoundEvent> getTimeStopBlinkSound(StandPower power) {
 		if (blinkSound != null) {
 			return blinkSound;
 		}
@@ -279,113 +271,26 @@ public class TimeStopBlinkAbility extends Ability {
 				: ModSoundEvents.THE_WORLD_TIME_STOP_BLINK;
 	}
 
-	private static int getImpliedTicks(LivingEntity user, Vec3 blinkPos, double playerSpeed, int timeStopTicks) {
-		if (playerSpeed <= 0) {
-			return 0;
-		}
-		double ticksForDistance = blinkPos.subtract(user.position()).length() / playerSpeed;
-		return Mth.clamp(Mth.ceil(ticksForDistance), 0, timeStopTicks);
-	}
-
-	private static double getDistancePerTick(LivingEntity entity) {
-		return entity.getAttributeValue(Attributes.MOVEMENT_SPEED) * 2.1585;
-	}
-
-	private static ActionTarget getClickedBlinkTarget(LivingEntity user, StandPower power, boolean wallsHideEntities) {
-		ActionTargetAim aim = LivingComponentAction.getComponent(user).entityAim;
-		// 1.16 PowerBaseImpl.checkTarget: a press on an entity the server no longer has is a press on nothing
-		if (!user.level().isClientSide() && aim.isClientEntityMissing()) {
-			return ActionTarget.EMPTY;
-		}
-		ActionTarget target = aim.getTarget().copy().resolveEntityId(user.level());
-		// 1.16 EntityStandType.clientHitResult: with the Stand out, a vanilla miss became the Stand's precision ray
-		StandEntity summoned = power.getSummonedStandEntity();
-		if (target.getType() == ActionTarget.TargetType.EMPTY && summoned != null && StandEntityPunchAbility.aimAssist(user)) {
-			target = StandPrecisionRay.trace(user, summoned, StandPrecisionRay.reach(user, summoned), 0.0D, true,
-					wallsHideEntities);
-		}
-		if (target.getType() == ActionTarget.TargetType.ENTITY) {
-			Entity entity = target.getEntity();
-			if (entity == null || entity == user || entity.level() != user.level() || entity.isRemoved()
-					|| entity.isSpectator() || !entity.isPickable()
-					|| entity instanceof StandEntity stand && stand.getUser() == user
-					|| PerceptionBlockers.isBlocked(user, entity, PerceptionBlockers.Sight.INSTANT_TIME_STOP)) {
-				return ActionTarget.EMPTY;
-			}
-		}
-		else if (target.getType() == ActionTarget.TargetType.BLOCK && !user.level().hasChunkAt(target.getBlockPos())) {
-			return ActionTarget.EMPTY;
-		}
-		return ActionTargetRange.isTargetWithinRange(ActionTargetRange.standPerformer(user), target, user.level())
-				? target : ActionTarget.EMPTY;
-	}
-
-	// 1.16 JojoModUtil.rayTrace: the nearest pickable living entity on the look ray, else the block by its outline
-	private static ActionTarget rayTraceBlinkTarget(LivingEntity user, double maxDistance, boolean wallsHideEntities) {
-		List<ActionTarget> targets = StandPrecisionRay.clipTargets(user, maxDistance,
-				entity -> canBlinkTarget(user, entity), 0.0D, 0.0D, wallsHideEntities);
-		return targets.isEmpty() ? ActionTarget.EMPTY : targets.get(0);
-	}
-
-	private static boolean canBlinkTarget(LivingEntity user, Entity entity) {
-		if (!(entity instanceof LivingEntity)) {
-			return false;
-		}
-		if (entity instanceof StandEntity stand && stand.getUser() == user) {
-			return false;
-		}
-		return !PerceptionBlockers.isBlocked(user, entity, PerceptionBlockers.Sight.INSTANT_TIME_STOP);
-	}
-
 	/**
 	 * Whether the user would land on or next to an entity it cannot perceive (half a block around its own box there): the
 	 * blink is refused, as it may not reach what its user does not know is there.
 	 */
 	public static boolean landsByUnperceived(Level level, Entity user, Vec3 landingPos) {
-		return PerceptionBlockers.hasBlockers() && PerceptionBlockers.anyBlockedIn(level, user,
-				user.getDimensions(user.getPose()).makeBoundingBox(landingPos).inflate(0.5D),
-				PerceptionBlockers.Sight.INSTANT_TIME_STOP);
+		return BlinkLanding.refusesLanding(level, user, landingPos);
 	}
 
 	private Vec3 calcBlinkPos(ServerLevel level, LivingEntity user, ActionTarget target, double maxDistance) {
-		if (target.isEmpty(level)) {
-			return getMissTeleportPos(level, user, maxDistance);
+		if (!target.isEmpty(level) && target.getType() == ActionTarget.TargetType.ENTITY) {
+			return getEntityTargetTeleportPos(user, target.getEntity());
 		}
-		return switch (target.getType()) {
-			case ENTITY -> getEntityTargetTeleportPos(user, target.getEntity());
-			case BLOCK -> getBlockTargetTeleportPos(level, user, target);
-			default -> getMissTeleportPos(level, user, maxDistance);
-		};
+		return BlinkLanding.landingPos(level, user, target, maxDistance, teleportBehindEntity);
 	}
 
 	private Vec3 getEntityTargetTeleportPos(LivingEntity user, Entity targetEntity) {
 		if (entityTargetTeleportPos != null) {
 			return entityTargetTeleportPos.apply(user, targetEntity);
 		}
-		if (teleportBehindEntity) {
-			return targetEntity.position().subtract(Vec3.directionFromRotation(0, targetEntity.getYRot())
-					.scale(targetEntity.getBbWidth() + user.getBbWidth()));
-		}
-		double distance = targetEntity.getBbWidth() + user.getBbWidth();
-		return user.distanceToSqr(targetEntity) > distance * distance
-				? targetEntity.position().subtract(user.getLookAngle().scale(distance))
-				: user.position();
-	}
-
-	private static Vec3 getBlockTargetTeleportPos(ServerLevel level, LivingEntity user, ActionTarget target) {
-		BlockPos blockPos = target.getBlockPos();
-		BlockPos standPos = level.isEmptyBlock(blockPos.above()) ? blockPos.above() : blockPos.relative(target.getFace());
-		return Vec3.atBottomCenterOf(standPos);
-	}
-
-	private static Vec3 getMissTeleportPos(ServerLevel level, LivingEntity user, double maxDistance) {
-		Vec3 pos = user.getEyePosition().add(user.getLookAngle().scale(maxDistance));
-		BlockPos blockPos = BlockPos.containing(pos);
-		while (blockPos.getY() > level.getMinBuildHeight() && level.isEmptyBlock(blockPos.below())) {
-			blockPos = blockPos.below();
-		}
-		double y = blockPos.getY() > level.getMinBuildHeight() ? blockPos.getY() : user.position().y;
-		return new Vec3(pos.x, y, pos.z);
+		return BlinkLanding.entityPos(user, targetEntity, teleportBehindEntity);
 	}
 
 	/** The yaw that faces an entity target from blinkPos, or null (no entity target: keep the yaw). */

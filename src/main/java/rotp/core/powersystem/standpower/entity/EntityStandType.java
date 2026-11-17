@@ -15,6 +15,7 @@ import rotp.core.init.ModEntityTypes;
 import rotp.core.init.ModSpecialActions;
 import rotp.core.network.s2c.TrSetStandEntityPacket;
 import rotp.core.powersystem.MovesetBuilder;
+import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
@@ -22,10 +23,12 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandStats;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.datapack.StandTypeClass;
+import rotp.core.powersystem.standpower.type.StandActionCancel;
 import rotp.core.powersystem.standpower.type.StandType;
 import rotp.core.subsystems.entity_possessionv2.LivingComponentPossession;
 import rotp.core.util.objects_java.DefaultedValue;
 import rotp.core.impl.stands._entitybase.StandEntityManualControlToggle;
+import rotp.core.impl.stands._entitybase.StandEntityUnsummonAction;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
@@ -339,6 +342,30 @@ public class EntityStandType extends StandType {
 	}
 
 	@Override
+	public void onUserCancelCommand(LivingEntity user, StandPower standPower) {
+		StandEntity standEntity = standPower.getSummonedStandEntity();
+		if (standEntity == null) {
+			super.onUserCancelCommand(user, standPower);
+			return;
+		}
+		// a time stop's windup and the like, in its user's own slot, come before the Stand's
+		if (StandActionCancel.cancelWindup(LivingComponentAction.getExistingComponent(user, PowerClass.STAND), standPower)) {
+			return;
+		}
+		LivingComponentAction standSlot = LivingComponentAction.getExistingComponent(standEntity);
+		EntityActionInstance action = standSlot != null ? standSlot.getAction() : null;
+		if (action == null || action.isOver()) {
+			unsummon(user, standPower);
+		}
+		else if (action instanceof StandEntityUnsummonAction.StandUnsummonInstance) {
+			action.actionPerformEnd();
+		}
+		else {
+			StandActionCancel.cancelWindup(standSlot, standPower);
+		}
+	}
+
+	@Override
 	public boolean summon(LivingEntity user, StandPower standPower) {
 		return summon(user, standPower, entity -> {}, true);
 	}
@@ -365,6 +392,7 @@ public class EntityStandType extends StandType {
 			standEntity.setCustomName(standPower.getName());
 			standPower.setSummonedStand(standEntity);
 			standEntity.prepareFreshSummonState(user);
+			standEntity.placeForFreshSummon(user);
 			beforeTheSummon.accept(standEntity);
 			
 			if (addToWorld) {
@@ -381,6 +409,7 @@ public class EntityStandType extends StandType {
 		Level level = user.level();
 		if (!level.isClientSide() && !standEntity.isAddedToLevel()) {
 			if (addToWorld) {
+				standEntity.placeForSummonUnlessPositioned(user);
 				level.addFreshEntity(standEntity);
 				standEntity.playStandSummonSound();
 				// action sounds played before the auto-summoned Stand was added (1.16 phase standSound)

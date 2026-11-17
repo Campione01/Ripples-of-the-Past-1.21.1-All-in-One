@@ -284,6 +284,14 @@ public final class GoldExperienceLifeforms {
         return subtypeFromId(lifeformId).map(EntitySubtype::getDescription).orElseGet(() -> Component.empty());
     }
 
+    /**
+     * Whether a press of Choose or Revert, run on this client, is this client's own. The server replays every press to
+     * the clients watching its user (TrAbilityUsePacket), where the user is a remote player: those must open nothing.
+     */
+    public static boolean pressedOnThisClient(LivingEntity user) {
+        return user instanceof Player player && player.isLocalPlayer();
+    }
+
     public static float getVolume(Entity entity) {
         float width = entity.getBbWidth();
         float height = entity.getBbHeight();

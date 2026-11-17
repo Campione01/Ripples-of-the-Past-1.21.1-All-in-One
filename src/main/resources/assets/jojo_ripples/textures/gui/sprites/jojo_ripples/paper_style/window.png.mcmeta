@@ -1,0 +1,10 @@
+{
+    "gui": {
+        "scaling": {
+            "type": "nine_slice",
+            "width": 230,
+            "height": 227,
+            "border": 8
+        }
+    }
+}

@@ -13,6 +13,7 @@ import rotp.core.mechanics.resolve.ResolveCounter;
 import rotp.core.network.NetworkPayloadValidation;
 import rotp.core.network.s2c.CommonConfigPacket;
 import rotp.core.network.s2c.ResetSyncedCommonConfigPacket;
+import rotp.core.powersystem.standpower.AbilityFatigueOverrides;
 import rotp.core.powersystem.standpower.StandUtil;
 
 import javax.annotation.Nullable;
@@ -36,6 +37,10 @@ public class JojoModConfig {
 	// the values of R770 test builds; a file that still has them reads as the mode they meant
 	public static final String LEGACY_BODY_MODE_1_16 = "1.16";
 	public static final String LEGACY_BODY_MODE_MANGA = "manga";
+	// the owner, 2026-11-06: "都固定1.5秒，並且可以由玩家在設定裡更改，最短不能低於0.5秒"
+	public static final double TIME_STOP_CHARGE_SECONDS_DEFAULT = 1.5D;
+	public static final double TIME_STOP_CHARGE_SECONDS_MIN = 0.5D;
+	public static final double TIME_STOP_CHARGE_SECONDS_MAX = 5.0D;
 
 	static {
 		Pair<Common, ModConfigSpec> specPair = new ModConfigSpec.Builder().configure(Common::new);
@@ -46,6 +51,11 @@ public class JojoModConfig {
 
 	public static Common getCommonConfigInstance(boolean isClientSide) {
 		return isClientSide ? COMMON_SYNCED_TO_CLIENT : COMMON_FROM_FILE;
+	}
+
+	public static double timeStopChargeSecondsInRange(double seconds) {
+		return Double.isNaN(seconds) ? TIME_STOP_CHARGE_SECONDS_DEFAULT
+				: Mth.clamp(seconds, TIME_STOP_CHARGE_SECONDS_MIN, TIME_STOP_CHARGE_SECONDS_MAX);
 	}
 
 	public static float getResolveLevelMax(boolean isClientSide, int level) {
@@ -98,8 +108,10 @@ public class JojoModConfig {
 		public final ConfigValue<Boolean> pillarManTempleSpawn;
 		public final ConfigValue<Boolean> skipStandProgression;
 		public final ConfigValue<List<? extends Double>> resolveLvlPoints;
+		public final ConfigValue<Double> standExpMultiplier;
 		public final ConfigValue<Integer> timeStopChunkRange;
 		public final ConfigValue<Double> timeStopDamageMultiplier;
+		public final ConfigValue<Double> timeStopChargeSeconds;
 		public final ConfigValue<Double> standDamageMultiplier;
 		public final ConfigValue<Double> standResistanceMultiplier;
 		public final ConfigValue<String> standBodyThroughWalls;
@@ -124,6 +136,7 @@ public class JojoModConfig {
 		public final ConfigValue<Boolean> saveDestroyedBlocks;
 		public final ConfigValue<Boolean> endermenBeyondTimeSpace;
 		public final ConfigValue<List<? extends String>> bannedStands;
+		public final ConfigValue<List<? extends String>> standAbilityFatigueOverrides;
 		public final ConfigValue<StandUtil.StandRandomPoolFilter> standArrowMode;
 		public final ConfigValue<Integer> standXpCostInitial;
 		public final ConfigValue<Integer> standXpCostIncrease;
@@ -175,6 +188,11 @@ public class JojoModConfig {
 					.translation("jojo.config.resolveLvlPoints")
 					.defineList("resolveLvlPoints", JojoModConfig::defaultResolveLvlPoints, JojoModConfig::isPositiveFiniteDouble),
 					defaultResolveLvlPoints());
+			// server-side only, the exp reaches the client already scaled
+			standExpMultiplier = ConfigValue.fromSpec(
+					builder.comment("Multiplier for the Stand EXP earned in play. The stand_exp command gives its amount as it is.")
+					.translation("jojo.config.standExpMultiplier")
+					.defineInRange("standExpMultiplier", 1.0D, 0.0D, 5000.0D), 1.0D);
 			builder.pop();
 
 			standArrowMode = ConfigValue.fromSpec(
@@ -216,16 +234,24 @@ public class JojoModConfig {
 					.defineInRange("arrowDurabilityBeetle", 250, 1, Integer.MAX_VALUE), 250);
 
 			builder.push("Time Stop");
+			// A new TOML key lets NeoForge replace the old finite range on existing installs.
 			timeStopChunkRange = ConfigValue.fromSpec(
-					builder.comment("Range of Time Stop ability in chunks.",
-							"If set to 0, the whole dimension is frozen in time.",
-							"Defaults to 12.")
+					builder.comment("0 (default): stops time throughout the current dimension.",
+							"A positive value limits the range in chunks.")
 					.translation("jojo.config.timeStopChunkRange")
-					.defineInRange("timeStopChunkRange", 12, 0, Integer.MAX_VALUE), 12);
+					.defineInRange("timeStopRangeChunks", 0, 0, Integer.MAX_VALUE), 0);
 			timeStopDamageMultiplier = ConfigValue.fromSpec(
 					builder.comment("Damage multiplier for entities frozen in time.")
 					.translation("jojo.config.timeStopDamageMultiplier")
 					.defineInRange("timeStopDamageMultiplier", 1.0D, 0.0D, 1.0D), 1.0D);
+			timeStopChargeSeconds = ConfigValue.fromSpec(
+					builder.comment("Seconds Star Platinum's and The World's Time Stop take to charge.",
+							"The World takes two thirds of this from Resolve level 4, never under the minimum here.",
+							"Letting go at half the charge or later stops time for that share; before half nothing happens.",
+							"Defaults to 1.5.")
+					.translation("jojo.config.timeStopChargeSeconds")
+					.defineInRange("timeStopChargeSeconds", TIME_STOP_CHARGE_SECONDS_DEFAULT,
+							TIME_STOP_CHARGE_SECONDS_MIN, TIME_STOP_CHARGE_SECONDS_MAX), TIME_STOP_CHARGE_SECONDS_DEFAULT);
 			builder.pop();
 
 			standDamageMultiplier = ConfigValue.fromSpec(
@@ -334,6 +360,15 @@ public class JojoModConfig {
 			soulAscension = ConfigValue.fromSpec(
 					builder.translation("jojo.config.soulAscension")
 					.define("soulAscension", true), true);
+			// server-side only: the fatigue of the no-cooldown mode is the server's
+			standAbilityFatigueOverrides = ConfigValue.fromSpec(
+					builder.comment("Hand-set fatigue of Stand abilities in a player's no-cooldown mode, by Stand id and ability name.",
+							"\"<stand id>/<ability>=<ticks>\" derives the ability's fatigue from that many ticks instead of its",
+							"normal cooldown (0: no fatigue); \"<stand id>/<ability>=practical\" makes its first repeats cheaper.")
+					.translation("jojo.config.standAbilityFatigueOverrides")
+					.defineListAllowEmpty("standAbilityFatigueOverrides", AbilityFatigueOverrides.DEFAULTS,
+							() -> JojoMod.MOD_ID + ":star_platinum/star_finger=80", AbilityFatigueOverrides::isValid),
+					AbilityFatigueOverrides.DEFAULTS);
 			builder.pop();
 
 			saveDestroyedBlocks = ConfigValue.fromSpec(
@@ -362,8 +397,10 @@ public class JojoModConfig {
 			pillarManTempleSpawn = ConfigValue.synced(true);
 			skipStandProgression = ConfigValue.synced(false);
 			resolveLvlPoints = ConfigValue.synced(defaultResolveLvlPoints());
-			timeStopChunkRange = ConfigValue.synced(12);
+			standExpMultiplier = ConfigValue.synced(1.0D);
+			timeStopChunkRange = ConfigValue.synced(0);
 			timeStopDamageMultiplier = ConfigValue.synced(1.0D);
+			timeStopChargeSeconds = ConfigValue.synced(TIME_STOP_CHARGE_SECONDS_DEFAULT);
 			standDamageMultiplier = ConfigValue.synced(1.0D);
 			standResistanceMultiplier = ConfigValue.synced(1.0D);
 			standBodyThroughWalls = ConfigValue.synced(BODY_MODE_STANDARD);
@@ -388,6 +425,7 @@ public class JojoModConfig {
 			saveDestroyedBlocks = ConfigValue.synced(false);
 			endermenBeyondTimeSpace = ConfigValue.synced(true);
 			bannedStands = ConfigValue.synced(List.<String>of());
+			standAbilityFatigueOverrides = ConfigValue.synced(AbilityFatigueOverrides.DEFAULTS);
 			standArrowMode = ConfigValue.synced(StandUtil.StandRandomPoolFilter.NONE);
 			standXpCostInitial = ConfigValue.synced(30);
 			standXpCostIncrease = ConfigValue.synced(5);
@@ -406,6 +444,11 @@ public class JojoModConfig {
 		public boolean manualStandPassesThroughBlocks() {
 			String mode = standBodyThroughWalls.get();
 			return BODY_MODE_PHASING.equals(mode) || LEGACY_BODY_MODE_MANGA.equals(mode);
+		}
+
+		/** A whole tick count, in range whatever a hand-edited file or a server's packet said. */
+		public int timeStopChargeTicks() {
+			return Math.round((float) (timeStopChargeSecondsInRange(timeStopChargeSeconds.get()) * 20.0D));
 		}
 
 		public boolean isStandBanned(@Nullable ResourceLocation standId) {
@@ -431,6 +474,7 @@ public class JojoModConfig {
 			skipStandProgression.set(values.skipStandProgression);
 			resolveLvlPoints.set(List.copyOf(values.resolveLvlPoints));
 			timeStopChunkRange.set(values.timeStopChunkRange);
+			timeStopChargeSeconds.set(values.timeStopChargeSeconds);
 			standDamageMultiplier.set(values.standDamageMultiplier);
 			standResistanceMultiplier.set(values.standResistanceMultiplier);
 			standBodyThroughWalls.set(values.standBodyThroughBlocks ? BODY_MODE_PHASING : BODY_MODE_STANDARD);
@@ -464,6 +508,7 @@ public class JojoModConfig {
 			resolveLvlPoints.clearCache();
 			timeStopChunkRange.clearCache();
 			timeStopDamageMultiplier.clearCache();
+			timeStopChargeSeconds.clearCache();
 			standDamageMultiplier.clearCache();
 			standResistanceMultiplier.clearCache();
 			standBodyThroughWalls.clearCache();
@@ -497,6 +542,7 @@ public class JojoModConfig {
 			private final boolean skipStandProgression;
 			private final List<Double> resolveLvlPoints;
 			private final int timeStopChunkRange;
+			private final double timeStopChargeSeconds;
 			private final double standDamageMultiplier;
 			private final double standResistanceMultiplier;
 			private final boolean standBodyThroughBlocks;
@@ -533,6 +579,7 @@ public class JojoModConfig {
 				this.skipStandProgression = config.skipStandProgression.get();
 				this.resolveLvlPoints = config.resolveLvlPoints.get().stream().map(Double::valueOf).toList();
 				this.timeStopChunkRange = config.timeStopChunkRange.get();
+				this.timeStopChargeSeconds = config.timeStopChargeSeconds.get();
 				this.standDamageMultiplier = config.standDamageMultiplier.get();
 				this.standResistanceMultiplier = config.standResistanceMultiplier.get();
 				this.standBodyThroughBlocks = config.manualStandPassesThroughBlocks();
@@ -589,6 +636,7 @@ public class JojoModConfig {
 				}
 				this.techniqueSkillRequirements = List.copyOf(requirements);
 				this.timeStopChunkRange = Math.max(0, buf.readVarInt());
+				this.timeStopChargeSeconds = timeStopChargeSecondsInRange(buf.readDouble());
 				int resolvePointsCount = NetworkPayloadValidation.requireCollectionSize(
 						buf.readVarInt(), MAX_SYNCED_DOUBLE_VALUES,
 						"resolve level point");
@@ -643,6 +691,7 @@ public class JojoModConfig {
 					buf.writeVarInt(value);
 				}
 				buf.writeVarInt(timeStopChunkRange);
+				buf.writeDouble(timeStopChargeSeconds);
 				NetworkPayloadValidation.requireOutboundCollectionSize(
 						resolveLvlPoints.size(), MAX_SYNCED_DOUBLE_VALUES,
 						"resolve level point");

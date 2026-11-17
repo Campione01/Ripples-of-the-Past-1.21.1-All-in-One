@@ -16,6 +16,7 @@ import rotp.core.client.entityanim.PreFrameEntityAnimCalc.LivingAnimState;
 import rotp.core.client.entityanim.action.AnimActionPhase;
 import rotp.core.client.entityanim.action.AnimInstructionTimelines;
 import rotp.core.client.entityanim.action.AnimObjTimeline;
+import rotp.core.client.entityanim.barrage.AfterimageRule;
 import rotp.core.client.entityanim.molang.AnimMolangQuery;
 import rotp.core.client.entityanim.molang.AnimMolangQuery.AnimMolangVariables;
 import rotp.core.client.entityanim.molang.animelement.AnimationChannelQuery;
@@ -58,6 +59,8 @@ public class RotpAnimDefinition {
 	public final ClipClock clock;
 	@Nullable public List<AnimFramePose> coolPoses;
 	@Nullable public AnimationMirror animationMirror;
+	@Nullable private float[][] armStrokePeaks;
+	private float armStrokeLoopSeconds;
 	
 //	public float animTime;
 	
@@ -129,7 +132,39 @@ public class RotpAnimDefinition {
 		}
 		return frame;
 	}
-	
+
+	/** What the head takes of one axis of the look; limit as StandSkin#getHeadLookLimit, axis 0 up and down, 1 sideways. */
+	public static float limitedLook(float degrees, @Nullable float[] limit, int axis) {
+		return limit != null ? Mth.clamp(degrees, -limit[axis], limit[axis]) : degrees;
+	}
+
+	/**
+	 * 1.16 TuskModel limited its head after the pose, and the arms and trunk went on reading the whole look: only the bones
+	 * that carry the look are posed again, with the limited look. Their numbers are the clip's, so the seams hold.
+	 */
+	public void limitHeadLook(AnimFramePose frame, AnimMolangVariables animVariables, float[] limit,
+			@Nullable AnimFramePose prevPunchPose, float seconds, float animSpeed) {
+		float xRot = animVariables.xRot;
+		float yRot = animVariables.yRot;
+		animVariables.xRot = limitedLook(xRot, limit, 0);
+		animVariables.yRot = limitedLook(yRot, limit, 1);
+		if (animVariables.xRot == xRot && animVariables.yRot == yRot) {
+			return;
+		}
+		calcAnimPose(animVariables, prevPunchPose, seconds, animSpeed, LIMITED_HEAD_POSE, LIMITED_HEAD_TARGET);
+		for (String bone : LOOK_BONES) {
+			ModelPartFrame limited = LIMITED_HEAD_POSE.getIfPresent(bone);
+			ModelPartFrame posed = frame.getIfPresent(bone);
+			if (limited != null && posed != null) {
+				posed.rotationOffset.set(limited.rotationOffset);
+			}
+		}
+		animVariables.xRot = xRot;
+		animVariables.yRot = yRot;
+		// the barrage's afterimages read this clip's keyframes later in the frame
+		evaluateQueries(animVariables, seconds);
+	}
+
 	public static void animate(Model model, AnimFramePose frame) {
 		HumanoidModel<?> humanoidModelCast = model instanceof HumanoidModel __ ? __ : null;
 		Model_1_21_2plus backportModelCast = (Model_1_21_2plus) model;
@@ -191,7 +226,7 @@ public class RotpAnimDefinition {
 		boolean appliedPhaseAnim = false;
 		boolean usePhaseTime = entityAction.actionPhase != null && this.instructionTimelines.phases != null;
 		if (usePhaseTime) {
-			ActionPhase taskPhase = entityAction.actionPhase;
+			ActionPhase taskPhase = sectionOf(entityAction.actionPhase);
 
 			Float2ObjectMap.Entry<AnimActionPhase> curPhase = null;
 			Float2ObjectMap.Entry<AnimActionPhase> nextPhase = null;
@@ -262,6 +297,21 @@ public class RotpAnimDefinition {
 	}
 	
 	/**
+	 * A clip with a charge section of its own draws the charge in it; 1.16's clips, which have none, draw it in their windup.
+	 */
+	private ActionPhase sectionOf(ActionPhase phase) {
+		if (phase != ActionPhase.BUTTON_CHARGE) {
+			return phase;
+		}
+		for (Float2ObjectMap.Entry<AnimActionPhase> section : instructionTimelines.phases.getEntries()) {
+			if (section.getValue().phase == ActionPhase.BUTTON_CHARGE) {
+				return phase;
+			}
+		}
+		return ActionPhase.WINDUP;
+	}
+
+	/**
 	 * @return anim time in seconds
 	 */
 	public float getAnimTime(float ticks) {
@@ -269,8 +319,118 @@ public class RotpAnimDefinition {
 	}
 	
 
+	/** The channels this clip keys on a bone; null if none. */
+	@Nullable
+	public List<IAnimationChannel> boneChannels(String bone) {
+		return boneAnimations.get(bone);
+	}
+
+	/**
+	 * Seconds after its looping PERFORM starts that this clip has the arm's fist furthest out, not before the given time;
+	 * NaN when the clip has no such section or the arm does not strike in it. Read once from the clip's arm keys, so a
+	 * reworked clip needs nothing else.
+	 */
+	public float armStrokeSeconds(HumanoidArm side, float notBeforeSeconds) {
+		if (armStrokePeaks == null) {
+			readArmStrokes();
+		}
+		return AfterimageRule.strokeAtOrAfter(armStrokePeaks[side == HumanoidArm.LEFT ? 0 : 1], armStrokeLoopSeconds, notBeforeSeconds);
+	}
+
+	public boolean strokesArms() {
+		if (armStrokePeaks == null) {
+			readArmStrokes();
+		}
+		return armStrokePeaks[0].length > 0 || armStrokePeaks[1].length > 0;
+	}
+
+	private void readArmStrokes() {
+		float start = Float.NaN;
+		float end = lengthInSeconds;
+		float loopFrom = 0;
+		if (instructionTimelines.phases != null) {
+			for (Float2ObjectMap.Entry<AnimActionPhase> entry : instructionTimelines.phases.getEntries()) {
+				AnimActionPhase phase = entry.getValue();
+				if (!Float.isNaN(start)) {
+					end = entry.getFloatKey();
+					break;
+				}
+				if (phase.phase == ActionPhase.PERFORM && phase.timeAnimMode == AnimActionPhase.Mode.LOOP_BACK) {
+					start = entry.getFloatKey();
+					loopFrom = phase.loopBackTo;
+				}
+			}
+		}
+		armStrokeLoopSeconds = Float.isNaN(start) ? 0 : end - loopFrom;
+		armStrokePeaks = Float.isNaN(start)
+				? new float[][] { {}, {} }
+				: new float[][] { armPeaks(LEFT_ARM_BONES, start, end), armPeaks(RIGHT_ARM_BONES, start, end) };
+	}
+
+	private float[] armPeaks(String[][] boneNames, float start, float end) {
+		for (String[] names : boneNames) {
+			List<IAnimationChannel> arm = boneAnimations.get(names[0]);
+			if (arm != null) {
+				List<IAnimationChannel> bend = boneAnimations.get(names[1]);
+				return armPeaks(arm, bend, start, end);
+			}
+		}
+		return new float[0];
+	}
+
+	private float[] armPeaks(List<IAnimationChannel> arm, @Nullable List<IAnimationChannel> bend, float start, float end) {
+		IAnimationChannel armRot = channel(arm, AnimationChannel.Targets.ROTATION);
+		IAnimationChannel armPos = channel(arm, AnimationChannel.Targets.POSITION);
+		IAnimationChannel bendRot = bend != null ? channel(bend, AnimationChannel.Targets.ROTATION) : null;
+		List<float[]> keyTimes = new ArrayList<>(2);
+		if (armRot != null) keyTimes.add(keyTimes(armRot));
+		if (bendRot != null) keyTimes.add(keyTimes(bendRot));
+		float[] times = AfterimageRule.sectionKeyTimes(keyTimes, start, end);
+		float[] reach = new float[times.length];
+		Vector3f armAngles = new Vector3f();
+		Vector3f armOffset = new Vector3f();
+		Vector3f bendAngles = new Vector3f();
+		for (int i = 0; i < times.length; i++) {
+			float time = start + times[i];
+			armAngles.zero();
+			armOffset.zero();
+			bendAngles.zero();
+			if (armRot != null) calcVec(this, armRot, time, 1, armAngles);
+			if (armPos != null) calcVec(this, armPos, time, 1, armOffset);
+			if (bendRot != null) calcVec(this, bendRot, time, 1, bendAngles);
+			reach[i] = AfterimageRule.reach(armAngles, armOffset, bendAngles);
+		}
+		return AfterimageRule.strokePeaks(times, reach);
+	}
+
+	@Nullable
+	private static IAnimationChannel channel(List<IAnimationChannel> channels, AnimationChannel.Target target) {
+		for (IAnimationChannel channel : channels) {
+			if (channel.target() == target) {
+				return channel;
+			}
+		}
+		return null;
+	}
+
+	private static float[] keyTimes(IAnimationChannel channel) {
+		Keyframe[] keyframes = channel.keyframes();
+		float[] times = new float[keyframes.length];
+		for (int i = 0; i < times.length; i++) {
+			times[i] = keyframes[i].timestamp();
+		}
+		return times;
+	}
+
+
 	protected static final Vector3f TARGET = new Vector3f();
-	
+	// the rigs keep either the core's arm bone names or 1.16's
+	private static final String[][] LEFT_ARM_BONES = { { "left_arm", "left_arm_bend" }, { "leftArm", "leftForeArm" } };
+	private static final String[][] RIGHT_ARM_BONES = { { "right_arm", "right_arm_bend" }, { "rightArm", "rightForeArm" } };
+	private static final String[] LOOK_BONES = { "head", "head_rot" };
+	private static final AnimFramePose LIMITED_HEAD_POSE = new AnimFramePose();
+	private static final Vector3f LIMITED_HEAD_TARGET = new Vector3f();
+
 	public static Vector3f calcVec(RotpAnimDefinition anim, IAnimationChannel tf, float seconds, float animSpeed) {
 		return calcVec(anim, tf, seconds, animSpeed, TARGET);
 	}

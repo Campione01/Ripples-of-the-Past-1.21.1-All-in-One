@@ -12,6 +12,7 @@ import rotp.core.customobjects.entity_projectile.KnifeEntity;
 import rotp.core.customobjects.entity_projectile.LightBeamEntity;
 import rotp.core.customobjects.entity_projectile.MolotovEntity;
 import rotp.core.customobjects.entity_projectile.SpaceRipperStingyEyesEntity;
+import rotp.core.customobjects.entity_projectile.ThrownBlockEntity;
 import rotp.core.customobjects.entity_projectile.TommyGunBulletEntity;
 import rotp.core.customobjects.entity_projectile.ThrownNuggetBearingEntity;
 import rotp.core.mechanics.clothes.mannequin.MannequinEntity;
@@ -227,6 +228,11 @@ public final class ModEntityTypes {
 	public static final DeferredHolder<EntityType<?>, EntityType<BlockShardEntity>> BLOCK_SHARD = ENTITY_TYPES.register("block_shard", key ->
 			EntityType.Builder.<BlockShardEntity>of(BlockShardEntity::new, MobCategory.MISC)
 			.sized(0.5F, 0.5F)
+			.build(createIDFor(key)));
+
+	public static final DeferredHolder<EntityType<?>, EntityType<ThrownBlockEntity>> THROWN_BLOCK = ENTITY_TYPES.register("thrown_block", key ->
+			EntityType.Builder.<ThrownBlockEntity>of(ThrownBlockEntity::new, MobCategory.MISC)
+			.sized(1.0F, 1.0F)
 			.build(createIDFor(key)));
 
 	public static final DeferredHolder<EntityType<?>, EntityType<ObjectEntity>> OBJECT = ENTITY_TYPES.register("util_object", key ->

@@ -66,6 +66,23 @@ public interface DamageSourceModified {
 		return dmgSource instanceof DamageSourceModified modified && modified.jojo_ripples$isCounteredOn(target);
 	}
 
+	/** {@link #copyModifications}; implemented next to the fields, so that a field added there is copied too. */
+	default void jojo_ripples$copyModificationsFrom(DamageSource from) {}
+
+	/**
+	 * Puts every value the core keeps on a damage source besides vanilla's (knockback changes, Stand invulnerability
+	 * ticks, barrage hits, the Stand power, non-lethal, guard break, fixed damage, the countered target's id) from one
+	 * source onto another, as they are: for a source rebuilt for other entities, such as a recorded hit carried out by the
+	 * real attacker (King Crimson's Epitaph). The Stand power is the same object; set the right one after.
+	 * @return the source the values were put on
+	 */
+	public static <T extends DamageSource> T copyModifications(DamageSource from, T to) {
+		if (from != to && to instanceof DamageSourceModified modified) {
+			modified.jojo_ripples$copyModificationsFrom(from);
+		}
+		return to;
+	}
+
 	
 	/**
 	 * The hit whose knockback changes apply to the target's knockback now: the one it is taking, or null outside a

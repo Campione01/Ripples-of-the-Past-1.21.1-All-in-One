@@ -54,6 +54,9 @@ public class PlayerClothesMenu extends AbstractContainerMenu {
 			ClothesSlotType.HEAD,
 			JojoMod.resLoc("gui/container/emptyslots/clothes_head"));
 
+	/** The line above the slots where the screen names the character the player counts as. */
+	public static final int TOP_MARGIN = 12;
+
 	public EntityClothesInventory clothesInventory;
 	
 	public PlayerClothesMenu(int containerId, Inventory playerInventory) {
@@ -77,7 +80,7 @@ public class PlayerClothesMenu extends AbstractContainerMenu {
 			ResourceLocation slotIcon = ARMOR_TEXTURE_EMPTY_SLOTS.get(slot);
 			slotInContainer = 39 - i;
 			x = 8;
-			y = 8 + i * 18;
+			y = TOP_MARGIN + 8 + i * 18;
 			
 			this.addSlot(new ArmorSlot(playerInventory, player, slot, slotInContainer, x, y, slotIcon));
 		}
@@ -88,7 +91,7 @@ public class PlayerClothesMenu extends AbstractContainerMenu {
 			ResourceLocation slotIcon = CLOTHES_TEXTURE_EMPTY_SLOTS.get(slot);
 			slotInContainer = i;
 			x = 77;
-			y = 8 + i * 18;
+			y = TOP_MARGIN + 8 + i * 18;
 			
 			this.addSlot(new ClothesSlot(clothesInventory, player, slot, slotInContainer, x, y, slotIcon));
 		}
@@ -96,7 +99,7 @@ public class PlayerClothesMenu extends AbstractContainerMenu {
 		// offhand
 		slotInContainer = 40;
 		x = 95;
-		y = 62;
+		y = TOP_MARGIN + 62;
 		
 		this.addSlot(new Slot(playerInventory, slotInContainer, x, y) {
 			@Override
@@ -116,7 +119,7 @@ public class PlayerClothesMenu extends AbstractContainerMenu {
 			for (int i = 0; i < 9; i++) {
 				slotInContainer = i + (row + 1) * 9;
 				x = 8 + i * 18;
-				y = 84 + row * 18;
+				y = TOP_MARGIN + 84 + row * 18;
 				
 				this.addSlot(new Slot(playerInventory, slotInContainer, x, y));
 			}
@@ -126,7 +129,7 @@ public class PlayerClothesMenu extends AbstractContainerMenu {
 		for (int i = 0; i < 9; i++) {
 			slotInContainer = i;
 			x = 8 + i * 18;
-			y = 142;
+			y = TOP_MARGIN + 142;
 			
 			this.addSlot(new Slot(playerInventory, i, x, y));
 		}

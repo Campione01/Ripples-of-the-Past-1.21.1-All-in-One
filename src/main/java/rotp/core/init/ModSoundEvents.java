@@ -322,6 +322,17 @@ public class ModSoundEvents {
 	public static final DeferredHolder<SoundEvent, SoundEvent> GIORNO_GOLD_EXPERIENCE = register("giorno_gold_experience");
 	public static final DeferredHolder<SoundEvent, SoundEvent> GIORNO_NEW_LIFE = register("giorno_new_life");
 	public static final OstSoundList GOLD_EXPERIENCE_OST = new OstSoundList(JojoMod.resLoc("gold_experience_ost"), SOUNDS);
+
+	// OFFVOICE: the voice pack triggers (assets/<ns>/voicelines/<pack>/sounds.json keys); they have no sounds of their own
+	public static final DeferredHolder<SoundEvent, SoundEvent> VOICELINE_STAND_SUMMON = register("vl_stand_summon");
+	public static final DeferredHolder<SoundEvent, SoundEvent> VOICELINE_STAR_FINGER = register("vl_star_finger");
+	public static final DeferredHolder<SoundEvent, SoundEvent> VOICELINE_TIME_STOP = register("vl_time_stop");
+	public static final DeferredHolder<SoundEvent, SoundEvent> VOICELINE_TIME_RESUME = register("vl_time_resume");
+	public static final DeferredHolder<SoundEvent, SoundEvent> VOICELINE_TOMMY_GUN_SCREAM = register("vl_tommy_gun_scream");
+	public static final DeferredHolder<SoundEvent, SoundEvent> VOICELINE_TOMMY_GUN_SHOT_MAGAZINE = register("vl_tommy_gun_shot_magazine");
+	public static final DeferredHolder<SoundEvent, SoundEvent> VOICELINE_TOMMY_GUN_PUNCH = register("vl_tommy_gun_punch");
+	public static final DeferredHolder<SoundEvent, SoundEvent> JOTARO_YARE_YARE = register("jotaro_yare_yare");
+	public static final DeferredHolder<SoundEvent, SoundEvent> JOTARO_YARE_YARE_DAZE = register("jotaro_yare_yare_daze");
 	
 	
 	private static DeferredHolder<SoundEvent, SoundEvent> register(String name) {

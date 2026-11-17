@@ -16,8 +16,11 @@ import org.jetbrains.annotations.ApiStatus;
 
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.core.JojoMod;
+import rotp.core.powersystem.Moveset;
 import rotp.core.powersystem.Power;
+import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
+import rotp.core.powersystem.unlockableskill.UnlockableSkill;
 
 import net.minecraft.Util;
 import net.minecraft.client.renderer.texture.SpriteContents;
@@ -118,11 +121,79 @@ public class AbilityIconSprites implements AutoCloseable {
 
 
 	public TextureAtlasSprite getAbilityIcon(Ability ability, Power<?> context, @Nullable StandSkin curStandSkin) {
-		return getAbilityIcon(ability.getSpriteId(context), curStandSkin);
+		return getAbilityIcon(ability.getSpriteId(context), skinOfPower(ability.abilityId.powerClass(), PowerClass.STAND, curStandSkin));
+	}
+
+	/** A Stand skin's icons are its Stand's: a move of another power with the same name keeps its own icon. */
+	static <S> S skinOfPower(@Nullable Object power, Object standPower, @Nullable S standSkin) {
+		return power == null || power == standPower ? standSkin : null;
 	}
 
 	public TextureAtlasSprite getAbilityIcon(String abilitySpriteName, @Nullable StandSkin curStandSkin) {
 		return getAbilityIcon(JojoMod.resLoc(abilitySpriteName), curStandSkin);
+	}
+
+	/**
+	 * A marker's icon by its plain name (MarkerRenderer): in the current Stand's own namespace first, where an add-on
+	 * keeps its icons, then the core's, as a skill's icon is looked up.
+	 */
+	public TextureAtlasSprite getMarkerIcon(String iconName, @Nullable StandSkin curStandSkin) {
+		return resolveMarkerIcon(iconName, curStandSkin != null ? curStandSkin.standTypeId : null,
+				spriteId -> getAbilityIcon(spriteId, curStandSkin), textureAtlas.missingSprite);
+	}
+
+	static <S> S resolveMarkerIcon(String iconName, @Nullable ResourceLocation standTypeId,
+			Function<ResourceLocation, S> icons, S missing) {
+		if (standTypeId != null && !JojoMod.MOD_ID.equals(standTypeId.getNamespace())) {
+			S icon = icons.apply(ResourceLocation.fromNamespaceAndPath(standTypeId.getNamespace(), iconName));
+			if (icon != missing) {
+				return icon;
+			}
+		}
+		return icons.apply(JojoMod.resLoc(iconName));
+	}
+
+	/**
+	 * A skill's icon on the skills screen: what the HUD shows for the ability of that name, else the skill's name in
+	 * its Stand's namespace, else what the HUD shows for the abilities it unlocks, else the core's icon of that name.
+	 */
+	public TextureAtlasSprite getSkillIcon(UnlockableSkill skill, @Nullable Power<?> power, @Nullable StandSkin curStandSkin) {
+		boolean hasPower = power != null && power.hasPower();
+		return resolveSkillIcon(skill,
+				hasPower ? power.getMoveset() : null,
+				hasPower ? power.getPowerType().getId() : null,
+				power,
+				spriteId -> getAbilityIcon(spriteId, skinOfPower(power != null ? power.getPowerClass() : null, PowerClass.STAND, curStandSkin)),
+				textureAtlas.missingSprite);
+	}
+
+	static <S> S resolveSkillIcon(UnlockableSkill skill, @Nullable Moveset moveset, @Nullable ResourceLocation powerTypeId,
+			@Nullable Power<?> context, Function<ResourceLocation, S> icons, S missing) {
+		Ability namedAbility = moveset != null ? moveset.getAbility(skill.skillName) : null;
+		if (namedAbility != null) {
+			S icon = icons.apply(namedAbility.getSpriteId(context));
+			if (icon != missing) {
+				return icon;
+			}
+		}
+		if (powerTypeId != null) {
+			S icon = icons.apply(ResourceLocation.fromNamespaceAndPath(powerTypeId.getNamespace(), skill.skillName));
+			if (icon != missing) {
+				return icon;
+			}
+		}
+		if (moveset != null) {
+			for (String abilityName : skill.unlocksAbilities) {
+				Ability ability = moveset.getAbility(abilityName);
+				if (ability != null) {
+					S icon = icons.apply(ability.getSpriteId(context));
+					if (icon != missing) {
+						return icon;
+					}
+				}
+			}
+		}
+		return icons.apply(JojoMod.resLoc(skill.skillName));
 	}
 
 	public TextureAtlasSprite getAbilityIcon(ResourceLocation abilitySpriteId, @Nullable StandSkin curStandSkin) {

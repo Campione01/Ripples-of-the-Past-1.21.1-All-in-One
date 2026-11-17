@@ -74,6 +74,9 @@ public class TimeResumeAbility extends Ability {
 	public HeldInput onKeyPress(Level level, LivingEntity user, FriendlyByteBuf extraClientInput,
 			InputMethod inputMethod, float clickHoldResolveTime, BufferingState bufferingState) {
 		bufferingState.isActionSuccess = requestManualResume(level, user);
+		if (bufferingState.isActionSuccess) {
+			TimeStopAbility.noteResumePress(user);
+		}
 		return null;
 	}
 
@@ -85,7 +88,7 @@ public class TimeResumeAbility extends Ability {
 		return false;
 	}
 
-	private static boolean hasOwnTimeStop(Level level, LivingEntity user) {
+	static boolean hasOwnTimeStop(Level level, LivingEntity user) {
 		if (level.isClientSide()) {
 			return TimeStopState.getClientInstance(user.getId()).filter(TimeStopState.Instance::isActive).isPresent();
 		}

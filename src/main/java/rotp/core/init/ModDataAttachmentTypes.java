@@ -44,6 +44,7 @@ import rotp.core.impl.stands.goldexperience.GEStuckObjectsState;
 import rotp.core.impl.stands.goldexperience.GELifeshotState;
 import rotp.core.impl.stands.goldexperience.GETreeLeavesDecayState;
 import rotp.core.impl.stands.crazydiamond.brokenblocks.BrokenBlocksChunkData;
+import rotp.core.impl.stands.hierophant.HGBarriersNet;
 import rotp.core.impl.stands.silverchariot.SilverChariotState;
 
 import net.minecraft.server.level.ServerLevel;
@@ -122,6 +123,9 @@ public final class ModDataAttachmentTypes {
 	public static final Supplier<AttachmentType<SilverChariotState>> SILVER_CHARIOT_STATE = ATTACHMENT_TYPES.register("silver_chariot_state",
 			() -> AttachmentType.serializable(obj -> obj instanceof LivingEntity ? new SilverChariotState() : null).build());
 
+	public static final Supplier<AttachmentType<HGBarriersNet>> HG_BARRIERS_NET = ATTACHMENT_TYPES.register("hg_barriers_net",
+			() -> AttachmentType.builder(() -> new HGBarriersNet()).build());
+
 	public static final Supplier<AttachmentType<VampirismState>> VAMPIRISM_STATE = ATTACHMENT_TYPES.register("vampirism_state",
 			() -> AttachmentType.serializable(obj -> obj instanceof LivingEntity ? new VampirismState() : null)
 					.copyOnDeath()
@@ -167,6 +171,10 @@ public final class ModDataAttachmentTypes {
 	// 1.16 StandArrowHandler.standsGotFromArrow (Stand Arrow XP cost escalation)
 	public static final Supplier<AttachmentType<Integer>> STANDS_GOT_FROM_ARROW = ATTACHMENT_TYPES.register("stands_got_from_arrow",
 			() -> AttachmentType.builder(() -> 0).serialize(com.mojang.serialization.Codec.INT).copyOnDeath().build());
+
+	// 1.16 EntityUtilCap PrevNoAi: a stopped mob's own no-AI flag, saved beside the true one the stop gave it
+	public static final Supplier<AttachmentType<Boolean>> TIME_STOP_PREV_NO_AI = ATTACHMENT_TYPES.register("time_stop_prev_no_ai",
+			() -> AttachmentType.builder(() -> false).serialize(com.mojang.serialization.Codec.BOOL).build());
 
 
 	// Level

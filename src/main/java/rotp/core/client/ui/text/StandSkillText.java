@@ -2,6 +2,8 @@ package rotp.core.client.ui.text;
 
 import javax.annotation.Nullable;
 
+import rotp.core.client.input.InputHandler;
+import rotp.core.client.input.controlscheme.VariationKeyName;
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.client.standskin.StandSkinsLoader;
 import rotp.core.powersystem.Moveset;
@@ -10,6 +12,8 @@ import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.controls.InputUseVanillaMapping;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.unlockableskill.UnlockableSkill;
+import rotp.core.subsystems.entity_useitem.StandItemUse;
+import rotp.core.core.JojoMod;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.locale.Language;
@@ -28,16 +32,29 @@ public final class StandSkillText {
 	}
 	
 	public static Component desc(@Nullable StandPower standPower, @Nullable StandSkin standSkin, UnlockableSkill skill) {
-		return text(standPower, standSkin, skill, ".desc");
+		if (StandItemUse.SKILL.equals(skill.skillName)) {
+			// the keys that keep the grab, the charged heavy punch and the user's own hand while the Stand holds an item
+			return text(standPower, standSkin, skill, ".desc", VariationKeyName.get(), grabChargedHeavyKeyName(), ownHandKeyName());
+		}
+		return text(standPower, standSkin, skill, ".desc", VariationKeyName.get());
 	}
 	
 	public static Component controls(@Nullable StandPower standPower, @Nullable StandSkin standSkin, UnlockableSkill skill) {
 		if ("grab".equals(skill.skillName) || "heavy_charged".equals(skill.skillName)) {
 			return text(standPower, standSkin, skill, ".controls", grabChargedHeavyKeyName());
 		}
-		return text(standPower, standSkin, skill, ".controls");
+		return text(standPower, standSkin, skill, ".controls", VariationKeyName.get());
 	}
 	
+	// a passive skill's description: its ability's ".desc" key, the skin's first; nothing when neither has it
+	public static Component passiveDesc(@Nullable StandPower standPower, @Nullable StandSkin standSkin, Ability passive) {
+		String key = passive.getTranslationKey(".desc");
+		if (standSkin != null && standSkin.hasTranslation(key)) {
+			return standSkin.translatable(key);
+		}
+		return Language.getInstance().has(key) ? Component.translatable(key) : Component.empty();
+	}
+
 	public static Component text(@Nullable StandPower standPower, @Nullable StandSkin standSkin, UnlockableSkill skill, String suffix) {
 		return text(standPower, standSkin, skill, suffix, new Object[0]);
 	}
@@ -86,6 +103,18 @@ public final class StandSkillText {
 		if (keyMapping == null) {
 			return Component.translatable(MovesetBuilder.GRAB_CHARGED_HEAVY_KEY_MAPPING_NAME);
 		}
+		return keyName(keyMapping);
+	}
+
+	// the key that disables the HUD controls, which gives the user's own hand back
+	private static Component ownHandKeyName() {
+		InputHandler inputHandler = InputHandler.getInstance();
+		KeyMapping keyMapping = inputHandler != null && inputHandler.vanillaKeybinds != null
+				? inputHandler.vanillaKeybinds.disableHUDControls : null;
+		return keyMapping != null ? keyName(keyMapping) : Component.translatable(JojoMod.MOD_ID + ".key.disable_hotbars");
+	}
+
+	private static Component keyName(KeyMapping keyMapping) {
 		KeyModifier modifier = keyMapping.getKeyModifier();
 		return modifier != null && modifier != KeyModifier.NONE
 				? modifier.getCombinedName(keyMapping.getKey(), keyMapping::getTranslatedKeyMessage)

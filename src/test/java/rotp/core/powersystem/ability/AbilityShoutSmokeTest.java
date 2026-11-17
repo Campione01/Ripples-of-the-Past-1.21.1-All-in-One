@@ -26,13 +26,16 @@ public final class AbilityShoutSmokeTest {
 		require(ability, "publicbooleansayShout(LivingEntityuser,@NullableHolder<SoundEvent>shout){"
 				+ "returnshout!=null&&!skipsShoutWhileSneaking(user)&&JojoModUtil.sayVoiceLine(user,shout);}");
 		require(ability, "returnabilityinstanceofAbilityshouting&&shouting.sayShout(user,shout);");
+		require(ability, "publicbooleansayShout(LivingEntityuser,@NullableHolder<SoundEvent>shout,Holder<SoundEvent>trigger){"
+				+ "return!skipsShoutWhileSneaking(user)&&JojoModUtil.sayVoiceLine(user,shout,trigger,1.0F,1.0F,200,false);}");
 		require(ability, "publicfinalintgetRequiredResolveLevel(@NullablePower<?>context){"
 				+ "returngetRequiredResolveLevelToUnlock(context);}");
 
 		// the shouts that 1.16 said through Action#playVoiceLine and that skip a sneaking user
-		require(source("impl/stands/theworld/TimeStopAbility.java"), "sayShout(user,voiceLine);");
+		require(source("impl/stands/theworld/TimeStopAbility.java"),
+				"if(decision.kind()==TimeStopAudioDecision.Kind.SILENT||skipsShoutWhileSneaking(user)){returnnull;}");
 		require(source("impl/stands/starplatinum/StarFingerAbility.java"),
-				"Ability.sayShoutOf(ability,powerUser,ModSoundEvents.JOTARO_STAR_FINGER);");
+				"Ability.sayShoutOf(ability,powerUser,ModSoundEvents.JOTARO_STAR_FINGER,ModSoundEvents.VOICELINE_STAR_FINGER);");
 		require(source("impl/stands/hierophant/HierophantEmeraldSplashAbility.java"),
 				"Ability.sayShoutOf(ability,user,ModSoundEvents.KAKYOIN_EMERALD_SPLASH);");
 		String chariot = compact(source("impl/stands/silverchariot/SilverChariotBarrageAbility.java"));

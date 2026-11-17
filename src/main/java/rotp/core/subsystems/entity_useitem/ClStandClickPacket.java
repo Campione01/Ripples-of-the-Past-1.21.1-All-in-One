@@ -14,6 +14,7 @@ import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.EntityActionInputState.HeldInputEntry;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.entityaction.netcode.SyncType;
+import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 
@@ -89,6 +90,9 @@ public record ClStandClickPacket(
 					standEntity != null && standEntity.isManuallyControlled(),
 					ServerSideLivingClick.isEntityHoldingAnItem(standEntity),
 					isUnsummoning(standEntity))) {
+				return;
+			}
+			if (!StandItemUse.takesRightClick(StandPower.get(player), standEntity)) {
 				return;
 			}
 			EntityActionInputState inputHandler = player.getData(

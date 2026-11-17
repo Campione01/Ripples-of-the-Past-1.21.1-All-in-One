@@ -3,6 +3,7 @@ package rotp.core.impl.stands.goldexperience.client;
 import java.util.List;
 import java.util.Optional;
 
+import rotp.core.client.ClientPowerCache;
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.client.ui.marker.MarkerRenderer;
 import rotp.core.client.ui.utils.BlitFloat;
@@ -10,6 +11,10 @@ import rotp.core.core.JojoMod;
 import rotp.core.init.power.ModStandAbilities;
 import rotp.core.impl.stands.goldexperience.GECreatedLifeformEffect;
 import rotp.core.impl.stands.goldexperience.GETransformationEntity;
+import rotp.core.impl.stands.goldexperience.GoldExperienceRevertLifeformAbility;
+import rotp.core.powersystem.PowerClass;
+import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.effect.UserStandEffects;
 import com.mojang.blaze3d.vertex.PoseStack;
 
 import net.minecraft.client.Minecraft;
@@ -65,8 +70,15 @@ public class GoldExperienceLifeformMarker extends MarkerRenderer {
     }
 
     static void updateGELifeformMarkers(List<MarkerInstance> list, float partialTick, Minecraft mc, boolean highlightLookedAt) {
-        fillWithStandEffectTargets(list, partialTick, ModStandAbilities.EFFECT_GE_CREATED_LIFEFORM.get(),
-                LIFEFORM_MARKER_RANGE, mc, highlightLookedAt);
+        StandPower stand = ClientPowerCache.getPower(PowerClass.STAND);
+        if (stand != null && mc.player != null) {
+            // outlined: the one a press of Revert turns back at once; aimed at none, the press opens the menu
+            GECreatedLifeformEffect aimed = highlightLookedAt
+                    ? GoldExperienceRevertLifeformAbility.findAimedLifeform(stand, mc.player).orElse(null) : null;
+            UserStandEffects.getEffectsInRange(stand, ModStandAbilities.EFFECT_GE_CREATED_LIFEFORM.get(),
+                    LIFEFORM_MARKER_RANGE, mc.player).forEach(effect -> list.add(new MarkerInstance(
+                            entityMarkerPos(effect.getTarget(), partialTick), effect == aimed, Optional.of(effect))));
+        }
 
         for (MarkerInstance marker : list) {
             getCreatedLifeformTarget(marker).ifPresent(target -> {

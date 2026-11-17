@@ -106,6 +106,12 @@ public record ClNoParamsPacket(PacketType packetType) implements CustomPacketPay
 				case OPEN_CLOTHES -> {
 					PlayerClothesMenu.openOnButtonClick((ServerPlayer) player);
 				}
+				case STAND_CANCEL_ACTION -> {
+					StandPower standPower = StandPower.get(player);
+					if (standPower != null && standPower.hasPower()) {
+						standPower.getPowerType().onUserCancelCommand(player, standPower);
+					}
+				}
 			}
 		}
 
@@ -115,7 +121,8 @@ public record ClNoParamsPacket(PacketType packetType) implements CustomPacketPay
 		SUMMON_STAND,
 		STAND_LEAP,
 		PLAYER_POWER_LEAP,
-		OPEN_CLOTHES
+		OPEN_CLOTHES,
+		STAND_CANCEL_ACTION
 	}
 
 	@Override

@@ -8,16 +8,20 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.ApiStatus;
+
+import com.mojang.datafixers.util.Either;
 
 import rotp.core.JojoModConfig;
 import rotp.core.JojoModLivingVariables;
 import rotp.core.api.leap.LeapAccessPolicies;
 import rotp.core.api.leap.LeapSource;
 import rotp.core.api.stand.StandLeapUnlockProviders;
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.api.stand.StandStaminaModifiers;
 import rotp.core.api.time.EntityTimeRates;
 import rotp.core.command.commands.JojoControlsCommand;
@@ -95,6 +99,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	private final Map<String, Integer> abilityCooldowns = new HashMap<>();
 	private final Map<String, Integer> abilityCooldownTotals = new HashMap<>();
 	private final Map<String, Integer> abilityCooldownSets = new HashMap<>();
+	private final AbilityFatigueTracker abilityFatigue = new AbilityFatigueTracker();
 	private boolean willSoulSpawn;
 	
 	public ResolveCounter resolveCounter = new ResolveCounter();
@@ -103,6 +108,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	public boolean healingDamageFromArrow = false;
 	// 1.16 skippedProgression: saved as "Skipped", re-applied when a new non-Stand power is gained
 	private boolean skippedProgression = false;
+	@Nullable private TemporaryStandLoan temporaryStandLoan;
 
 	public StandPower(LivingEntity user) {
 		super(user);
@@ -120,6 +126,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 			int cooldownSteps = cooldownSteps();
 			tickLeapCooldown(cooldownSteps);
 			tickAbilityCooldowns(cooldownSteps);
+			tickAbilityFatigue();
 			resyncScaledCooldowns();
 			tickResolve();
 			tickSoulCheck();
@@ -154,6 +161,9 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 			if (standEntity != null && standEntity.level() != user.level()) {
 				standType.forceUnsummon(user, this);
 			}
+			else if (standEntity != null) {
+				standEntity.bringAlongIfLeftBehind(user);
+			}
 		}
 	}
 
@@ -178,9 +188,18 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	
 	@ApiStatus.Internal
 	public void setStandInstance(Optional<StandInstance> standInstance) {
+		setStandInstance(standInstance, StandChange.ORDINARY, false);
+	}
+
+	private void setStandInstance(Optional<StandInstance> standInstance, StandChange change, boolean restoredSkipped) {
 		Optional<StandInstance> newStandInstance = copyStandInstance(standInstance);
-		if (!standInstanceChanged(this.standInstance, newStandInstance)) {
+		boolean restoring = change == StandChange.RESTORE_LOAN;
+		// a form of the borrowed Stand may equal the reserved one, and the restore still owes its progression and flag
+		if (!restoring && !standInstanceChanged(this.standInstance, newStandInstance)) {
 			return;
+		}
+		if (change == StandChange.ORDINARY && temporaryStandLoan != null) {
+			temporaryStandLoan = followDirectChange(temporaryStandLoan, newStandInstance);
 		}
 
 		StandType oldStand = getPowerType();
@@ -209,30 +228,177 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 				// server-wide taken count for standArrowMode
 				StandUtil.trackTakenStand(holder, newStand);
 			}
-			if (newStand != null && user instanceof ServerPlayer player) {
+			if (!restoring && newStand != null && user instanceof ServerPlayer player) {
 				if (standChanged) {
 					JojoControlsCommand.sendPowerControlsHint(player);
 				}
 				ModCriteriaTriggers.triggerGetPower(player, this);
 			}
 		}
-		
+
 		if (newStand == null) {
 			setStamina(0);
 		}
-		if (standChanged) {
+		if (standChanged || restoring) {
 			// 1.16 clear() dropped the flag with the Stand
-			skippedProgression = false;
+			skippedProgression = restoring && restoredSkipped;
 			cachedMovesThisTick = false;
 		}
-		onSetPowerType(oldStand, newStand);
+		if (restoring) {
+			onSetPowerType(oldStand, newStand, false);
+		}
+		else {
+			onSetPowerType(oldStand, newStand);
+		}
 		// 1.16 onNewPowerGiven: creative or the config skips at grant
-		if (standChanged && newStand != null && user != null && !user.level().isClientSide()
+		if (change == StandChange.ORDINARY && standChanged && newStand != null && user != null && !user.level().isClientSide()
 				&& playerSkipsActionTraining(user)) {
 			skipProgression();
 		}
-		else if (standChanged) {
+		else if (standChanged || restoring) {
 			syncSkippedProgression();
+		}
+	}
+
+	private enum StandChange {
+		ORDINARY, BEGIN_LOAN, RESTORE_LOAN
+	}
+
+	/**
+	 * Whatever changes the Stand directly during a loan changes the borrowed one: another Stand is a form of it, none means
+	 * it is lost. The reservation stays whole and the restore still finds its way back. A form it leaves gets its own
+	 * Resolve level back now, as the last one does at the restore.
+	 */
+	private TemporaryStandLoan followDirectChange(TemporaryStandLoan loan, Optional<StandInstance> replacement) {
+		if (replacement.isEmpty()) {
+			return loan.withBorrowedLost(true);
+		}
+		ResourceLocation form = replacement.orElseThrow().getStandId();
+		if (form.equals(loan.borrowedId())) {
+			return loan.withBorrowedLost(false);
+		}
+		restoreBorrowedResolveLevel(loan);
+		return loan.withBorrowedForm(form, storedResolveLevel(form));
+	}
+
+	private int storedResolveLevel(ResourceLocation standId) {
+		var data = powerData.get(standId);
+		return data == null ? 0 : data.map(stored -> ((StandTypePersistentData) stored).getResolveLevel(),
+				nbt -> nbt.getInt("ResolveLevel"));
+	}
+
+	@ApiStatus.Internal
+	@Nullable
+	public UUID temporaryLoanId() {
+		return temporaryStandLoan != null ? temporaryStandLoan.token() : null;
+	}
+
+	@ApiStatus.Internal
+	@Nullable
+	public ResourceLocation reservedStandDuringLoan() {
+		return temporaryStandLoan != null ? temporaryStandLoan.originalStand().getStandId() : null;
+	}
+
+	@ApiStatus.Internal
+	@Nullable
+	public StandInstance originalStandOfLoan(UUID token) {
+		return temporaryStandLoan != null && temporaryStandLoan.token().equals(token)
+				? temporaryStandLoan.copyOriginal() : null;
+	}
+
+	@ApiStatus.Internal
+	public boolean canRestoreTemporaryLoan(UUID token) {
+		TemporaryStandLoan loan = temporaryStandLoan;
+		return loan != null && loan.token().equals(token)
+				&& standInstance.map(stand -> loan.borrowedId().equals(stand.getStandId()))
+						.orElse(loan.borrowedLostOnClone());
+	}
+
+	/** Commits a preflighted temporary grant. The caller owns the loaned disc. */
+	@ApiStatus.Internal
+	public void beginTemporaryLoan(UUID token, StandInstance borrowed) {
+		requireLoanServerThread();
+		Objects.requireNonNull(token, "token");
+		StandInstance original = standInstance.orElseThrow();
+		StandTypePersistentData originalProgression = getCurTypeData();
+		if (temporaryStandLoan != null || originalProgression == null || !borrowed.standExists()
+				|| original.getStandId().equals(borrowed.getStandId())) {
+			throw new IllegalStateException("Invalid preflighted temporary Stand grant");
+		}
+		temporaryStandLoan = new TemporaryStandLoan(token, original.copy(),
+				originalProgression.serializeNBT(user.registryAccess()).copy(), skippedProgression,
+				borrowed.getStandId(), 0, false);
+		setStandInstance(Optional.of(borrowed), StandChange.BEGIN_LOAN, false);
+		StandTypePersistentData borrowedProgression = getCurTypeData();
+		if (borrowedProgression != null) {
+			temporaryStandLoan = temporaryStandLoan.withBorrowedResolveLevel(borrowedProgression.getResolveLevel());
+		}
+		resetTemporaryLoanTransientState();
+	}
+
+	/** Commits a preflighted restoration without granting or training the original Stand again. */
+	@ApiStatus.Internal
+	public void restoreTemporaryLoan(UUID token) {
+		requireLoanServerThread();
+		StandInstance original = originalStandOfLoan(token);
+		if (!canRestoreTemporaryLoan(token) || original == null || !original.standExists()) {
+			throw new IllegalStateException("Invalid preflighted temporary Stand restore");
+		}
+		endTemporaryLoan(temporaryStandLoan, original);
+	}
+
+	/** Ends the loan now with no token and no veto. The reserved Stand comes back, as a load keeps one whose add-on is gone. */
+	@ApiStatus.Internal
+	public void abortTemporaryLoan() {
+		requireLoanServerThread();
+		TemporaryStandLoan loan = temporaryStandLoan;
+		if (loan != null) {
+			endTemporaryLoan(loan, loan.copyOriginal());
+		}
+	}
+
+	/** Whether these parts are the reserved Stand's: they go back to it, as they would have with no loan. */
+	@ApiStatus.Internal
+	public boolean returnPartsToReservedStand(StandInstance parts) {
+		if (temporaryStandLoan == null || !temporaryStandLoan.originalStand().getStandId().equals(parts.getStandId())) {
+			return false;
+		}
+		parts.getAllParts().forEach(temporaryStandLoan.originalStand()::addPart);
+		return true;
+	}
+
+	private void endTemporaryLoan(TemporaryStandLoan loan, StandInstance original) {
+		restoreBorrowedResolveLevel(loan);
+		powerData.put(original.getStandId(), Either.right(loan.originalProgression().copy()));
+		setStandInstance(Optional.of(original), StandChange.RESTORE_LOAN, loan.originalSkipped());
+		resetTemporaryLoanTransientState();
+		temporaryStandLoan = null;
+	}
+
+	private void resetTemporaryLoanTransientState() {
+		resolveCounter.resetResolveValue(this);
+		setLeapCooldown(0);
+		staminaAddNextTick = 0;
+		setStamina(0.0F);
+	}
+
+	private void restoreBorrowedResolveLevel(TemporaryStandLoan loan) {
+		var data = powerData.get(loan.borrowedId());
+		if (data != null) {
+			data.ifLeft(borrowed -> ((StandTypePersistentData) borrowed).setResolveLevel(this, loan.borrowedResolveLevel()))
+					.ifRight(nbt -> {
+						// If the borrowed type is unavailable, its per-type data has not been decoded.
+						CompoundTag restored = nbt.copy();
+						restored.putInt("ResolveLevel", loan.borrowedResolveLevel());
+						powerData.put(loan.borrowedId(), Either.right(restored));
+					});
+		}
+	}
+
+	private void requireLoanServerThread() {
+		if (!(user instanceof ServerPlayer) || !(user.level() instanceof ServerLevel level)
+				|| !level.getServer().isSameThread()) {
+			throw new IllegalStateException("Temporary Stand changes require a server player on the server thread");
 		}
 	}
 
@@ -374,7 +540,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	
 	public int addExp(float exp) {
 		StandTypePersistentData data = getCurTypeData();
-		return data != null ? data.addExp(exp, user) : 0;
+		return data != null ? data.gainExp(exp, user) : 0;
 	}
 	
 	public void skipProgression() {
@@ -496,6 +662,10 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		return stamina == maxStamina ? 1 : maxStamina > 0 ? stamina / maxStamina : 0;
 	}
 	
+	/**
+	 * Sets the stamina to exactly this amount: never scaled by the Stand's stamina share of the Stands page, so it is the
+	 * call that puts the stamina back as it was (a refund, a rollback). A cost goes through {@link #consumeStamina}.
+	 */
 	public void setStamina(float stamina) {
 		boolean clientSide = user.level().isClientSide();
 		if (!clientSide) {
@@ -512,10 +682,12 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		return consumeStamina(amount, false);
 	}
 	
+	/** Every stamina cost of the Stand, the core's and an add-on's, comes through here, in the Stand's stamina share (StandTuning). */
 	public boolean consumeStamina(float amount, boolean ticking) {
 		if (isStaminaInfinite()) {
 			return true;
 		}
+		amount = getStaminaCostShare(amount);
 		float curAmount = getStamina();
 		if (curAmount >= amount) {
 			if (ticking) {
@@ -530,6 +702,12 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 			setStamina(0);
 			return ResolveModeEffect.getResolveEffectLvl(getUser()) >= 0;
 		}
+	}
+
+	/** What {@link #consumeStamina} takes for a cost of this amount, for code that weighs the cost against the bar first. */
+	public float getStaminaCostShare(float amount) {
+		StandTuning tuning = StandTuning.of(this);
+		return tuning != null ? tuning.staminaCost(amount) : amount;
 	}
 
 	public boolean isStaminaInfinite() {
@@ -617,6 +795,23 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		return cooldownClock.steps(rate);
 	}
 
+	// the no-cooldown mode's fatigue runs down as the cooldowns it stands for: by the user's STAND_ACTIONS rate
+	private void tickAbilityFatigue() {
+		if (abilityFatigue.isEmpty() || user.level().isClientSide()) {
+			return;
+		}
+		float rate = EntityTimeRates.hasProviders()
+				? Math.min(EntityTimeRates.rate(EntityTimeRates.Channel.STAND_ACTIONS, user), EntityTimeRates.MAX_RATE)
+				: 1.0F;
+		abilityFatigue.tick(rate);
+	}
+
+	/** The fatigue of the no-cooldown mode per ability (StandAbilityFatigue), kept on the server. */
+	@ApiStatus.Internal
+	public AbilityFatigueTracker getAbilityFatigue() {
+		return abilityFatigue;
+	}
+
 	// the user's client counts its cooldowns down by itself: while they run at another rate, and once when they are back
 	// to 1, the server sends what is left, so its HUD keeps up even where only the server knows the rate
 	private void resyncScaledCooldowns() {
@@ -698,7 +893,43 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		setAbilityCooldown(abilityName, cooldown, cooldown);
 	}
 
+	/** What {@link #setAbilityCooldown} sets for a cooldown of this length, for code that adds it to one it read back. */
+	public int getAbilityCooldownShare(int cooldown) {
+		StandTuning tuning = StandTuning.of(this);
+		return tuning != null ? tuning.cooldown(cooldown) : cooldown;
+	}
+
+	/**
+	 * A cooldown the ability's own code sets, in the Stand's cooldown share (StandTuning): every setter of a Stand cooldown
+	 * comes through here, the core's and an add-on's. A cooldown put back as it was uses {@link #restoreAbilityCooldown}.
+	 */
 	public void setAbilityCooldown(String abilityName, int cooldown, int totalCooldown) {
+		StandTuning tuning = StandTuning.of(this);
+		if (tuning != null) {
+			cooldown = tuning.cooldown(cooldown);
+			totalCooldown = tuning.cooldown(totalCooldown);
+		}
+		// in the no-cooldown mode a fresh cooldown of the ability's own is a use of it: its fatigue (a lower one is a
+		// cooldown cut, as Gold Experience's lifeform revert does)
+		if (abilityName != null && !abilityName.isEmpty() && cooldown > getAbilityCooldown(abilityName)) {
+			StandAbilityFatigue.onCooldownRaised(this, abilityName, cooldown);
+		}
+		restoreAbilityCooldown(abilityName, cooldown, totalCooldown);
+	}
+
+	/** {@link #restoreAbilityCooldown(String, int, int)} with the cooldown as its own total. */
+	public void restoreAbilityCooldown(String abilityName, int cooldown) {
+		restoreAbilityCooldown(abilityName, cooldown, cooldown);
+	}
+
+	/**
+	 * Puts a cooldown back as it was, exactly these ticks, not scaled by the Stand's cooldown share of the Stands page
+	 * ({@link #setAbilityCooldown} takes a cooldown in that share). For add-ons and the core alike: a cooldown restored
+	 * as it was (a rollback, a refund, the server's word on a client), one worked out from a cooldown read back
+	 * ({@link #getAbilityCooldown} is already in the share; add a fresh one with {@link #getAbilityCooldownShare}), or a
+	 * lock of fixed length that is no cooldown of the Stand's own (a timer an ability or another Stand sets).
+	 */
+	public void restoreAbilityCooldown(String abilityName, int cooldown, int totalCooldown) {
 		if (abilityName == null || abilityName.isEmpty()) {
 			return;
 		}
@@ -719,6 +950,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	public void resetAbilityCooldowns() {
 		abilityCooldowns.clear();
 		abilityCooldownTotals.clear();
+		abilityFatigue.clear();
 		if (!user.level().isClientSide()) {
 			serverPlayerUser.ifPresent(player -> PacketDistributor.sendToPlayer(player, TrStandAbilityCooldownPacket.resetAll(user.getId())));
 		}
@@ -1059,7 +1291,9 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 	protected void onPlayerCloneData(StandPower newEntityData, boolean wasDeath) {
 		super.onPlayerCloneData(newEntityData, wasDeath);
 		StandType standType = getPowerType();
-		if (standType == null || wasDeath && !standType.keepOnDeath(this)) {
+		boolean losesStand = standType == null || wasDeath && !standType.keepOnDeath(this);
+		newEntityData.temporaryStandLoan = temporaryStandLoan != null ? temporaryStandLoan.copyForClone(losesStand) : null;
+		if (losesStand) {
 			clearClonedStandData(newEntityData);
 			return;
 		}
@@ -1071,6 +1305,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		newEntityData.abilityCooldowns.putAll(this.abilityCooldowns);
 		newEntityData.abilityCooldownTotals.clear();
 		newEntityData.abilityCooldownTotals.putAll(this.abilityCooldownTotals);
+		newEntityData.abilityFatigue.copyFrom(this.abilityFatigue);
 		newEntityData.resolveCounter.copyValues(this.resolveCounter, wasDeath);
 		newEntityData.userStandEffects.transferFrom(this.userStandEffects, newEntityData);
 		newEntityData.userStandAwakeningState = this.userStandAwakeningState;
@@ -1096,6 +1331,7 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 		newEntityData.leapCooldown = 0;
 		newEntityData.abilityCooldowns.clear();
 		newEntityData.abilityCooldownTotals.clear();
+		newEntityData.abilityFatigue.clear();
 		newEntityData.resolveCounter = new ResolveCounter();
 		newEntityData.userStandEffects = new UserStandEffects(newEntityData);
 		newEntityData.userStandAwakeningState = new StandAwakening();
@@ -1119,11 +1355,17 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 					new int[] { cooldown, abilityCooldownTotals.getOrDefault(abilityName, cooldown) }));
 			nbt.put("AbilityCooldowns", cooldowns);
 		}
+		if (!abilityFatigue.isEmpty()) {
+			nbt.put("AbilityFatigue", abilityFatigue.save());
+		}
 		nbt.put("Resolve", resolveCounter.writeNBT());
 		nbt.put("Effects", userStandEffects.serializeNBT(provider));
 		nbt.put("Awakening", userStandAwakeningState.serializeNBT());
 		nbt.putBoolean("HealFromArrow", healingDamageFromArrow);
 		nbt.putBoolean("Skipped", skippedProgression);
+		if (temporaryStandLoan != null) {
+			nbt.put("TemporaryStandLoan", temporaryStandLoan.save());
+		}
 		return nbt;
 	}
 
@@ -1156,11 +1398,14 @@ public class StandPower extends Power<StandPower> implements PostNbtReadEntityDa
 				}
 			}
 		});
+		abilityFatigue.load(nbt.getCompound("AbilityFatigue"));
 		NBTUtil.getCompoundOptional(nbt, "Resolve").ifPresent(resolveCounter::readNBT);
 		NBTUtil.getCompoundOptional(nbt, "Effects").ifPresent(effectsNbt -> userStandEffects.deserializeNBT(provider, effectsNbt));
 		NBTUtil.getCompoundOptional(nbt, "Awakening").ifPresent(userStandAwakeningState::deserializeNBT);
 		healingDamageFromArrow = nbt.getBoolean("HealFromArrow");
 		skippedProgression = nbt.getBoolean("Skipped");
+		temporaryStandLoan = NBTUtil.getCompoundOptional(nbt, "TemporaryStandLoan")
+				.flatMap(TemporaryStandLoan::load).orElse(null);
 	}
 	
 	/* unlike deserializeNBT, this is called after the entity attributes are read, 

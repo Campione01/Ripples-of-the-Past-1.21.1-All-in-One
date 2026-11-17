@@ -50,7 +50,9 @@ public class HierophantGreenBarrierDetectionMarker extends MarkerRenderer {
 
 	private static boolean isOwnedBy(HGBarrierEntity barrier, HierophantGreenEntity hierophant) {
 		Entity owner = barrier.getOwner();
-		return owner != null && owner.is(hierophant);
+		// a barrier from before a recall knows the Stand that placed it, on a client too
+		return owner != null && owner.is(hierophant)
+				|| barrier.getStandUser() != null && barrier.getStandUser() == hierophant.getUser();
 	}
 
 	private static void addMarker(List<MarkerInstance> list, Set<Vec3> added, Vec3 point) {

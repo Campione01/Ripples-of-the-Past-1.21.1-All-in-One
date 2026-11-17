@@ -1,5 +1,7 @@
 package rotp.core.impl.stands._entitybase;
 
+import java.util.Set;
+
 import javax.annotation.Nullable;
 
 import rotp.core.powersystem.ability.AbilityUsageGroup;
@@ -22,7 +24,7 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The reach of a close-range Stand's melee attacks (owner, 2026-10-30 and 2026-11-01). Its punches, heavy punches (the
+ * The reach of a melee Stand's attacks (owner, 2026-10-30 and 2026-11-01). Its punches, heavy punches (the
  * charged one too), barrages and the add-on melee specials that opt in (EntityActionType#isReachingMeleeAttack) strike an
  * entity as far as its base reach, the larger of its user's reach (1.16 StandEntity.getAimDistance)
  * and its max range (The World 10, Star Platinum its user's 5), plus a margin past it, a quarter of the base reach and
@@ -34,19 +36,53 @@ import net.minecraft.world.phys.Vec3;
  * user to strike cannot guard ({@link #isAwayToStrike}). What its Stand reaches from where it is stays as in 1.16.
  */
 public final class StandMeleeReach {
-	/** The longest max range of a close-range Stand; a longer-ranged one (Hierophant Green's 100) keeps 1.16's rules. */
+	/** Original close-range classification limit; the owner-approved exceptions below are explicit. */
 	public static final double CLOSE_RANGE_MAX = 10;
 	/** How far from its user a Stand counts as away, past its offsets of 1.16 (at most two blocks in front). */
 	public static final double AWAY_DISTANCE = 3;
 
+	private static final Set<ResourceLocation> STAND_MAX_REACH = Set.of(
+			ResourceLocation.parse("kiss:kiss"),
+			ResourceLocation.parse("rotp_hd:heavens_door"),
+			ResourceLocation.parse("rotp_t:tusk_act_4"),
+			ResourceLocation.parse("darkbluemoon:dark_blue_moon"),
+			ResourceLocation.parse("geraddon:ger_stand"));
+
+	// Their stated range belongs to control or an ability, not to a punch from the holder.
+	private static final Set<ResourceLocation> HOLDER_REACH_ONLY = Set.of(
+			ResourceLocation.parse("rotp_zgd:green_day"),
+			ResourceLocation.parse("highwaystar:highway_star"),
+			ResourceLocation.parse("rotp_cm:cmoon"),
+			ResourceLocation.parse("cmoon_rm:cmoon"),
+			ResourceLocation.parse("jumping_jack_flash:jumping_jack_flash"),
+			ResourceLocation.parse("rotp_whitesnake:whitesnake"),
+			ResourceLocation.parse("rotp_echoes:echoes_act1"),
+			ResourceLocation.parse("rotp_echoes:echoes_act2"),
+			ResourceLocation.parse("rotp_rhcp:rhcp"),
+			ResourceLocation.parse("rotp_nextalbum:silver_chariot_requiem"));
+
 	private StandMeleeReach() {}
 
 	/**
-	 * A close-range Stand: a max range of {@link #CLOSE_RANGE_MAX} at most and a type that fights in its user's reach
-	 * (StandControlType CLOSE_RANGE_DIRECT or HYBRID_FORM), not a long-distance, automatic, colony or phenomenon one.
+	 * Whether the Stand uses the max-of-holder-and-Stand rule for melee, remote movement and remote weakening.
+	 * Keep the old close-range rule except for the explicit owner-approved rows.
 	 */
 	public static boolean isCloseRange(StandEntity stand) {
-		return stand.getMaxRange() <= CLOSE_RANGE_MAX && hasCloseRangeControl(stand.getStandType());
+		ResourceLocation id = stand.getStandType();
+		if (id != null && HOLDER_REACH_ONLY.contains(id)) {
+			return false;
+		}
+		return id != null && STAND_MAX_REACH.contains(id)
+				|| stand.getMaxRange() <= CLOSE_RANGE_MAX && hasCloseRangeControl(id);
+	}
+
+	public static boolean usesMeleeReach(StandEntity stand) {
+		return holderReachOnly(stand) || isCloseRange(stand);
+	}
+
+	private static boolean holderReachOnly(StandEntity stand) {
+		ResourceLocation id = stand.getStandType();
+		return id != null && HOLDER_REACH_ONLY.contains(id);
 	}
 
 	private static boolean hasCloseRangeControl(@Nullable ResourceLocation standId) {
@@ -59,7 +95,8 @@ public final class StandMeleeReach {
 	}
 
 	public static double baseReach(StandEntity stand, LivingEntity user) {
-		return Math.max(StandEntityPunchAbility.userAimReach(user, stand), stand.getMaxRange());
+		double holder = StandEntityPunchAbility.userAimReach(user, stand);
+		return holderReachOnly(stand) ? holder : Math.max(holder, stand.getMaxRange());
 	}
 
 	public static double maxReach(StandEntity stand, LivingEntity user, boolean remoteControl) {
@@ -88,12 +125,12 @@ public final class StandMeleeReach {
 
 	/**
 	 * Whether the Stand's current action reaches out: a reaching attack ({@link #isReachingAttack(EntityActionInstance)})
-	 * of a close-range Stand whose user aims it and that follows its user whole, not under remote control nor in its
+	 * of a melee Stand whose user aims it and that follows its user whole, not under remote control nor in its
 	 * arms-only mode.
 	 */
 	public static boolean reachesOut(StandEntity stand) {
 		EntityActionInstance action = LivingComponentAction.getCurEntityAction(stand);
-		return isReachingAttack(action) && stand.getUser() != null && isCloseRange(stand)
+		return isReachingAttack(action) && stand.getUser() != null && usesMeleeReach(stand)
 				&& !stand.aimsWithoutUser() && stand.isFollowingUser() && !stand.isArmsOnlyMode();
 	}
 
@@ -198,15 +235,15 @@ public final class StandMeleeReach {
 		return Math.max(stand.getAttributeValue(Attributes.MOVEMENT_SPEED) * 10, 0.5);
 	}
 
-	/** How far from its user a close-range Stand counts as away: past its offsets of 1.16 and its idle place. */
+	/** How far from its user a Stand that reaches out counts as away: past its offsets of 1.16 and its idle place. */
 	public static double awayDistance(StandEntity stand) {
 		return Math.max(AWAY_DISTANCE, stand.offsetFromUser.idleOffset.length() + 1);
 	}
 
-	/** Whether a close-range Stand that follows its user is away from it to strike, or not back yet. */
+	/** Whether a Stand that reaches out and follows its user is away from it to strike, or not back yet. */
 	public static boolean isAwayToStrike(StandEntity stand) {
 		LivingEntity user = stand.getUser();
-		if (user == null || !isCloseRange(stand) || !stand.isFollowingUser() || stand.isArmsOnlyMode()) {
+		if (user == null || !usesMeleeReach(stand) || !stand.isFollowingUser() || stand.isArmsOnlyMode()) {
 			return false;
 		}
 		double away = awayDistance(stand);

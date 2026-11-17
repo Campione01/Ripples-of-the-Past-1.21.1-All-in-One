@@ -19,5 +19,10 @@ public final class ModMapDecorationTypes {
             MAP_DECORATION_TYPES.register("meteorite",
                     () -> new MapDecorationType(JojoMod.resLoc("meteorite"), true, 0x6d6bb9, true, false));
 
+    // the official version's hamon temple mark (OFFMENUS), drawn by vanilla from textures/map/decorations/hamon_temple.png
+    public static final DeferredHolder<MapDecorationType, MapDecorationType> HAMON_TEMPLE =
+            MAP_DECORATION_TYPES.register("hamon_temple",
+                    () -> new MapDecorationType(JojoMod.resLoc("hamon_temple"), true, 0x474747, true, false));
+
     private ModMapDecorationTypes() {}
 }

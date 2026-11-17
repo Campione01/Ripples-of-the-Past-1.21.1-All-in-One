@@ -39,6 +39,13 @@
       "jojo_ripples:stand/star_platinum/star_platinum_punch_heavy_2"
     ]
   },
+  "stand_punch_heavy_charged": {
+    "replace": true,
+    "sounds": [
+      "jojo_ripples:stand/star_platinum/star_platinum_punch_heavy",
+      "jojo_ripples:stand/star_platinum/star_platinum_punch_heavy_2"
+    ]
+  },
   "stand_punch_cry": {
     "replace": true,
     "subtitle": "jojo_ripples.subtitle.ora",

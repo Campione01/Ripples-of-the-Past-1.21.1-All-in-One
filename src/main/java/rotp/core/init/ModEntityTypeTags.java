@@ -12,6 +12,8 @@ public class ModEntityTypeTags {
 	// 1.16 ModTags: datapack overrides for JojoDefinitions.isAffectedByHamon
 	public static final TagKey<EntityType<?>> HAMON_DAMAGE = create("hamon_damage");
 	public static final TagKey<EntityType<?>> NO_HAMON_DAMAGE = create("no_hamon_damage");
+	// MobAiPause: types never paused
+	public static final TagKey<EntityType<?>> NEVER_AI_PAUSED = create("never_ai_paused");
 
 	private static TagKey<EntityType<?>> create(String path) {
 		return TagKey.create(Registries.ENTITY_TYPE, JojoMod.resLoc(path));

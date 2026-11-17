@@ -31,6 +31,13 @@ public final class LevelTickRateState {
 	/** Implemented by LevelTicks: the level and channel whose rate scales the delays scheduled in it. */
 	public interface ScheduledTicks {
 		void jojo_ripples$bindTickRate(ServerLevel level, LevelTimeRates.Channel channel);
+
+		/** The level whose block or fluid ticks these are, once bound; null before. */
+		@Nullable
+		ServerLevel jojo_ripples$tickLevel();
+
+		/** Whether these are fluid ticks. */
+		boolean jojo_ripples$isFluidTicks();
 	}
 
 	private long tick = Long.MIN_VALUE;

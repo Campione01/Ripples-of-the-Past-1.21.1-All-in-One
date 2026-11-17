@@ -8,6 +8,7 @@ import rotp.core.client.entityanim.AnimationLoader;
 import rotp.core.client.entityrender.parsemodel.loader.RotpGeckoModelLoader;
 import rotp.core.client.resources.ModSplashes;
 import rotp.core.client.shader.ModShaders;
+import rotp.core.client.sound.ClientVoiceLinePacksLoader; // OFFVOICE
 import rotp.core.client.standskin.StandSkinsLoader;
 import rotp.core.core.JojoMod;
 import rotp.core.mechanics.clothes.client.layer.ClothesModelLoader;
@@ -37,6 +38,12 @@ public class ModClientResources {
 		ClothesModelLoader.init(event);
 		ModShaders.init(event);
 		event.registerReloadListener(MOD_SPLASHES);
+		// OFFVOICE
+		ClientVoiceLinePacksLoader.init(event);
+		// OFFVOICE end
+		// OFFPOSES
+		rotp.core.mechanics.jojopose.client.ClientJojoPoseLoader.init(event);
+		// OFFPOSES end
 	}
 
 	// 1.16 onScreenOpened: runs before TitleScreen.init, which keeps a non-null splash

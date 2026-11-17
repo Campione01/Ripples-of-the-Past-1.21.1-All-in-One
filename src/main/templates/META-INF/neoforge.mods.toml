@@ -1,14 +1,14 @@
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
 license="GPL-3.0-only"
-issueTrackerURL="https://github.com/Campione01/Ripples-of-the-Past-1.21.1-Unofficial/issues"
+issueTrackerURL="https://github.com/Campione01/Ripples-of-the-Past-1.21.1-All-in-One/issues"
 
 [[mods]]
 modId="${mod_id}"
 version="${mod_version}"
-displayName="Ripples of the Past - Unofficial 1.21.1"
+displayName="Ripples of the Past - All-in-One (Unofficial 1.21.1)"
 # updateJSONURL="https://......."
-displayURL="https://github.com/Campione01/Ripples-of-the-Past-1.21.1-Unofficial"
+displayURL="https://github.com/Campione01/Ripples-of-the-Past-1.21.1-All-in-One"
 # logoFile="logo.png"
 authors="StandoByte and contributors; unofficial version maintained by Campione01"
 credits='''

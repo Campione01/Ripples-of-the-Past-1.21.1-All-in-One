@@ -221,7 +221,7 @@ public final class StarSpecialtyMovementGameTests {
             connection = new RecordingConnection(this, observer);
             observer.connection = connection;
             premise(level.addFreshEntity(observer), "observer added");
-            connection.chunkSender.dropChunk(observer, observer.chunkPosition());
+            GameTestChunkSending.markSentAround(observer);
             power = PowerClass.STAND.attachGet(user);
             type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
             premise(type != null && StandPowerTransitions.insert(power, new StandInstance(type)).status()

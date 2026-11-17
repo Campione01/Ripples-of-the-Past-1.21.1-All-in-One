@@ -64,7 +64,8 @@ public final class SPLightPhaseEntryGameTests {
             actor(id.startsWith("tw_") ? "the_world" : id.equals("cd_default") ? "crazy_diamond" : "star_platinum",
                     1, id.equals("sp_arms"));
             if (!id.equals("sp_whiff")) cow();
-            power.setStamina(id.equals("sp_stable") ? power.getMaxStamina() * 0.8F : 300);
+            // at this stamina the debit and the meter move the recovery across a tick (the premise in post)
+            power.setStamina(id.equals("sp_stable") ? power.getMaxStamina() * 0.8F : 200);
             if (expiry()) user.addEffect(new MobEffectInstance(ModStatusEffects.RESOLVE, 12, 0, false, false));
         }
 

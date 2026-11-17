@@ -82,10 +82,12 @@ public abstract class ObserverWorldRenderLevelMixin {
 		}
 	}
 
+	// Before another mod's own rain, drawn at this HEAD and then cancelled (Dynamic Surroundings).
 	@Inject(
 			method = "renderSnowAndRain",
 			at = @At("HEAD"),
-			cancellable = true)
+			cancellable = true,
+			order = -1)
 	private void jojo_ripples$suppressWeather(
 			LightTexture lightTexture,
 			float partialTick,

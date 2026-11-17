@@ -170,8 +170,8 @@ public final class StandImpactSoundGameTests {
 			helper.assertTrue(level.addFreshEntity(user), "Could not add the Stand user");
 			entities.add(user);
 			if (connection != null) {
-				// the owner's own chunk counts as sent, so it tracks the Stand once it is added
-				connection.chunkSender.dropChunk(user, user.chunkPosition());
+				// the chunks around the owner count as sent, so it tracks the Stand once it is added beside it
+				GameTestChunkSending.markSentAround(user);
 			}
 			power = PowerClass.STAND.attachGet(user);
 			type = JojoRegistries.DEFAULT_STANDS_REG.get(JojoMod.resLoc("star_platinum"));
@@ -180,6 +180,9 @@ public final class StandImpactSoundGameTests {
 			helper.assertTrue(type.summon(user, power), "Could not summon Star Platinum");
 			stand = power.getSummonedStandEntity();
 			helper.assertTrue(stand != null && stand.getUser() == user, "Missing Star Platinum entity");
+			if (connection != null) {
+				GameTestChunkSending.assertTracks(helper, user, stand, "its Stand");
+			}
 			stand.summonLockTicks = 0;
 			stand.setNoGravity(true);
 			stand.moveTo(origin.x, origin.y, origin.z, 0, 0);
@@ -270,6 +273,7 @@ public final class StandImpactSoundGameTests {
 					if (hitSound.hit()) counts[1]++;
 				}
 			}
+			GameTestChunkSending.assertCounted(helper, counts[0], "barrage hit tick on " + target);
 			return counts;
 		}
 

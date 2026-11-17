@@ -27,6 +27,11 @@ public class ModContainers {
 	public static final DeferredHolder<MenuType<?>, MenuType<WalkmanMenu>> WALKMAN = CONTAINERS.register("walkman",
 			key -> new MenuType<>((IContainerFactory<WalkmanMenu>) WalkmanMenu::client, FeatureFlags.DEFAULT_FLAGS));
 
-	public static final DeferredHolder<MenuType<?>, MenuType<StandHandsContainerMenu>> STAND_HANDS = CONTAINERS.register("stand_hands", 
+	public static final DeferredHolder<MenuType<?>, MenuType<StandHandsContainerMenu>> STAND_HANDS = CONTAINERS.register("stand_hands",
 			key -> new MenuType<>(StandHandsContainerMenu.CLIENT_FACTORY, FeatureFlags.DEFAULT_FLAGS));
+
+	// OFFMENUS: the cartography table's explorer map mode
+	public static final DeferredHolder<MenuType<?>, MenuType<rotp.core.mechanics.explorer_map_creation.ExplorerMapMenu>> EXPLORER_MAP_TABLE =
+			CONTAINERS.register("explorer_map_table",
+					key -> new MenuType<>(rotp.core.mechanics.explorer_map_creation.ExplorerMapMenu::new, FeatureFlags.DEFAULT_FLAGS));
 }

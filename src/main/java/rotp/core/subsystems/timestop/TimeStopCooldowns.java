@@ -2,12 +2,14 @@ package rotp.core.subsystems.timestop;
 
 import javax.annotation.Nullable;
 
+import rotp.core.api.stand.StandAbilityFatigue;
 import rotp.core.api.timestop.TimeStopBehaviorPolicies;
 import rotp.core.api.timestop.TimeStopProgressionPolicy;
 import rotp.core.impl.stands.theworld.TimeStopBlinkAbility;
 import rotp.core.init.ModStatusEffects;
 import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.world.entity.LivingEntity;
 
@@ -77,7 +79,8 @@ public final class TimeStopCooldowns {
 		if (cooldown > 0) {
 			power.setAbilityCooldown(blinkAbilityName, cooldown);
 			if (!power.isAbilityOnCooldown(timeStopAbilityName)) {
-				power.setAbilityCooldown(timeStopAbilityName, cooldown);
+				// a lock shared with the time stop: no use of it for the no-cooldown mode's fatigue
+				StandAbilityFatigue.withoutFatigue(() -> power.setAbilityCooldown(timeStopAbilityName, cooldown));
 			}
 		}
 	}
@@ -90,7 +93,7 @@ public final class TimeStopCooldowns {
 				TimeStopBehaviorPolicies.progression(power);
 		float cooldownPerTick = policy != null
 				? policy.cooldownPerTick()
-				: TIME_STOP_COOLDOWN_PER_TICK;
+				: StandSpecials.timeStopFloat(power, StandSpecials.TIME_STOP_COOLDOWN, TIME_STOP_COOLDOWN_PER_TICK);
 		float cooldown = cooldownPerTick * Math.max(ticks, 0);
 		LivingEntity user = power.getUser();
 		if (user != null && user.hasEffect(ModStatusEffects.RESOLVE)) {

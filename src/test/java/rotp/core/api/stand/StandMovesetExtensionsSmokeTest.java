@@ -55,6 +55,33 @@ public final class StandMovesetExtensionsSmokeTest {
 		verifyAbilityReplacement();
 		verifyInvalidAbilityReplacementsFailFast();
 		verifyFailedExtensionIsAtomic();
+		verifyHotbarSlotVariation();
+	}
+
+	/** rotp-neo-stand's Finger Sweep under Star Finger needs this; a base with no slot must not pass in silence. */
+	private static void verifyHotbarSlotVariation() {
+		ResourceLocation target = id("rotp_test", "slot_variation_target");
+		AbilityType<Ability> variationType = abilityType("slot_variation");
+		StandMovesetExtensions.register(
+				StandMovesetExtensions.builder(target, id("rotp_test", "slot_variation_extension"), 0)
+				.addAbility("slot_variation", variationType.registryKey, () -> variationType)
+				.addHotbarSlotVariation("hotbar", 0, "base", "slot_variation", InputKey.Modifier.SHIFT, InputMethod.CLICK)
+				.build());
+		MovesetBuilder extended = StandMovesetExtensions.applyRegisteredExtensions(target, baseMoveset());
+		var slots = extended.controlSchemes.get("hotbar").defaultGroup.hotbars.get(0).slots;
+		check(slots.size() == 1, "a variation must not take a slot of its own");
+		check("slot_variation".equals(slots.get(0).get(InputKey.Modifier.SHIFT).get(InputMethod.CLICK)),
+				"the variation must sit in its base's slot under the declared modifier");
+		check("base".equals(slots.get(0).get(null).get(InputMethod.CLICK)), "the base must stay on the plain key");
+
+		ResourceLocation missingBaseTarget = id("rotp_test", "slot_variation_missing_base");
+		AbilityType<Ability> missingBaseType = abilityType("slot_variation_orphan");
+		StandMovesetExtensions.register(
+				StandMovesetExtensions.builder(missingBaseTarget, id("rotp_test", "slot_variation_missing_base_extension"), 0)
+				.addAbility("slot_variation_orphan", missingBaseType.registryKey, () -> missingBaseType)
+				.addHotbarSlotVariation("hotbar", 0, "absent", "slot_variation_orphan", InputKey.Modifier.SHIFT, InputMethod.CLICK)
+				.build());
+		expectFailure(() -> powerType(missingBaseTarget, baseMoveset()).makeMoveset(null), "hotbar entry references missing ability: absent");
 	}
 
 	private static void verifyAddedAbilityResourceNamespace() {

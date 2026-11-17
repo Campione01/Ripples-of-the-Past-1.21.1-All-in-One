@@ -51,7 +51,8 @@ public final class StandLossResolveSmokeTest {
 
 		String command = compact(source(COMMAND));
 		String remove = between(command, "privatestaticintremoveStand(", "publicstaticCollection<StandPower>getStands(");
-		check(remove.contains("if(stand!=null){if(stand.hasPower()){singlePrevType=stand.getPowerType();}"
+		check(remove.contains("if(stand!=null){StandPowerTransitions.abortTemporaryLoan(stand);"
+				+ "if(stand.hasPower()){singlePrevType=stand.getPowerType();}"
 				+ "stand.applyDestructiveTransition(true);i++;}"),
 				"/jojo_ripples stand remove must clear a target without a Stand too");
 		check(remove.contains("if(i>0&&targets.size()==1&&singlePrevType==null){"

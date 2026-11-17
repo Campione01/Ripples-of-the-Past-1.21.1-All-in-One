@@ -55,7 +55,7 @@ public final class StandSummonLockTickGameTests {
 	private static final short KEY = 126;
 
 	/*
-	 * Crazy Diamond (lock 3) and Magician's Red (lock 7): a heavy punch and a held flame burst whose press summons the
+	 * Crazy Diamond (lock 2) and Magician's Red (lock 7): a heavy punch and a held flame burst whose press summons the
 	 * whole Stand, a punch and a held guard pressed in the tick the Stand is summoned, and a punch whose press summons only
 	 * an arm, which has no lock (1.16 onArmsOnlyModeUpdated) and ticks at once.
 	 */
@@ -140,14 +140,16 @@ public final class StandSummonLockTickGameTests {
 	}
 
 	private static final int HELD_TICKS_READ_AFTER = 5;
+	// so that the stunned row's tick 2 is still in the lock, whatever lock Crazy Diamond's speed gives it
+	private static final int HELD_LOCK = 3;
 
 	/*
 	 * 1.16 counted a held action from its press in its user's power (PowerBaseImpl.tickHeldAction), which the summon lock
 	 * did not hold back: its hold maximum (getHoldDurationMax), its held recheck and the ticks held its hold-only cooldown
 	 * took (stopHeldAction). Crazy Diamond's barrage (1.16 holdType, its hold maximum 20 + 5 x durability) held from the
-	 * tick Crazy Diamond was summoned whole (lock 3) and, as the control, with the lock taken off first: both go into their
-	 * recovery in tick maximum + 1 from the press and have counted 5 held ticks after tick 5; its user stunned after tick
-	 * 1: the held recheck ends the hold in tick 2, in the lock.
+	 * tick Crazy Diamond was summoned whole (its lock made 3) and, as the control, with the lock taken off first: both go
+	 * into their recovery in tick maximum + 1 from the press and have counted 5 held ticks after tick 5; its user stunned
+	 * after tick 1: the held recheck ends the hold in tick 2, in the lock.
 	 */
 	@GameTest(template = "empty", timeoutTicks = 140)
 	public static void aHeldPerformCountsItsHoldFromItsPressThroughItsStandsSummonLockAsIn116(GameTestHelper helper) {
@@ -186,7 +188,7 @@ public final class StandSummonLockTickGameTests {
 
 	/*
 	 * Crazy Diamond summoned as arms and then whole (its gradual summon, 1.16 onArmsOnlyModeUpdated) and Crazy Diamond
-	 * summoned whole (its summon lock of 3), each with its user stunned at once, which stuns the Stand too: the lock runs
+	 * summoned whole (its summon lock of 2), each with its user stunned at once, which stuns the Stand too: the lock runs
 	 * out through the stun, while the gradual summon and the arms' weaker stats wait for the stun to end.
 	 */
 	@GameTest(template = "empty", timeoutTicks = 60)
@@ -517,11 +519,9 @@ public final class StandSummonLockTickGameTests {
 			helper.assertTrue(type.summon(user, power), "Could not summon Crazy Diamond");
 			stand = power.getSummonedStandEntity();
 			helper.assertTrue(stand != null && !stand.isArmsOnlyMode(), "Fixture: Crazy Diamond is not out whole: " + stand);
-			if (row == Row.NO_LOCK) {
-				stand.summonLockTicks = 0;
-			}
+			helper.assertTrue(stand.summonLockTicks > 0, "Fixture: Crazy Diamond summoned whole has no summon lock");
+			stand.summonLockTicks = row == Row.NO_LOCK ? 0 : HELD_LOCK;
 			lock = stand.summonLockTicks;
-			helper.assertTrue(lock == (row == Row.NO_LOCK ? 0 : 3), "Fixture: Crazy Diamond's summon lock is " + lock);
 			Ability ability = power.getAbility("barrage");
 			helper.assertTrue(ability != null, "Missing Crazy Diamond's barrage");
 			AbilityConditionCheck selected = power.updateAvailableMoves().getContextVariationContainer(ability);

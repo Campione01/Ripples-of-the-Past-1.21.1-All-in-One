@@ -14,6 +14,7 @@ import rotp.core.util.functions.DamageUtil;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.util.functions.MathUtil;
 import rotp.core.impl.stands.magiciansred.client.MRDetectorSound;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -38,7 +39,6 @@ public class MRDetectorEntity extends Entity implements IEntityWithComplexSpawn 
 	private static final EntityDataAccessor<Integer> OWNER_ID = SynchedEntityData.defineId(MRDetectorEntity.class, EntityDataSerializers.INT);
 
 	public static final double DETECTION_RADIUS = 15.0D;
-	private static final int LIFESPAN_TICKS = 600;
 	private static final int TOUCH_FIRE_TICKS = 4 * 20;
 	private static final Vec3 OWNER_OFFSET = new Vec3(-0.5D, -0.5D, 1.5D);
 
@@ -64,7 +64,7 @@ public class MRDetectorEntity extends Entity implements IEntityWithComplexSpawn 
 		super.tick();
 
 		LivingEntity owner = getOwnerEntity();
-		if (tickCount < LIFESPAN_TICKS && owner != null && owner.isAlive()) {
+		if (tickCount < StandSpecials.MR_DETECTOR_SECONDS.ticksFor(owner) && owner != null && owner.isAlive()) {
 			Vec3 newPos = owner.getEyePosition(1.0F).add(OWNER_OFFSET.yRot(-owner.getYRot() * MathUtil.DEG_TO_RAD));
 			setPos(newPos.x, newPos.y, newPos.z);
 		}
@@ -90,7 +90,7 @@ public class MRDetectorEntity extends Entity implements IEntityWithComplexSpawn 
 
 	@Nullable
 	private Vec3 detectEntities(LivingEntity owner) {
-		AABB area = new AABB(position(), position()).inflate(DETECTION_RADIUS);
+		AABB area = new AABB(position(), position()).inflate(getDetectionRadius());
 		List<LivingEntity> targets = level().getEntitiesOfClass(LivingEntity.class, area,
 				entity -> entity.isAlive() && !entity.isSpectator() && isValidDetectedTarget(entity, owner));
 		LivingEntity closest = targets.stream()
@@ -128,6 +128,11 @@ public class MRDetectorEntity extends Entity implements IEntityWithComplexSpawn 
 	}
 
 	@Nullable
+	/** Its user's Stand's radius (DETECTION_RADIUS unless the server changed it), which its model and sound scale by too. */
+	public double getDetectionRadius() {
+		return StandSpecials.MR_DETECTOR_RADIUS.getFor(getOwnerEntity());
+	}
+
 	public LivingEntity getOwnerEntity() {
 		if (owner == null) {
 			Entity entity = level().getEntity(entityData.get(OWNER_ID));

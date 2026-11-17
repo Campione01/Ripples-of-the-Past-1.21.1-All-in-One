@@ -28,6 +28,7 @@ import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTarget.TargetType;
 import rotp.core.subsystems.target.HitResultUtil;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.Entity;
@@ -105,7 +106,6 @@ public class HierophantEmeraldSplashAbility extends StandEntityAbility implement
 		return super.isAbilityAvailable(context);
 	}
 
-	// no replaceWithSubAbility: the concentrated splash has its own wheel slot, LMB stays the normal splash
 	public static boolean isEmeraldSplashFullyTrained(Power<?> context) {
 		if (context instanceof StandPower standPower) {
 			if (standPower.isUserCreative()) {
@@ -126,7 +126,8 @@ public class HierophantEmeraldSplashAbility extends StandEntityAbility implement
 			EntityActionInstance curAction = LivingComponentAction.getCurEntityAction(performer);
 			boolean sameSplashChain = curAction != null && curAction.ability instanceof HierophantEmeraldSplashAbility;
 			action.phasesLength.put(ActionPhase.WINDUP, noPhases || sameSplashChain ? 0 : StandStatFormulas.getHeavyAttackWindup(stand.getAttackSpeed(), 0));
-			action.phasesLength.put(ActionPhase.PERFORM, concentrated ? CONCENTRATED_PERFORM_TICKS : NORMAL_PERFORM_TICKS);
+			action.phasesLength.put(ActionPhase.PERFORM, concentrated ? CONCENTRATED_PERFORM_TICKS
+					: StandSpecials.HG_SPLASH_SECONDS.ticks(standPower));
 			action.phasesLength.put(ActionPhase.RECOVERY, noPhases ? 0 : 40);
 		}
 	}

@@ -18,6 +18,7 @@ import rotp.core.powersystem.entityaction.EntityActionInstance;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 import rotp.core.powersystem.standpower.StandPower;
+import rotp.core.powersystem.standpower.StandSpecials;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
@@ -37,6 +38,7 @@ public class StarInhaleAbility extends StandEntityAbility {
     private static final float INHALE_STAMINA_COST_TICK = 2F;
     private static final int INHALE_COOLDOWN = 80;
     private static final int INHALE_HOLD_DURATION_MAX = 80;
+    public static final double FRONT_OFFSET = 1.5;
 
     public StarInhaleAbility(AbilityType<?> abilityType, AbilityId abilityId) {
     	super(abilityType, abilityId, InhaleAbilityInstance::new);
@@ -90,8 +92,6 @@ public class StarInhaleAbility extends StandEntityAbility {
             super(ability);
         }
 
-        private static final double RANGE = 12.0;
-
         @Override
         public void onActionSet(@Nullable EntityActionInstance prevAction) {
             super.onActionSet(prevAction);
@@ -105,10 +105,20 @@ public class StarInhaleAbility extends StandEntityAbility {
                 LivingEntity user = getPowerUser();
                 StandPower standPower = user != null ? StandPower.get(user) : null;
                 if (standPower != null && ability instanceof StarInhaleAbility inhaleAbility) {
-                    standPower.setAbilityCooldown(inhaleAbility.name(), cooldownBeforeClear, cooldownTotalBeforeClear);
+                    standPower.restoreAbilityCooldown(inhaleAbility.name(), cooldownBeforeClear, cooldownTotalBeforeClear);
                 }
             }
-            setStandOffset(0, -0.25, StandOffsetFromUser.Rotations.HEAD, false);
+            // in front of the user along the look, where the official port has it: 1.16's 0.25 behind him overlapped his model
+            setStandOffset(0, FRONT_OFFSET, StandOffsetFromUser.Rotations.HEAD_XY, false);
+        }
+
+        // where the Stand's mouth is drawn, as in 1.16, whose 0.75 was of a Stand 2.1 high: of the port's 1.8 that is the chest
+        public static Vec3 mouthPosition(StandEntity standEntity) {
+            return standEntity.position()
+                    .add(0, standEntity.getBbHeight() * 0.9F, 0)
+                    .add(new Vec3(0, standEntity.getBbHeight() / 16F, standEntity.getBbWidth() * 0.5F)
+                            .xRot(-standEntity.getXRot() * MathUtil.DEG_TO_RAD)
+                            .yRot(-standEntity.getYRot() * MathUtil.DEG_TO_RAD));
         }
 
         @Override
@@ -143,14 +153,11 @@ public class StarInhaleAbility extends StandEntityAbility {
                 StandAbilityStamina.consume(ability, standPower, INHALE_STAMINA_COST_TICK, true);
             }
 
-            Vec3 mouthPos = standEntity.position()
-                    .add(0, standEntity.getBbHeight() * 0.75F, 0)
-                    .add(new Vec3(0, standEntity.getBbHeight() / 16F, standEntity.getBbWidth() * 0.5F)
-                            .xRot(-standEntity.getXRot() * MathUtil.DEG_TO_RAD)
-                            .yRot(-standEntity.getYRot() * MathUtil.DEG_TO_RAD));
+            Vec3 mouthPos = mouthPosition(standEntity);
 
             Vec3 spLookVec = standEntity.getLookAngle();
-            level.getEntities(standEntity, standEntity.getBoundingBox().inflate(RANGE, RANGE, RANGE),
+            double range = StandSpecials.SP_INHALE_REACH.getFor(standEntity);
+            level.getEntities(standEntity, standEntity.getBoundingBox().inflate(range, range, range),
                     entity -> spLookVec.dot(entity.position().subtract(standEntity.position()).normalize()) > 0.886
                             && (!StandSkillWalls.wallsHideEntities(standEntity) || standEntity.hasLineOfSight(entity))
                             && entity.distanceToSqr(standEntity) > 0.5
@@ -174,13 +181,13 @@ public class StarInhaleAbility extends StandEntityAbility {
 
             if (level.isClientSide()) {
                 for (int i = 0; i < MathUtil.fractionRandomInc(2.5); i++) {
-                    spawnAirStreamParticle(level, mouthPos, spLookVec);
+                    spawnAirStreamParticle(level, mouthPos, spLookVec, range);
                 }
             }
         }
 
-        private void spawnAirStreamParticle(Level level, Vec3 mouthPos, Vec3 lookVec) {
-            Vec3 particlePos = mouthPos.add(lookVec.scale(RANGE)
+        private void spawnAirStreamParticle(Level level, Vec3 mouthPos, Vec3 lookVec, double range) {
+            Vec3 particlePos = mouthPos.add(lookVec.scale(range)
                     .xRot((float) ((Math.random() * 2 - 1) * Math.PI / 6))
                     .yRot((float) ((Math.random() * 2 - 1) * Math.PI / 6)));
             Vec3 vecToStand = mouthPos.subtract(particlePos).normalize().scale(0.75);

@@ -1190,9 +1190,7 @@ public class EntityActionInstance implements HeldInput {
 		animVariables.animSet = ability.getEntityAnimSet(performer);
 		animVariables.animId = getEntityAnim();
 		animVariables.time = getAnimFullTicksPassed(partialTick);
-		ActionPhase phase = getPhase();
-		// Legacy stand animation timelines use WINDUP for hold-to-fire charge poses.
-		animVariables.actionPhase = phase == ActionPhase.BUTTON_CHARGE ? ActionPhase.WINDUP : phase;
+		animVariables.actionPhase = getPhase();
 		animVariables.phaseTime = getAnimPhaseTick(partialTick);
 		// A phase held at its end keeps its tick at the phase length, so the ratio would run past 1 by the partial tick
 		// and the timeline would lerp into the next phase's keyframes every frame (a twitching fully charged pose).
@@ -1723,12 +1721,25 @@ public class EntityActionInstance implements HeldInput {
 
 	private void runOwnTick() {
 		EntityActionInstance outer = enterOwnTick();
+		EntityActionInstance outerRunning = RUNNING_OWN_TICK.get();
+		RUNNING_OWN_TICK.set(this);
 		try {
 			_onTick();
 		}
 		finally {
 			SILENT_OWN_TICK.set(outer);
+			RUNNING_OWN_TICK.set(outerRunning);
 		}
+	}
+
+	// the action whose own tick runs on this thread: a check that names no entity can ask whose move it is part of
+	private static final ThreadLocal<EntityActionInstance> RUNNING_OWN_TICK = new ThreadLocal<>();
+
+	/** The action whose own tick ({@link #actionTick} and the phase code it runs) runs on this thread, if any. */
+	@ApiStatus.Internal
+	@Nullable
+	public static EntityActionInstance _runningOwnTick() {
+		return RUNNING_OWN_TICK.get();
 	}
 
 	@Nullable

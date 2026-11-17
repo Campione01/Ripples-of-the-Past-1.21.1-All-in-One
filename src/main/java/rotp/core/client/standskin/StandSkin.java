@@ -1,8 +1,10 @@
 package rotp.core.client.standskin;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Collections;
 import java.util.IllegalFormatException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -24,6 +26,7 @@ import rotp.core.core.JojoRegistries;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.StoryPart;
 
+import net.minecraft.Util;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.client.Minecraft;
@@ -55,7 +58,9 @@ public class StandSkin {
 	protected AnimationSet standEntityAnims;
 	protected float[] renderScale;
 	private boolean surfaceTranslucency = true;
-	
+	@Nullable private float[] headLookLimit;
+	private List<String> authors = List.of();
+
 	protected Map<ResourceLocation, WeighedSoundEvents> soundEvents = new HashMap<>();
 	protected Map<ResourceLocation, ResourceLocation> existingSounds = new HashMap<>();
 	protected Map<ResourceLocation, Sound> remappedSound = new HashMap<>();
@@ -119,7 +124,64 @@ public class StandSkin {
 	public static boolean surfaceTranslucencyFrom(com.google.gson.JsonObject skinInfo) {
 		return !skinInfo.has("surface_translucency") || skinInfo.get("surface_translucency").getAsBoolean();
 	}
-	
+
+	protected void withHeadLookLimit(@Nullable float[] limit) {
+		this.headLookLimit = limit;
+	}
+
+	/** Degrees the head may follow the look, { up and down, sideways }; null for no limit. A skin without its own takes the default skin's, as with the scale. */
+	@Nullable
+	public float[] getHeadLookLimit() {
+		if (headLookLimit != null) {
+			return headLookLimit;
+		}
+		return this != defaultSkin && defaultSkin != null ? defaultSkin.headLookLimit : null;
+	}
+
+	/** "head_look_limit": [27.5, 22.5] in skin.json, for a model whose head would go through its body. */
+	@Nullable
+	public static float[] headLookLimitFrom(com.google.gson.JsonObject skinInfo) {
+		if (skinInfo.get("head_look_limit") instanceof com.google.gson.JsonArray limit && limit.size() >= 2) {
+			return new float[] { Math.abs(limit.get(0).getAsFloat()), Math.abs(limit.get(1).getAsFloat()) };
+		}
+		return null;
+	}
+
+	protected void withAuthors(List<String> authors) {
+		this.authors = authors;
+	}
+
+	public List<String> getAuthors() {
+		return authors;
+	}
+
+	/** The optional "authors" of a skin.json, an array of names. Credit is no reason to refuse a skin: what is no name is left out. */
+	public static List<String> authorsFrom(com.google.gson.JsonObject skinInfo) {
+		if (!(skinInfo.get("authors") instanceof com.google.gson.JsonArray names)) {
+			return List.of();
+		}
+		List<String> authors = new ArrayList<>(names.size());
+		for (com.google.gson.JsonElement name : names) {
+			if (name.isJsonPrimitive() && name.getAsJsonPrimitive().isString() && !name.getAsString().isBlank()) {
+				authors.add(name.getAsString().trim());
+			}
+		}
+		return List.copyOf(authors);
+	}
+
+	/** The skin's name for the skins tab (StandSkinNames). */
+	public Component displayName() {
+		String standNameKey = Util.makeDescriptionId("stand", standTypeId);
+		return StandSkinNames.displayName(getOwnTranslation(standNameKey), skinId, isDefault,
+				() -> Component.translatable(standNameKey));
+	}
+
+	/** The line that credits the skin's authors, or empty for a skin with none. */
+	public Optional<Component> authorsLine() {
+		return authors.isEmpty() ? Optional.empty()
+				: Optional.of(Component.translatable("jojo_ripples.stand_skins.authors", String.join(", ", authors)));
+	}
+
 	protected void withSoundEvents(Map<ResourceLocation, WeighedSoundEvents> soundEvents) {
 		this.soundEvents = soundEvents;
 	}

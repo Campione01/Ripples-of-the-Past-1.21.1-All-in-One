@@ -22,7 +22,10 @@ public class GoldExperienceChooseLifeformAbility extends GoldExperienceUtilityAb
     @Override
     public void onClick(Level level, LivingEntity user, FriendlyByteBuf extraClientInput) {
         if (level.isClientSide()) {
-            GoldExperienceChooseLifeformScreen.openWindowOnClick();
+            // the press is replayed on the clients watching him too: only his own opens the window
+            if (GoldExperienceLifeforms.pressedOnThisClient(user)) {
+                GoldExperienceChooseLifeformScreen.openWindowOnClick();
+            }
         }
         else if (user instanceof ServerPlayer player) {
             GoldExperienceLifeformState.get(player).syncToPlayer(player);

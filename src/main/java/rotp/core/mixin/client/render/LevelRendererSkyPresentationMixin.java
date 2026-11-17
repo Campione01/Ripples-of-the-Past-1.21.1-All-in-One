@@ -22,13 +22,16 @@ import net.minecraft.client.renderer.LevelRenderer;
 public abstract class LevelRendererSkyPresentationMixin {
 	@Shadow private ClientLevel level;
 
+	// Callbacks at HEAD run in the order Mixin applies them, lowest order first and
+	// then lowest mixin priority: a raised priority would run after Sodium's cancel.
 	@Inject(
 			method = "renderSky(Lorg/joml/Matrix4f;"
 					+ "Lorg/joml/Matrix4f;F"
 					+ "Lnet/minecraft/client/Camera;Z"
 					+ "Ljava/lang/Runnable;)V",
 			at = @At("HEAD"),
-			cancellable = true)
+			cancellable = true,
+			order = -1)
 	private void jojo_ripples$renderCustomSky(
 			Matrix4f frustumMatrix,
 			Matrix4f projectionMatrix,
@@ -55,7 +58,8 @@ public abstract class LevelRendererSkyPresentationMixin {
 			method = "renderClouds(Lcom/mojang/blaze3d/vertex/PoseStack;"
 					+ "Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;FDDD)V",
 			at = @At("HEAD"),
-			cancellable = true)
+			cancellable = true,
+			order = -1)
 	private void jojo_ripples$suppressVanillaClouds(
 			PoseStack poseStack,
 			Matrix4f frustumMatrix,

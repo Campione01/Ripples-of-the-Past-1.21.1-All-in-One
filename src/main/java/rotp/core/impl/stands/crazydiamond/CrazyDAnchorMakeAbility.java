@@ -243,7 +243,7 @@ public class CrazyDAnchorMakeAbility extends StandEntityAbility {
 			// 1.16 StandEntityTask paid once the Stand could break the block, ignoring the result
 			StandAbilityStamina.consume(ability, standPower, STAMINA_COST, false);
 
-			if (JojoModUtil.breakingBlocksEnabled(level)) {
+			if (JojoModUtil.breakingBlocksEnabled(level, stand)) {
 				if (!JojoModUtil.canEntityDestroy(serverLevel, blockPos, blockState, stand)) {
 					user.sendSystemMessage(ConditionCheck.message("stand_cant_break_block"));
 					return;

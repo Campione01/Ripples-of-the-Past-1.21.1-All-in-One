@@ -227,8 +227,8 @@ public final class StandClipFollowUps116GameTests {
 	 * 1.16's FLAME_BURST_POSE (MagiciansRedModel :269-285) moved both arms 2 pixels inward (leftArm.setPos(4, -10, 0),
 	 * rightArm.setPos(-4, -10, 0)) in every phase and under the recovery's transition, setupAnim putting them back at
 	 * +-6 once the idle was drawn again; and its first-person view (setupFirstPersonRotations) tilted by head.xRot - xRot:
-	 * -22.5 degrees to RECOVERY and -22.5 (1 - t) over it, the head's x lerped to the look. The port's view reads head_rot's
-	 * x (StandEntityRenderer.setupFirstPersonRotations), which the clips key with 1.16's head x.
+	 * -22.5 degrees to RECOVERY and -22.5 (1 - t) over it, the head's x lerped to the look. The clips' head stays on the look
+	 * now (G13), so head_rot adds nothing to the port's view and the action gives it the tilt (AnimationSet.flameBurstViewTilt).
 	 */
 	@GameTest(template = "empty", timeoutTicks = 20)
 	public static void magiciansRedsFlamePosesMoveTheArmsInAndTiltTheFirstPersonViewAs116(GameTestHelper helper) {
@@ -255,7 +255,8 @@ public final class StandClipFollowUps116GameTests {
 				}
 				for (float[] look : looks) {
 					float f = t <= recovery ? 0 : (t - recovery) / (end - recovery);
-					float tilt = StandClipPoses116GameTests.rotationAt(clip, "head_rot", t, look)[0] - look[0];
+					float tilt = StandClipPoses116GameTests.rotationAt(clip, "head_rot", t, look)[0] - look[0]
+							+ AnimationSet.flameBurstViewTilt(t <= recovery ? ActionPhase.PERFORM : ActionPhase.RECOVERY, f);
 					if (first == null && Math.abs(tilt + 22.5F * (1 - f)) > 0.05F) {
 						first = "tilts the first-person view by " + tilt + " at " + t + " looking " + Arrays.toString(look)
 								+ ", where 1.16 tilted it by " + -22.5F * (1 - f);
@@ -265,6 +266,10 @@ public final class StandClipFollowUps116GameTests {
 			if (first != null) {
 				wrong.add(name + " " + first);
 			}
+		}
+		if (!invokedMethods(helper, "rotp/core/client/entityrender/EntityActionRenderState.class")
+				.contains("rotp/core/client/entityanim/AnimationSet.flameBurstViewTilt")) {
+			wrong.add("the render state no longer asks AnimationSet.flameBurstViewTilt");
 		}
 		helper.assertTrue(wrong.isEmpty(), "1.16's flame pose moved the arms in and tilted the first-person view with its head: " + wrong);
 		helper.succeed();

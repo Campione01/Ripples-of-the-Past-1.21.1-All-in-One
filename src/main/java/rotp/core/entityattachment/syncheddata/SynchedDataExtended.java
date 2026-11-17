@@ -52,6 +52,22 @@ public class SynchedDataExtended extends SynchedEntityData {
 		}
 	}
 
+	/**
+	 * Server side: takes these values as its own, as set() does, so that they reach the trackers with the next dirty
+	 * sync. A value whose id or serializer is not this data's is left out.
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public void setValues(List<SynchedEntityData.DataValue<?>> values) {
+		for (SynchedEntityData.DataValue<?> value : values) {
+			if (value.id() >= 0 && value.id() < itemsById.length) {
+				EntityDataAccessor accessor = itemsById[value.id()].getAccessor();
+				if (accessor.serializer() == value.serializer()) {
+					set(accessor, value.value(), true);
+				}
+			}
+		}
+	}
+
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public void assignValues(List<SynchedEntityData.DataValue<?>> entries) {

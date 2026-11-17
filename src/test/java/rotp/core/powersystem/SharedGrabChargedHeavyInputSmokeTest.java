@@ -297,8 +297,8 @@ public final class SharedGrabChargedHeavyInputSmokeTest {
 		String vanillaKeybinds = read(root.resolve(
 				"src/main/java/rotp/core/client/input/VanillaKeybinds.java"));
 		check(vanillaKeybinds.contains(
-				"GRAB_CHARGED_HEAVY_CONFLICT_CONTEXT, KeyModifier.SHIFT"),
-				"shared combat mapping must use its modifier-aware conflict context");
+				"standHudKey(GRAB_CHARGED_HEAVY_CONFLICT_CONTEXT), KeyModifier.SHIFT"),
+				"shared combat mapping must use its modifier-aware conflict context, in the Stand HUD's scope");
 		check(vanillaKeybinds.contains(
 				"return KeyConflictContext.IN_GAME.conflicts("),
 				"shared combat conflicts must delegate to IN_GAME semantics");

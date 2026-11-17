@@ -1,5 +1,6 @@
 package rotp.core;
 
+import rotp.core.config.editor.ConfigEditorPackets;
 import rotp.core.core.JojoMod;
 import rotp.core.customobjects.explosion.CustomExplosionPacket;
 import rotp.core.entityattachment.custom_effect.TrEntityCustomEffectsPacket;
@@ -16,6 +17,7 @@ import rotp.core.network.c2s.ClDebugCommandPacket;
 import rotp.core.network.c2s.ClGELifeformButtonPacket;
 import rotp.core.network.c2s.ClGEMetLifeformPacket;
 import rotp.core.network.c2s.ClGELifeformUiPacket;
+import rotp.core.network.c2s.ClGELifeformRosterPacket;
 import rotp.core.network.c2s.ClNoParamsPacket;
 import rotp.core.network.c2s.ClPhotoAssignIdPacket;
 import rotp.core.network.c2s.ClPhotoRequestPacket;
@@ -60,6 +62,7 @@ import rotp.core.network.s2c.TrDirectEntityDataPacket;
 import rotp.core.network.s2c.TrDirectEntityPosPacket;
 import rotp.core.network.s2c.TrDyingBodyTimerPacket;
 import rotp.core.network.s2c.TrGELifeformStatePacket;
+import rotp.core.network.s2c.TrGELifeformRosterPacket;
 import rotp.core.network.s2c.TrGESplitConsciousnessPacket;
 import rotp.core.network.s2c.TrGEStuckObjectsPacket;
 import rotp.core.network.s2c.TrNonEntityStandSummonPacket;
@@ -148,15 +151,20 @@ public class PacketsRegister {
 	// 15: standawakestage, a Stand user's awakening stage for the players tracking it
 	// 16: the action sync packets (entity action, phase time, actiontarget, action synched data, obbsync) carry the
 	// performer's action slot (LivingComponentAction#slotId)
-	public static final String NETWORK_PROTOCOL_VERSION = "16";
+	// 17: a Gold Experience lifeform's effect tells its user's client when it was created
+	// 18: the synced special_action registry has jojo_pose; serverbound clmaptable, clmapdata (explorer map) and cljjpose
+	// (JoJo pose)
+	public static final String NETWORK_PROTOCOL_VERSION = "18";
 
 	public static void register(RegisterPayloadHandlersEvent event) {
 		PayloadRegistrar registrar = event.registrar(NETWORK_PROTOCOL_VERSION);
+		ConfigEditorPackets.register(registrar);
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClAbilityInputPacket.Handler(JojoMod.resLoc("clkey")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClNoParamsPacket.Handler(JojoMod.resLoc("clsignal")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClGELifeformButtonPacket.Handler(JojoMod.resLoc("cl_ge_lifeform")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClGEMetLifeformPacket.Handler(JojoMod.resLoc("cl_ge_met_lifeform")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClGELifeformUiPacket.Handler(JojoMod.resLoc("cl_ge_lifeform_ui")));
+		registerPacket(registrar, PayloadRegistrar::playToServer, new ClGELifeformRosterPacket.Handler(JojoMod.resLoc("cl_ge_lifeform_roster")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClAngeloRockButtonPacket.Handler(JojoMod.resLoc("cl_angelo_rock_button")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClRPSGameInputPacket.Handler(JojoMod.resLoc("cl_rps_game_input")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClRPSPickThoughtsPacket.Handler(JojoMod.resLoc("cl_rps_pick_thoughts")));
@@ -176,6 +184,7 @@ public class PacketsRegister {
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClBroadcastedModSettingsPacket.Handler(JojoMod.resLoc("clbroadcastedsettings")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClStandManualMovementPacket.Handler(JojoMod.resLoc("clstandmove")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new StandManualInput.ShiftPacket.Handler());
+		registerPacket(registrar, PayloadRegistrar::playToServer, new StandManualInput.VariationKeyPacket.Handler());
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClMobControlMovementPacket.Handler(JojoMod.resLoc("clmobctrlmove")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClControlledMobCommandPacket.Handler(JojoMod.resLoc("clmobitemslot")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClStandClickPacket.Handler(JojoMod.resLoc("clstandclick")));
@@ -191,6 +200,11 @@ public class PacketsRegister {
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClPhotoSaveDataPacket.Handler(JojoMod.resLoc("clphotosave")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClPhotoRequestPacket.Handler(JojoMod.resLoc("clphotorequest")));
 		registerPacket(registrar, PayloadRegistrar::playToServer, new ClPlayerMovementInputPacket.Handler(JojoMod.resLoc("clmovinput")));
+		// OFFMENUS: the cartography table's explorer map mode
+		registerPacket(registrar, PayloadRegistrar::playToServer, new rotp.core.mechanics.explorer_map_creation.ClExplorerMapModePacket.Handler(JojoMod.resLoc("clmaptable")));
+		registerPacket(registrar, PayloadRegistrar::playToServer, new rotp.core.mechanics.explorer_map_creation.ClExplorerMapDataPacket.Handler(JojoMod.resLoc("clmapdata")));
+		// OFFPOSES: a player strikes or ends a JoJo pose
+		registerPacket(registrar, PayloadRegistrar::playToServer, new rotp.core.mechanics.jojopose.ClJojoPosePacket.Handler(JojoMod.resLoc("cljjpose")));
 
 		registerPacket(registrar, PayloadRegistrar::playToClient, new DatapackStandsPacket.Handler(JojoMod.resLoc("datastands")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new CommonConfigPacket.Handler(JojoMod.resLoc("commonconfig")));
@@ -244,6 +258,7 @@ public class PacketsRegister {
 		registerPacket(registrar, PayloadRegistrar::playToClient, new TrTimeStopPlayerStatePacket.Handler(JojoMod.resLoc("trtimestopplayerstate")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new TrRefreshMovementInTimeStopPacket.Handler(JojoMod.resLoc("trrefreshmovementintimestop")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new TrGELifeformStatePacket.Handler(JojoMod.resLoc("gelifeformstate")));
+		registerPacket(registrar, PayloadRegistrar::playToClient, new TrGELifeformRosterPacket.Handler(JojoMod.resLoc("gelifeformroster")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new TrGESplitConsciousnessPacket.Handler(JojoMod.resLoc("ge_split_consciousness")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new TrGEStuckObjectsPacket.Handler(JojoMod.resLoc("gestuck")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new TrDyingBodyTimerPacket.Handler(JojoMod.resLoc("dyingbodytimer")));
@@ -278,6 +293,7 @@ public class PacketsRegister {
 		registerPacket(registrar, PayloadRegistrar::playToClient, new KnockbackResTickPacket.Handler(JojoMod.resLoc("knockbackrestick")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new DeflectedBulletPacket.Handler(JojoMod.resLoc("projdefl")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new BloodParticlesPacket.Handler(JojoMod.resLoc("blood")));
+		registerPacket(registrar, PayloadRegistrar::playToClient, new rotp.core.network.s2c.ScreenSplashPacket.Handler(JojoMod.resLoc("screensplash")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new BrokenChunkBlocksPacket.Handler(JojoMod.resLoc("brokenblocks")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new CDBlocksRestoredPacket.Handler(JojoMod.resLoc("restoreblocks")));
 		registerPacket(registrar, PayloadRegistrar::playToClient, new ItemBreakVisualsPacket.Handler(JojoMod.resLoc("itemparticle")));

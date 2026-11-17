@@ -126,7 +126,7 @@ public class GoldExperienceCreateLifeformAbility extends GoldExperienceChosenLif
         boolean hasAnItem = !offHandItem.isEmpty();
         boolean hasABlock = aimTarget.getType() == ActionTarget.TargetType.BLOCK;
         if (!hasAnItem && !hasABlock) {
-            return ConditionCheck.createNegative(JojoModUtil.breakingBlocksEnabled(level)
+            return ConditionCheck.createNegative(JojoModUtil.breakingBlocksEnabled(level, user)
                     ? "ge_lifeform_material" : "ge_lifeform_material_only_item");
         }
         boolean itemFits = hasAnItem && canGiveLifeTo(offHandItem);
@@ -272,8 +272,16 @@ public class GoldExperienceCreateLifeformAbility extends GoldExperienceChosenLif
     }
 
     public static boolean canCreateMoreLifeforms(StandPower standPower) {
-        long mobsCreated = standPower.userStandEffects.getEffectsOfType(ModStandAbilities.EFFECT_GE_CREATED_LIFEFORM.get()).count();
-        return mobsCreated < MAX_CREATED_LIFEFORMS;
+        return countedLifeforms(standPower) < MAX_CREATED_LIFEFORMS;
+    }
+
+    /** The user's lifeforms that take one of the 16 places: the ones younger than GECreatedLifeformEffect#COUNTED_TICKS. */
+    public static int countedLifeforms(StandPower standPower) {
+        LivingEntity user = standPower.getUser();
+        long gameTime = user != null ? user.level().getGameTime() : 0L;
+        return (int) standPower.userStandEffects.getEffectsOfType(ModStandAbilities.EFFECT_GE_CREATED_LIFEFORM.get())
+                .filter(lifeform -> !lifeform.isStopped() && lifeform.countsTowardLimit(gameTime))
+                .count();
     }
 
     public static boolean hasSelectedLifeform(LivingEntity user) {
@@ -546,7 +554,7 @@ public class GoldExperienceCreateLifeformAbility extends GoldExperienceChosenLif
             target = crosshair;
         }
         return !target.isEmpty(level) && isWithinSourceRange(level, target, aiming)
-                && isSourceTarget(level, target, standPower.isUserCreative())
+                && isSourceTarget(level, target, user, standPower.isUserCreative())
                 ? target : ActionTarget.EMPTY;
     }
 
@@ -573,7 +581,7 @@ public class GoldExperienceCreateLifeformAbility extends GoldExperienceChosenLif
     }
 
     // 1.16 GoldExperienceCreateLifeform.checkTarget
-    private static boolean isSourceTarget(Level level, ActionTarget target, boolean userCreative) {
+    private static boolean isSourceTarget(Level level, ActionTarget target, LivingEntity user, boolean userCreative) {
         return switch (target.getType()) {
             case ENTITY -> {
                 Entity entity = target.getMainEntity();
@@ -581,7 +589,7 @@ public class GoldExperienceCreateLifeformAbility extends GoldExperienceChosenLif
                         ? isDroppedItemSource(itemEntity)
                         : isConvertibleEntitySource(entity);
             }
-            case BLOCK -> JojoModUtil.breakingBlocksEnabled(level)
+            case BLOCK -> JojoModUtil.breakingBlocksEnabled(level, user)
                     && (userCreative
                             || level.getBlockState(target.getBlockPos()).getDestroySpeed(level, target.getBlockPos()) >= 0);
             default -> false;
@@ -711,7 +719,7 @@ public class GoldExperienceCreateLifeformAbility extends GoldExperienceChosenLif
     }
 
     private static boolean isUsableBlockSource(Level level, LivingEntity user, BlockPos blockPos, BlockState blockState) {
-        return JojoModUtil.breakingBlocksEnabled(level)
+        return JojoModUtil.breakingBlocksEnabled(level, user)
                 && !blockState.isAir()
                 && (!blockState.hasBlockEntity() || isUsableBlockEntitySource(level, blockPos))
                 && (isCreative(user) || blockState.getDestroySpeed(level, blockPos) >= 0)

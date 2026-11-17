@@ -63,3 +63,58 @@ StandoByte.
 Third-party code notices are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Resource provenance and
 exclusions are in [ASSET_SOURCES.md](ASSET_SOURCES.md).
+
+<!-- OFFCLOTH -->
+## Clothes from the newer official sources
+
+The clothes system's list-and-merge character format, the 60 added JoJo
+character files with their English and Russian names, the updated Jotaro Kujo
+*Stardust Crusaders* (anime) clothes model, the taller clothes screen texture,
+and the clothes-or-armor setting's text follow the official Ripples of the Past
+for NeoForge 1.21.1 sources the owner received on 2026-11-12. The Jotaro
+clothes sets credit their author, **Motvik**, in their `authors` field, and the
+clothes item tooltip shows it. The Chinese character names, and the Stand ids
+mapped to this port's core and add-ons, were written for this port.
+
+<!-- OFFVOICE -->
+## Voice packs from the newer official sources
+
+The voice pack format (`assets/<namespace>/voicelines/<pack>/`), the three
+packs `jotaro_p3`, `josuke4` and `joseph_p2`, and eight voice clips (Jotaro's
+"yare yare" set of seven and Joseph's Tommy Gun scream) follow the official Ripples
+of the Past for NeoForge 1.21.1 sources the owner received on 2026-11-12, with
+the owner's permission to use official assets, anime voice clips included.
+The packs here name this port's existing subtitle keys, and the Jotaro pack's
+"Star Platinum, The World" line is limited to Star Platinum; the loader and its
+merging of resource packs were written for this port.
+
+<!-- OFFMENUS -->
+## HUD and menu pieces from the newer official sources
+
+The Resolve pips of the HUD's pip layout, the cartography table's explorer map
+screen and mode icons, and the hamon temple map icon are textures of the
+official Ripples of the Past for NeoForge 1.21.1 sources the owner received on
+2026-11-12, used with the owner's permission. The tutorial toasts, the explorer
+map mode and the Stand toggle HUD setting follow that version's behaviour and
+were rewritten into this port's settings and checks.
+
+<!-- lane OFFART (R772.1) -->
+## Later official Stand art
+
+Some Stand assets follow a later state of the official 1.21.1 port than the
+baseline above: the archive of its resources the maintainer received on
+2026-11-12. The files are listed in [ASSET_SOURCES.md](ASSET_SOURCES.md),
+under "Official Stand art of 2026-11-12".
+<!-- end lane OFFART -->
+
+<!-- OFFPOSES -->
+## JoJo poses from the newer official sources
+
+The pose set format (`assets/<namespace>/jojo_pose/<set>/`), Jotaro's three
+poses `point`, `cap` and `volume13`, and the pose list's slot sprites follow the
+official Ripples of the Past for NeoForge 1.21.1 sources the owner received on
+2026-11-12, with the owner's permission to use official assets. The cap pose's
+"yare yare" lines moved from the pose data into a voice pack; the loader, the
+bone table that puts the official rig's clips on this port's player model, and
+the pose key were written for this port.
+<!-- end OFFPOSES -->

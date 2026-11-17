@@ -103,7 +103,8 @@ public final class AbilityInputTransactionSmokeTest {
 				&& replayCommit > cooldownCommit && rollback > replayCommit,
 				"press side effects must share one ordered rollback boundary");
 		check(abilityInput.contains("inputBuffer.buffered = bufferedBefore")
-				&& abilityInput.contains("setAbilityCooldown(")
+				// the cooldown is put back as it was, not taken in the Stand's cooldown share again
+				&& abilityInput.contains("restoreAbilityCooldown(")
 				&& abilityInput.contains("rollbackFailedInputAction(")
 				&& abilityInput.contains("captureTransactionSnapshot()")
 				&& abilityInput.contains("current.generation == inputGeneration")

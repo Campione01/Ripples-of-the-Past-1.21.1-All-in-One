@@ -48,8 +48,11 @@ public class BoyIIManStandPartTakenEffect extends StandEffectInstance {
 			LivingEntity target = getTargetLiving();
 			if (target != null) {
 				StandPower targetPower = PowerClass.STAND.attachGet(target);
+				boolean reserved = targetPower.returnPartsToReservedStand(partsTaken);
 				if (!targetPower.hasPower()) {
-					targetPower.setStandInstance(Optional.of(partsTaken.copy()));
+					if (!reserved) {
+						targetPower.setStandInstance(Optional.of(partsTaken.copy()));
+					}
 				}
 				else {
 					targetPower.getStandInstance().ifPresent(stand -> {

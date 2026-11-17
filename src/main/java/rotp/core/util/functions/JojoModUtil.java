@@ -13,15 +13,22 @@ import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import rotp.core.config.client.PlayerClientBroadcastedSettings;
+import rotp.core.config.client.StandToggle;
 import rotp.core.customobjects.explosion.CustomExplosion;
 import rotp.core.entityattachment.PlayerVoiceLineData;
 import rotp.core.impl.powers.vampirism.entity.HungryZombieEntity;
 import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModGamerules;
+import rotp.core.mechanics.voiceline.VoiceLineSpeaker;
 import rotp.core.network.s2c.BrokenBlocksParticlesAndSoundsPacket;
 import rotp.core.network.s2c.PlayVoiceLinePacket;
 import rotp.core.network.s2c.TrResetDeathTimePacket;
+import rotp.core.powersystem.PowerClass;
+import rotp.core.powersystem.ability.Ability;
 import rotp.core.powersystem.ability.AbilityId;
+import rotp.core.powersystem.entityaction.EntityActionInstance;
+import rotp.core.powersystem.entityaction.LivingComponentAction;
 import rotp.core.powersystem.entityaction.type.EntityActionType;
 import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
@@ -37,6 +44,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
+import net.minecraft.network.protocol.game.ClientboundStopSoundPacket;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -72,7 +80,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 public class JojoModUtil {
 
 	public static boolean canEntityDestroy(ServerLevel level, BlockPos blockPos, BlockState blockState, LivingEntity entity) {
-		if (breakingBlocksEnabled(level)
+		if (breakingBlocksEnabled(level, entity)
 				&& blockState.canEntityDestroy(level, blockPos, entity)
 				&& EventHooks.onEntityDestroyBlock(entity, blockPos, blockState)) {
 			Player player = null;
@@ -90,8 +98,38 @@ public class JojoModUtil {
 		return false;
 	}
 
+	/**
+	 * The jojoAbilitiesBreakBlocks game rule; inside the tick of a Stand ability's action, its user's "breaks blocks"
+	 * toggle too, for an ability that names no breaker. With a breaker to name, use {@link #breakingBlocksEnabled(Level, LivingEntity)}.
+	 */
 	public static boolean breakingBlocksEnabled(Level level) {
-		return level.getGameRules().getBoolean(ModGamerules.BREAK_BLOCKS);
+		return level.getGameRules().getBoolean(ModGamerules.BREAK_BLOCKS) && !runningStandActionHasBreakingOff();
+	}
+
+	/** {@link #breakingBlocksEnabled(Level)}, and the toggle of the player whose Stand, or whose own hands as a Stand user, break the block. */
+	public static boolean breakingBlocksEnabled(Level level, @Nullable LivingEntity breaker) {
+		return breakingBlocksEnabled(level) && (breaker == null || !hasStandBreakingOff(breaker));
+	}
+
+	private static boolean runningStandActionHasBreakingOff() {
+		EntityActionInstance running = EntityActionInstance._runningOwnTick();
+		return running != null && running.ability instanceof Ability ability && ability.abilityId.powerClass() == PowerClass.STAND
+				&& !PlayerClientBroadcastedSettings.isStandToggleOn(StandToggle.BREAK_BLOCKS, running.getPowerUser());
+	}
+
+	private static boolean hasStandBreakingOff(LivingEntity breaker) {
+		LivingEntity user = StandUtil.getStandUser(breaker);
+		if (PlayerClientBroadcastedSettings.isStandToggleOn(StandToggle.BREAK_BLOCKS, user)) {
+			return false;
+		}
+		if (breaker != user) {
+			return true;
+		}
+		// a user's own break: the toggle is about the Stand, so it leaves a Hamon, vampire or Pillar Man move alone
+		EntityActionInstance own = LivingComponentAction.getCurEntityAction(user);
+		boolean ownPowerMove = own != null && !own.isOver() && own.ability instanceof Ability ability
+				&& ability.abilityId.powerClass() == PowerClass.PLAYER_POWER;
+		return StandUtil.isEntityStandUser(user) && !ownPowerMove;
 	}
 
 	public static void blockCatchFire(Level level, BlockPos blockPos, BlockState blockState, @Nullable Direction face, @Nullable LivingEntity igniter) {
@@ -114,7 +152,12 @@ public class JojoModUtil {
 ////					Collections.emptyList());
 ////		}
 //		return res;
-		return level.destroyBlock(blockPos, dropBlock, entity);
+		BlockState blockState = level.getBlockState(blockPos);
+		boolean destroyed = level.destroyBlock(blockPos, dropBlock, entity);
+		if (destroyed) {
+			rotp.core.mechanics.ScreenSplashes.brokenBlock(level, blockPos, blockState);
+		}
+		return destroyed;
 	}
 
 	public static boolean dropBrokenBlock(LivingEntity entity) {
@@ -331,29 +374,49 @@ public class JojoModUtil {
 
 	public static boolean sayVoiceLine(LivingEntity entity, Holder<SoundEvent> sound, float volume, float pitch,
 			int voiceLineDelay, boolean interrupt) {
-		if (entity == null || sound == null || entity.level().isClientSide()
-				|| entity.hasEffect(MobEffects.INVISIBILITY)) {
+		return sayVoiceLine(entity, sound, null, volume, pitch, voiceLineDelay, interrupt);
+	}
+
+	/**
+	 * Says the 1.16 line {@code sound}, or a voice pack's line for {@code trigger} instead when the speaker's clothes
+	 * make them a character that pack has a line for (VoiceLinePacks, picked on each client). With no 1.16 line, only
+	 * a pack line is said, and only by a speaker who counts as a character.
+	 */
+	public static boolean sayVoiceLine(LivingEntity entity, @Nullable Holder<SoundEvent> sound, @Nullable Holder<SoundEvent> trigger,
+			float volume, float pitch, int voiceLineDelay, boolean interrupt) {
+		if (entity == null || entity.level().isClientSide() || entity.hasEffect(MobEffects.INVISIBILITY)) {
+			return false;
+		}
+		VoiceLineSpeaker speaker = trigger != null ? VoiceLineSpeaker.of(entity) : VoiceLineSpeaker.NONE;
+		if (!speaker.hasCharacter()) {
+			trigger = null;
+		}
+		if (sound == null && trigger == null) {
 			return false;
 		}
 		Level level = entity.level();
 		SoundSource source = SoundSource.VOICE;
 		if (entity instanceof Player player) {
 			PlayVoiceLinePacket packet;
-			if (!canPlayVoiceLine(player, sound, voiceLineDelay)) {
+			Holder<SoundEvent> delayed = sound != null ? sound : trigger;
+			if (!canPlayVoiceLine(player, delayed, voiceLineDelay)) {
 				packet = PlayVoiceLinePacket.notTriggered(entity.getId());
 			}
 			else {
 				PlayLevelSoundEvent.AtPosition event = EventHooks.onPlaySoundAtPosition(level,
-						entity.getX(), entity.getY(), entity.getZ(), sound, source, volume, pitch);
+						entity.getX(), entity.getY(), entity.getZ(), delayed, source, volume, pitch);
 				if (event.isCanceled() || event.getSound() == null) {
 					packet = PlayVoiceLinePacket.notTriggered(entity.getId());
 				}
 				else {
-					sound = event.getSound();
+					if (sound != null) {
+						sound = MultiSoundEventResolver.resolve(event.getSound());
+					}
 					source = event.getSource();
 					volume = event.getNewVolume();
 					pitch = event.getNewPitch();
-					packet = new PlayVoiceLinePacket(MultiSoundEventResolver.resolve(sound), source, entity.getId(), volume, pitch, interrupt);
+					packet = new PlayVoiceLinePacket(sound, trigger, speaker, source, entity.getId(), volume, pitch, interrupt);
+					player.getData(ModDataAttachmentTypes.PLAYER_VOICE_LINES.get()).setLastSaid(packet);
 					sendVoiceLinePacket(level, entity, packet, volume);
 					return true;
 				}
@@ -361,9 +424,30 @@ public class JojoModUtil {
 			sendVoiceLinePacket(level, entity, packet, volume);
 			return false;
 		}
+		if (trigger != null) {
+			sendVoiceLinePacket(level, entity, new PlayVoiceLinePacket(sound != null ? MultiSoundEventResolver.resolve(sound) : null,
+					trigger, speaker, source, entity.getId(), volume, pitch, interrupt), volume);
+			return true;
+		}
 		level.playSound(null, entity, MultiSoundEventResolver.resolve(sound).value(), source, volume, pitch);
 		return true;
 	}
+
+	/** Cuts off a line {@link #sayVoiceLine} is saying, for whoever could hear it. The sound must be the resolved one. */
+	public static void stopVoiceLine(LivingEntity entity, Holder<SoundEvent> sound) {
+		if (!(entity.level() instanceof ServerLevel serverLevel)) {
+			return;
+		}
+		ClientboundStopSoundPacket packet = new ClientboundStopSoundPacket(sound.value().getLocation(), SoundSource.VOICE);
+		for (ServerPlayer player : serverLevel.players()) {
+			if (player.distanceToSqr(entity) < VOICE_LINE_STOP_RADIUS_SQR) {
+				player.connection.send(packet);
+			}
+		}
+	}
+
+	// the line's 16 blocks, and a hearer that has walked out of them meanwhile
+	private static final double VOICE_LINE_STOP_RADIUS_SQR = 32.0D * 32.0D;
 
 	private static boolean canPlayVoiceLine(Player entity, Holder<SoundEvent> voiceLine, int voiceLineDelay) {
 		PlayerVoiceLineData data = entity.getData(ModDataAttachmentTypes.PLAYER_VOICE_LINES.get());

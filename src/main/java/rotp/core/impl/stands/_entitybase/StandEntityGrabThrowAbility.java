@@ -22,6 +22,7 @@ import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.powersystem.standpower.entity.StandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandOffsetFromUser;
+import rotp.core.powersystem.standpower.entity.StandStatFormulas;
 import rotp.core.subsystems.entity_grab.LivingComponentGrab;
 import rotp.core.subsystems.target.AimingEntity;
 import rotp.core.subsystems.timestop.TimeStopState;
@@ -145,7 +146,7 @@ public class StandEntityGrabThrowAbility extends StandEntityAbility {
 					standGrab.setGrabTarget(null);
 					Vec3 throwVec = performer.getLookAngle().scale(2);
 					StandEntity stand = (StandEntity) performer;
-					float explRadius = Math.min((float) stand.getAttackDamage() * 0.175F, 10);
+					float explRadius = StandStatFormulas.getHeavyPunchBlastRadius(stand.getAttackDamage());
 					TimeStopState timeStop = level instanceof ServerLevel serverLevel
 							&& serverLevel.hasData(ModDataAttachmentTypes.TIME_STOP.get())
 							? serverLevel.getData(ModDataAttachmentTypes.TIME_STOP.get()) : null;

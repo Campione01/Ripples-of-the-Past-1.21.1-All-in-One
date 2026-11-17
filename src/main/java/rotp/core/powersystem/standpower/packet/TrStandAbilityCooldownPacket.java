@@ -73,7 +73,7 @@ public record TrStandAbilityCooldownPacket(int entityId, boolean resetAll, Strin
 						standPower.resetAbilityCooldowns();
 					}
 					else {
-						standPower.setAbilityCooldown(payload.abilityName, payload.cooldown, payload.totalCooldown);
+						standPower.restoreAbilityCooldown(payload.abilityName, payload.cooldown, payload.totalCooldown);
 					}
 				}
 			}

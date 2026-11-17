@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModSoundEvents;
 import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.StandUtil;
@@ -21,6 +22,7 @@ import rotp.core.impl.stands._entitybase.StandAbilityStamina;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 public class HGBarriersNet {
@@ -30,8 +32,19 @@ public class HGBarriersNet {
 	private double lastShotGap = -1;
 	private List<Vec3> lastShotPoints = List.of();
 	private boolean canShoot;
+	private long lastShotTime = -1;
+
+	/** The net of a user's placed barriers, which stays through a recall of the Stand that placed them. */
+	public static HGBarriersNet of(LivingEntity user) {
+		return user.getData(ModDataAttachmentTypes.HG_BARRIERS_NET);
+	}
 
 	public void tick() {
+		removeGoneBarriers();
+		canShoot = true;
+	}
+
+	private void removeGoneBarriers() {
 		Iterator<Map.Entry<HGBarrierEntity, ShootingPoints>> iter = placedBarriers.entrySet().iterator();
 		while (iter.hasNext()) {
 			HGBarrierEntity barrier = iter.next().getKey();
@@ -40,7 +53,15 @@ public class HGBarriersNet {
 				onUpdate();
 			}
 		}
-		canShoot = true;
+	}
+
+	/** The net goes on for the Stand summoned next. */
+	public void setOwnerStand(HierophantGreenEntity stand) {
+		placedBarriers.keySet().forEach(barrier -> {
+			if (barrier.getOwner() != stand) {
+				barrier.setOwner(stand);
+			}
+		});
 	}
 
 	public void add(HGBarrierEntity barrier) {
@@ -81,9 +102,12 @@ public class HGBarriersNet {
 
 	public void shootEmeraldsFromBarriers(StandPower standPower, HierophantGreenEntity stand,
 			Vec3 targetPos, int tick, double maxEmeralds, float staminaPerEmerald, double minGap, boolean breakBlocks) {
-		if (!canShoot || standPower == null) {
+		// with its Stand recalled no Stand tick lets the net shoot again
+		long gameTime = stand.level().getGameTime();
+		if (!canShoot && gameTime == lastShotTime || standPower == null) {
 			return;
 		}
+		removeGoneBarriers();
 		List<Vec3> shootingPoints = placedBarriers.values().stream()
 				.flatMap(points -> points.shootingPoints.stream())
 				.collect(Collectors.toCollection(LinkedList::new));
@@ -118,6 +142,7 @@ public class HGBarriersNet {
 					projectileFireRateScaling(stand, standPower), () -> false);
 		}
 		canShoot = false;
+		lastShotTime = gameTime;
 	}
 
 	private static void runFractionalTimes(Runnable action, double times, BooleanSupplier stop) {

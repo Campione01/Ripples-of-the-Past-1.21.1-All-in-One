@@ -16,6 +16,7 @@ import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
@@ -114,7 +115,7 @@ public class HierophantStringAttackAbility extends NoPoseStandEntityAbility {
 			if (!(getPerformer() instanceof StandEntity stand)) {
 				return;
 			}
-			int stringCount = binding ? BIND_STRING_COUNT : NORMAL_STRING_COUNT;
+			int stringCount = binding ? BIND_STRING_COUNT : StandSpecials.HG_STRING_COUNT.getInt(StandPower.get(user));
 			int lifespan = stringActionTicks(stand, binding);
 			for (int i = 0; i < stringCount; i++) {
 				Vec2 rotOffsets = xRotYRotOffsets((double) i / (double) stringCount * Math.PI * 2, 10);

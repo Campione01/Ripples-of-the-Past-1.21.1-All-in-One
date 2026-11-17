@@ -1,5 +1,7 @@
 package rotp.core.impl.stands.hierophant;
 
+import javax.annotation.Nullable;
+
 import rotp.core.powersystem.standpower.StandInstance.StandPart;
 
 import rotp.core.powersystem.Power;
@@ -13,6 +15,7 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.entity.NoPoseStandEntityAbility;
 import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.AimingEntity;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTargetAim;
 import rotp.core.subsystems.target.ActionTargetRange;
@@ -145,6 +148,9 @@ public class HierophantBarrierAbility extends NoPoseStandEntityAbility {
 		}
 		if (context instanceof StandPower standPower) {
 			LivingEntity user = standPower.getUser();
+			if (takesDownTheNet(user)) {
+				return ConditionCheck.POSITIVE;
+			}
 			Level level = user != null ? user.level() : null;
 			LivingEntity performer = standPower.getSummonedStandEntity();
 			if (level != null) {
@@ -177,10 +183,16 @@ public class HierophantBarrierAbility extends NoPoseStandEntityAbility {
 		if (!check.isPositive()) {
 			return check;
 		}
-		if (standEntity instanceof HierophantGreenEntity hierophant && !hierophant.canPlaceBarrier()) {
+		if (standEntity instanceof HierophantGreenEntity hierophant && !hierophant.canPlaceBarrier()
+				&& !takesDownTheNet(standPower.getUser())) {
 			return ConditionCheck.createNegative("barrier");
 		}
 		return ConditionCheck.POSITIVE;
+	}
+
+	// the net goes on through a recall, which took it down in 1.16: a press on the variation key takes it down now
+	private static boolean takesDownTheNet(@Nullable LivingEntity user) {
+		return StandManualInput.isShiftHeld(user);
 	}
 
 	@Override
@@ -223,6 +235,10 @@ public class HierophantBarrierAbility extends NoPoseStandEntityAbility {
 			}
 			ActionTarget target = getActionTarget(level);
 			LivingEntity user = getPowerUser();
+			if (takesDownTheNet(user) && hierophant.takeDownPlacedBarriers()) {
+				startRecovery();
+				return;
+			}
 			if (target.getType() != TargetType.BLOCK || target.isEmpty(level)) {
 				if (user != null) {
 					ConditionCheck.sendActionFailedMessage(null, ConditionCheck.createNegative("block_target"), user);

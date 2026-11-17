@@ -16,12 +16,15 @@ import rotp.core.init.ModDataAttachmentTypes;
 import rotp.core.init.ModItemDataComponents;
 import rotp.core.mechanics.clothes.itemdata.ClothesDataComponent;
 import rotp.core.mechanics.clothes.itemdata.ClothesSlotType;
+import rotp.core.mechanics.clothes.itemdata.StoryCharacter;
+import rotp.core.subsystems.StoryPart;
 import rotp.core.util.functions.EnumUtil;
 import rotp.core.util.functions.ItemUtil;
 import rotp.core.compat.v1_21_4.missingmethods._ItemStack;
 import com.google.common.collect.Maps;
 import com.mojang.datafixers.util.Pair;
 
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -77,6 +80,18 @@ public class EntityClothesInventory implements Container, SynchronizablePlayerDa
 
 	public ItemStack getClothingPiece(ClothesSlotType clothesSlot) {
 		return items.get(clothesSlot);
+	}
+
+	/** The character the wearer counts as, or null: {@link CharacterFromClothes}. */
+	@Nullable
+	public Holder<StoryCharacter> getCharacter() {
+		return CharacterFromClothes.fromClothes(this).character().orElse(null);
+	}
+
+	/** The story part all worn pieces share, or null: {@link CharacterFromClothes}. */
+	@Nullable
+	public Holder<StoryPart> getStoryPart() {
+		return CharacterFromClothes.fromClothes(this).storyPart().orElse(null);
 	}
 
 	@Override

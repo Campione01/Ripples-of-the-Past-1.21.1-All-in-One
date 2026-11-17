@@ -1,7 +1,10 @@
 package rotp.core.mrpresident;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
+
+import javax.annotation.Nullable;
 
 import rotp.core.JojoModConfig;
 import rotp.core.core.JojoMod;
@@ -18,6 +21,7 @@ import rotp.core.impl.stands.goldexperience.GECreatedLifeformEffect;
 
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -59,7 +63,10 @@ public class CocoJumboTurtleEntity extends Turtle {
 	private static final EntityDataAccessor<Boolean> IS_CARRIED = SynchedEntityData.defineId(CocoJumboTurtleEntity.class, EntityDataSerializers.BOOLEAN);
 	private static final ResourceLocation GOT_ARROW_ADVANCEMENT = JojoMod.resLoc("jojo/stand_arrow");
 	private static final ResourceLocation MET_TURTLE_ADVANCEMENT = JojoMod.resLoc("jojo/coco_jumbo");
-	private static long lastSpawnTime = Long.MIN_VALUE;
+	private static final int PLAYER_SPAWN_VIEW_TICKS = 20;
+	private static volatile long lastSpawnTime = Long.MIN_VALUE;
+	// What a roll reads of the players, copied on the server thread for the generation threads.
+	private static volatile List<PlayerSpawnView> playerSpawnViews = List.of();
 
 	public CocoJumboTurtleEntity(EntityType<? extends Turtle> type, Level level) {
 		super(type, level);
@@ -407,13 +414,16 @@ public class CocoJumboTurtleEntity extends Turtle {
 			return;
 		}
 		ServerLevel level = spawnLevel.getLevel();
-		Player nearest = level.getNearestPlayer(event.getX(), event.getY(), event.getZ(), -1.0D, EntitySelector.NO_SPECTATORS);
-		if (!(nearest instanceof ServerPlayer player)) {
+		// At chunk generation this runs off the server thread, where the players are not ours to read.
+		PlayerSpawnView nearest = level.getServer().isSameThread()
+				? nearestPlayerNow(level, event.getX(), event.getY(), event.getZ())
+				: nearestPlayerView(level, event.getX(), event.getY(), event.getZ());
+		if (nearest == null) {
 			return;
 		}
 
-		float spawnChancePerTurtle = spawnChancePerTurtle(player, spawnType);
-		if (player.getRandom().nextFloat() >= spawnChancePerTurtle) {
+		// the spawning turtle's own random, which this thread holds alone
+		if (event.getEntity().getRandom().nextFloat() >= nearest.spawnChancePerTurtle(spawnType)) {
 			return;
 		}
 
@@ -443,25 +453,84 @@ public class CocoJumboTurtleEntity extends Turtle {
 		return spawnType == MobSpawnType.NATURAL || spawnType == MobSpawnType.CHUNK_GENERATION || spawnType == MobSpawnType.SPAWNER;
 	}
 
-	private static float spawnChancePerTurtle(ServerPlayer player, MobSpawnType spawnType) {
-		boolean hasTurtleAdvancement = hasAdvancement(player, MET_TURTLE_ADVANCEMENT);
-		boolean hasArrow = player.getInventory().contains(stack -> stack.getItem() instanceof StandArrowItem);
-		boolean hasArrowAdvancement = hasAdvancement(player, GOT_ARROW_ADVANCEMENT);
-		boolean chunkGeneration = spawnType == MobSpawnType.CHUNK_GENERATION;
-		if (!hasTurtleAdvancement) {
-			return chunkGeneration ? 0.075F : 0.015F;
+	@Nullable
+	private static PlayerSpawnView nearestPlayerNow(ServerLevel level, double x, double y, double z) {
+		Player nearest = level.getNearestPlayer(x, y, z, -1.0D, EntitySelector.NO_SPECTATORS);
+		return nearest instanceof ServerPlayer player ? PlayerSpawnView.of(level, player) : null;
+	}
+
+	@Nullable
+	private static PlayerSpawnView nearestPlayerView(ServerLevel level, double x, double y, double z) {
+		PlayerSpawnView nearest = null;
+		double nearestDistance = Double.MAX_VALUE;
+		for (PlayerSpawnView view : playerSpawnViews) {
+			double distance = view.distanceToSqr(x, y, z);
+			if (view.dimension() == level.dimension() && distance < nearestDistance) {
+				nearest = view;
+				nearestDistance = distance;
+			}
 		}
-		if (hasArrow) {
-			return chunkGeneration ? 0.0375F : 0.0075F;
+		return nearest;
+	}
+
+	public static void tickPlayerSpawnViews(MinecraftServer server) {
+		if (server.getTickCount() % PLAYER_SPAWN_VIEW_TICKS == 0) {
+			refreshPlayerSpawnViews(server);
 		}
-		if (hasArrowAdvancement) {
-			return chunkGeneration ? 0.025F : 0.005F;
+	}
+
+	public static void refreshPlayerSpawnViews(MinecraftServer server) {
+		List<PlayerSpawnView> views = new ArrayList<>();
+		if (JojoModConfig.getCommonConfigInstance(false).spawnCocoJumboTurtle.get()) {
+			for (ServerLevel level : server.getAllLevels()) {
+				for (ServerPlayer player : level.players()) {
+					if (EntitySelector.NO_SPECTATORS.test(player)) {
+						views.add(PlayerSpawnView.of(level, player));
+					}
+				}
+			}
 		}
-		return chunkGeneration ? 0.0125F : 0.0025F;
+		playerSpawnViews = List.copyOf(views);
+	}
+
+	public static void clearPlayerSpawnViews() {
+		playerSpawnViews = List.of();
 	}
 
 	private static boolean hasAdvancement(ServerPlayer player, ResourceLocation advancementId) {
 		AdvancementHolder advancement = player.server.getAdvancements().get(advancementId);
 		return advancement != null && player.getAdvancements().getOrStartProgress(advancement).isDone();
+	}
+
+	private record PlayerSpawnView(ResourceKey<Level> dimension, double x, double y, double z,
+			boolean hasTurtleAdvancement, boolean hasArrow, boolean hasArrowAdvancement) {
+
+		private static PlayerSpawnView of(ServerLevel level, ServerPlayer player) {
+			return new PlayerSpawnView(level.dimension(), player.getX(), player.getY(), player.getZ(),
+					hasAdvancement(player, MET_TURTLE_ADVANCEMENT),
+					player.getInventory().contains(stack -> stack.getItem() instanceof StandArrowItem),
+					hasAdvancement(player, GOT_ARROW_ADVANCEMENT));
+		}
+
+		private double distanceToSqr(double otherX, double otherY, double otherZ) {
+			double dx = x - otherX;
+			double dy = y - otherY;
+			double dz = z - otherZ;
+			return dx * dx + dy * dy + dz * dz;
+		}
+
+		private float spawnChancePerTurtle(MobSpawnType spawnType) {
+			boolean chunkGeneration = spawnType == MobSpawnType.CHUNK_GENERATION;
+			if (!hasTurtleAdvancement) {
+				return chunkGeneration ? 0.075F : 0.015F;
+			}
+			if (hasArrow) {
+				return chunkGeneration ? 0.0375F : 0.0075F;
+			}
+			if (hasArrowAdvancement) {
+				return chunkGeneration ? 0.025F : 0.005F;
+			}
+			return chunkGeneration ? 0.0125F : 0.0025F;
+		}
 	}
 }

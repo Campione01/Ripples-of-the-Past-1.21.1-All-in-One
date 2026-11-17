@@ -22,6 +22,7 @@ import rotp.core.subsystems.soul.SoulEntity;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.util.functions.StatusEffectUtil;
 import rotp.core.impl.stands._entitybase.StandAbilityStamina;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -276,7 +277,7 @@ public class GoldExperienceHealAbility extends NoPoseStandEntityAbility {
 	}
 
 	static void applyGoldExperienceHeal(LivingEntity target, StandPower standPower) {
-		applyGoldExperienceHeal(target, standPower, HEAL_EFFECT_DURATION_TICKS);
+		applyGoldExperienceHeal(target, standPower, StandSpecials.GE_HEAL_REGEN_SECONDS.ticks(standPower));
 	}
 
 	static void applyGoldExperienceBodyTissueHeal(LivingEntity target, StandPower standPower) {

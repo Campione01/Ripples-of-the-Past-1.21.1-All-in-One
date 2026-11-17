@@ -32,6 +32,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 
 public class SpawnArrowsInSusBlocks {
+	public static final int MAX_ARROWS_IN_STREAK = 5;
 
 	@Nullable
 	public static ItemStack standArrowToPut(LivingEntity player, ServerLevel level, BlockPos blockPos) {
@@ -42,9 +43,13 @@ public class SpawnArrowsInSusBlocks {
 
 		if (!playerVars.foundAnArrow || playerVars.findMoreArrowsTimer > 0) {
 			if (!serverVars.foundFirstArrows || playerVars.findMoreArrowsTimer > 0) {
-				if (random.nextInt(4) == 0) {
+				if (playerVars.findMoreArrowsTimer == -1) {
+					playerVars.arrowsInStreak = 0;
+				}
+				if (playerVars.arrowsInStreak < MAX_ARROWS_IN_STREAK && random.nextInt(4) == 0) {
 					arrowToPut = ModItems.STAND_ARROW;
 					serverVars.foundFirstArrows = true;
+					playerVars.arrowsInStreak++;
 					if (playerVars.findMoreArrowsTimer == -1) {
 						playerVars.findMoreArrowsTimer = 5 * 60 * 20;
 					}

@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -200,6 +201,31 @@ public class DataDrivenStandsLoader {
 		}
 	}
 	
+	/**
+	 * A registered Stand's files in the world's jojoconfig pack changed (the settings screen's Stands page): its config takes
+	 * the edit as the next /reload reads the files, the Stand is configured again from it, and every player gets the packet
+	 * and the re-application a reload sends. False when the server has no Stand data loaded or knows no such Stand.
+	 */
+	public static boolean applyEditedStand(MinecraftServer server, ResourceLocation standId, Consumer<JsonObject> edit) {
+		StandType stand = JojoRegistries.DEFAULT_STANDS_REG.get(standId);
+		if (serverLoadedStands == null || stand == null) {
+			return false;
+		}
+		Map<ResourceLocation, JsonObject> loaded = serverLoadedStands.loadedConfigsData;
+		JsonObject config = loaded.containsKey(standId) ? loaded.get(standId).deepCopy() : new JsonObject();
+		edit.accept(config);
+		if (config.isEmpty()) {
+			loaded.remove(standId);
+		}
+		else {
+			loaded.put(standId, config);
+		}
+		stand.restoreDefaults();
+		stand.applyConfig(config);
+		syncDatapackTo(server.getPlayerList().getPlayers().stream(), server);
+		return true;
+	}
+
 	private static void afterConfigApply(MinecraftServer server) {
 		for (ServerLevel level : server.getAllLevels()) {
 			for (Entity entity : level.getAllEntities()) {

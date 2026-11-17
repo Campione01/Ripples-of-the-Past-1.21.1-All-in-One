@@ -19,8 +19,9 @@ public final class ClientSkyPresentationProvidersSmokeTest {
 
 	public static void run() {
 		ClientSkyPresentationProviders.resetForTests();
-		ResourceLocation failed = id("failed");
-		ResourceLocation active = id("active");
+		// Named so that owner order, which decides this tie, asks the failing one first.
+		ResourceLocation failed = id("a_failed");
+		ResourceLocation active = id("b_active");
 
 		ClientSkyPresentationProviders.register(failed, query -> {
 			throw new IllegalStateException("expected smoke failure");
@@ -84,8 +85,98 @@ public final class ClientSkyPresentationProvidersSmokeTest {
 				ClientSkyPresentationProviders.register(
 						active, query -> null));
 		ClientSkyPresentationProviders.resetForTests();
+		verifyPriorityOrder();
 		verifyShaderPresentation();
 		verifyIrisShadowParity();
+	}
+
+	private static void verifyPriorityOrder() {
+		ResourceLocation low = id("a_low");
+		ResourceLocation high = id("z_high");
+
+		ClientSkyPresentationProviders.register(low, query -> presenting(0.1F));
+		ClientSkyPresentationProviders.register(high, 10, query -> presenting(0.2F));
+		check(ClientSkyPresentationProviders.timeOfDay(null, 0.5F, 0.9F) == 0.2F,
+				"a higher priority registered last did not win");
+		ClientSkyPresentationProviders.resetForTests();
+		ClientSkyPresentationProviders.register(high, 10, query -> presenting(0.2F));
+		ClientSkyPresentationProviders.register(low, query -> presenting(0.1F));
+		check(ClientSkyPresentationProviders.timeOfDay(null, 0.5F, 0.9F) == 0.2F,
+				"a higher priority registered first did not win");
+		check(ClientSkyPresentationProviders.resolutionOrder().equals(List.of(high, low)),
+				"resolution order is not by descending priority");
+		check(ClientSkyPresentationProviders.registeredOwners().equals(List.of(high, low)),
+				"registered owners stopped reporting registration order");
+
+		ClientSkyPresentationProviders.resetForTests();
+		ClientSkyPresentationProviders.register(id("b_old"), query -> presenting(0.1F));
+		ClientSkyPresentationProviders.register(id("a_explicit"),
+				ClientSkyPresentationProviders.DEFAULT_PRIORITY, query -> presenting(0.2F));
+		ClientSkyPresentationProviders.register(id("0_below"), -1, query -> presenting(0.3F));
+		check(ClientSkyPresentationProviders.DEFAULT_PRIORITY == 0, "the default priority moved");
+		check(ClientSkyPresentationProviders.resolutionOrder().equals(
+				List.of(id("a_explicit"), id("b_old"), id("0_below"))),
+				"the old register is not the default priority");
+
+		ClientSkyPresentationProviders.resetForTests();
+		ClientSkyPresentationProviders.register(id("tie_b"), 5, query -> presenting(0.1F));
+		ClientSkyPresentationProviders.register(id("tie_a"), 5, query -> presenting(0.2F));
+		check(ClientSkyPresentationProviders.timeOfDay(null, 0.5F, 0.9F) == 0.2F,
+				"a tie was not decided by owner id");
+
+		ClientSkyPresentationProviders.resetForTests();
+		ClientSkyPresentationProviders.register(id("top_inactive"), 30, query -> null);
+		ClientSkyPresentationProviders.register(id("next_failing"), 20, query -> {
+			throw new IllegalStateException("expected smoke failure");
+		});
+		ClientSkyPresentationProviders.register(id("winner"), 10, query -> presenting(0.2F));
+		ClientSkyPresentationProviders.register(id("below"), 0, query -> {
+			throw new AssertionError("a provider below the winner was asked");
+		});
+		check(ClientSkyPresentationProviders.timeOfDay(null, 0.5F, 0.9F) == 0.2F,
+				"an inactive or failing leader did not hand over by priority");
+
+		// With the ids in play, a tie goes to The Sun's daylight, so the erase must ask for more.
+		ResourceLocation night = ResourceLocation.fromNamespaceAndPath(
+				"rotp_kingcrimson", "time_erase_iris_night");
+		ResourceLocation day = ResourceLocation.fromNamespaceAndPath("rotp_the_sun", "day_sky");
+		ClientSkyPresentationProviders.resetForTests();
+		ClientSkyPresentationProviders.register(night, query -> presenting(0.5F));
+		ClientSkyPresentationProviders.register(day, query -> presenting(0.0F));
+		check(ClientSkyPresentationProviders.timeOfDay(null, 0.5F, 0.9F) == 0.0F,
+				"owner order of the two presentations changed; the note on the tie is stale");
+		ClientSkyPresentationProviders.resetForTests();
+		ClientSkyPresentationProviders.register(day, Integer.MAX_VALUE - 1, query -> presenting(0.0F));
+		ClientSkyPresentationProviders.register(night,
+				ClientSkyPresentationProviders.HIGHEST_PRIORITY, query -> presenting(0.5F));
+		check(ClientSkyPresentationProviders.timeOfDay(null, 0.5F, 0.9F) == 0.5F,
+				"the highest priority did not outrank every other");
+		check(ClientSkyPresentationProviders.HIGHEST_PRIORITY == Integer.MAX_VALUE,
+				"something can outrank the highest priority");
+		// As they register: The Sun's day at the default still loses to the erase's night, one under the highest.
+		ClientSkyPresentationProviders.resetForTests();
+		ClientSkyPresentationProviders.register(day, query -> presenting(0.0F));
+		ClientSkyPresentationProviders.register(night,
+				ClientSkyPresentationProviders.HIGHEST_PRIORITY - 1, query -> presenting(0.5F));
+		check(ClientSkyPresentationProviders.timeOfDay(null, 0.5F, 0.9F) == 0.5F,
+				"The Sun's daylight won over the erase's night");
+
+		ClientSkyPresentationProviders.resetForTests();
+		ClientSkyPresentationProviders.register(low, 1, query -> presenting(0.1F));
+		expectIllegalState(() -> ClientSkyPresentationProviders.register(
+				low, 99, query -> presenting(0.2F)));
+		check(ClientSkyPresentationProviders.timeOfDay(null, 0.5F, 0.9F) == 0.1F,
+				"a refused registration replaced the provider");
+		ClientSkyPresentationProviders.resetForTests();
+	}
+
+	private static ClientSkyPresentation presenting(float timeOfDay) {
+		return new ClientSkyPresentation() {
+			@Override
+			public float timeOfDay(float original, float partialTick) {
+				return timeOfDay;
+			}
+		};
 	}
 
 	private static void verifyShaderPresentation() {

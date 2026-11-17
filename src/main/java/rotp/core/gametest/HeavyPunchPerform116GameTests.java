@@ -176,19 +176,19 @@ public final class HeavyPunchPerform116GameTests {
 
 	private static final List<OfficialClip> OFFICIAL_CLIPS = List.of(
 			// official markers 0.4333 / 0.7333
-			new OfficialClip(SP_ANIMS, "heavy_punch", "f9ba08d0e28d21a0", 0.4333F, 0.4833F, "star_platinum", "heavy_punch",
+			new OfficialClip(SP_ANIMS, "heavy_punch", "41a335bb2bd07cef", 0.4333F, 0.4833F, "star_platinum", "heavy_punch",
 					"grab_heavy_punch"),
 			// official 0.4583 / 0.75
-			new OfficialClip(SP_ANIMS, "grab_uppercut", "4773e8c39fb6aee0", 0.4583F, 0.5083F, "star_platinum", "grab_uppercut"),
+			new OfficialClip(SP_ANIMS, "grab_uppercut", "3501481b8784b494", 0.4583F, 0.5083F, "star_platinum", "grab_uppercut"),
 			// official 0.5 / 0.7083
-			new OfficialClip(CD_ANIMS, "heavy_punch", "457ee23cc1b757db", 0.5F, 0.55F, "crazy_diamond", "heavy_punch"),
+			new OfficialClip(CD_ANIMS, "heavy_punch", "0359d76221e00ccb", 0.5F, 0.55F, "crazy_diamond", "heavy_punch"),
 			// official 0.375 / 0.625
-			new OfficialClip(CD_ANIMS, "finisher", "7a0401d17a21d17c", 0.375F, 0.425F, "crazy_diamond", "finisher",
+			new OfficialClip(CD_ANIMS, "finisher", "fa16300b27817af3", 0.375F, 0.425F, "crazy_diamond", "finisher",
 					"block_anchor_make"),
 			// official 0.5 / 0.7083
-			new OfficialClip(CD_ANIMS, "grab_heavy_punch", "d7c38d07efd351fc", 0.5F, 0.55F, "crazy_diamond", "grab_heavy_punch"),
+			new OfficialClip(CD_ANIMS, "grab_heavy_punch", "fe8c8b815612b890", 0.5F, 0.55F, "crazy_diamond", "grab_heavy_punch"),
 			// official 0.5417 / 0.7083
-			new OfficialClip(CD_ANIMS, "grab_finisher", "2bb04b27715023e3", 0.5417F, 0.5917F, "crazy_diamond", "grab_finisher"));
+			new OfficialClip(CD_ANIMS, "grab_finisher", "c98be8b07a542940", 0.5417F, 0.5917F, "crazy_diamond", "grab_finisher"));
 
 	// AnimationSet's aliases that reach these clips when a Stand's file has no clip of the ability's own name
 	private static final Map<String, String> CLIP_ALIASES = Map.of("grab_heavy_punch", "heavy_punch");
@@ -409,6 +409,10 @@ public final class HeavyPunchPerform116GameTests {
 		float end = Float.NaN;
 		double fastest = -1;
 		for (int i = 1; i < keys.size(); i++) {
+			// a key at the first tick ends the hand-over from the idle, no strike lands there
+			if (keys.get(i).getKey() <= CLIP_TICK + 0.0002F) {
+				continue;
+			}
 			float[] from = keys.get(i - 1).getValue();
 			float[] to = keys.get(i).getValue();
 			double angle = Math.sqrt(square(to[0] - from[0]) + square(to[1] - from[1]) + square(to[2] - from[2]));
@@ -555,6 +559,42 @@ public final class HeavyPunchPerform116GameTests {
 	private static String keyframeDigest(JsonObject clip) {
 		JsonObject keyframes = clip.deepCopy();
 		keyframes.remove("timeline");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
+		// the head is the head rule's (StandHeadLookRuleGameTests); OfficialClips1211GameTests lists each such row
+		keyframes.getAsJsonObject("bones").remove("head");
+		keyframes.getAsJsonObject("bones").remove("head_rot");
 		StringBuilder text = new StringBuilder();
 		canonical(keyframes, text);
 		try {

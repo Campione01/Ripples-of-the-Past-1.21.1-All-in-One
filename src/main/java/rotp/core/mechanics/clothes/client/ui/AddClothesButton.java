@@ -4,6 +4,7 @@ import rotp.core.client.ui.screen_widgets.ImageButton2;
 import rotp.core.client.ui.utils.DynamicButtonVisibility;
 import rotp.core.client.ui.utils.GuiIcon;
 import rotp.core.core.JojoMod;
+import rotp.core.mechanics.clothes.container.PlayerClothesMenu;
 import rotp.core.network.c2s.ClNoParamsPacket;
 import rotp.core.network.c2s.ClNoParamsPacket.PacketType;
 
@@ -55,7 +56,7 @@ public class AddClothesButton {
 				case PlayerClothesScreen clothesScreen -> {
 					Component goBackName = Component.translatable("container.inventory");
 					Button goBackButton = new ImageButton2(
-							containerScreen.getGuiLeft() + 153, containerScreen.getGuiTop() + 63, 16, 16, 
+							containerScreen.getGuiLeft() + 153, containerScreen.getGuiTop() + PlayerClothesMenu.TOP_MARGIN + 63, 16, 16, 
 							BUTTON, BUTTON, BUTTON_HOVERED, BUTTON_HOVERED, 
 							b -> {
 								Minecraft mc = Minecraft.getInstance();

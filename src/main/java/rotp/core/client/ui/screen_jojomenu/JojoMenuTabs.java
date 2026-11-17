@@ -16,6 +16,7 @@ import rotp.core.client.ui.hud_power.PowerHud;
 import rotp.core.client.ui.utils.BlitFloat;
 import rotp.core.client.ui.utils.GuiIcon;
 import rotp.core.client.util.functions.ClientUtil;
+import rotp.core.config.client.screen.ModConfigScreen;
 import rotp.core.core.JojoMod;
 import rotp.core.init.power.ModPlayerPowers;
 import rotp.core.powersystem.Power;
@@ -26,12 +27,16 @@ import rotp.core.powersystem.standpower.StandPower;
 import rotp.core.powersystem.standpower.client_screens.StandDisplaySettingsScreen;
 import rotp.core.powersystem.standpower.client_screens.StandInfoScreen;
 import rotp.core.powersystem.standpower.client_screens.StandSkillsScreen;
+import rotp.core.powersystem.standpower.client_screens.StandTogglesScreen;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.impl.powers.hamon.ClHamonWindowOpenedPacket;
 import rotp.core.impl.powers.hamon.HamonData;
 import rotp.core.impl.powers.hamon.client.HamonIntroScreen;
 import rotp.core.impl.powers.hamon.client.HamonSkillsScreen;
 import rotp.core.impl.powers.vampirism.client.VampirismStatsScreen;
+import rotp.core.impl.stands.goldexperience.GoldExperienceLifeformRoster;
+import rotp.core.impl.stands.goldexperience.client.GoldExperienceLifeformsScreen;
+import rotp.core.powersystem.ability.Ability;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -280,6 +285,31 @@ public class JojoMenuTabs {
 			.withScreen(tab -> new StandDisplaySettingsScreen(tab.getCategory(), tab))
 			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/visibility.png"), 16, 16));
 
+	public static final Tab STAND_TOGGLES = new Tab(CATEGORY_STAND)
+			.withName(Component.translatable("jojo_ripples.menu.stand.toggles"))
+			.withScreen(tab -> new StandTogglesScreen(tab.getCategory(), tab))
+			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/stand_toggles.png"), 16, 16));
+
+	// the lifeforms a Gold Experience user made, which Revert also opens; its icon is his Stand's Revert
+	public static final Tab STAND_LIFEFORMS = new Tab(CATEGORY_STAND) {
+		@Override
+		public boolean isActive() {
+			return super.isActive() && GoldExperienceLifeformsScreen.hasMenu(getPowerForMenu(PowerClass.STAND));
+		}
+
+		@Override
+		public void renderIcon(GuiGraphics guiGraphics, int x, int y) {
+			StandPower standPower = getPowerForMenu(PowerClass.STAND);
+			Ability revert = standPower != null ? GoldExperienceLifeformRoster.revertAbility(standPower) : null;
+			if (revert != null) {
+				guiGraphics.blit(x, y, 0, 16, 16, StandSkinsLoader.getInstance().abilityIcons
+						.getAbilityIcon(revert, standPower, StandSkinsLoader.getCurSkin()));
+			}
+		}
+	}
+			.withName(Component.translatable("jojo_ripples.menu.stand.lifeforms"))
+			.withScreen(tab -> new GoldExperienceLifeformsScreen(tab, null));
+
 	private static StandInfoScreen createStandInfoScreen(Tab tab) {
 		StandPower standPower = getPowerForMenu(PowerClass.STAND);
 		return standPower != null && standPower.hasPower()
@@ -424,6 +454,26 @@ public class JojoMenuTabs {
 			.withScreen(tab -> new ControlSchemeScreen(CommonComponents.EMPTY, tab.getCategory(), tab))
 			.withName(Component.translatable("jojo_ripples.screen.edit_hud_layout"))
 			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/controls.png"), 16, 16));
-	
+
+	// Settings
+
+	public static final TabCategory CATEGORY_SETTINGS = new TabCategory()
+			.withName(Component.translatable("jojo_ripples.config.screen.category"))
+			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/settings/category.png"), 16, 16));
+
+	public static final Tab SETTINGS_CLIENT = new Tab(CATEGORY_SETTINGS)
+			.withName(Component.translatable("jojo_ripples.config.screen.page.client"))
+			.withScreen(tab -> new ModConfigScreen(null, ModConfigScreen.Page.CLIENT))
+			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/settings/client.png"), 16, 16));
+
+	public static final Tab SETTINGS_GAMEPLAY = new Tab(CATEGORY_SETTINGS)
+			.withName(Component.translatable("jojo_ripples.config.screen.page.gameplay"))
+			.withScreen(tab -> new ModConfigScreen(null, ModConfigScreen.Page.GAMEPLAY))
+			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/settings/gameplay.png"), 16, 16));
+
+	public static final Tab SETTINGS_STANDS = new Tab(CATEGORY_SETTINGS)
+			.withName(Component.translatable("jojo_ripples.config.screen.page.stands"))
+			.withScreen(tab -> new ModConfigScreen(null, ModConfigScreen.Page.STANDS))
+			.withIcon(new GuiIcon(JojoMod.resLoc("textures/gui/settings/stands.png"), 16, 16));
 
 }

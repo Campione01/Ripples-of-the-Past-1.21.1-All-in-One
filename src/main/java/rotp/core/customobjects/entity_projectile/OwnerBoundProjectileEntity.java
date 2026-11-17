@@ -20,6 +20,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
@@ -65,9 +66,10 @@ public abstract class OwnerBoundProjectileEntity extends ModdedProjectileEntity 
 	}
 
 	/**
-	 * Whether this body part flies, turns back and expires in its owner's time, the EntityTimeRates STAND_ACTIONS rate
-	 * of its owner (a Stand's user for a Stand). Such a part counts {@link #ownerTicks()} where it would count
-	 * tickCount and scales a distance it moves a tick by {@link #ownerTimeStep()}; at rate 1 both are the same.
+	 * Whether this body part flies, turns back and expires in its owner's time (a Stand's user for a Stand).
+	 * It follows the owner's STAND_ACTIONS rate or a slower BEING rate for mob owners. Such a part counts
+	 * {@link #ownerTicks()} where it would count tickCount and scales a distance it moves a tick by
+	 * {@link #ownerTimeStep()}; at rate 1 both are the same.
 	 */
 	protected boolean runsInOwnerTime() {
 		return false;
@@ -85,22 +87,33 @@ public abstract class OwnerBoundProjectileEntity extends ModdedProjectileEntity 
 
 	/** The server ticks until its lifespan ends at its owner's rate now, for an effect that lasts as long as this part. */
 	protected final int serverTicksLeftInLifespan() {
-		return (int) Math.ceil((ticksLifespan() - ownerTicks) / ownerActionRate());
+		return (int) Math.ceil((ticksLifespan() - ownerTicks) / ownerTimeRate());
 	}
 
-	private float ownerActionRate() {
+	private float ownerTimeRate() {
 		if (!runsInOwnerTime() || !EntityTimeRates.hasProviders()) {
 			return 1.0F;
 		}
 		LivingEntity owner = getOwner();
 		LivingEntity user = owner instanceof StandEntity stand ? stand.getUser() : owner;
-		return user != null ? Math.min(EntityTimeRates.rate(EntityTimeRates.Channel.STAND_ACTIONS, user), EntityTimeRates.MAX_RATE) : 1.0F;
+		if (user == null) {
+			return 1.0F;
+		}
+		float rate = EntityTimeRates.rate(EntityTimeRates.Channel.STAND_ACTIONS, user);
+		if (user instanceof Mob) {
+			// A mob held back by skipped ticks may not report an action rate. Its part still ticks every tick.
+			float beingRate = EntityTimeRates.rate(EntityTimeRates.Channel.BEING, user);
+			if (beingRate < 1.0F) {
+				rate = Math.min(rate, beingRate);
+			}
+		}
+		return Math.min(rate, EntityTimeRates.MAX_RATE);
 	}
 
 	// ENTITY_TICK already changes how many times a server ticks this part (Made in Heaven's mode B): a tick there is
 	// a smaller share of its owner's time, or its owner's rate would count twice. Clients tick it once a tick.
 	private float nextOwnerTimeStep() {
-		float step = ownerActionRate();
+		float step = ownerTimeRate();
 		if (runsInOwnerTime() && !level().isClientSide() && EntityTimeRates.hasProviders()) {
 			step /= Math.min(EntityTimeRates.rate(EntityTimeRates.Channel.ENTITY_TICK, this), EntityTimeRates.MAX_RATE);
 		}
@@ -112,6 +125,12 @@ public abstract class OwnerBoundProjectileEntity extends ModdedProjectileEntity 
 		return runsInOwnerTime()
 				? ownerTicks > ticksLifespan() || owner != null && !owner.isAlive()
 				: super.shouldExpire(owner);
+	}
+
+	// a part of its owner's body, drawn from it and moved by it
+	@Override
+	protected boolean goesOnWithoutItsStand() {
+		return false;
 	}
 
 	@Override

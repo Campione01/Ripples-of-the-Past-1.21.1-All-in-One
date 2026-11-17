@@ -2,6 +2,7 @@ package rotp.core.client.entityrender;
 
 import javax.annotation.Nullable;
 
+import rotp.core.client.entityanim.AnimationSet;
 import rotp.core.client.entityanim.PreFrameEntityAnimCalc;
 import rotp.core.client.entityanim.RotpAnimDefinition;
 import rotp.core.client.entityanim.barrage.BarrageSwings;
@@ -23,7 +24,8 @@ public class EntityActionRenderState {
 	@Nullable public BarrageSwings barrageSwings;
 	@Nullable public ActionAnimIdentifier animId;
 	public boolean armsObstructView;
-	
+	public float flameBurstViewTilt;
+
 	public static void extract(EntityActionRenderState renderState, LivingEntity entity, float partialTick) {
 		AnimatedEntity preCalcPose = (AnimatedEntity) entity;
 		renderState.pose = preCalcPose.jojo_ripples$getModelPose(AnimatedEntity.PoseType.FINAL);
@@ -31,6 +33,8 @@ public class EntityActionRenderState {
 		EntityActionInstance curAction = LivingComponentAction.getCurEntityAction(entity);
 		renderState.animId = curAction != null ? curAction.getEntityAnim() : null;
 		renderState.armsObstructView = armsObstructView(renderState.animId);
+		renderState.flameBurstViewTilt = renderState.animId != null && AnimationSet.isFlameBurstPoseClip(renderState.animId.name())
+				? AnimationSet.flameBurstViewTilt(curAction.getPhase(), curAction.getAnimPhaseRatio(partialTick)) : 0;
 	}
 
 	private static boolean armsObstructView(@Nullable ActionAnimIdentifier animId) {

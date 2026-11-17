@@ -39,6 +39,7 @@ import rotp.core.util.functions.CollisionHelper;
 import rotp.core.util.functions.JojoModUtil;
 import rotp.core.impl.stands._entitybase.StandEntityHeavyPunchAbility;
 import rotp.core.impl.stands._entitybase.StandEntityPunchAbility;
+import rotp.core.subsystems.entity_puppetcontrol.StandManualInput;
 
 import net.minecraft.core.Holder;
 import net.minecraft.network.FriendlyByteBuf;
@@ -168,7 +169,7 @@ public class TheWorldTSPunchAbility extends StandEntityAbility {
 	}
 
 	private static boolean doesBackshot(LivingEntity user) {
-		return user != null && user.isShiftKeyDown();
+		return StandManualInput.isShiftHeld(user);
 	}
 
 	@Override

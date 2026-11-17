@@ -1,10 +1,15 @@
 package rotp.core.gametest;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
+import rotp.core.client.input.controlscheme.VariationKeyName;
+import rotp.core.client.ui.text.StandSkillText;
 import rotp.core.client.util.functions.ShortenText;
 import rotp.core.core.JojoMod;
+import rotp.core.powersystem.standpower.StandUnlockableSkill;
 
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -58,6 +63,43 @@ public final class ShortenedKeyNameGameTests {
 		expect(helper, null, ShortenText.shortenIfAble(Component.translatable(none)), none, null);
 		expect(helper, null, ShortenText.shortenedTranslatable(none), none, null);
 		expect(helper, null, ShortenText.shortenedTranslatable(none, 7), none, null);
+		helper.succeed();
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 20)
+	public static void standSkillControlsFollowTheVariationKeyName(GameTestHelper helper) {
+		Language previousLanguage = Language.getInstance();
+		AtomicReference<Component> boundKey = new AtomicReference<>(Component.literal("Ctrl"));
+		StandUnlockableSkill room = StandUnlockableSkill.startingAbility("test_room");
+		StandUnlockableSkill literal = StandUnlockableSkill.startingAbility("test_literal_controls");
+		StandUnlockableSkill missing = StandUnlockableSkill.startingAbility("test_missing_controls");
+		try {
+			Field keyName = VariationKeyName.class.getDeclaredField("name");
+			keyName.setAccessible(true);
+			Object previousSupplier = keyName.get(null);
+			try {
+				Language.inject(new MapLanguage(Map.of(
+						"jojo_ripples.skill.test_room.controls", "Hold %s and click the room skill.",
+						"jojo_ripples.skill.test_literal_controls.controls", "Tap twice.")));
+				VariationKeyName.use(boundKey::get);
+				helper.assertTrue(StandSkillText.controls(null, null, room).getString().equals("Hold Ctrl and click the room skill."),
+						"Add-on controls must substitute the current variation key name");
+				boundKey.set(Component.literal("Mouse 4"));
+				helper.assertTrue(StandSkillText.controls(null, null, room).getString().equals("Hold Mouse 4 and click the room skill."),
+						"Add-on controls must use the new name when rebuilt after a rebind");
+				helper.assertTrue(StandSkillText.controls(null, null, literal).getString().equals("Tap twice."),
+						"Controls without a placeholder must stay unchanged");
+				helper.assertTrue(StandSkillText.controls(null, null, missing).getString().isEmpty(),
+						"Missing controls must not show a raw translation key");
+			}
+			finally {
+				Language.inject(previousLanguage);
+				keyName.set(null, previousSupplier);
+			}
+		}
+		catch (ReflectiveOperationException exception) {
+			throw new AssertionError("Could not isolate the variation key name fixture", exception);
+		}
 		helper.succeed();
 	}
 

@@ -38,6 +38,15 @@ public final class StandSkinFormatSmokeTest {
 		info.addProperty("surface_translucency", true);
 		check(StandSkin.surfaceTranslucencyFrom(info),
 				"an explicit opt-in must stay on");
+
+		// the Echoes author's request: credit in skin.json, and a skin with none shows nothing
+		check(StandSkin.authorsFrom(info).isEmpty(), "a skin that names no authors must have none");
+		com.google.gson.JsonObject credited = com.google.gson.JsonParser.parseString(
+				"{\"authors\": [\"Day_GeE\", \" Second \", \"\", 7, null]}").getAsJsonObject();
+		check(java.util.List.of("Day_GeE", "Second").equals(StandSkin.authorsFrom(credited)),
+				"authors must be the names in the array, trimmed, without what is no name: " + StandSkin.authorsFrom(credited));
+		info.addProperty("authors", "Day_GeE");
+		check(StandSkin.authorsFrom(info).isEmpty(), "authors that are no array must not refuse the skin");
 	}
 
 	private static void check(boolean condition, String message) {

@@ -26,6 +26,10 @@ public class ConfigAbilityFactory<A extends Ability> {
 		return new ConfigAbilityFactory<>(abilityType, onInit);
 	}
 
+	public AbilityType<A> abilityType() {
+		return abilityType;
+	}
+
 	@ApiStatus.Internal
 	public ResourceLocation abilityTypeId() {
 		return abilityType.registryKey;

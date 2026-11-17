@@ -1,5 +1,7 @@
 package rotp.core.impl.stands.silverchariot;
 
+import javax.annotation.Nullable;
+
 import rotp.core.client.ClientProxy;
 import rotp.core.customobjects.entity_projectile.ModdedProjectileEntity;
 import rotp.core.init.ModEntityTypes;
@@ -9,6 +11,7 @@ import rotp.core.powersystem.standpower.entity.StandEntity;
 import rotp.core.subsystems.target.ActionTarget;
 import rotp.core.subsystems.target.ActionTarget.TargetType;
 import rotp.core.subsystems.target.HitResultUtil;
+import rotp.core.powersystem.standpower.StandSpecials;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -29,7 +32,6 @@ import net.minecraft.world.phys.Vec3;
 
 public class SCRapierEntity extends ModdedProjectileEntity {
 
-	private static final int MAX_RICOCHETS = 100;
 	private static final double RICOCHET_TRACE_RANGE = 16.0D;
 	private static final double RICOCHET_TRACE_INFLATE = 1.0D;
 
@@ -81,6 +83,21 @@ public class SCRapierEntity extends ModdedProjectileEntity {
 		return Integer.MAX_VALUE;
 	}
 
+	// nothing can take a rapier back once its Stand is gone and the next summon has a new one: it flies on and ends where
+	// it stops, or with that summon
+	@Override
+	protected boolean shouldExpire(@Nullable Entity owner) {
+		if (super.shouldExpire(owner)) {
+			return true;
+		}
+		if (!(owner instanceof StandEntity stand) || stand.isAlive()) {
+			return false;
+		}
+		LivingEntity user = stand.getUser();
+		StandPower power = user != null ? StandPower.get(user) : null;
+		return getDeltaMovement().lengthSqr() < 1.0E-7D || power != null && power.isSummoned();
+	}
+
 	@Override
 	protected boolean canHitEntity(Entity entity) {
 		if (!super.canHitEntity(entity)) {
@@ -100,7 +117,7 @@ public class SCRapierEntity extends ModdedProjectileEntity {
 	@Override
 	protected void onHitBlock(BlockHitResult blockHit) {
 		boolean ricochet = false;
-		if (ricochetCount < MAX_RICOCHETS) {
+		if (ricochetCount < StandSpecials.SC_RAPIER_RICOCHETS.getFor(getOwner())) {
 			BlockPos blockPos = blockHit.getBlockPos();
 			BlockState blockState = level().getBlockState(blockPos);
 			SoundType soundType = blockState.getSoundType(level(), blockPos, this);

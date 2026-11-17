@@ -2,6 +2,7 @@ package rotp.core.powersystem.standpower.entity;
 
 import java.lang.ref.WeakReference;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +16,7 @@ import org.jetbrains.annotations.ApiStatus;
 
 import rotp.core.JojoModLivingVariables;
 import rotp.core.JojoModConfig;
+import rotp.core.api.damage.DefencePiercing;
 import rotp.core.api.stand.StandDefaultRotationRules;
 import rotp.core.api.stand.StandManualMovementObservers;
 import rotp.core.api.stand.StandManualMovementObservers.LogicalSide;
@@ -22,6 +24,7 @@ import rotp.core.api.stand.StandManualMovementObservers.MovePath;
 import rotp.core.client.ClientGlobals;
 import rotp.core.client.ClientProxy;
 import rotp.core.config.client.PlayerClientBroadcastedSettings;
+import rotp.core.config.client.StandToggle;
 import rotp.core.core.JojoMod;
 import rotp.core.customobjects.DamageSourceModified;
 import rotp.core.entityattachment.PlayerOneTimeNotifications;
@@ -231,6 +234,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	private Optional<Entity> barrageClashOpponent = Optional.empty();
 	private int lastStandSwingTick;
 	private boolean alternateAdditionalSwing;
+	// Per light punch, the punch of its combo this Stand played last. Neither saved nor synced: the server and the
+	// user's client both run every punch action, and each fills it from those.
+	private final Map<String, String> lastComboPunch = new HashMap<>();
 	private static final Map<LivingEntity, StandAttackInvulState> STAND_ATTACK_INVUL = Collections.synchronizedMap(new WeakHashMap<>());
 	
 	public ClientStandEntityStuff clientStuff;
@@ -327,9 +333,25 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		builder.define(MANUAL_MOVEMENT_LOCK, (byte) 0);
 	}
 	
+	// it joined its level once: a Stand not in it now (hidden in a section nothing loads) is still in its storage
+	private boolean joinedLevel;
+
+	/*
+	 * NeoForge marks an entity out of its level when its section is hidden (ServerLevel's onTrackingEnd calls
+	 * onRemovedFromLevel) and never back when the section is shown again (onTrackingStart does not call
+	 * onAddedToLevel). A Stand that ticks again in its level is in it: its held sounds and summon checks ask.
+	 */
+	private void markInLevelAgain() {
+		if (joinedLevel && !isAddedToLevel() && !isRemoved() && level() instanceof ServerLevel serverLevel
+				&& serverLevel.isPositionEntityTicking(blockPosition())) {
+			onAddedToLevel();
+		}
+	}
+
 	@Override
 	public void onAddedToLevel() {
 		super.onAddedToLevel();
+		joinedLevel = true;
 		if (standHasNoGravity) {
 			setNoGravity(true);
 		}
@@ -355,6 +377,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 				this.remove(user != null ? user.getRemovalReason() : RemovalReason.DISCARDED);
 				return;
 			}
+			markInLevelAgain();
 			if (user != null && entityData.get(USER_ID) != user.getId()) {
 				// PlayerList.respawn changes the new player's id after the clone event.
 				entityData.set(USER_ID, user.getId());
@@ -412,6 +435,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		if (level.isClientSide()) {
 			pushOutOfViewBlockingBlock(user);
 			++overlayTickCount;
+			if (user != null) {
+				hurtTime = hurtTimeWithUser(hurtTime, user.hurtTime);
+			}
 		}
 	}
 	
@@ -685,6 +711,23 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		return userPower;
 	}
 
+	/**
+	 * Whether this Stand is gone while its user, alive in its level, still has it: recalled, or otherwise unsummoned. The
+	 * owner's rule of 2026-11-05: what it left in the world goes on, and ends by its own rules or with its user's death,
+	 * logout or loss of the Stand. A server-side question.
+	 */
+	public boolean isRecalled() {
+		if (isAlive()) {
+			return false;
+		}
+		LivingEntity user = getUser();
+		if (user == null || user.isRemoved() || !user.isAlive() || user.level() != level()) {
+			return false;
+		}
+		StandPower power = StandPower.get(user);
+		return power != null && power.hasPower() && power.getPowerType().getId().equals(standId);
+	}
+
 	protected final boolean hasUser() {
 		return entityData.get(USER_ID) >= 0;
 	}
@@ -771,13 +814,13 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	}
 	
 	/*
-	 * Server, owner 2026-11-01: a close-range Stand flies out to strike and back at its own speed (StandMeleeReach), so
+	 * Server, owner 2026-11-01: a Stand that reaches out flies out to strike and back at its own speed (StandMeleeReach), so
 	 * while it is going to or coming from a place past its usual ones it moves that far a tick relative to its user; its
 	 * clients glide between offsets as before (StandOffsetFromUser.LERP_TIME)
 	 */
 	private Vec3 limitStrikeFlight(LivingEntity user, Vec3 pos) {
 		Vec3 current = _offsetFromUserVec;
-		if (level().isClientSide() || current == null || !StandMeleeReach.isCloseRange(this)) {
+		if (level().isClientSide() || current == null || !StandMeleeReach.usesMeleeReach(this)) {
 			return pos;
 		}
 		Vec3 userPos = user.position();
@@ -1146,7 +1189,12 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 
 	// owner 2026-10-30: a close-range Stand goes past its base reach by the remote control margin (StandMeleeReach)
 	public double getMaxRangeForMovement(LivingEntity user) {
-		return StandMeleeReach.isCloseRange(this) ? StandMeleeReach.maxReach(this, user, true) : getMaxRange();
+		boolean closeRange = StandMeleeReach.isCloseRange(this);
+		if (PlayerClientBroadcastedSettings.isStandToggleOn(StandToggle.BEYOND_EFFECTIVE_RANGE, user)) {
+			return closeRange ? StandMeleeReach.maxReach(this, user, true) : getMaxRange();
+		}
+		// where it stops weakening (updateStrengthMultipliers): a close-range Stand's effective range of 1 would pin it to its user
+		return closeRange ? StandMeleeReach.baseReach(this, user) : getEffectiveRange();
 	}
 
 	// 1.16 StandEntity.move: one-time warning when manual control goes past the server view distance
@@ -1365,6 +1413,15 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 
 	public boolean canAlternatePunchHands() {
 		return !usesSilverChariotRapierHand();
+	}
+
+	public void rememberComboPunch(String punchName, String playedName) {
+		lastComboPunch.put(punchName, playedName);
+	}
+
+	@Nullable
+	public String lastComboPunch(String punchName) {
+		return lastComboPunch.get(punchName);
 	}
 
 	public void applySyncedPunchingHand(InteractionHand hand) {
@@ -1657,9 +1714,24 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 			}
 		}
 		float summonAlpha = getSummonAlpha();
-		if (summonAlpha < 1) {
-			multiplyTranslucency(getSummonAlpha());
+		if (level().isClientSide()) {
+			summonAlpha = Math.min(summonAlpha, fadeInAlpha(tickCount, isArmsOnlyMode()));
 		}
+		if (summonAlpha < 1) {
+			multiplyTranslucency(summonAlpha);
+		}
+	}
+
+	// the summon lock's fade above is 1.16's, and a fast Stand has no lock to fade by: this look alone reaches every Stand
+	public static final int FADE_IN_TICKS = 6;
+
+	public static float fadeInAlpha(int tickCount, boolean armsOnly) {
+		return armsOnly ? 1F : Mth.clamp((float) tickCount / FADE_IN_TICKS, 0F, 1F);
+	}
+
+	/** A hit on its user turns the Stand red with him, for as long as he is. A Stand's own hit keeps its own count. */
+	public static int hurtTimeWithUser(int ownHurtTime, int userHurtTime) {
+		return Math.max(ownHurtTime, userHurtTime);
 	}
 
 	/**
@@ -1946,6 +2018,97 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		}
 	}
 
+	/*
+	 * A Stand about to be added stands at its place beside its user already, its last position too: its spawn packet, its
+	 * first drawn frame and its first tick's glide all start there, not inside its user (seen in first person as a body
+	 * over the view for a frame).
+	 */
+	private static final int SUMMON_PLACE_CHUNK_MARGIN = 4;
+
+	/*
+	 * The summon places a fresh Stand before its caller's set-up runs, so a place that set-up gives it (Echoes' new form
+	 * where the old one stood) wins; a summon that adds the Stand later (an action's auto-summon, whose action may move
+	 * it) places it again then, unless something moved it in between.
+	 */
+	@Nullable
+	private Vec3 summonPlace;
+
+	void placeForFreshSummon(LivingEntity user) {
+		placeBesideUserForSummon(user);
+		summonPlace = position();
+	}
+
+	void placeForSummonUnlessPositioned(LivingEntity user) {
+		Vec3 given = summonPlace;
+		summonPlace = null;
+		if (given != null && !given.equals(position())) {
+			setOldPosAndRot();
+			return;
+		}
+		placeBesideUserForSummon(user);
+	}
+
+	/**
+	 * Brings this Stand to its user when he was moved where its place no longer ticks while his does (a long teleport
+	 * in the same level: a command, an ender pearl, a portal, another mod's teleport), or when it was set into a chunk
+	 * nothing loads. Left there it would stay his summoned Stand and never act on what it is handed. Its place may be
+	 * loaded and not ticking, or hidden: its section is not accessible (its chunk dropped out of the loaded ones or was
+	 * never loaded), so the level took it out (onRemovedFromLevel) and keeps it in its entity storage, as it keeps an
+	 * entity that is not saved with its chunk. Moving it into its user's section adds it to the level again. A Stand
+	 * meant to be away from him (manually controlled, not following him, or moved by its action on its own) stays where
+	 * it is while it is in a loaded chunk within the range its movement is held to (getMaxRangeForMovement); past it, it
+	 * is brought to that range on the line to him, as its own move would, or to him when that place does not tick either;
+	 * a hidden one, which nothing could tick, comes to him. Any other Stand is placed beside him as a summon places it.
+	 * A change of level still recalls the Stand (StandPower). Called by the user's power each tick and by a Stand key's
+	 * press before the press is handed on.
+	 *
+	 * @return whether the Stand was moved
+	 */
+	public boolean bringAlongIfLeftBehind(@Nullable LivingEntity user) {
+		if (user == null || isRemoved() || !joinedLevel || user.level() != level()
+				|| !(level() instanceof ServerLevel serverLevel)
+				|| serverLevel.isPositionEntityTicking(blockPosition())
+				|| !serverLevel.isPositionEntityTicking(user.blockPosition())) {
+			return false;
+		}
+		boolean keptAway = isManuallyControlled() || !followingUserIsEnabled() || curActionDisablesUserOffset();
+		if (keptAway) {
+			double distance = distanceTo(user);
+			double range = getMaxRangeForMovement(user);
+			boolean hidden = !isAddedToLevel();
+			if (distance <= range && !hidden) {
+				return false;
+			}
+			Vec3 place = distance <= range ? user.position()
+					: position().add(user.position().subtract(position()).scale(1 - range / distance));
+			if (!serverLevel.isPositionEntityTicking(BlockPos.containing(place))) {
+				place = user.position();
+			}
+			setPos(place.x, place.y, place.z);
+		}
+		else {
+			setPos(user.getX(), user.getY(), user.getZ());
+			placeBesideUserForSummon(user);
+		}
+		setDeltaMovement(Vec3.ZERO);
+		setOldPosAndRot();
+		markInLevelAgain();
+		return true;
+	}
+
+	void placeBesideUserForSummon(LivingEntity user) {
+		// its place's collision check must not load chunks: around an unloaded user its first tick places it as before
+		BlockPos at = user != null ? user.blockPosition() : null;
+		if (at == null || !isFollowingUser() || !level().hasChunksAt(at.offset(-SUMMON_PLACE_CHUNK_MARGIN, -2, -SUMMON_PLACE_CHUNK_MARGIN),
+				at.offset(SUMMON_PLACE_CHUNK_MARGIN, 2, SUMMON_PLACE_CHUNK_MARGIN))) {
+			return;
+		}
+		// from its user's place, as the summon copies it: the collision sweep then stays beside the user
+		setPos(user.getX(), user.getY(), user.getZ());
+		updatePosition(user);
+		setOldPosAndRot();
+	}
+
 	void prepareFreshSummonState(LivingEntity user) {
 		// in its summon pose a Stand's body takes its yaw (1.16 StandEntity.tickHeadTurn), from its spawn on
 		yBodyRot = getYRot();
@@ -2115,7 +2278,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		float damageMultiplier = dmgSource instanceof DamageSourceModified fixed && fixed.jojo_ripples$isFixedDamage()
 				? 1.0F : JojoModConfig.getCommonConfigInstance(false).standDamageMultiplier.get().floatValue();
 		if (target instanceof LivingEntity targetLiving) {
-			float finalDamage = applyStandInvulDamage(targetLiving, dmgAmount);
+			float finalDamage = DefencePiercing.piercesInvulnerability(dmgSource) ? dmgAmount
+					: applyStandInvulDamage(targetLiving, dmgAmount);
 			if (finalDamage <= 0) {
 				return false;
 			}
@@ -2422,7 +2586,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 					user.isInvulnerableTo(/*level, */damageSource)
 					|| user instanceof Player player && player.getAbilities().invulnerable && !damageSource.is(DamageTypeTags.BYPASSES_INVULNERABILITY))
 				|| canOnlyHurtFromStands && !damageSource.is(DamageTypes.ON_FIRE)
-						&& !DamageUtil.canHurtStands(damageSource)
+						// only a Stand touches a Stand: its own damage types may carry the tag, no attacker rule is asked
+						&& !DamageUtil.canHurtStands(damageSource) && !damageSource.is(DefencePiercing.INVULNERABILITY)
 				// 1.16: whoever the user, no fire damage to a Stand while the fireDamage gamerule is off
 				|| damageSource.is(DamageTypeTags.IS_FIRE) && !level().getGameRules().getBoolean(GameRules.RULE_FIRE_DAMAGE)
 				|| super.isInvulnerableTo(/*level, */damageSource);
@@ -2456,7 +2621,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	}
 
 	protected float barrageClashParryPunches(DamageSource dmgSource, DamageSourceModified modified, float dmgAmount) {
-		if (barrageParryCount <= 0 || isDeadOrDying() || !canBlockDamage(dmgSource) || !canBlockFromAngle(dmgSource.getSourcePosition())) {
+		if (barrageParryCount <= 0 || isDeadOrDying() || !canBlockDamage(dmgSource) || !canBlockFromAngle(dmgSource.getSourcePosition())
+				|| DefencePiercing.piercesGuard(dmgSource)) {
 			return dmgAmount;
 		}
 		int punchesIncoming = modified.jojo_ripples$barrageHitsCount();
@@ -2513,7 +2679,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 
 	// 1.16 getDamageAfterMagicAbsorb: the user's Resistance also cuts the hits their Stand takes
 	protected float userResistanceAbsorb(DamageSource dmgSource, float dmgAmount) {
-		if (dmgSource.is(DamageTypeTags.BYPASSES_EFFECTS) || dmgSource.is(DamageTypeTags.BYPASSES_RESISTANCE)) {
+		if (dmgSource.is(DamageTypeTags.BYPASSES_EFFECTS) || dmgSource.is(DamageTypeTags.BYPASSES_RESISTANCE)
+				|| DefencePiercing.piercesDamageCaps(dmgSource)) {
 			return dmgAmount;
 		}
 		LivingEntity user = getUser();
@@ -2559,7 +2726,7 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 		}
 		LivingEntity user = getUser();
 		if (level().isClientSide() || isManuallyControlled() || !blockableAngle || getCurStandAction() != null
-				|| !canStartBlocking() || !canBlockDamage(dmgSource) || user == null) {
+				|| !canStartBlocking() || !canBlockDamage(dmgSource) || user == null || DefencePiercing.piercesGuard(dmgSource)) {
 			return false;
 		}
 		if (userPower == null) {
@@ -2614,21 +2781,23 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	protected float standDamageResistance(DamageSource dmgSource, float dmgAmount, boolean isBlocking) {
 		wasDamageBlocked = false;
 		if (canBlockDamage(dmgSource)) {
+			boolean piercesGuard = DefencePiercing.piercesGuard(dmgSource);
 			float blockedRatio = 0;
-			if (isBlocking && userPower != null) {
+			if (isBlocking && userPower != null && !piercesGuard) {
 				blockedRatio = 1F;
 				if (userPower.usesStamina()) {
 					float staminaCost = StandStatFormulas.getGuardStaminaCost(dmgAmount);
 					float stamina = userPower.getStamina();
 					if (!userPower.consumeStamina(staminaCost)) {
-						blockedRatio = staminaCost > 0 ? Mth.clamp(stamina / staminaCost, 0, 1) : 1F;
+						float asked = userPower.getStaminaCostShare(staminaCost);
+						blockedRatio = asked > 0 ? Mth.clamp(stamina / asked, 0, 1) : 1F;
 						standCrash();
 					}
 				}
 			}
 			// 1.16: a Stand busy with any task (the block too, hit from outside the guard) blocks half of the rest
 			EntityActionInstance curAction = getCurStandAction();
-			float multiplier = curAction != null ? getDamageBlockMultiplier(curAction) : 0;
+			float multiplier = curAction != null && !piercesGuard ? getDamageBlockMultiplier(curAction) : 0;
 			if (multiplier != 0) {
 				blockedRatio += (1 - blockedRatio) * multiplier;
 			}
@@ -2639,7 +2808,9 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 //				}
 			}
 			// 1.16: what the Stand resisted is what it passes on, whatever the user's armor or hurt cooldown
-			float finalDamage = dmgAmount * (1 - getPhysicalResistance(blockedRatio, dmgAmount));
+			// true damage passes a Stand that does not block it whole; a blocked hit keeps the guard's cut
+			float finalDamage = blockedRatio <= 0 && DefencePiercing.piercesMitigation(dmgSource) ? dmgAmount
+					: dmgAmount * (1 - getPhysicalResistance(blockedRatio, dmgAmount));
 			if (wasDamageBlocked) {
 				blockDamage += finalDamage;
 				// 1.16 onLivingDamage: a blocked hit staggers neither the Stand nor its user
@@ -3149,7 +3320,8 @@ public class StandEntity extends LivingEntity implements SummonedStand, IEntityW
 	
 	protected void pickUpItemEntities() {
 		Level level = this.level();
-		if (!level.isClientSide() && this.isManuallyControlled() && getCurStandAction() == null && this.getHealth() > 0) {
+		if (!level.isClientSide() && this.isManuallyControlled() && getCurStandAction() == null && this.getHealth() > 0
+				&& PlayerClientBroadcastedSettings.isStandToggleOn(StandToggle.PICK_UP_ITEMS, getUser())) {
 			AABB aabb;
 			if (this.isPassenger() && !this.getVehicle().isRemoved()) {
 				aabb = this.getBoundingBox().minmax(this.getVehicle().getBoundingBox()).inflate(1.0, 0.0, 1.0);

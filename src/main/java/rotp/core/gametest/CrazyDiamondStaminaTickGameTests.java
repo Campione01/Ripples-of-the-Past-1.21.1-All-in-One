@@ -339,8 +339,8 @@ public final class CrazyDiamondStaminaTickGameTests {
 			observer.setNoGravity(true);
 			observer.moveTo(userPos.x + 2.0D, userPos.y, userPos.z - 2.0D, 0.0F, 0.0F);
 			helper.assertTrue(helper.getLevel().addFreshEntity(observer), "Could not add the tracking observer");
-			// the user's chunk counts as sent to the observer, so the observer tracks the user once it is added
-			observer.connection.chunkSender.dropChunk(observer, new ChunkPos(BlockPos.containing(userPos)));
+			// the chunks around the user count as sent to the observer, so the observer tracks the user and its Stand
+			GameTestChunkSending.markSentAround(observer, new ChunkPos(BlockPos.containing(userPos)));
 			scene(helper, survivalUser, (user, power, stand, standAction) -> {
 				helper.assertTrue(observer.added.contains(user.getId()), "setup: the observer does not track the Stand user");
 				helper.assertTrue(!power.isStaminaInfinite(), "setup: the Stand user's stamina is infinite, not a survival user's");

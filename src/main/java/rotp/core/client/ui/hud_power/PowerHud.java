@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import javax.annotation.Nullable;
+
 import rotp.core.client.ClientGlobals;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.client.ClientProxy;
@@ -19,6 +21,8 @@ import rotp.core.client.ui.utils.BlitFloat;
 import rotp.core.client.ui.utils.GuiIcon;
 import rotp.core.client.ui.utils.tooltip.MultiLineScreenTooltip;
 import rotp.core.client.util.functions.ClientUtil;
+import rotp.core.config.client.ClientModSettings;
+import rotp.core.config.client.ResolveHudLayout;
 import rotp.core.core.JojoMod;
 import rotp.core.init.power.ModPlayerPowers;
 import rotp.core.mechanics.resolve.ResolveModeEffect;
@@ -206,6 +210,7 @@ public class PowerHud {
 		public PowerIcon powerIcon = 			addElement(new PowerIcon("powerIcon", 11, 12, 16, 16));
 		public Resolve resolveBar = 			addElement(new Resolve("resolve_bar", 31, 12, 32, 16));
 		public Stamina staminaBar = 			addElement(new Stamina("stamina_bar", 81, 16, Bars.HORIZONTAL_LENGTH + 8, Bars.HORIZONTAL_WIDTH));
+		public StaminaMiniBar staminaMiniBar = 	addElement(new StaminaMiniBar("stamina_mini_bar", 89, 16));
 		public HamonEnergy hamonEnergy = 		addElement(new HamonEnergy("energy_hamon", 81, 28, Bars.HORIZONTAL_LENGTH + 8, Bars.HORIZONTAL_WIDTH));
 		public VampireEnergy vampireEnergy = 	addElement(new VampireEnergy("energy_vampire", 81, 28, Bars.HORIZONTAL_LENGTH + 8, Bars.HORIZONTAL_WIDTH));
 		public ZombieEnergy zombieEnergy = 		addElement(new ZombieEnergy("energy_zombie", 81, 28, Bars.HORIZONTAL_LENGTH + 8, Bars.HORIZONTAL_WIDTH));
@@ -215,6 +220,7 @@ public class PowerHud {
 		public Finisher finisherBar = 			addElement(new Finisher("stand_finisher",
 				HudElement.SnappingH.CENTER, HudElement.SnappingV.CENTER, -16, -16, 32, 32));
 		public Leap leapIcon = 					addElement(new Leap("leap", Leap.SIZE, Leap.SIZE));
+		public StandTogglesHud standToggles = 	addElement(new StandTogglesHud("stand_toggles", 81, 38));
 
 		@Override
 		public void render(GuiGraphics guiGraphics, DeltaTracker deltaTracker) {
@@ -358,6 +364,7 @@ public class PowerHud {
 			if (action == null || !(action.ability instanceof Ability ability)) {
 				return false;
 			}
+			activeActionWindup.minValue = -1;
 			WindupIndicator windup = ability.cl_windupIndicator(player, activeActionWindup, partialTick);
 			if (windup == null || windup.maxValue <= 0 || windup.value <= 0) {
 				return false;
@@ -500,20 +507,21 @@ public class PowerHud {
 	}
 	
 	public static void renderStandIcon(StandPower standPower, PoseStack pose, int x, int y) {
-		if (standPower != null) {
-			StandSkin skin = StandSkinsLoader.getInstance().getSkin(standPower);
-			if (skin != null) {
-				GuiIcon icon = skin.getStandIcon();
-				if (icon != null) {
-					RenderSystem.enableBlend();
-					RenderSystem.defaultBlendFunc();
-					icon.render(pose, x, y);
-					RenderSystem.disableBlend();
-				}
-			}
+		GuiIcon icon = getStandIcon(standPower);
+		if (icon != null) {
+			RenderSystem.enableBlend();
+			RenderSystem.defaultBlendFunc();
+			icon.render(pose, x, y);
+			RenderSystem.disableBlend();
 		}
 	}
-	
+
+	@Nullable
+	public static GuiIcon getStandIcon(@Nullable StandPower standPower) {
+		StandSkin skin = standPower != null ? StandSkinsLoader.getInstance().getSkin(standPower) : null;
+		return skin != null ? skin.getStandIcon() : null;
+	}
+
 	protected static final Map<ResourceLocation, GuiIcon> POWER_ICONS = new HashMap<>();
 	public static GuiIcon getPowerIcon(PowerType powerType) {
 		return POWER_ICONS.computeIfAbsent(powerType.getId(), 
@@ -528,6 +536,24 @@ public class PowerHud {
 		public static final GuiIcon HORIZONTAL_FULL = new GuiIcon(JojoMod.resLoc("textures/hud/stand_resolve_horizontal_full.png"), 32, 16);
 		public static final GuiIcon VERTICAL_EMPTY = new GuiIcon(JojoMod.resLoc("textures/hud/stand_resolve_vertical_empty.png"), 16, 32);
 		public static final GuiIcon VERTICAL_FULL = new GuiIcon(JojoMod.resLoc("textures/hud/stand_resolve_vertical_full.png"), 16, 32);
+
+		// the official version's pips, the other layout of the level under the icon (ResolveHudLayout.PIPS)
+		public static final GuiIcon PIPS_EMPTY = pipSprite("stages_h");
+		public static final GuiIcon[] PIPS_FILLED = pipSprites("stage_%d_h");
+		public static final GuiIcon[] PIPS_OUTLINED = pipSprites("stage_unlocked%d_h");
+		public static final GuiIcon[] PIPS_MODE = pipSprites("lvl_%d_h");
+
+		private static GuiIcon pipSprite(String name) {
+			return new GuiIcon(JojoMod.resLoc("textures/hud/stand_resolve/stand_resolve_" + name + ".png"), 32, 16);
+		}
+
+		private static GuiIcon[] pipSprites(String name) {
+			GuiIcon[] sprites = new GuiIcon[ResolvePips.PIPS];
+			for (int i = 0; i < sprites.length; i++) {
+				sprites[i] = pipSprite(String.format(name, i + 1));
+			}
+			return sprites;
+		}
 
 		public static final int MAX_ACHIEVED_TINT = 0x66FFFFFF;
 		// Resolve level strip under the icon
@@ -637,7 +663,14 @@ public class PowerHud {
 
 			// 1.16 filled the Resolve icon by level / max level; the icon here shows the meter, so the level is a strip under it
 			int maxLevel = standPower.getMaxResolveLevel();
-			if (maxLevel > 0) {
+			ResolvePips.Shown pips = ClientModSettings.getSettingsReadOnly().resolveHudLayout == ResolveHudLayout.PIPS
+					? ResolvePips.of(standPower.getResolveLevel(), standPower.getHighestResolveLevel(), maxLevel,
+							ResolveModeEffect.getResolveEffectLvl(mc.player))
+					: null;
+			if (pips != null) {
+				renderPips(guiGraphics, pips, x, y + height);
+			}
+			else if (maxLevel > 0) {
 				int stripY = y + height + 1;
 				guiGraphics.fill(x, stripY, x + width, stripY + LEVEL_STRIP_HEIGHT, LEVEL_EMPTY_COLOR);
 				int levelWidth = Math.round(width * StandUtil.resolveLevelFill(standPower));
@@ -658,11 +691,32 @@ public class PowerHud {
 				if (multiplier > 1) {
 					Component multiplierText = Component.literal("x" + String.format("%.2f", multiplier));
 					StandSkin skin = StandSkinsLoader.getCurSkin();
-					guiGraphics.drawCenteredString(mc.font, multiplierText, x + width / 2, y + 20, skin != null ? skin.getColor() : 0xFFFFFFFF);
+					// the pips cover the rows the text takes under the strip
+					int textY = pips != null ? y + height + 10 : y + 20;
+					guiGraphics.drawCenteredString(mc.font, multiplierText, x + width / 2, textY, skin != null ? skin.getColor() : 0xFFFFFFFF);
 				}
 			}
 		}
-		
+
+		private static void renderPips(GuiGraphics guiGraphics, ResolvePips.Shown pips, int x, int y) {
+			PoseStack pose = guiGraphics.pose();
+			RenderSystem.enableBlend();
+			RenderSystem.defaultBlendFunc();
+			if (pips.modeLevel() > 0) {
+				PIPS_MODE[pips.modeLevel() - 1].render(pose, x, y);
+			}
+			else {
+				PIPS_EMPTY.render(pose, x, y);
+				if (pips.outlined() > 0) {
+					PIPS_OUTLINED[pips.outlined() - 1].render(pose, x, y);
+				}
+				if (pips.filled() > 0) {
+					PIPS_FILLED[pips.filled() - 1].render(pose, x, y);
+				}
+			}
+			RenderSystem.disableBlend();
+		}
+
 		@Override
 		protected void checkTooltip(double mouseX, double mouseY, DeltaTracker deltaTracker) {
 			StandPower standPower = ClientPowerCache.getPower(PowerClass.STAND);

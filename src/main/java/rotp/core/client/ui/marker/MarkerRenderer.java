@@ -99,7 +99,7 @@ public abstract class MarkerRenderer {
 				int color = getColor();
 				_abilityIconSprite = null;
 				if (iconAbilityName != null) {
-					_abilityIconSprite = StandSkinsLoader.getInstance().abilityIcons.getAbilityIcon(iconAbilityName, standSkin);
+					_abilityIconSprite = StandSkinsLoader.getInstance().abilityIcons.getMarkerIcon(iconAbilityName, standSkin);
 				}
 
 				positions.forEach(marker -> {

@@ -20,7 +20,7 @@ import rotp.core.client.entityanim.pose.AnimFramePose;
 import rotp.core.client.entityanim.pose.AnimFramePose.ModelPartFrame;
 
 /**
- * Loads the converted 1.16 Hamon and Pillar Man player clips with the production parser and checks the
+ * Loads the converted 1.16 Hamon, Pillar Man and vampire player clips with the production parser and checks the
  * evaluated pose. 1.16 keyed the legacy KosmX "torso" part, which the library applies to the whole body
  * before the model flip (blocks, y up, radians). At runtime the port "body" bone is in model space:
  * position px = (-16x, -16y, 16z), rotation rad = (-pitch, -yaw, roll). Expected values are raw 1.16 keys.
@@ -63,10 +63,18 @@ public final class LegacyBodyClipSmokeTest {
 		limb(hamon, "syo_barrage_start", 2, "left_leg_bend", 0.5293871760368347F, 0F, 0F);
 		limb(hamon, "punch_barrage", 4, "right_arm_bend", -2.356194496154785F, 0F, 0F);
 
+		// vampire/vampire_claws.json tick 12 (the swipe), and the bent knee of tick 2 and elbow of tick 12
+		Map<String, RotpAnimDefinition> vampire = load("vampire.animation.json");
+		poses += noUpperBodyTransform("vampire", vampire);
+		body(vampire, "vampire_claws", 12, -0.10222315788269043F, -0.010222330689430237F, -0.5429186820983887F,
+				0F, -1.7945476770401F, 0F);
+		limb(vampire, "vampire_claws", 2, "left_leg_bend", 1.2516417503356934F, 0F, 0F);
+		limb(vampire, "vampire_claws", 12, "right_arm_bend", -2.158273458480835F, 0F, 0F);
+
 		int barragePoses = punchBarragePlaysLike116(hamon);
 
-		System.out.println("Legacy body clip smoke test passed: " + (pillarMan.size() + hamon.size())
-				+ " clips parsed, " + poses + " poses without an upper-body transform, 14 donor anchors, "
+		System.out.println("Legacy body clip smoke test passed: " + (pillarMan.size() + hamon.size() + vampire.size())
+				+ " clips parsed, " + poses + " poses without an upper-body transform, 17 donor anchors, "
 				+ barragePoses + " punch_barrage poses on the 1.16 ping-pong clock");
 	}
 

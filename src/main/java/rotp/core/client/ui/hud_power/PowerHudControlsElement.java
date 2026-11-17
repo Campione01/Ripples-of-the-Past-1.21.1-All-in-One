@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -15,10 +16,12 @@ import javax.annotation.Nullable;
 
 import rotp.core.api.client.render.AbilitySelectionSurface;
 import rotp.core.api.client.render.AbilitySelectionVisualPolicies;
+import rotp.core.api.client.render.HeldItemButtonClaims;
 import rotp.core.client.ClientPowerCache;
 import rotp.core.client.input.AbilityInputState;
 import rotp.core.client.input.HeldKeyTimer;
 import rotp.core.client.input.InputHandler;
+import rotp.core.client.input.StandVanillaClickInput;
 import rotp.core.client.input.controlscheme.ClientControlScheme;
 import rotp.core.client.input.controlscheme.ClientControlScheme.AbilityControlsEntry;
 import rotp.core.client.input.controlscheme.ClientControlScheme.Hotbar;
@@ -26,6 +29,8 @@ import rotp.core.client.input.controlscheme.ClientControlScheme.HotbarSlot;
 import rotp.core.client.input.controlscheme.ClientControlScheme.InputsByKeyModifier;
 import rotp.core.client.input.controlscheme.ClientInputBind;
 import rotp.core.client.input.controlscheme.ClientKey;
+import rotp.core.client.input.controlscheme.HotbarSelectionRules;
+import rotp.core.client.input.controlscheme.VariationKey;
 import rotp.core.client.standskin.StandSkin;
 import rotp.core.client.standskin.StandSkinsLoader;
 import rotp.core.client.standskin.sprites.AbilityIconSprites;
@@ -34,6 +39,7 @@ import rotp.core.client.ui.AbilitySelectionWheel;
 import rotp.core.client.ui.hud_power.PowerHud.AbilityHud;
 import rotp.core.client.ui.utils.BlitFloat;
 import rotp.core.client.ui.utils.GuiIcon;
+import rotp.core.client.ui.utils.GuiItemIcon;
 import rotp.core.client.ui.utils.TextUtil;
 import rotp.core.client.ui.utils.tooltip.TooltipParams;
 import rotp.core.client.util.functions.ClientUtil;
@@ -43,6 +49,7 @@ import rotp.core.core.JojoMod;
 import rotp.core.powersystem.Power;
 import rotp.core.powersystem.PowerClass;
 import rotp.core.powersystem.ability.Ability;
+import rotp.core.powersystem.standpower.StandUtil;
 import rotp.core.powersystem.ability.condition.AvailableAbilities.AbilityConditionCheck;
 import rotp.core.powersystem.ability.condition.ConditionCheck;
 import rotp.core.powersystem.ability.controls.InputMethod;
@@ -69,6 +76,7 @@ import net.minecraft.util.FastColor;
 import net.minecraft.util.FastColor.ARGB32;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.settings.KeyModifier;
 import net.neoforged.neoforge.common.util.TriState;
 
@@ -190,6 +198,10 @@ public class PowerHudControlsElement extends HudElement {
 							ability.appendWarnings(tooltip, power, minecraft.player);
 						}
 					}
+					if (!slot.standItem.isEmpty()) {
+						tooltip.add(Component.translatable("ripples_hud.key_ability", slot.fullKeybind,
+								Component.translatable("jojo_ripples.ability.item_use")).withStyle(ChatFormatting.BLACK));
+					}
 					screen.setTooltipForNextRenderPass(TextUtil.splitMultiLine(minecraft.font, 
 							tooltip, TextUtil.TOOLTIP_MAX_WIDTH), new BelowOrAboveWidgetTooltipPositioner(rectangle), true);
 					TooltipParams.set(TooltipParams.paperStyle());
@@ -207,6 +219,7 @@ public class PowerHudControlsElement extends HudElement {
 	private static final int COOLDOWN_OVERLAY_COLOR = 0x7FFFFFFF;
 	/** 1.16 ActionsOverlayGui.renderActionIcon: fillSingleRect(0, 255, 0, 127) behind a held-ready icon. */
 	public static final int HELD_READY_TO_FIRE_FILL = 0x7F00FF00;
+	public static final int RUNNING_WITH_STAND_RECALLED_FILL = 0x7FFFC000;
 	/** 1.16 HotbarRenderer.renderSlotSelection with greenSelection: the frame tinted (0, 1, 0, hotbar alpha). */
 	public static final int GREEN_SELECTION = 0xFF00FF00;
 	
@@ -226,10 +239,16 @@ public class PowerHudControlsElement extends HudElement {
 		public Component fullKeybind;
 		@Nullable public KeyModifier modifier;
 		public Map<InputMethod, AbilityBindUI> abilities = new EnumMap<>(InputMethod.class);
-		
+		/** What the Stand's right click uses, when no ability is left on this button. */
+		public ItemStack standItem = ItemStack.EMPTY;
+
 		public int y;
 		public int keybindWidth;
 		public int width;
+
+		public int slotCount() {
+			return abilities.size() + (standItem.isEmpty() ? 0 : 1);
+		}
 	}
 
 	public static class HotbarUILine {
@@ -247,7 +266,8 @@ public class PowerHudControlsElement extends HudElement {
 	}
 	
 	public static class HotbarSlotUI {
-		public int slotIndex;
+		/** The number key that selects the slot (0 is the first key), or -1 for a slot that cannot be selected. */
+		public int numberKey;
 		public BindUI bind;
 		public AbilityBindUI sprite;
 		public Map<InputMethod, AbilityBindUI> abilities = new EnumMap<>(InputMethod.class);
@@ -272,7 +292,7 @@ public class PowerHudControlsElement extends HudElement {
 			@Nonnull KeyModifier modifier, @Nullable StandSkin standSkin) {
 		if (controlScheme == null) return;
 		ClientControlScheme.MoveGroup curGroup = controlScheme.getCurGroup();
-		if (modifier == KeyModifier.ALT) modifier = KeyModifier.NONE;
+		if (modifier == KeyModifier.ALT && VariationKey.modifier() != KeyModifier.ALT) modifier = KeyModifier.NONE;
 		AbilityIconSprites abilityIconSprites = StandSkinsLoader.getInstance().abilityIcons;
 		
 		InputHandler modInput = InputHandler.getInstance();
@@ -295,7 +315,10 @@ public class PowerHudControlsElement extends HudElement {
 				}
 			}
 			
-			if (!bindUI.abilities.isEmpty()) {
+			if (bindUI.abilities.isEmpty()) {
+				bindUI.standItem = StandVanillaClickInput.itemOnRightClick(controlScheme, key);
+			}
+			if (bindUI.slotCount() > 0) {
 				bindUI.mainKey = getKeyName(key);
 				bindUI.modifierKey = getModifierName(bindUI.modifier);
 				bindUI.fullKeybind = getKeyName(key, bindUI.mainKey, bindUI.modifier);
@@ -305,7 +328,7 @@ public class PowerHudControlsElement extends HudElement {
 					bindUI.keybindWidth = Math.max(bindUI.keybindWidth, font.width(bindUI.modifierKey));
 				bindUI.keybindWidth += 4;
 				
-				bindUI.width = bindUI.keybindWidth + bindUI.abilities.size() * SLOT_WIDTH + 4;
+				bindUI.width = bindUI.keybindWidth + bindUI.slotCount() * SLOT_WIDTH + 4;
 				this.binds.add(bindUI);
 			}
 		}
@@ -327,20 +350,18 @@ public class PowerHudControlsElement extends HudElement {
 				
 				hotbarUI.isSelectingAbility = modInput.isSelectingAbility(hotbar);
 				hotbarUI.highlight = hotbarUI.isSelectingAbility && !hotbar.alwaysSwitchAbility();
+				boolean[] selectable = hotbar.selectableSlots();
 
-				CompactStandHotbarWindow.Range visibleRange = CompactStandHotbarWindow.visibleRange(
-						hotbar.slots.size(), hotbar.slotIndex, compactHotbarDisplay);
-				for (int slotPosition = visibleRange.startInclusive();
-						slotPosition < visibleRange.endExclusive(); slotPosition++) {
-					ClientControlScheme.HotbarSlot slot = hotbar.slots.get(slotPosition);
+				for (ClientControlScheme.HotbarSlot slot : hotbar.slots) {
 					HotbarSlotUI slotUI = new HotbarSlotUI();
 					ClientKey key = input.getKey();
 					slotUI.bind = new BindUI();
 					slotUI.bind.mainKey = getKeyName(key);
-					slotUI.bind.modifierKey = getModifierName(input.getKeyModifier());
-					slotUI.bind.fullKeybind = getKeyName(key, slotUI.bind.mainKey, input.getKeyModifier());
-					slotUI.slotIndex = slot.index;
-					
+					KeyModifier slotModifier = hotbarDisplayModifier != KeyModifier.NONE ? hotbarDisplayModifier : input.getKeyModifier();
+					slotUI.bind.modifierKey = getModifierName(slotModifier);
+					slotUI.bind.fullKeybind = getKeyName(key, slotUI.bind.mainKey, slotModifier);
+					slotUI.numberKey = HotbarSelectionRules.numberKeyOfSlot(slot.index, selectable);
+
 					for (InputMethod inputMethod : InputMethod.values()) {
 						AbilityControlsEntry abilityEntry = slot.getBinds().getFirst(hotbarDisplayModifier, inputMethod);
 						if (abilityEntry != null) {
@@ -359,12 +380,20 @@ public class PowerHudControlsElement extends HudElement {
 							}
 						}
 					}
-					if (hotbarUI.isSelectingAbility || !slotUI.abilities.isEmpty()) {
+					// the row shows what can be used: a slot with nothing to draw takes no room, while selecting neither
+					if (!slotUI.abilities.isEmpty()) {
 						hotbarUI.slots.add(slotUI);
 						if (slot == selectedSlot) {
 							hotbarUI.selected = slotUI;
 						}
 					}
+				}
+				CompactStandHotbarWindow.Range visibleRange = CompactStandHotbarWindow.visibleRange(
+						hotbarUI.slots.size(), hotbarUI.slots.indexOf(hotbarUI.selected), compactHotbarDisplay);
+				hotbarUI.slots = new ArrayList<>(hotbarUI.slots.subList(visibleRange.startInclusive(), visibleRange.endExclusive()));
+				// nothing unlocked yet: no key, no hint and no room for them
+				if (hotbarUI.slots.isEmpty()) {
+					continue;
 				}
 
 				ClientKey hotbarKey = input.getKey();
@@ -406,7 +435,7 @@ public class PowerHudControlsElement extends HudElement {
 			hoverableAbilities.add(Pair.of(bind, new ScreenRectangle(
 					this.getX() + bind.keybindWidth, 
 					this.getY() + y, 
-					bind.abilities.size() * SLOT_WIDTH + 2, SLOT_HEIGHT + 2)));
+					bind.slotCount() * SLOT_WIDTH + 2, SLOT_HEIGHT + 2)));
 			y += SLOT_HEIGHT + 2;
 		}
 		for (HotbarUILine hotbar : this.hotbars) {
@@ -431,11 +460,11 @@ public class PowerHudControlsElement extends HudElement {
 	}
 
 	/**
-	 * 1.16 ActionsOverlayGui.resolveVisibleActionInSlot: with Shift held a slot shows its Shift variation (the base
+	 * 1.16 ActionsOverlayGui.resolveVisibleActionInSlot: with the variation key held a slot shows its variation (the base
 	 * one while that is locked), Stand hotbars included. Other modifiers still leave a Stand hotbar on its base.
 	 */
 	static KeyModifier hotbarDisplayModifier(boolean standHotbar, KeyModifier modifier) {
-		return standHotbar && modifier != KeyModifier.SHIFT ? KeyModifier.NONE : modifier;
+		return standHotbar && modifier != VariationKey.modifier() ? KeyModifier.NONE : modifier;
 	}
 
 	private void updateWarnings(@Nullable Player player) {
@@ -535,7 +564,7 @@ public class PowerHudControlsElement extends HudElement {
 		textColor &= alpha;
 		
 		for (BindUI bind : this.binds) {
-			GuiIcon hotbarSprite = getHotbarSprite(bind.abilities.size());
+			GuiIcon hotbarSprite = getHotbarSprite(bind.slotCount());
 			if (hotbarSprite != null) {
 				int x0 = x;
 				int y0 = y;
@@ -566,7 +595,19 @@ public class PowerHudControlsElement extends HudElement {
 				for (Map.Entry<InputMethod, AbilityBindUI> abilitySprite : bind.abilities.entrySet()) {
 					AbilityBindUI ability = abilitySprite.getValue();
 					boolean heldReadyToFire = renderHeldReadyToFire(guiGraphics, x, y, ability, mc);
-					renderAbility(guiGraphics, x, y, ability, mc, partialTick, alpha);
+					if (!heldReadyToFire) {
+						renderRunningWithStandRecalled(guiGraphics, x, y, ability, mc);
+					}
+					ItemStack claimingItem = HeldItemButtonClaims.claimingItem(mc.player, claimedButton(ability.key));
+					if (!claimingItem.isEmpty()) {
+						// the held item takes this button's press: its slot shows the item, not the Stand move
+						GuiItemIcon.render(guiGraphics, null, claimingItem, x + 3, y + 3, alpha);
+						RenderSystem.enableBlend();
+						RenderSystem.defaultBlendFunc();
+					}
+					else {
+						renderAbility(guiGraphics, x, y, ability, mc, partialTick, alpha);
+					}
 
 					boolean isClicked = controlsEnabled && switch (ability.inputMethod) {
 						case CLICK -> {
@@ -596,8 +637,13 @@ public class PowerHudControlsElement extends HudElement {
 					if (selectionTint.isPresent() || isClicked) {
 						HOTBAR_SELECTION.render(guiGraphics.pose(), x - 15, y - 15, frameTint);
 					}
-					
+
 					x += SLOT_WIDTH;
+				}
+				if (!bind.standItem.isEmpty()) {
+					guiGraphics.renderItem(bind.standItem, x + 3, y + 3);
+					RenderSystem.enableBlend();
+					RenderSystem.defaultBlendFunc();
 				}
 
 				x = x0;
@@ -627,6 +673,9 @@ public class PowerHudControlsElement extends HudElement {
 				for (HotbarSlotUI slot : hotbar.slots) {
 					boolean heldReadyToFire = slot.sprite != null
 							&& renderHeldReadyToFire(guiGraphics, x, y, slot.sprite, mc);
+					if (slot.sprite != null && !heldReadyToFire) {
+						renderRunningWithStandRecalled(guiGraphics, x, y, slot.sprite, mc);
+					}
 					if (slot.sprite != null) {
 						renderAbility(guiGraphics, x, y, slot.sprite, mc, partialTick, alpha);
 					}
@@ -672,11 +721,9 @@ public class PowerHudControlsElement extends HudElement {
 				if (hotbar.isSelectingAbility) {
 					x += 18;
 					for (HotbarSlotUI slot : hotbar.slots) {
-						if (!slot.abilities.isEmpty()) {
-							int numberKey = HotbarSlot.numberKey(slot.slotIndex);
-							if (numberKey != -1) {
-								guiGraphics.drawString(font, String.valueOf(numberKey), x, y, textColor);
-							}
+						int numberKey = HotbarSlot.numberKey(slot.numberKey);
+						if (numberKey != -1) {
+							guiGraphics.drawString(font, String.valueOf(numberKey), x, y, textColor);
 						}
 						x += SLOT_WIDTH;
 					}
@@ -718,6 +765,32 @@ public class PowerHudControlsElement extends HudElement {
 		RenderSystem.enableBlend();
 		RenderSystem.defaultBlendFunc();
 		return true;
+	}
+
+	@Nullable
+	static HeldItemButtonClaims.Button claimedButton(@Nullable ClientKey key) {
+		return InputHandler.LMB.equals(key) ? HeldItemButtonClaims.Button.LEFT
+				: InputHandler.RMB.equals(key) ? HeldItemButtonClaims.Button.RIGHT : null;
+	}
+
+	/*
+	 * The owner's 收回仍持續: a skill that goes on with its Stand recalled (Ability#cl_runsWithStandRecalled) has its slot
+	 * lit while the Stand is away, behind the icon as the held-ready fill, in gold.
+	 */
+	private static void renderRunningWithStandRecalled(GuiGraphics guiGraphics, int x, int y, AbilityBindUI abilityUi, Minecraft mc) {
+		Ability ability = abilityUi.ability.ability;
+		if (mc.player == null || !showsRunningWithStandRecalled(StandUtil.getSummonedStand(mc.player) != null,
+				ability.abilityId.powerClass() == PowerClass.STAND, () -> ability.cl_runsWithStandRecalled(mc.player))) {
+			return;
+		}
+		guiGraphics.fill(x + 1, y + 1, x + 21, y + 21, RUNNING_WITH_STAND_RECALLED_FILL);
+		RenderSystem.enableBlend();
+		RenderSystem.defaultBlendFunc();
+	}
+
+	// only a Stand-power ability, only with no Stand out: with the Stand out its own slot drawing tells the state
+	static boolean showsRunningWithStandRecalled(boolean standOut, boolean standPowerAbility, BooleanSupplier runs) {
+		return !standOut && standPowerAbility && runs.getAsBoolean();
 	}
 
 	public static void renderAbility(GuiGraphics guiGraphics, float x, float y, AbilityBindUI abilityUi, Minecraft mc, float partialTick, int alpha) {
@@ -820,6 +893,9 @@ public class PowerHudControlsElement extends HudElement {
 		if (key == null) {
 			return NOT_BOUND;
 		}
+		if (modifier == VariationKey.BORROWED_MODIFIER && VariationKey.isBorrowing()) {
+			return Component.empty().append(VariationKey.displayName()).append(" + ").append(keyName);
+		}
 		return modifier != null ? modifier.getCombinedName(key.getVanillaKey(), () -> keyName) : keyName;
 	}
 	
@@ -848,6 +924,7 @@ public class PowerHudControlsElement extends HudElement {
 	@Nullable
 	public static Component getModifierName(KeyModifier modifier) {
 		if (modifier == null) return null;
+		if (modifier == VariationKey.BORROWED_MODIFIER && VariationKey.isBorrowing()) return VariationKey.displayName();
 		return switch (modifier) {
 			case CONTROL -> Minecraft.ON_OSX ? CONTROL_MAC : CONTROL;
 			case SHIFT -> SHIFT;

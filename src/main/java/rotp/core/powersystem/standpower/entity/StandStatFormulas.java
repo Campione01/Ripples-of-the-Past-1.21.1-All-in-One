@@ -16,13 +16,36 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public class StandStatFormulas {
 
+	/** The top of the ordinary power scale: above it only damage follows a Stand's power, so every other use reads this cap. */
+	public static final double ORDINARY_POWER_CAP = 21;
+
+	public static double ordinaryPower(double strength) {
+		return Math.min(strength, ORDINARY_POWER_CAP);
+	}
+
 	public static float getHeavyAttackDamage(double strength) {
 		float damage = Math.max((float) strength, 1F);
 		return damage;
 	}
 
 	public static float getHeavyAttackKnockback(double strength, float finisherMeter) {
-		return 0.5F + (float) strength / (8 - finisherMeter * 4);
+		return 0.5F + (float) ordinaryPower(strength) / (8 - finisherMeter * 4);
+	}
+
+	public static float getUppercutKnockback(double strength, float finisherMeter) {
+		return 0.5F + (float) ordinaryPower(strength) / 16 * finisherMeter;
+	}
+
+	public static float getHeavyPunchBlastRadius(double strength) {
+		return Math.min((float) ordinaryPower(strength) * 0.175f, 10);
+	}
+
+	public static float getChargedHeavyBlastRadius(double strength) {
+		return Math.min((float) ordinaryPower(strength) * 0.25F, 10);
+	}
+
+	public static float getBlockShardVelocity(double strength) {
+		return 0.5f + (float) ordinaryPower(strength) * 0.05f;
 	}
 	
 	public static int getHeavyAttackWindup(double speed, float finisherMeter) {
@@ -48,7 +71,9 @@ public class StandStatFormulas {
 	}
 
 	private static final Random RANDOM = new Random();
-	public static int getLightAttackWindup(double speed, float finisherMeter, float guardCounter, boolean firstPunch) {
+
+	/** The light windup in ticks before it is rounded to whole ticks: the mean of the ticks it takes. */
+	public static double getLightAttackWindupMean(double speed, float finisherMeter, float guardCounter, boolean firstPunch) {
 		double val = (24 - speed) / 4;
 		if (val <= 0) return 0;
 
@@ -60,14 +85,47 @@ public class StandStatFormulas {
 		if (firstPunch) {
 			val /= 2;
 		}
+		return val;
+	}
 
-		int ticks = Mth.floor(val);
-		if (RANDOM.nextDouble() < val - ticks) ticks++;
-		return ticks;
+	public static int getLightAttackWindup(double speed, float finisherMeter, float guardCounter, boolean firstPunch) {
+		return roundAtRandom(getLightAttackWindupMean(speed, finisherMeter, guardCounter, firstPunch));
 	}
 
 	public static int getLightAttackWindup(double speed, float finisherMeter, boolean firstPunch) {
 		return getLightAttackWindup(speed, finisherMeter, 0, firstPunch);
+	}
+
+	/**
+	 * The light windup of a punch in a sequence of punches (owner, 2026-11-14). A first punch whose windup is above 0 and
+	 * below a tick takes the tick, where rounding at random left it none as often as the windup fell short of the tick;
+	 * what it takes beyond its windup, the carry, comes off the windups of the next punches of its sequence, and a windup
+	 * of a tick or more never goes below a tick for it. Every other windup rounds as
+	 * {@link #getLightAttackWindup(double, float, float, boolean)} rounds it, so a sequence keeps the formula's mean windup
+	 * but for the carry still unpaid when it ends, which is below a tick.
+	 * @param carry the carry the punch before this one in its sequence left; a first punch starts the sequence without one
+	 */
+	public static LightWindup getLightAttackWindup(double speed, float finisherMeter, float guardCounter, boolean firstPunch,
+			double carry) {
+		double mean = getLightAttackWindupMean(speed, finisherMeter, guardCounter, firstPunch);
+		if (firstPunch) {
+			return mean > 0 && mean < 1 ? new LightWindup(1, 1 - mean) : new LightWindup(roundAtRandom(mean), 0);
+		}
+		double least = mean >= 1 ? 1 : 0;
+		double owed = Math.max(carry, 0);
+		double paid = Math.min(owed, Math.max(mean - least, 0));
+		return new LightWindup(roundAtRandom(Math.max(mean - paid, least)), owed - paid);
+	}
+
+	/** A light windup in whole ticks, and the carry its sequence's next punch takes off its own windup. */
+	public record LightWindup(int ticks, double carry) {}
+
+	// whole ticks, the part of a tick taken as often as it is long
+	private static int roundAtRandom(double ticks) {
+		if (ticks <= 0) return 0;
+		int whole = Mth.floor(ticks);
+		if (RANDOM.nextDouble() < ticks - whole) whole++;
+		return whole;
 	}
 	
 	public static int getLightAttackRecovery(double speed, float finisherMeter) {
@@ -94,6 +152,16 @@ public class StandStatFormulas {
 		return getBarrageHitDamage(strength, 0);
 	}
 
+	/** The lowest pitch of a barrage swing; each swing adds up to 0.2. */
+	public static float getBarrageSwingPitch(double strength) {
+		return 1.8F - (float) ordinaryPower(strength) * 0.05F;
+	}
+
+	/** The share of the normal knockback a barrage hit gives. */
+	public static float getBarrageKnockbackFactor(double strength) {
+		return Mth.clamp((float) ordinaryPower(strength) * 0.0075F, 0, 1);
+	}
+
 	public static int getBarrageHitsPerSecond(double speed) {
 		return Math.max((int) (speed * 8.0 - 20.0), 0);
 	}
@@ -107,9 +175,25 @@ public class StandStatFormulas {
 	}
 
 
+	/** The punch's own part of the charged heavy: power x 1.5, at least 1.5. */
 	public static float getChargedHeavyAttackDamage(double strength) {
 		float damage = Math.max((float) strength, 1F) * 1.5f;
 		return damage;
+	}
+
+	public static final float CHARGED_HEAVY_OVER_BARRAGE = 1.1F;
+
+	/**
+	 * A fully charged heavy punch (owner, 2026-11): the larger of power x 1.5 and 1.1 x the barrage damage a second of
+	 * the same stats, so it hits harder than a second of barrage at every Resolve level.
+	 */
+	public static float getChargedHeavyAttackDamage(double strength, double speed, double precision) {
+		return Math.max(getChargedHeavyAttackDamage(strength),
+				getBarrageDamagePerSecond(strength, speed, precision) * CHARGED_HEAVY_OVER_BARRAGE);
+	}
+
+	public static float getBarrageDamagePerSecond(double strength, double speed, double precision) {
+		return getBarrageHitDamage(strength, precision) * getBarrageHitsPerSecond(speed);
 	}
 
 	public static float getChargedHeavyButtonWindup(double speed, float finisherMeter) {
@@ -122,7 +206,7 @@ public class StandStatFormulas {
 
 
 	public static float getPhysicalResistance(double durability, double strength, float blocked, float damageDealt) {
-		double x = (durability * 2 + strength * 1) / 3;
+		double x = (durability * 2 + ordinaryPower(strength) * 1) / 3;
 		double resistance = x / (x + 4); // simplified `1 - 1 / (x / 4 + 1)`
 		double dmgCoeff = 1;
 
@@ -171,7 +255,7 @@ public class StandStatFormulas {
 	
 
 	public static float getLeapStrength(double strength) {
-		return (float) Math.min(strength, 40) / 5F;
+		return (float) ordinaryPower(strength) / 5F;
 	}
 
 	public static float getLeapChargeTime(double speed) {
@@ -225,8 +309,13 @@ public class StandStatFormulas {
 		return (float) (1 - 0.75 * past);
 	}
 	
+	public static double getKnockedOutToothSpeed(double strength) {
+		return Math.max(ordinaryPower(strength), 2.0D) * 0.05D;
+	}
+
 	// * 8.5618
 	public static float projectileVelocityScaling(double strength, float velocity) {
+		strength = ordinaryPower(strength);
 		if (strength > 8) {
 			float multiplier = ((float) strength - 8) / 12f + 1;
 			velocity *= multiplier;
@@ -280,7 +369,7 @@ public class StandStatFormulas {
 		 * 17 - netherite
 		 * 20 - netherite+
 		 */
-		int tier = (int) (strength - 2) / 3;
+		int tier = (int) (ordinaryPower(strength) - 2) / 3;
 		return miningTiers[Mth.clamp(tier, 0, miningTiers.length - 1)];
 	}
 	
@@ -337,16 +426,26 @@ public class StandStatFormulas {
 	}
 	
 	public static float getBlockMiningEfficiency(double strength) {
+		strength = ordinaryPower(strength);
 		return strength > 17 ? (float) (strength - 16.5) * 2 : 1;
 	}
 	
+	public static double maxBreakableHardness(double strength) {
+		return Math.exp(ordinaryPower(strength) / 4);
+	}
+
+	/** The index of the legacy (1.16) harvest tier a punch of this power reaches, before the clamp to the tier list. */
+	public static int getLegacyHarvestTier(double strength) {
+		return (int) ordinaryPower(strength) / 4;
+	}
+
 	public static boolean isBlockBreakable(double strength, BlockState blockState, Level level, BlockPos blockPos) {
 		float hardness = blockState.getDestroySpeed(level, blockPos);
 		if (hardness < 0) {
 			return false;
 		}
 		BlockMiningTier harvestTier = getStandHarvestLevel(strength);
-		return harvestTier.canMine(blockState) && hardness < Math.exp(strength / 4);
+		return harvestTier.canMine(blockState) && hardness < maxBreakableHardness(strength);
 	}
 
 	public static boolean canGrabBlock(double strength, BlockState blockState, Level level, BlockPos blockPos) {
