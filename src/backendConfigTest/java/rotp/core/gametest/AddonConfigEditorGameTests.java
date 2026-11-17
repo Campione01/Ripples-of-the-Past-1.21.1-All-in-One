@@ -86,9 +86,12 @@ public final class AddonConfigEditorGameTests {
 			}
 		}
 
-		// what the earlier lane saw natively: a read-only TOML makes FML's atomic write fail
+		// FML saves with NightConfig's REPLACE_ATOMIC: a sibling *.new.tmp file, then a move over the TOML. On Windows a
+		// read-only TOML stops the move; on Linux a move replaces a read-only file in a writable folder, so the fixture's
+		// own folder is made read-only too and the temp file cannot be created there.
 		void failing(boolean failing) {
 			config.getFullPath().toFile().setWritable(!failing);
+			folder.toFile().setWritable(!failing);
 		}
 
 		void close() throws IOException {
